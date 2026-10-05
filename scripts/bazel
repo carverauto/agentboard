@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Wrapper: every bazel invocation from agents/scripts gets --config=remote
+# unless the caller already passed a config= remote|ci|cache_only.
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$root"
+
+if [[ ! -f .bazelrc.remote ]]; then
+  echo "scripts/bazel: missing .bazelrc.remote (copy from .bazelrc.remote.example and set the BuildBuddy API key)" >&2
+  exit 1
+fi
+
+has_config=0
+for arg in "$@"; do
+  case "$arg" in
+    --config=remote|--config=ci|--config=cache_only|--config=remote_base) has_config=1 ;;
+  esac
+done
+
+if [[ $# -lt 1 ]]; then
+  exec bazel
+fi
+
+if [[ $has_config -eq 0 ]]; then
+  cmd="$1"
+  shift
+  exec bazel "$cmd" --config=remote "$@"
+fi
+exec bazel "$@"

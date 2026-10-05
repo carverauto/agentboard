@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Lightweight repo health check. Does not compile locally.
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$root"
+
+echo "== agentboard check =="
+
+if [[ ! -f .bazelrc.remote ]]; then
+  echo "WARN: .bazelrc.remote missing — copy .bazelrc.remote.example and add your BuildBuddy API key"
+else
+  echo "OK: .bazelrc.remote present (gitignored)"
+fi
+
+if git check-ignore -q .bazelrc.remote; then
+  echo "OK: .bazelrc.remote is gitignored"
+else
+  echo "FAIL: .bazelrc.remote is not ignored by git" >&2
+  exit 1
+fi
+
+if git ls-files --error-unmatch .bazelrc.remote >/dev/null 2>&1; then
+  echo "FAIL: .bazelrc.remote is tracked — remove it from the index immediately" >&2
+  exit 1
+fi
+
+echo "OK: tracked tree does not include BuildBuddy credentials"
+echo
+echo "Build/test with remote execution only:"
+echo "  ./scripts/bazel build //cmd/ab:ab"
+echo "  ./scripts/bazel test //..."
+echo "Never: go build / mix compile / bazel without --config=remote on this laptop."

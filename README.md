@@ -61,4 +61,49 @@ ab quota list --json
 3. **Quota + skills** — `ab quota push`, quota panel, shared + per-harness agent skills  
 4. **Hardening** — claim TTL tuning, deploy docs; revisit JetStream only if fan-out demands it  
 
+
+## Build
+
+Bazel + BuildBuddy from day one (same remote-exec pattern as ServiceRadar / Contour).
+
+1. Install [Bazelisk](https://github.com/bazelbuild/bazelisk) (this repo pins `.bazelversion`).
+2. Copy credentials (gitignored):
+
+   ```bash
+   cp .bazelrc.remote.example .bazelrc.remote
+   # edit .bazelrc.remote — set x-buildbuddy-api-key
+   ```
+
+3. Build / test **only** with remote execution:
+
+   ```bash
+   ./scripts/bazel build //cmd/ab:ab
+   ./scripts/bazel build //:all_placeholders
+   # or: bazel build --config=remote //cmd/ab:ab
+   ```
+
+**Do not** compile on the shared Mac (`go build`, `mix compile`, or bare `bazel` without `--config=remote`). BuildBuddy workflows use `--config=ci` (see `buildbuddy.yaml`).
+
+## Deploy
+
+Target: **farm01** Kubernetes. Layout under `k8s/`:
+
+| Piece | Manifest |
+| --- | --- |
+| Namespace `agentboard` | `k8s/base/namespace.yaml` |
+| CNPG `Cluster` `agentboard-db` | `k8s/base/cnpg.yaml` (dedicated cluster, DB/role `agentboard`) |
+| ConfigMap | `k8s/base/configmap.yaml` |
+| Dashboard Deployment + Service | `k8s/base/dashboard.yaml` |
+| Schema migration Job | `k8s/base/migration.yaml` |
+| farm01 overlay | `k8s/overlays/farm01` (`local-path-cnpg`, internal `PHX_HOST`) |
+
+Out-of-band secrets (not in git): `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry`.
+
+```bash
+kubectl kustomize k8s/overlays/farm01
+# Prefer an Argo CD Application; do not apply destructive changes from a gate worktree.
+```
+
+v1 is trusted-internal only (no auth). No NATS in the deploy path.
+
 Full requirements, schema sketch, non-goals, and open questions: **[PRD #1](https://github.com/carverauto/agentboard/issues/1)**.

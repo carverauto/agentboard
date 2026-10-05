@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: agentboard
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: Cluster
+      name: agentboard-db
+    patch: |-
+      - op: add
+        path: /spec/storage/storageClass
+        value: local-path-cnpg
+configMapGenerator:
+  - name: agentboard-config
+    behavior: merge
+    literals:
+      # Internal hostname — captain to confirm DNS / Tailscale exposure.
+      - PHX_HOST=agentboard.farm01.carverauto.dev
+      - DATABASE_HOST=agentboard-db-rw.agentboard.svc.cluster.local
+generatorOptions:
+  disableNameSuffixHash: true
+images:
+  - name: registry.carverauto.dev/agentboard/dashboard
+    newTag: build-required

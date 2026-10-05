@@ -1,0 +1,13 @@
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "manifests",
+    srcs = glob(
+        [
+            "base/**/*.yaml",
+            "overlays/**/*.yaml",
+            "README.md",
+        ],
+        allow_empty = True,
+    ),
+)

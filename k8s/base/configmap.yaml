@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agentboard-config
+  labels:
+    app.kubernetes.io/name: agentboard
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+data:
+  PHX_SERVER: "true"
+  PORT: "4000"
+  # Trusted internal network: no auth in v1 (see PRD #1).
+  AGENTBOARD_AUTH: "none"
+  DATABASE_HOST: agentboard-db-rw
+  DATABASE_NAME: agentboard
+  DATABASE_PORT: "5432"
+  POOL_SIZE: "10"

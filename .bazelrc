@@ -1,0 +1,41 @@
+# agentboard Bazel defaults. Credentials and machine-local overrides live in
+# gitignored files imported last (see below). Prefer --config=remote for every
+# build/test; do not compile on the shared Mac laptop.
+common --enable_bzlmod
+common --noannounce_rc
+common --color=yes
+build --incompatible_strict_action_env
+test --test_output=errors
+test --flaky_test_attempts=1
+
+# Shared BuildBuddy cache + build events (no credentials here).
+build:cache_only --remote_cache=grpcs://cache-proxy.carverauto.dev:443
+build:cache_only --remote_bytestream_uri_prefix=carverauto.buildbuddy.io
+build:cache_only --bes_backend=grpcs://carverauto.buildbuddy.io
+build:cache_only --bes_results_url=https://carverauto.buildbuddy.io/invocation/
+build:cache_only --remote_cache_compression
+
+# Workstation remote execution. Agents and humans should use this profile.
+build:remote --config=cache_only
+build:remote --remote_executor=grpcs://carverauto.buildbuddy.io
+build:remote --host_platform=//build/rbe:platform
+build:remote --platforms=//build/rbe:platform
+build:remote --extra_execution_platforms=//build/rbe:platform
+build:remote --remote_download_minimal
+build:remote --remote_timeout=15m
+build:remote --jobs=50
+build:remote --compilation_mode=opt
+build:remote --cpu=k8
+build:remote --disk_cache=~/.cache/agentboard-bazel/disk
+build:remote --repository_cache=~/.cache/agentboard-bazel/repo
+
+# CI / BuildBuddy workflows (in-cluster runners inherit remote).
+build:ci --config=remote
+build:ci --build_metadata=REPO_URL=https://github.com/carverauto/agentboard
+build:ci --build_metadata=ROLE=CI
+
+# Optional local overrides, then credentials. KEEP .bazelrc.remote LAST so it
+# can override configs defined above. Never commit these files.
+try-import %workspace%/.bazelrc.local
+try-import %workspace%/user.bazelrc
+try-import %workspace%/.bazelrc.remote

@@ -1,0 +1,18 @@
+package(default_visibility = ["//visibility:public"])
+
+# Go CLI entrypoint (agents call `ab`).
+alias(
+    name = "ab",
+    actual = "//cmd/ab:ab",
+)
+
+# Convenience filegroups while the Phoenix dashboard and release packaging
+# are still stubs.
+filegroup(
+    name = "all_placeholders",
+    srcs = [
+        "//cmd/ab:ab",
+        "//web:srcs",
+        "//k8s:manifests",
+    ],
+)

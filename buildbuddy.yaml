@@ -1,0 +1,21 @@
+# Adapted from Contour/ServiceRadar BuildBuddy workflow setup.
+# No embedded credentials — the workflow runner injects the BuildBuddy key.
+actions:
+  - name: AgentboardFoundation
+    self_hosted: true
+    pool: workflows
+    container_image: docker://registry.carverauto.dev/serviceradar/buildbuddy-workflow-runner:v1.0.24.5@sha256:7f64c7cdf563c032ed7c5546eb9e4492cd527df64a615b55788fc518aa8752dd
+    platform_properties:
+      OSFamily: linux
+      Arch: amd64
+      dockerNetwork: bridge
+    resource_requests:
+      memory: 8GB
+      disk: 20GB
+    triggers:
+      push:
+        branches: [main]
+      pull_request:
+        branches: [main]
+    steps:
+      - run: bazel build --config=ci //cmd/ab:ab //web:srcs //k8s:manifests

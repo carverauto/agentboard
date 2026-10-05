@@ -1,0 +1,10 @@
+package(default_visibility = ["//visibility:public"])
+
+# Placeholder for the Phoenix LiveView dashboard package.
+filegroup(
+    name = "srcs",
+    srcs = glob(
+        ["**/*"],
+        allow_empty = True,
+    ),
+)

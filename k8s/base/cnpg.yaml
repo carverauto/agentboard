@@ -1,0 +1,47 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: agentboard-db
+  labels:
+    app.kubernetes.io/name: agentboard
+    app.kubernetes.io/component: database
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  # Dedicated CNPG Cluster for agentboard (not a database on a shared instance).
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.4
+  enableSuperuserAccess: false
+  storage:
+    size: 20Gi
+  bootstrap:
+    initdb:
+      database: agentboard
+      owner: agentboard
+      secret:
+        name: agentboard-db-credentials
+  managed:
+    roles:
+      - name: agentboard
+        ensure: present
+        login: true
+        passwordSecret:
+          name: agentboard-db-credentials
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: 128MB
+      password_encryption: scram-sha-256
+    pg_hba:
+      - hostssl all all all scram-sha-256
+      - hostnossl all all all reject
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: preferred
+    topologyKey: kubernetes.io/hostname

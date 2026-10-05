@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+package(default_visibility = ["//visibility:public"])
+
+go_library(
+    name = "ab_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/carverauto/agentboard/cmd/ab",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "ab",
+    embed = [":ab_lib"],
+)
