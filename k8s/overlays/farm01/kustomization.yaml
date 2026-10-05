@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: agentboard
 resources:
   - ../../base
+  - httproute.yaml
 patches:
   - target:
       kind: Cluster
@@ -15,7 +16,7 @@ configMapGenerator:
   - name: agentboard-config
     behavior: merge
     literals:
-      # Internal hostname — captain to confirm DNS / Tailscale exposure.
+      # Captain-confirmed hostname (2026-10-05).
       - PHX_HOST=agentboard.farm01.carverauto.dev
       - DATABASE_HOST=agentboard-db-rw.agentboard.svc.cluster.local
 generatorOptions:

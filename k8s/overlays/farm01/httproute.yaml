@@ -1,0 +1,42 @@
+# farm01 edge Gateway API routes.
+# Parent Gateway: farm01-gateway in farm01-edge (see gitops clusters/farm01/manifests/envoy-gateway.yaml).
+# Note: that Gateway's listeners currently match *.k8s-farm.carverauto.dev only;
+# agentboard.farm01.carverauto.dev is the captain-confirmed hostname and may need
+# a matching listener / cert SAN before Programmed=True.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: agentboard-https
+  labels:
+    app.kubernetes.io/name: agentboard
+spec:
+  parentRefs:
+    - name: farm01-gateway
+      namespace: farm01-edge
+      sectionName: https
+  hostnames:
+    - agentboard.farm01.carverauto.dev
+  rules:
+    - backendRefs:
+        - name: agentboard-dashboard
+          port: 4000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: agentboard-http-redirect
+  labels:
+    app.kubernetes.io/name: agentboard
+spec:
+  parentRefs:
+    - name: farm01-gateway
+      namespace: farm01-edge
+      sectionName: http
+  hostnames:
+    - agentboard.farm01.carverauto.dev
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
