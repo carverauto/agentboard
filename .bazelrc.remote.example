@@ -1,0 +1,3 @@
+# Copy to .bazelrc.remote and replace the placeholder with your BuildBuddy API key.
+# .bazelrc.remote is gitignored — never commit a real key.
+common --remote_header=x-buildbuddy-api-key=REPLACE_WITH_BUILDBUDDY_API_KEY

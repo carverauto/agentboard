@@ -1,0 +1,52 @@
+# Local env and secrets
+.env
+.env.*
+!.env.example
+/k8s/secrets/
+
+# Local Bazel overrides and BuildBuddy credentials (NEVER commit).
+/.bazelrc.remote
+/.bazelrc.local
+/user.bazelrc
+/bazel-*
+/.local/
+/.bazel_output/
+
+# Go / Bazel
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Elixir / Mix (Phoenix dashboard)
+/_build/
+**/_build/
+/deps/
+**/deps/
+/cover/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+/priv/static/assets/
+**/priv/static/assets/
+/priv/static/cache_manifest.json
+**/priv/static/cache_manifest.json
+npm-debug.log
+/assets/node_modules/
+/web/assets/node_modules/
+/web/node_modules/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Python helper bytecode
+__pycache__/
+*.pyc
