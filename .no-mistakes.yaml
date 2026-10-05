@@ -1,0 +1,104 @@
+# no-mistakes gate configuration. Read only from the trusted copy on the
+# default branch. Adapted from ServiceRadar conventions for agentboard's stack
+# (Go CLI `ab`, Phoenix/Elixir dashboard, k8s manifests, Bazel + BuildBuddy).
+commands:
+  # Run worktrees start with tracked files only, so the gitignored Bazel rc
+  # files that carry the BuildBuddy key and remote-execution settings are
+  # missing and any `bazel` command there would build locally. Link them from
+  # the operator's primary clone (override with AGENTBOARD_BAZELRC_DIR).
+  prepare: >-
+    src="${AGENTBOARD_BAZELRC_DIR:-$HOME/src/agentboard}";
+    for f in .bazelrc.remote .bazelrc.local; do
+      if [ -e "$src/$f" ] && [ ! -e "$f" ] && [ ! -L "$f" ]; then ln -s "$src/$f" "$f"; fi;
+    done;
+    test -f .bazelrc.remote
+  # Baseline: confirms the run worktree is wired for remote execution. It is
+  # also what makes `prepare` run, since prepare only precedes a configured
+  # command. The test agent still derives and drives its own targeted scenarios
+  # once Go / Elixir / Bazel targets exist. Do not expand this into a full
+  # suite; remote CI owns broad regression.
+  test: test -f .bazelrc.remote
+pr:
+  base_branch: main
+# Shared remote-only rule for every step that may edit or verify code. This
+# machine is a shared, overloaded laptop: Bazel stays on BuildBuddy RBE.
+document:
+  instructions: |
+    REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
+    Bazel build, test and quality command uses `--config=remote`, so execution
+    stays on BuildBuddy RBE. Local work is limited to source edits, Git
+    operations and lightweight inspection (reading files, ripgrep, grep, git
+    diff/log, reviewing k8s YAML). Never compile, fetch dependencies or run
+    tests locally: no `mix compile`, `mix test`, `mix deps.get`, `mix format`,
+    `mix credo`, `go build`/`go test`/`go vet`, `npm`/`bun` builds, or `bazel`
+    without `--config=remote`. Never pass `--warnings-as-errors` (or language
+    equivalents that fail the build on warnings). If a check cannot run
+    remotely, report it as untested instead of running it here.
+
+    Never fetch dependencies or compile anything on this machine. Run
+    worktrees have no `deps/` / module cache by design, so a local `mix` or
+    `go` build fails or starts a cold compile. Prefer Bazel targets under
+    `--config=remote` once they exist for the Go CLI (`ab`), Phoenix/Elixir
+    dashboard, and packaging. k8s manifests under `k8s/` may be reviewed as
+    YAML locally; do not apply them to a cluster from a gate worktree.
+test:
+  instructions: |
+    REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
+    Bazel build, test and quality command uses `--config=remote`, so execution
+    stays on BuildBuddy RBE. Local work is limited to source edits, Git
+    operations and lightweight inspection (reading files, ripgrep, grep, git
+    diff/log, reviewing k8s YAML). Never compile, fetch dependencies or run
+    tests locally: no `mix compile`, `mix test`, `mix deps.get`, `mix format`,
+    `mix credo`, `go build`/`go test`/`go vet`, `npm`/`bun` builds, or `bazel`
+    without `--config=remote`. Never pass `--warnings-as-errors` (or language
+    equivalents that fail the build on warnings). If a check cannot run
+    remotely, report it as untested instead of running it here.
+
+    Bazel must run on the remote executors, never on this machine. Before any
+    `bazel` command, make sure `.bazelrc.remote` exists in the run worktree; if
+    it does not, link the gitignored rc files from the primary clone:
+    `ln -s "${AGENTBOARD_BAZELRC_DIR:-$HOME/src/agentboard}/.bazelrc.remote" .bazelrc.remote`
+    (and `.bazelrc.local` the same way when the primary clone has one).
+    Pass `--config=remote` to every `bazel build`, `bazel test` and `bazel run`.
+    Never use `--config=rbe` or `--warnings-as-errors`. If `.bazelrc.remote`
+    cannot be linked, do not run Bazel locally; report the Bazel checks as
+    untested instead.
+
+    Targeted validation only: exercise the smallest relevant Go CLI, Elixir,
+    or k8s-manifest checks for the change. Broad regression belongs in remote
+    CI once those pipelines exist.
+review:
+  instructions: |
+    REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
+    Bazel build, test and quality command uses `--config=remote`, so execution
+    stays on BuildBuddy RBE. Local work is limited to source edits, Git
+    operations and lightweight inspection (reading files, ripgrep, grep, git
+    diff/log, reviewing k8s YAML). Never compile, fetch dependencies or run
+    tests locally: no `mix compile`, `mix test`, `mix deps.get`, `mix format`,
+    `mix credo`, `go build`/`go test`/`go vet`, `npm`/`bun` builds, or `bazel`
+    without `--config=remote`. Never pass `--warnings-as-errors`. If a check
+    cannot run remotely, report it as untested instead of running it here.
+lint:
+  instructions: |
+    REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
+    Bazel build, test and quality command uses `--config=remote`, so execution
+    stays on BuildBuddy RBE. Local work is limited to source edits, Git
+    operations and lightweight inspection (reading files, ripgrep, grep, git
+    diff/log, reviewing k8s YAML). Never compile, fetch dependencies or run
+    tests locally: no `mix compile`, `mix test`, `mix deps.get`, `mix format`,
+    `mix credo`, `go build`/`go test`/`go vet`, `npm`/`bun` builds, or `bazel`
+    without `--config=remote`. Never pass `--warnings-as-errors`. If a check
+    cannot run remotely, report it as untested instead of running it here.
+ci:
+  instructions: |
+    REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
+    Bazel build, test and quality command uses `--config=remote`, so execution
+    stays on BuildBuddy RBE. Local work is limited to source edits, Git
+    operations and lightweight inspection (reading files, ripgrep, grep, git
+    diff/log, reviewing k8s YAML). Never compile, fetch dependencies or run
+    tests locally: no `mix compile`, `mix test`, `mix deps.get`, `mix format`,
+    `mix credo`, `go build`/`go test`/`go vet`, `npm`/`bun` builds, or `bazel`
+    without `--config=remote`. Never pass `--warnings-as-errors`. If a check
+    cannot run remotely, report it as untested instead of running it here.
+    For a CI failure, read the BuildBuddy / forge log and fix from the
+    evidence; the PR's remote CI rerun is the proof.
