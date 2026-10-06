@@ -536,68 +536,60 @@ sql("UPDATE agents SET last_heartbeat = clock_timestamp() - interval '2 hours' W
 assert ab('--stale-after','600s','agent','show','gamma')['agent']['stale']
 sql("UPDATE agents SET last_heartbeat = clock_timestamp() - interval '10 seconds' WHERE id='gamma'")
 assert not ab('--stale-after','600s','agent','show','gamma')['agent']['stale']
-status,error=get_api('agents?stale_after=1e20')
-assert status==422 and error['error']['code']=='invalid_input', (status, error)
-status,error=get_api('quota?stale_after=1e20')
-assert status==422 and error['error']['code']=='invalid_input', (status, error)
 before=ab('task','show','clock-lease')
-status,error=api('tasks/clock-lease/renew',json.dumps({'ttl_seconds':1e20}).encode())
-assert status==422 and error['error']['code']=='invalid_input', (status, error)
-assert ab('task','show','clock-lease')['task']['revision']==before['task']['revision']
+for value in ('1e20','1e308'):
+    status,error=get_api('agents?stale_after='+value)
+    assert status==422 and error['error']['code']=='invalid_input', (value, status, error)
+    status,error=get_api('agents/gamma?stale_after='+value)
+    assert status==422 and error['error']['code']=='invalid_input', (value, status, error)
+    status,error=get_api('quota?stale_after='+value)
+    assert status==422 and error['error']['code']=='invalid_input', (value, status, error)
+    for action in ('claim','renew','reclaim'):
+        status,error=api('tasks/clock-lease/'+action,json.dumps({'ttl_seconds':float(value)}).encode())
+        assert status==422 and error['error']['code']=='invalid_input', (value, action, status, error)
+    assert ab('task','show','clock-lease')==before
 
-# A saturated pool returns structured unavailable without waiting to check out.
+# Hold every configured checkout, then require the real Board and Evidence tuples.
 pool_eval = r'''
-defmodule AgentboardPoolCheck do
-  def wait(held, rejected, deadline) do
-    cond do
-      held > 0 and rejected > 0 -> {held, rejected}
-      System.monotonic_time(:millisecond) > deadline -> {held, rejected}
-      true ->
-        receive do
-          :held -> wait(held + 1, rejected, deadline)
-          :no -> wait(held, rejected + 1, deadline)
-        after
-          50 -> wait(held, rejected, deadline)
-        end
-    end
-  end
-end
-{:ok, _} = Application.ensure_all_started(:agentboard)
+{:ok, _} = Application.ensure_all_started(:ash_postgres)
+{:ok, _} = Agentboard.Repo.start_link()
+pool = String.to_integer(System.get_env("POOL_SIZE"))
 parent = self()
-for _ <- 1..30 do
+for _ <- 1..pool do
   spawn(fn ->
-    try do
-      Agentboard.Repo.checkout(fn ->
-        send(parent, :held)
-        receive do
-          :release -> :ok
-        after
-          8_000 -> :ok
-        end
-      end, timeout: 200, queue: false)
-    rescue
-      _ -> send(parent, :no)
-    catch
-      _, _ -> send(parent, :no)
-    end
+    Agentboard.Repo.checkout(fn ->
+      send(parent, :held)
+      receive do
+        :release -> :ok
+      after
+        15_000 -> :ok
+      end
+    end, timeout: 2_000, queue: false)
   end)
 end
-{held, rejected} = AgentboardPoolCheck.wait(0, 0, System.monotonic_time(:millisecond) + 3_000)
-if held < 1 or rejected < 1, do: raise("did not saturate pool")
+held =
+  Enum.reduce(1..pool, 0, fn _, count ->
+    receive do
+      :held -> count + 1
+    after
+      3_000 -> count
+    end
+  end)
+if held != pool, do: raise("held #{held} of #{pool}")
+actor = %{"agent" => "alpha", "model" => "model-a", "harness" => "codex"}
 started = System.monotonic_time(:millisecond)
-result =
-  try do
-    Agentboard.Board.page("tasks", %{})
-  rescue
-    error in DBConnection.ConnectionError -> {:error, "unavailable", Exception.message(error)}
-  end
+results = [
+  Agentboard.Board.page("tasks", %{}),
+  Agentboard.Board.mutate("clock-lease", "renew", actor, %{}),
+  Agentboard.Evidence.Operations.documents("clock-lease"),
+  Agentboard.Evidence.Operations.document("clock-lease", actor, %{}, "digest")
+]
 elapsed = System.monotonic_time(:millisecond) - started
-case result do
-  {:error, "unavailable", _} when elapsed < 1_000 -> IO.puts("pool-unavailable")
-  other -> raise("expected immediate unavailable, got #{elapsed}ms #{inspect(other)}")
-end
+unless elapsed < 1_000 and Enum.all?(results, &match?({:error, "unavailable", _}, &1)),
+  do: raise("expected immediate unavailable, got #{elapsed}ms #{inspect(results)}")
+IO.puts("pool-unavailable")
 '''
-pool = subprocess.run([os.environ['AGENTBOARD_BIN'], 'eval', pool_eval], env=dict(os.environ, POOL_SIZE='4', PHX_SERVER='false'), capture_output=True, text=True, timeout=60)
+pool = subprocess.run([os.environ['AGENTBOARD_BIN'], 'eval', pool_eval], env=dict(os.environ, POOL_SIZE='2', PHX_SERVER='false'), capture_output=True, text=True, timeout=60)
 assert pool.returncode == 0 and 'pool-unavailable' in pool.stdout, (pool.returncode, pool.stdout, pool.stderr)
 print('Database-clock expiry, bounded time input and nonqueued pool checkout passed')
 

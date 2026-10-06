@@ -9,7 +9,8 @@ defmodule Agentboard.Board.Reads do
          {:ok, query} <- load_flags(Task |> Ash.Query.filter(id == ^id), "tasks", filters),
          {:ok, task} <- fetch(query),
          {:ok, events} <- page("events", Map.put(filters, "task", id)),
-         {:ok, documents} <- Agentboard.Documents.list(id) do
+         {:ok, documents} <- Agentboard.Documents.list(id),
+         {:ok, archive} <- archive(id) do
       [task] = decorate([task], "tasks")
 
       {:ok,
@@ -18,7 +19,7 @@ defmodule Agentboard.Board.Reads do
          "events" => events["events"],
          "next_cursor" => events["next_cursor"],
          "documents" => documents["documents"],
-         "archive" => archive(id)
+         "archive" => archive
        }}
     else
       false -> invalid("Invalid task ID")
@@ -226,15 +227,12 @@ defmodule Agentboard.Board.Reads do
   defp decorate(records, _), do: Enum.map(records, &Operations.public/1)
 
   defp archive(id) do
-    query =
-      Agentboard.Housekeeping.Archive
-      |> Ash.Query.filter(id == ^id)
-      |> Agentboard.Repo.read_query()
+    query = Agentboard.Housekeeping.Archive |> Ash.Query.filter(id == ^id)
 
     case ash_read_one(query) do
-      {:ok, nil} -> %{"id" => id, "revision" => 0, "archived_at" => nil}
-      {:ok, row} -> Operations.public(row)
-      _ -> %{"id" => id, "revision" => 0, "archived_at" => nil}
+      {:ok, nil} -> {:ok, %{"id" => id, "revision" => 0, "archived_at" => nil}}
+      {:ok, row} -> {:ok, Operations.public(row)}
+      error -> error
     end
   end
 
