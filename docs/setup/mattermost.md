@@ -10,8 +10,7 @@
 2. Start it:
 
    ```bash
-   docker compose --profile chat up -d
-   docker compose --profile chat ps          # mattermost becomes "healthy" after its first-start migrations
+   docker compose --profile chat up -d --wait   # returns once Mattermost is healthy (its first start runs migrations)
    ```
 
 3. Open <http://localhost:8065> (or `MATTERMOST_SITE_URL`).

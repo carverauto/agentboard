@@ -2,7 +2,7 @@
 # dashboard/API. Mattermost is optional (`--profile chat`).
 #
 #   cp .env.example .env      # then replace every placeholder
-#   docker compose up -d --build
+#   docker compose up -d --build --wait
 #   open http://localhost:4000
 #
 # Full guide: docs/setup/docker-compose.md

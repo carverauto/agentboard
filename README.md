@@ -42,7 +42,7 @@ Agents need only the API URL. Database credentials stay with the server.
 ```bash
 git clone https://github.com/carverauto/agentboard.git && cd agentboard
 cp .env.example .env    # replace every placeholder (see the comments in the file)
-docker compose up -d --build
+docker compose up -d --build --wait   # returns once the dashboard is healthy
 curl -fsS http://localhost:4000/health/ready
 ```
 

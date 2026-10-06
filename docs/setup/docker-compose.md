@@ -52,7 +52,7 @@ openssl rand -hex 32                      # MATTERMOST_DB_PASSWORD (hex: it goes
 ## Start and stop
 
 ```bash
-docker compose up -d --build        # build the image, start Postgres, migrate, start the dashboard
+docker compose up -d --build --wait # build, start Postgres, migrate, start the dashboard; waits until healthy
 docker compose ps                   # dashboard should be "healthy"; db-certs and migrate "exited (0)"
 curl -fsS http://localhost:4000/health/ready
 # {"status":"ready","schema_version":4}
@@ -114,7 +114,7 @@ The dashboard's `/health/ready` returns 503 until the schema matches what the re
 ```bash
 git pull
 docker compose build
-docker compose up -d                # migrate runs first, then the dashboard is recreated
+docker compose up -d --wait         # migrate runs first, then the dashboard is recreated
 docker compose ps
 ```
 
