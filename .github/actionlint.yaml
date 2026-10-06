@@ -1,0 +1,4 @@
+# Self-hosted runner labels for actionlint (carverauto ARC scale sets).
+self-hosted-runner:
+  labels:
+    - arc-runner-set
