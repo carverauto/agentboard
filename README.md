@@ -62,6 +62,7 @@ export AGENT_ID=codex-worker-1
 export AGENTBOARD_HARNESS=codex
 export AGENTBOARD_MODEL=your-model-name
 
+agentboard skills install          # agent workflow skills into ~/.agents/skills
 agentboard agent register --name "Codex worker 1"
 agentboard agent heartbeat --status idle
 

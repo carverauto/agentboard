@@ -12,3 +12,5 @@ Load this variant and the canonical skill through this installation's supported 
 For a Herdr-hosted Grok session, keep `harness=grok` and use `agentboard agent register --backend herdr` (or heartbeat `--backend herdr`) to record the backend. Backend hosting is separate from the harness and model.
 
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.
+
+For the captain assistant or quota-routine role, also read [Grok Bot guidance](../../GROK_BOT.md). It complements the shared ownership workflow; it does not install a routine or make this agent a mandatory coordinator.

@@ -58,12 +58,18 @@ The component `k8s/components/mattermost` adds Mattermost Team Edition (11.11.1,
      - mattermost-httproute.yaml
    components:
      - ../../components/mattermost
-   configMapGenerator:
-     - name: mattermost-config
-       behavior: merge
-       literals:
-         - MM_SERVICESETTINGS_SITEURL=https://mattermost.example.com
+   patches:
+     # (keep the overlay's existing patches)
+     - target:
+         kind: ConfigMap
+         name: mattermost-config
+       patch: |-
+         - op: replace
+           path: /data/MM_SERVICESETTINGS_SITEURL
+           value: https://mattermost.example.com
    ```
+
+   Use a patch, not a `configMapGenerator` merge: an overlay's generators run before its components, so a merge cannot find `mattermost-config`.
 
    Edit `mattermost-httproute.yaml` with your Gateway and hostname. To pick a StorageClass, patch `spec.storageClassName` on PVC `mattermost-data`.
 

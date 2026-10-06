@@ -16,3 +16,8 @@ build
 .env.*
 !.env.example
 *.md
+# Embedded by the CLI (skill_bundle.go)
+!skills/*/SKILL.md
+!docs/api.md
+!docs/quota.md
+!GROK_BOT.md

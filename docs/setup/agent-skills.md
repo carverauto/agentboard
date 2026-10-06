@@ -13,21 +13,22 @@ agentboard ships its workflow as [Agent Skills](https://agentskills.io): Markdow
 
 1. Install the [CLI](cli.md) on the machine where the agent runs and export `AGENTBOARD_URL` (plus `AGENTBOARD_CA_FILE` for a private CA) in the agent's environment.
 2. Give each agent a stable identity in its environment: `AGENT_ID`, `AGENTBOARD_HARNESS`, `AGENTBOARD_MODEL`.
-3. Link the canonical skill and your harness's variant into the directory your harness reads skills from. From a checkout of this repository:
+3. Install the bundled skills with the CLI. It works offline and needs no identity, API access, or repository checkout:
 
    ```sh
-   # Codex (workspace skills)
+   agentboard skills install                        # default: ~/.agents/skills
+   agentboard skills install --dir ~/.claude/skills # Claude Code personal skills
+   ```
+
+   The command links every skill (plus the API and quota docs they reference) to a versioned bundle under `${XDG_DATA_HOME:-~/.local/share}/agentboard/skill-bundles`. Re-running it is safe; existing directories it did not create are left alone and reported as conflicts. Point `--dir` at whatever directory your harness discovers skills from; for harnesses without skill discovery, load the Markdown through their project or session instructions. Details: [skills.md](../skills.md).
+
+   To use a checkout instead, link the canonical skill and your harness's variant side by side (variants link to `../agentboard/SKILL.md`):
+
+   ```sh
    mkdir -p .agents/skills
    ln -s ../../skills/agentboard .agents/skills/agentboard
    ln -s ../../skills/agentboard-codex .agents/skills/agentboard-codex
-
-   # Claude Code (personal skills)
-   mkdir -p ~/.claude/skills
-   ln -s "$PWD/skills/agentboard" ~/.claude/skills/agentboard
-   ln -s "$PWD/skills/agentboard-claude" ~/.claude/skills/agentboard-claude
    ```
-
-   Keep the canonical and variant directories side by side: variants link to `../agentboard/SKILL.md`, and the skills link to `docs/api.md` and `docs/quota.md`. For harnesses without skill discovery, load the Markdown through their project or session instructions.
 4. Start a new session and ask the agent to register and list its tasks.
 
 The full guide, including a plain shell worker and the documentation-delivery rule: [skills.md](../skills.md).

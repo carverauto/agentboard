@@ -12,6 +12,11 @@ on:
       - web/**
       - cmd/**
       - internal/**
+      - skill_bundle.go
+      - skills/**
+      - GROK_BOT.md
+      - docs/api.md
+      - docs/quota.md
       - go.mod
       - go.sum
       - .github/workflows/docker.yml

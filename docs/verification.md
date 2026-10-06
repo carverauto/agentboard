@@ -1,5 +1,25 @@
 # Verification evidence
 
+## Horizontal Kanban correction (2026-10-06)
+
+The captain rejected the initial wrapped layout below. The final board keeps all seven lanes in one horizontal row. Above 1100px, fluid tracks, tighter gaps and card padding fit laptop/desktop widths without board scrolling. At smaller widths the board itself scrolls horizontally with readable 175px lanes; the page stays contained. Task IDs, owner names and long task titles wrap inside cards. No lane is hidden and no typography was reduced.
+
+Remote [image startup 6a3e70f4](https://carverauto.buildbuddy.io/invocation/6a3e70f4-234e-451a-bad6-5ab351590e1b) passed; [packaging 282077f4](https://carverauto.buildbuddy.io/invocation/282077f4-f817-4d36-a885-aea1fe9c0138) produced `sha256:5aa2bcc10cccb6adaa3007887150745012e95aec9a9e997b4f294b17568e853c`, published as `kanban-1d0bc8a4064b`. Server dry-run and deployment-only apply succeeded, rollout completed, and one ready farm01 pod runs that exact digest. No migration was rerun and no v0.1.0 release asset was overwritten.
+
+Chrome inspected the live served CSS without overrides at 11 widths from 320 to 1920px, including both sides of the 1100px breakpoint. All seven lanes share one row; page width equals viewport width throughout, and desktop board widths equal their scroll widths. At 320px, a temporary browser-only 200-character title/ID/owner probe remained contained. [Final geometry and image evidence](verification/farm01-kanban-board.json), [desktop screenshot](verification/farm01-kanban-desktop.png) and [mobile screenshot](verification/farm01-kanban-mobile.png) supersede the older wrapped-layout evidence. Image-capable visual review confirmed horizontal lane order and readable desktop cards, with contained horizontal navigation on mobile.
+
+
+## Initial responsive board attempt — superseded (2026-10-06)
+
+The seven fixed 235px columns previously scrolled 1735px inside a 1380px board at a 1440px viewport. Status lanes now wrap into rows with a 235px preferred minimum; narrow screens retain the existing single-column layout. Long task IDs, task titles, and owner names wrap within their cards (the title rule landed in-tree after the image pinned below and awaits rebuild/repin/redeploy). All seven status lanes remain accessible and repository/owner filters are unchanged.
+
+Remote [acceptance bf87ac6e](https://carverauto.buildbuddy.io/invocation/bf87ac6e-7d57-471d-979c-351e9982d1fb) passed all 10 targets. Remote [packaging 01e620e0](https://carverauto.buildbuddy.io/invocation/01e620e0-7a1f-4412-9975-0a6c3ff4e955) produced dashboard digest `sha256:80e3947c9f7aab154fb7be940c2f3305ea4398d42142b6a6b0b4bf75759543d2`, published under `responsive-b7a1142966e9`; the v0.1.0 tag and CLI assets were not republished. A temporary project-scoped push credential was deleted after publication.
+
+The farm01 overlay pins the new digest. Server dry-run and deployment-only apply succeeded; rollout completed with one ready pod running that exact image ID. No database migrations were needed or rerun. The prior image digest remains available for rollback through the overlay.
+
+Chrome checked the live served application (without injected CSS) at 1920, 1440, 1280, 1024, 768, 700, 500, 390 and 320px. Both page and board fit their measured widths at every size; all seven lanes remained present. A temporary browser-only 200-character task ID and owner probe wrapped at 390px without overflow. [Geometry/runtime evidence](verification/farm01-responsive-board.json), [desktop dark screenshot](verification/farm01-responsive-desktop.png) and [mobile light screenshot](verification/farm01-responsive-mobile.png) record those checks. Visual inspection confirmed readable cards and wrapping header/filters. Remote checks ran through BuildBuddy; no application builds or tests ran locally.
+
+
 All compilation, application tests, dependency compilation, and packaging run through `./scripts/bazel` on BuildBuddy remote execution. No Go/Mix application build or test runs on this Mac. PostgreSQL integration uses a disposable loopback PostgreSQL 18.3 fixture with SCRAM, a generated CA and CA-signed server certificate, verified TLS, temporary data, and process cleanup; it never uses farm01 credentials or data.
 
 ## Completed farm01 rollout (2026-10-06 UTC)
@@ -75,3 +95,13 @@ GitOps [PR #154](https://github.com/carverauto/gitops/pull/154) persists `local-
 The remotely built Darwin ARM64 CLI was checksum-verified and installed at `~/.local/bin/agentboard`; it executed `version` successfully as `0.1.0` on this Mac (SHA256 `49d653f327817c63a9749fded45abaea430abf3c08e28a4bc22c21dcc2541dd3`). Final remote formatting/package invocation [42ede39c-d352-452a-85a1-d4492b7b13dd](https://carverauto.buildbuddy.io/invocation/42ede39c-d352-452a-85a1-d4492b7b13dd) produced no formatting changes and dashboard digest `sha256:d1fc696a605fd10a0f704745f4b3103cce1fac53ecb521d977d7931c0c227df6`, now pinned in the farm01 overlay. Workspace canonical, Codex and captain skill links were installed without replacing existing workflows.
 
 After removing the extra EOF blank line from the three new Elixir files, remote release-artifact rebuild [c021512d-315c-46e4-9401-dd3d30659719](https://carverauto.buildbuddy.io/invocation/c021512d-315c-46e4-9401-dd3d30659719) produced dashboard digest `sha256:213d5a68d1316fae4803fc77a5461024a3541743b0c98e8f630db3307d06f16b`, now pinned in the farm01 overlay; the d1fc digest above is historical preparation evidence for the pre-fix source. Image publication and live rollout remain operator steps.
+
+## Mattermost on farm01 (2026-10-06)
+
+The additive resources were applied by hand, the same way the rest of `agentboard` is managed (kubectl client-side apply; no Argo CD Application targets farm01's `agentboard`). CNPG operator 1.25.0 provides the `Database` CRD. `kubectl diff` showed the only Cluster change was the new managed role. After that apply, both `agentboard-db` pods kept their UIDs and had zero restarts. Managed roles `agentboard` and `mattermost` are reconciled, the `mattermost` Database CR reports `applied: true`, and PVC `mattermost-data` is Bound on `local-path-cnpg`.
+
+`mattermost/mattermost-team-edition:11.11.1@sha256:6ad5912b…aa85` (Team Edition build) is Ready with 0 restarts and logs `Server is listening on [::]:8065`. PostgreSQL shows database `mattermost` owned by `mattermost` with 211 `db_migrations` rows (max version 213), and all Mattermost connections use SSL. The role connection limit is 40. A second start loaded the persisted `config.json` from the PVC.
+
+Both HTTPRoutes are Accepted/ResolvedRefs on the wildcard `https`/`http` listeners. `mattermost.k8s-farm.carverauto.dev` resolves to the Gateway's `192.168.7.10`. `https://…/login` returns 200 with the Mattermost web app over a verified Let's Encrypt `*.k8s-farm.carverauto.dev` certificate, and HTTP returns 301 to HTTPS. `/api/v4/system/ping?get_server_status=true` reports database and filestore OK. The client config reports the HTTPS Site URL, version 11.11.1 and `NoAccounts: true`. The `/api/v4/websocket` upgrade returns 101 through the Gateway. Unauthenticated sockets are closed by Mattermost after about 6s, both through the Gateway and direct to the Service. A long-lived authenticated websocket check needs the first account and remains a captain check. The agentboard dashboard stayed Ready (`/health/ready` 200, same pod, 0 restarts) and `agentboard-db` stayed healthy at 2/2.
+
+Expected startup noise: Playbooks needs a Professional license and does not activate on Team Edition, and the SMTP connection test fails because no mail server is configured.

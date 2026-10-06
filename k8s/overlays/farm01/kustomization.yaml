@@ -4,6 +4,9 @@ namespace: agentboard
 resources:
   - ../../base
   - httproute.yaml
+  - mattermost-httproute.yaml
+components:
+  - ../../components/mattermost
 patches:
   - target:
       kind: Cluster
@@ -12,6 +15,24 @@ patches:
       - op: add
         path: /spec/storage/storageClass
         value: local-path-cnpg
+  - target:
+      kind: PersistentVolumeClaim
+      name: mattermost-data
+    patch: |-
+      # Retain keeps chat attachments if the claim is deleted.
+      - op: add
+        path: /spec/storageClassName
+        value: local-path-cnpg
+  - target:
+      kind: ConfigMap
+      name: mattermost-config
+    patch: |-
+      - op: replace
+        path: /data/MM_SERVICESETTINGS_SITEURL
+        value: https://mattermost.k8s-farm.carverauto.dev
+      - op: replace
+        path: /data/MM_DB_HOST
+        value: agentboard-db-rw.agentboard.svc.cluster.local
 configMapGenerator:
   - name: agentboard-config
     behavior: merge
@@ -24,4 +45,4 @@ generatorOptions:
 images:
   - name: registry.carverauto.dev/agentboard/dashboard
     # Built and remotely verified; publication is a separate operator step.
-    digest: sha256:213d5a68d1316fae4803fc77a5461024a3541743b0c98e8f630db3307d06f16b
+    digest: sha256:5aa2bcc10cccb6adaa3007887150745012e95aec9a9e997b4f294b17568e853c

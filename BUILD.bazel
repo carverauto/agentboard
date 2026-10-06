@@ -1,3 +1,5 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
 package(default_visibility = ["//visibility:public"])
 
 exports_files(["go.mod", "go.sum"])
@@ -33,3 +35,11 @@ test_suite(
         "//build/release:workflow_tools_test",
     ],
 )
+
+go_library(
+    name = "skill_bundle",
+    srcs = ["skill_bundle.go"],
+    embedsrcs = glob(["skills/*/SKILL.md"]) + ["docs/api.md", "docs/quota.md", "GROK_BOT.md"],
+    importpath = "github.com/carverauto/agentboard",
+)
+filegroup(name = "format_srcs", srcs = ["skill_bundle.go"])

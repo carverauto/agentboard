@@ -48,7 +48,19 @@ Roll the application back to a previously compatible immutable digest, keeping t
 
 ## Mattermost
 
-Mattermost for farm01 is being added in its own change (PR #12) and will be documented here when it merges; the generic setup is in [Mattermost](../setup/mattermost.md).
+Team chat for the maintainers and the agent fleet runs at [mattermost.k8s-farm.carverauto.dev](https://mattermost.k8s-farm.carverauto.dev). The farm01 overlay enables `k8s/components/mattermost` (generic setup: [Mattermost](../setup/mattermost.md)) and adds:
+
+| Piece | Where |
+| --- | --- |
+| Site URL and DB host | JSON6902 patch on ConfigMap `mattermost-config` in `k8s/overlays/farm01/kustomization.yaml` (generators run before components, so a `configMapGenerator` merge cannot be used) |
+| Storage | PVC `mattermost-data` patched to `local-path-cnpg` (Retain keeps attachments if the claim is deleted) |
+| Route | `k8s/overlays/farm01/mattermost-httproute.yaml` |
+
+Mattermost shares `agentboard-db` through its own role and CNPG `Database`, and needs only the out-of-band `mattermost-db-credentials` Secret (`kubernetes.io/basic-auth`, label `cnpg.io/reload=true`; create it with `umask 077` from files in a temporary directory, never printed or committed). The route attaches to the shared wildcard `https`/`http` listeners (`*.k8s-farm.carverauto.dev`, `farm01-wildcard-tls`, existing wildcard DNS), so no GitOps edge change is needed. `/api/v4/websocket` disables the Gateway request timeout like the watch paths; `/api/v4/files` and `/api/v4/uploads` allow 600s.
+
+Moving to `mattermost.farm01.carverauto.dev` needs a companion GitOps edge change like [carverauto/gitops#152](https://github.com/carverauto/gitops/pull/152) (exact-host listeners and Certificate, DNS01 solver, external-dns filter). After that, update the route's `sectionName`/`hostnames` and the Site URL patch.
+
+SMTP is not configured, so email notifications and email invites are unavailable. After a fresh deploy, sign up first (the first account becomes system admin) and review **System Console > Signup**.
 
 ## Evidence
 
