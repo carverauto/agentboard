@@ -19,7 +19,7 @@ go test ./...
 
 ## Phoenix app without Docker
 
-`web/` is a standard Mix project (Elixir 1.19, OTP 28). Static assets come from `web/assets/app.js`, bundled with esbuild 0.25 using the Phoenix, Phoenix HTML, and LiveView JavaScript from `deps/`; see the `esbuild` step in the `Dockerfile` for the exact command. The app always connects to PostgreSQL over verified TLS, so a local database needs a certificate whose name matches `DATABASE_HOST` and `DATABASE_CA_FILE` pointing at its CA (the Compose stack's `db-certs` service shows one way to make them).
+`web/` is a standard Mix project (Elixir 1.19, OTP 28). Dashboard styles and JavaScript are compiled as described in [styling](../styling.md); see the asset steps in the `Dockerfile` for the exact commands. The app always connects to PostgreSQL over verified TLS, so a local database needs a certificate whose name matches `DATABASE_HOST` and `DATABASE_CA_FILE` pointing at its CA (the Compose stack's `db-certs` service shows one way to make them).
 
 ## Bazel (the project's build system)
 
