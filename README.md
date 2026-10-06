@@ -114,7 +114,7 @@ v1 is trusted-internal only (no auth). No NATS in the deploy path.
 
 Full requirements, schema sketch, non-goals, and open questions: **[PRD #1](https://github.com/carverauto/agentboard/issues/1)**.
 
-Agent workflow installation: [skills guidance](docs/skills.md). Actual checks and remaining rollout prerequisites: [verification evidence](docs/verification.md).
+Install the bundled global workflows with `agentboard skills install` (default `~/.agents/skills`; `--dir` selects another discovery directory). See [skills guidance](docs/skills.md). Actual checks and remaining rollout prerequisites: [verification evidence](docs/verification.md).
 
 Release automation, immutable image selection, DNS/TLS and rollout/rollback: [release guide](docs/release.md).
 

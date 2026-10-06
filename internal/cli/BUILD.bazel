@@ -2,10 +2,11 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "cli",
-    srcs = ["root.go", "board.go", "messages.go", "watch.go", "quota.go", "documents.go"],
+    srcs = ["root.go", "board.go", "messages.go", "watch.go", "quota.go", "documents.go", "skills.go"],
     importpath = "github.com/carverauto/agentboard/internal/cli",
     visibility = ["//:__subpackages__"],
     deps = [
+        "//:skill_bundle",
 	"//internal/client",
         "//internal/config",
         "@com_github_spf13_cobra//:cobra",
@@ -13,7 +14,7 @@ go_library(
 )
 go_test(
     name = "cli_test",
-    srcs = ["root_test.go"],
+    srcs = ["root_test.go", "skills_test.go"],
     deps = [":cli"],
     size = "small",
 )
