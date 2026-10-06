@@ -1,0 +1,10 @@
+{
+  "cli_checksums": {
+    "agentboard-darwin-amd64": "bca056972554d4611ebfe51f73affbbbed79ed6de0c6c08fa56d87c53f1a7b5b",
+    "agentboard-darwin-arm64": "49d653f327817c63a9749fded45abaea430abf3c08e28a4bc22c21dcc2541dd3",
+    "agentboard-linux-amd64": "f59363a43fc4cbaf38db15a7855709a2ed4e079a18aa91430248b4cbaab45286",
+    "agentboard-linux-arm64": "5866c6e71201c6f0295b6e9ce11239cfd930ab3fda6c152383a747d8439c8a1d"
+  },
+  "installed_cli_matches_release": true,
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:213d5a68d1316fae4803fc77a5461024a3541743b0c98e8f630db3307d06f16b"
+}

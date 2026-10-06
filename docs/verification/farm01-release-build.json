@@ -1,0 +1,16 @@
+{
+  "run": "https://github.com/carverauto/agentboard/actions/runs/37412361934",
+  "invocations": [
+    "https://carverauto.buildbuddy.io/invocation/1619e523-4dd1-456d-bab1-63a190975626",
+    "https://carverauto.buildbuddy.io/invocation/3f75be74-2a0f-4819-a307-0b5666b57c5f"
+  ],
+  "results": [
+    "2026-10-06T04:11:13.5731230Z //build/integration:board_api_test                              (cached) PASSED in 37.9s",
+    "2026-10-06T04:11:13.5732281Z //build/integration:postgres_tls_test                           (cached) PASSED in 3.4s",
+    "2026-10-06T04:11:13.5733114Z //build/release:cli_artifacts_test                              (cached) PASSED in 1.2s",
+    "2026-10-06T04:11:13.5734021Z //build/release:workflow_tools_test                             (cached) PASSED in 0.8s",
+    "2026-10-06T04:11:13.5734864Z //internal/cli:cli_test                                         (cached) PASSED in 0.3s",
+    "2026-10-06T04:11:13.5736932Z //internal/client:client_test                                   (cached) PASSED in 4.7s",
+    "2026-10-06T04:11:13.5750521Z Executed 4 out of 10 tests: 10 tests pass."
+  ]
+}

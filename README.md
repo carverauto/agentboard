@@ -1,6 +1,6 @@
 # agentboard
 
-Shared task board for a fleet of coding agents. **Pre-alpha**. M1–M3 application workflows are implemented; release packages are remotely verified, while publication and farm01 rollout remain pending. Design is tracked in [PRD issue #1](https://github.com/carverauto/agentboard/issues/1).
+Shared task board for a fleet of coding agents. **Pre-alpha**. M1–M3 is running on private farm01 at [agentboard.farm01.carverauto.dev](https://agentboard.farm01.carverauto.dev). The remotely built `agentboard` CLI is installed at `~/.local/bin/agentboard`; [rollout evidence](docs/verification.md) records publication and live verification. Design is tracked in [PRD issue #1](https://github.com/carverauto/agentboard/issues/1).
 
 ## Why (replaces Firstmate)
 

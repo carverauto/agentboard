@@ -1,0 +1,122 @@
+{
+  "checked_at": "2026-10-06T04:25:11.039365+00:00",
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:213d5a68d1316fae4803fc77a5461024a3541743b0c98e8f630db3307d06f16b",
+  "meta": {
+    "schema_version": 4,
+    "api_version": 1,
+    "required_schema_version": 4
+  },
+  "cluster_ready_instances": 2,
+  "migration_complete": true,
+  "app_available_replicas": 1,
+  "pvc_statuses": [
+    {
+      "name": "agentboard-db-1",
+      "phase": "Bound",
+      "class": "local-path-cnpg"
+    },
+    {
+      "name": "agentboard-db-2",
+      "phase": "Bound",
+      "class": "local-path-cnpg"
+    }
+  ],
+  "certificate_ready": true,
+  "gateway_addresses": [
+    {
+      "type": "IPAddress",
+      "value": "192.168.7.10"
+    }
+  ],
+  "listeners": {
+    "http": {
+      "Programmed": "True",
+      "Accepted": "True",
+      "ResolvedRefs": "True"
+    },
+    "https": {
+      "Programmed": "True",
+      "Accepted": "True",
+      "ResolvedRefs": "True",
+      "OverlappingTLSConfig": "True"
+    },
+    "http-apex": {
+      "Programmed": "True",
+      "Accepted": "True",
+      "ResolvedRefs": "True"
+    },
+    "https-apex": {
+      "Programmed": "True",
+      "Accepted": "True",
+      "ResolvedRefs": "True",
+      "OverlappingTLSConfig": "True"
+    },
+    "agentboard-http": {
+      "Programmed": "True",
+      "Accepted": "True",
+      "ResolvedRefs": "True"
+    },
+    "agentboard-https": {
+      "Programmed": "True",
+      "Accepted": "True",
+      "ResolvedRefs": "True"
+    }
+  },
+  "routes": {
+    "agentboard-http-redirect": [
+      {
+        "Accepted": "True",
+        "ResolvedRefs": "True"
+      }
+    ],
+    "agentboard-https": [
+      {
+        "Accepted": "True",
+        "ResolvedRefs": "True"
+      }
+    ]
+  },
+  "cloudflare_records": [
+    {
+      "type": "A",
+      "name": "agentboard.farm01.carverauto.dev",
+      "content": "192.168.7.10",
+      "proxied": false
+    },
+    {
+      "type": "TXT",
+      "name": "agentboard.farm01.carverauto.dev",
+      "content": "\"heritage=external-dns,external-dns/owner=external-dns-farm01,external-dns/resource=httproute/agentboard/agentboard-http-redirect\"",
+      "proxied": false
+    }
+  ],
+  "document_headers": {
+    "html": {
+      "Content-Security-Policy": "sandbox allow-scripts allow-downloads; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "no-store"
+    },
+    "download": {
+      "Content-Security-Policy": "sandbox allow-scripts allow-downloads; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "no-store",
+      "Content-Disposition": "attachment; filename=agentboard-document-1.html"
+    }
+  },
+  "external_dns_image": "registry.k8s.io/external-dns/external-dns:v0.16.1@sha256:37d3a7a05c4638b8177382b80a627c223bd84a53c1a91be137245bd3cfdf9986",
+  "external_dns_available_replicas": 1,
+  "runtime_write_probe": {
+    "uid": 10001,
+    "tmp_write_succeeded": true,
+    "root_write_rejected": "Read-only file system"
+  },
+  "running_app_containers": [
+    {
+      "pod": "agentboard-dashboard-687c76b5bb-jgtkq",
+      "name": "dashboard",
+      "ready": true,
+      "restarts": 0,
+      "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:213d5a68d1316fae4803fc77a5461024a3541743b0c98e8f630db3307d06f16b"
+    }
+  ]
+}
