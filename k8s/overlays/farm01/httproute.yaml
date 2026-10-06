@@ -12,6 +12,22 @@ spec:
   hostnames:
     - agentboard.farm01.carverauto.dev
   rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/v1/tasks/watch
+        - path:
+            type: Exact
+            value: /api/v1/messages/watch
+        - path:
+            type: Exact
+            value: /api/v1/quota/watch
+      # NDJSON watches are long-lived; ordinary requests keep the Gateway default.
+      timeouts:
+        request: 0s
+      backendRefs:
+        - name: agentboard-dashboard
+          port: 4000
     - backendRefs:
         - name: agentboard-dashboard
           port: 4000

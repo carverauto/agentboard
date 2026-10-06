@@ -1,0 +1,70 @@
+{
+  "checked_at": "2026-10-06T04:36:54.204132+00:00",
+  "public_https_url": "https://agentboard.farm01.carverauto.dev",
+  "cli_version": "0.1.0",
+  "route": "agentboard/agentboard-https",
+  "watch_request_timeout": "0s",
+  "streams": {
+    "tasks": {
+      "duration_seconds": 45.01,
+      "snapshots": 9,
+      "reasons": [
+        "initial",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback"
+      ],
+      "stderr": "",
+      "cancel_exit_code": 0
+    },
+    "messages": {
+      "duration_seconds": 45.01,
+      "snapshots": 9,
+      "reasons": [
+        "initial",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback"
+      ],
+      "stderr": "",
+      "cancel_exit_code": 0
+    },
+    "quota": {
+      "duration_seconds": 45.01,
+      "snapshots": 9,
+      "reasons": [
+        "initial",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback",
+        "fallback"
+      ],
+      "stderr": "",
+      "cancel_exit_code": 0
+    }
+  },
+  "scope": "Live read-only HTTPS watches; no local compilation or test build",
+  "previous_behavior": "Watch disconnected and reconnected approximately every 15 seconds before the HTTPRoute override",
+  "route_conditions": [
+    {
+      "Accepted": "True",
+      "ResolvedRefs": "True"
+    }
+  ],
+  "route_generation": 2,
+  "server_side_dry_run": "passed"
+}
