@@ -19,7 +19,7 @@ ARG ESBUILD_VERSION=0.25.4
 ARG TARGETARCH
 ENV MIX_ENV=prod LANG=C.UTF-8
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl \
+ && apt-get install -y --no-install-recommends build-essential ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
 RUN set -eu; \
     case "${TARGETARCH:-amd64}" in \

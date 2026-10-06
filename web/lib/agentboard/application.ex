@@ -10,6 +10,12 @@ defmodule Agentboard.Application do
       {Phoenix.PubSub, name: Agentboard.PubSub},
       Agentboard.RateLimits.Owner,
       Agentboard.Notifications,
+      {Oban,
+       AshOban.config([Agentboard.Housekeeping],
+         repo: Agentboard.Repo,
+         queues: [housekeeping: 1],
+         plugins: [Oban.Plugins.Cron, Oban.Plugins.Pruner]
+       )},
       AgentboardWeb.Endpoint
     ]
 

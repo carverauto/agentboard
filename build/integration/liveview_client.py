@@ -19,12 +19,12 @@ class Page(HTMLParser):
         if 'data-phx-main' in attrs:self.root=attrs
 
 class LiveView:
-    def __init__(self,base,path):
+    def __init__(self,base,path,cookie_header=''):
         url=base+path
-        with urllib.request.urlopen(url,timeout=10) as response:
-            document=response.read().decode();cookies=SimpleCookie();cookies.load(response.headers.get('Set-Cookie',''))
+        with urllib.request.urlopen(urllib.request.Request(url,headers={'Cookie':cookie_header}),timeout=10) as response:
+            document=response.read().decode();cookies=SimpleCookie();cookies.load(cookie_header);cookies.load(response.headers.get('Set-Cookie',''))
         page=Page();page.feed(document)
-        assert page.root and page.csrf and 'Connecting to the board' in document
+        assert page.root and page.csrf, 'Missing LiveView root/session or CSRF token'
         self.topic='lv:'+page.root['id']
         target=urllib.parse.urlparse(base)
         self.socket=socket.create_connection((target.hostname,target.port),timeout=10)

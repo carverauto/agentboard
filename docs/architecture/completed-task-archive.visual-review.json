@@ -1,0 +1,13 @@
+{
+  "artifact_sha256": "e733719455ca9473c6c026457fb9ab24d10e8620580b75a08172ac44b1a486e6",
+  "artifact_bytes": 707589,
+  "visual_review": "passed",
+  "reviewer": "Codex image-capable review",
+  "scope": "2048x1320 light and dark screenshots",
+  "observations": [
+    "Readable labels and node content",
+    "No intersecting labels or clipped cards",
+    "Balanced diagram and conclusion cards"
+  ],
+  "correction_rounds": 1
+}

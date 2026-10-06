@@ -1,4 +1,13 @@
 defmodule Agentboard.Board do
+  use Ash.Domain, backwards_compatible_interface?: false
+
+  resources do
+    resource(Agentboard.Board.Resources.Agent)
+    resource(Agentboard.Board.Resources.Task)
+    resource(Agentboard.Board.Resources.TaskEvent)
+    resource(Agentboard.Board.Resources.Message)
+  end
+
   alias Agentboard.{Input, Repo}
 
   # Ordinary module functions: SQL executes in the calling request or LiveView process.
@@ -128,7 +137,8 @@ defmodule Agentboard.Board do
          "task" => task,
          "events" => events["events"],
          "next_cursor" => events["next_cursor"],
-         "documents" => documents["documents"]
+         "documents" => documents["documents"],
+         "archive" => archive_state(id)
        }}
     else
       false -> {:error, "invalid_input", "Invalid task ID"}
@@ -243,7 +253,7 @@ defmodule Agentboard.Board do
   end
 
   defp task_json do
-    "to_jsonb(t.*) || jsonb_build_object('claim_expired',t.claim_expires_at IS NOT NULL AND t.claim_expires_at <= clock_timestamp())"
+    "to_jsonb(t.*) || jsonb_build_object('claim_expired',t.claim_expires_at IS NOT NULL AND t.claim_expires_at <= clock_timestamp(),'archive_revision',coalesce((SELECT a.revision FROM task_archives a WHERE a.id=t.id),0))"
   end
 
   defp agent_json(seconds) do
@@ -262,7 +272,9 @@ defmodule Agentboard.Board do
            "status" => "t.status",
            "owner" => "t.assignee_id",
            "repo" => "t.repo",
-           "label" => "ANY(t.labels)"
+           "label" => "ANY(t.labels)",
+           "archive" =>
+             "CASE WHEN EXISTS (SELECT 1 FROM task_archives a WHERE a.id=t.id AND a.archived_at IS NOT NULL) THEN 'archived' ELSE 'active' END"
          }
        }}
 
@@ -316,6 +328,7 @@ defmodule Agentboard.Board do
         ~w(limit cursor stale_after) ++ if spec.from == "messages m", do: ["unread"], else: []
 
     if Enum.any?(Map.keys(filters), &(&1 not in allowed)) or
+         (Map.has_key?(filters, "archive") and filters["archive"] not in ~w(active archived)) or
          (Map.has_key?(filters, "unread") and filters["unread"] not in ~w(true false)) do
       {:error, "invalid_input", "Unknown list filter"}
     else
@@ -438,6 +451,13 @@ defmodule Agentboard.Board do
 
     if(base == "", do: "task", else: base) <>
       "-" <> Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
+  end
+
+  defp archive_state(id) do
+    case query("SELECT to_jsonb(a.*) FROM task_archives a WHERE id=$1", [id]) do
+      {:ok, %{rows: [[archive]]}} -> archive
+      _ -> %{"id" => id, "revision" => 0, "archived_at" => nil}
+    end
   end
 end
 

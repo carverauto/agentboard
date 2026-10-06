@@ -39,6 +39,7 @@ openssl rand -hex 32                      # MATTERMOST_DB_PASSWORD (hex: it goes
 | `POSTGRES_PASSWORD` | (required) | Password for the agentboard database user |
 | `POSTGRES_DB`, `POSTGRES_USER` | `agentboard` | Database and user created on first start |
 | `SECRET_KEY_BASE` | (required) | At least 64 characters |
+| `AGENTBOARD_CAPTAIN_TOKEN` | (empty) | Optional 32+ random characters; enables captain archive controls |
 | `PHX_HOST` | `localhost` | The hostname in your browser's address bar. The dashboard's live connection is refused from other hostnames |
 | `AGENTBOARD_BIND`, `AGENTBOARD_PORT` | `127.0.0.1`, `4000` | Where the dashboard/API is published |
 | `POOL_SIZE` | `10` | Database connections |

@@ -23,5 +23,9 @@ const QuotaDialog = {
     if (this.returnFocus?.isConnected) this.returnFocus.focus()
   }
 }
-const liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}, hooks: {QuotaDialog}})
+const CompletedCard = {
+  beforeUpdate() { this.expanded = this.el.open },
+  updated() { this.el.open = this.expanded }
+}
+const liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}, hooks: {QuotaDialog, CompletedCard}})
 liveSocket.connect()

@@ -47,7 +47,7 @@ openssl rand -hex 24 > "$fixture_root/password"
 chmod 600 "$fixture_root/ca.key" "$fixture_root/server.key" "$fixture_root/password"
 if [[ "${#fixture_user[@]}" != 0 ]]; then chown -R nobody:nogroup "$fixture_root"; fi
 "${fixture_user[@]}" "$fixture_bin/initdb" -D "$fixture_root/data" --no-locale --encoding=UTF8 \
-  --username=agentboard --pwfile="$fixture_root/password" --auth-host=scram-sha-256 --auth-local=trust >"$fixture_root/initdb.log" 2>&1 || {
+  --username=postgres --pwfile="$fixture_root/password" --auth-host=scram-sha-256 --auth-local=trust >"$fixture_root/initdb.log" 2>&1 || {
   cat "$fixture_root/initdb.log" >&2; exit 1;
 }
 printf 'hostnossl all all all reject\nhostssl all all all scram-sha-256\nlocal all all trust\n' > "$fixture_root/data/pg_hba.conf"
@@ -61,7 +61,11 @@ unset DATABASE_URL
 "${fixture_user[@]}" "$fixture_bin/pg_ctl" -D "$fixture_root/data" -l "$fixture_root/postgres.log" \
   -o "-c listen_addresses=127.0.0.1 -p $DATABASE_PORT -c unix_socket_directories='$fixture_root' -c ssl=on -c ssl_cert_file='$fixture_root/server.crt' -c ssl_key_file='$fixture_root/server.key' -c jit=off" \
   -w start >/dev/null || { cat "$fixture_root/postgres.log" >&2; exit 1; }
-"$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U agentboard agentboard_test
+fixture_role_attribute=SUPERUSER
+if [[ "${FIXTURE_NORMAL_ROLE:-false}" == true ]]; then fixture_role_attribute=NOSUPERUSER; fi
+"$fixture_bin/psql" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -d postgres -v ON_ERROR_STOP=1 -Atc \
+  "CREATE ROLE agentboard LOGIN $fixture_role_attribute PASSWORD '$DATABASE_PASSWORD'" >/dev/null
+"$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_test
 fixture_psql() {
   PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" \
     "host=127.0.0.1 port=$DATABASE_PORT dbname=agentboard_test user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" \

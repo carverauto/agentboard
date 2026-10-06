@@ -4,6 +4,7 @@ defmodule AgentboardWeb.Router do
 
   pipeline :browser do
     plug(:accepts, ["html"])
+    plug(Plug.Parsers, parsers: [:urlencoded], pass: ["*/*"], length: 16_384)
     plug(:fetch_session)
     plug(:put_root_layout, html: {AgentboardWeb.Layouts, :root})
     plug(:protect_from_forgery)
@@ -17,6 +18,18 @@ defmodule AgentboardWeb.Router do
     live("/agents", BoardLive, :agents)
     live("/messages", BoardLive, :messages)
     live("/quota", BoardLive, :quota)
+    live("/archive", BoardLive, :archive)
+    live("/settings", SettingsLive)
+  end
+
+  pipeline :captain_control do
+    plug(AgentboardWeb.Plugs.RateLimit)
+  end
+
+  scope "/settings", AgentboardWeb do
+    pipe_through([:browser, :captain_control])
+    post("/unlock", CaptainController, :unlock)
+    post("/lock", CaptainController, :lock)
   end
 
   pipeline :api do
@@ -71,6 +84,10 @@ defmodule AgentboardWeb.Router do
     post("/agents/:id/heartbeat", APIController, :heartbeat)
     get("/agents/:id", APIController, :agent)
     get("/tasks", APIController, :tasks)
+    get("/settings/archive", CaptainController, :settings)
+    patch("/settings/archive", CaptainController, :save)
+    post("/tasks/:id/archive", CaptainController, :archive)
+    post("/tasks/:id/restore", CaptainController, :restore)
     post("/tasks", APIController, :create)
     get("/messages", APIController, :messages)
     post("/messages", APIController, :send_message)

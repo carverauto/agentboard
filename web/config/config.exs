@@ -1,6 +1,12 @@
 import Config
 
-config :agentboard, ecto_repos: [Agentboard.Repo]
+config :agentboard,
+  ecto_repos: [Agentboard.Repo],
+  ash_domains: [Agentboard.Board, Agentboard.Evidence, Agentboard.Housekeeping]
+
+config :ash,
+  include_embedded_source_by_default?: false,
+  default_string_length_count: :codepoints
 
 config :agentboard, :rate_limits,
   ip: 120,
@@ -20,6 +26,7 @@ config :agentboard, AgentboardWeb.Endpoint,
   server: false
 
 config :phoenix, :json_library, Jason
+config :phoenix, :filter_parameters, ["password", "token", "secret"]
 config :logger, :console, format: "$time $metadata[$level] $message\n", metadata: [:request_id]
 
 import_config "#{config_env()}.exs"

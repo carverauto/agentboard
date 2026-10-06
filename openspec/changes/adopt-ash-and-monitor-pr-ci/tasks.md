@@ -2,8 +2,8 @@
 
 ## 1. Ash dependency and migration foundation
 
-- [ ] 1.1 Pin Ash, AshPostgres, AshPhoenix, AshPaperTrail, AshEvents, Oban, AshOban and provider HTTP client in Mix and hermetic Hex/Bazel closure; verify dependency compilation and release packaging only through remote Bazel.
-- [ ] 1.2 Map existing Agent/Task/TaskEvent/Message/Document/quota tables into Ash resources/domains without recreating tables; verify remote schema fixtures preserve v0.1.0 IDs, constraints and HTML bytes.
+- [x] 1.1 Pin Ash, AshPostgres, AshPhoenix, AshPaperTrail, AshEvents, Oban, AshOban and provider HTTP client in Mix and hermetic Hex/Bazel closure; verify dependency compilation and release packaging only through remote Bazel.
+- [x] 1.2 Map existing Agent/Task/TaskEvent/Message/Document/quota tables into Ash resources/domains without recreating tables; verify remote schema fixtures preserve v0.1.0 IDs, constraints and HTML bytes.
 - [ ] 1.3 Add additive audit/version/Delivery/Oban schema with generator baselines; verify fresh install, schema-4 upgrade and repeat migration remotely, and document audit cutoff/rollback compatibility in docs/release.md.
 
 ## 2. Existing operations through Ash

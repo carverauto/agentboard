@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Completed task archive",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1120,
+      560
+    ]
+  },
+  "components": [
+    {
+      "id": "completed",
+      "type": "frontend",
+      "label": "Done cards",
+      "sublabel": "Native expand / collapse",
+      "pos": [
+        50,
+        100
+      ],
+      "size": [
+        235,
+        90
+      ]
+    },
+    {
+      "id": "captain",
+      "type": "security",
+      "label": "Captain controls",
+      "sublabel": "Session + CSRF / token",
+      "pos": [
+        445,
+        100
+      ],
+      "size": [
+        235,
+        90
+      ]
+    },
+    {
+      "id": "archive",
+      "type": "backend",
+      "label": "Housekeeping domain",
+      "sublabel": "Ash actions + row locks",
+      "pos": [
+        835,
+        100
+      ],
+      "size": [
+        235,
+        90
+      ]
+    },
+    {
+      "id": "scheduler",
+      "type": "backend",
+      "label": "AshOban sweep",
+      "sublabel": "Current policy \u00b7 bounded batch",
+      "pos": [
+        835,
+        330
+      ],
+      "size": [
+        235,
+        90
+      ]
+    },
+    {
+      "id": "durable",
+      "type": "database",
+      "label": "Archive + policy records",
+      "sublabel": "PaperTrail + AshEvents audit",
+      "pos": [
+        445,
+        330
+      ],
+      "size": [
+        235,
+        90
+      ]
+    },
+    {
+      "id": "inventory",
+      "type": "database",
+      "label": "Retained task inventory",
+      "sublabel": "History \u00b7 docs \u00b7 PR ownership",
+      "pos": [
+        50,
+        330
+      ],
+      "size": [
+        235,
+        90
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "control",
+      "from": "completed",
+      "to": "captain",
+      "label": "Archive / restore"
+    },
+    {
+      "id": "write",
+      "from": "captain",
+      "to": "archive",
+      "label": "Authorized action"
+    },
+    {
+      "id": "sweep",
+      "from": "scheduler",
+      "to": "archive",
+      "label": "Recheck Done state"
+    },
+    {
+      "id": "policy",
+      "from": "durable",
+      "to": "scheduler",
+      "label": "Due time + retention",
+      "labelDy": 28
+    },
+    {
+      "id": "retained",
+      "from": "durable",
+      "to": "inventory",
+      "label": "Visibility overlay"
+    },
+    {
+      "id": "audited",
+      "from": "archive",
+      "to": "durable",
+      "label": "Atomic state + audit"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Reversible visibility",
+      "items": [
+        "Task lifecycle and delivery responsibility remain intact",
+        "Canonical API inventory still includes archived work"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Deliberate scheduling",
+      "items": [
+        "Disabled by default \u00b7 hourly / daily / weekly",
+        "Restored cards receive a fresh retention period"
+      ]
+    }
+  ]
+}
