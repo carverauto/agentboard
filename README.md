@@ -101,7 +101,7 @@ Target: **farm01** Kubernetes. Layout under `k8s/`:
 | ConfigMap | `k8s/base/configmap.yaml` |
 | Dashboard Deployment + Service | `k8s/base/dashboard.yaml` |
 | Schema migration Job | `k8s/base/migration.yaml` |
-| farm01 overlay | `k8s/overlays/farm01` (`local-path-cnpg`, internal `PHX_HOST`) |
+| farm01 overlay | `k8s/overlays/farm01` (`local-path-cnpg`, confirmed `PHX_HOST`) |
 
 Out-of-band secrets (not in git): `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry`.
 
