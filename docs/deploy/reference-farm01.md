@@ -83,3 +83,9 @@ SMTP is not configured, so email notifications and email invites are unavailable
 ## Shared context completion release
 
 The 2026-10-06 completion rollout uses merged PR22 (`74e9d1d`) dashboard digest `sha256:d893984ed1495ac9d468ae1687353dc5032727933ebe7aaab0dc160c57864084` for both migration and Deployment. CNPG retains the already-deployed PostgreSQL 18.6 / pg_textsearch 1.5.1 image. Schema 5 and the mobile evidence-link fix are live; all six shared-context implementation tasks passed their delivery checks. See [final acceptance](../verification.md#shared-context-final-acceptance-pr22-2026-10-06).
+
+## Audited Ash foundation release
+
+The subsequent PR27 rollout (`2e89bb0cc13218deab1304db38b4536d16721e87`) uses dashboard digest `sha256:3bd61e8e7459a1430067b220d786305da4500c954927733ff3e68e45253da9a7` for the migration and Deployment. Migration Job `agentboard-migrate-2e89bb0` completed before the dashboard rolled; schema 6 and one Ready pod on that exact image are verified. Existing immutable task history, HTML documents and shared-context entries retained their pre-roll hashes. CNPG/BM25 and Mattermost remain healthy. See the [rollout evidence](../verification.md#audited-ash-foundation-rollout-pr27-2026-10-06) and [normalized receipt](../verification/farm01-ash-foundation.json).
+
+This deploys the Board/Evidence Ash foundation. PR CI monitoring, completion guard, Mattermost bridge and agent wakeups remain subsequent work. Retain the schema-6 data if rolling back; an older schema-5 application does not provide the new audit coverage described in the [release notes](../release.md#schema-6-audited-board-and-evidence-actions).
