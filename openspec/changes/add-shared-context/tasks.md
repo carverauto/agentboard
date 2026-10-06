@@ -7,7 +7,7 @@
 
 ## 2. Agent and captain access
 
-- [ ] 2.1 Add Ash retrieval actions, API and Go CLI append/show/catch-up/search with explicit acknowledgement receipts and BM25 scores; verify remote real API/CLI ranking, filters, pagination, provenance and 429 compatibility; document commands.
+- [x] 2.1 Add Ash retrieval actions, API and Go CLI append/show/catch-up/search with explicit acknowledgement receipts and BM25 scores; verify remote real API/CLI ranking, filters, pagination, provenance and 429 compatibility; document commands.
 - [ ] 2.2 Add escaped context dashboard and relationships plus shared skill check-in/publication guidance; verify desktop/mobile browser behavior and adversarial text safely rendered.
 
 ## 3. Reviewed delivery and rollout
