@@ -1,0 +1,86 @@
+{
+  "release_commit": "2e89bb0cc13218deab1304db38b4536d16721e87",
+  "release_pr": "https://github.com/carverauto/agentboard/pull/27",
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:3bd61e8e7459a1430067b220d786305da4500c954927733ff3e68e45253da9a7",
+  "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:d893984ed1495ac9d468ae1687353dc5032727933ebe7aaab0dc160c57864084",
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37543466858",
+  "remote_acceptance": "https://carverauto.buildbuddy.io/invocation/5a2dc6d2-b7bc-4e84-aff2-0d0677832594",
+  "remote_packaging": "https://carverauto.buildbuddy.io/invocation/212a15c1-9e6c-435a-a74d-411eff3b0489",
+  "acceptance_targets": 14,
+  "schema_version": 6,
+  "api_version": 1,
+  "migration": {
+    "job": "agentboard-migrate-2e89bb0",
+    "succeeded": true,
+    "image": "registry.carverauto.dev/agentboard/dashboard@sha256:3bd61e8e7459a1430067b220d786305da4500c954927733ff3e68e45253da9a7"
+  },
+  "dashboard": {
+    "pod": "agentboard-dashboard-799b654595-5xpw2",
+    "ready": true,
+    "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:3bd61e8e7459a1430067b220d786305da4500c954927733ff3e68e45253da9a7"
+  },
+  "cnpg": {
+    "phase": "Cluster in healthy state",
+    "ready_instances": 2,
+    "primary": "agentboard-db-2",
+    "pg_textsearch": "1.5.1",
+    "application_roles_superuser": false
+  },
+  "preserved_immutable_prefixes": {
+    "task_events": {
+      "max_id": 157,
+      "count": 141,
+      "digest": "04111ad22575fe0c55ba85e1b9aca854"
+    },
+    "task_documents": {
+      "max_id": 47,
+      "count": 15,
+      "digest": "a507ef2ce205f9fb4f9b9e97b2821427"
+    },
+    "context_entries": {
+      "max_id": 4,
+      "count": 3,
+      "digest": "3368b23f27271840126097295249c88a"
+    }
+  },
+  "live_api": {
+    "lease_renewal_revision": 24,
+    "progress_update_revision": 25,
+    "papertrail_and_ashevents": [
+      "renew",
+      "update"
+    ],
+    "audit_provenance": {
+      "agent": "codex-agentboard-rollout",
+      "model": "gpt-6",
+      "harness": "codex"
+    },
+    "document_retry": {
+      "id": 46,
+      "idempotent": true
+    },
+    "bm25_result": {
+      "id": 4,
+      "score": 0.9647207260131836,
+      "backend": "pg_textsearch-1.5.1"
+    },
+    "documents_byte_exact": [
+      46,
+      47
+    ],
+    "watch": {
+      "duration_seconds": 45,
+      "snapshots": 10,
+      "stderr": "",
+      "returncode": 0,
+      "ndjson_valid": true
+    }
+  },
+  "mattermost": {
+    "https": 200,
+    "database": "OK",
+    "filestore": "OK"
+  },
+  "scope": "Ash Board/Evidence foundation; PR monitoring, completion guard, Mattermost bridge and wakeup integration remain pending",
+  "local_application_builds": false
+}
