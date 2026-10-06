@@ -27,10 +27,12 @@ document:
     REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
     Bazel build, test and quality command uses `--config=remote`, so execution
     stays on BuildBuddy RBE. Local work is limited to source edits, Git
-    operations and lightweight inspection (reading files, ripgrep, grep, git
-    diff/log, reviewing k8s YAML). Never compile, fetch dependencies or run
-    tests locally: no `mix compile`, `mix test`, `mix deps.get`, `mix format`,
-    `mix credo`, `go build`/`go test`/`go vet`, `npm`/`bun` builds, or `bazel`
+    operations and lightweight inspection (reading files, ripgrep, ripwire
+    symbol/call-graph queries such as `ripwire . --for=TASK`, `--callers=SYM`
+    or `--impact=SYM`, grep, git diff/log, reviewing k8s YAML). Never compile,
+    fetch dependencies or run tests locally: no `mix compile`, `mix test`,
+    `mix deps.get`, `mix format`, `mix credo`, `go build`/`go test`/`go vet`,
+    `npm`/`bun` builds, `docker build` / `docker compose build`, or `bazel`
     without `--config=remote`. Never pass `--warnings-as-errors` (or language
     equivalents that fail the build on warnings). If a check cannot run
     remotely, report it as untested instead of running it here.
@@ -46,10 +48,12 @@ test:
     REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
     Bazel build, test and quality command uses `--config=remote`, so execution
     stays on BuildBuddy RBE. Local work is limited to source edits, Git
-    operations and lightweight inspection (reading files, ripgrep, grep, git
-    diff/log, reviewing k8s YAML). Never compile, fetch dependencies or run
-    tests locally: no `mix compile`, `mix test`, `mix deps.get`, `mix format`,
-    `mix credo`, `go build`/`go test`/`go vet`, `npm`/`bun` builds, or `bazel`
+    operations and lightweight inspection (reading files, ripgrep, ripwire
+    symbol/call-graph queries such as `ripwire . --for=TASK`, `--callers=SYM`
+    or `--impact=SYM`, grep, git diff/log, reviewing k8s YAML). Never compile,
+    fetch dependencies or run tests locally: no `mix compile`, `mix test`,
+    `mix deps.get`, `mix format`, `mix credo`, `go build`/`go test`/`go vet`,
+    `npm`/`bun` builds, `docker build` / `docker compose build`, or `bazel`
     without `--config=remote`. Never pass `--warnings-as-errors` (or language
     equivalents that fail the build on warnings). If a check cannot run
     remotely, report it as untested instead of running it here.
@@ -72,10 +76,12 @@ review:
     REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
     Bazel build, test and quality command uses `--config=remote`, so execution
     stays on BuildBuddy RBE. Local work is limited to source edits, Git
-    operations and lightweight inspection (reading files, ripgrep, grep, git
-    diff/log, reviewing k8s YAML). Never compile, fetch dependencies or run
-    tests locally: no `mix compile`, `mix test`, `mix deps.get`, `mix format`,
-    `mix credo`, `go build`/`go test`/`go vet`, `npm`/`bun` builds, or `bazel`
+    operations and lightweight inspection (reading files, ripgrep, ripwire
+    symbol/call-graph queries such as `ripwire . --for=TASK`, `--callers=SYM`
+    or `--impact=SYM`, grep, git diff/log, reviewing k8s YAML). Never compile,
+    fetch dependencies or run tests locally: no `mix compile`, `mix test`,
+    `mix deps.get`, `mix format`, `mix credo`, `go build`/`go test`/`go vet`,
+    `npm`/`bun` builds, `docker build` / `docker compose build`, or `bazel`
     without `--config=remote`. Never pass `--warnings-as-errors`. If a check
     cannot run remotely, report it as untested instead of running it here.
 lint:
@@ -83,10 +89,12 @@ lint:
     REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
     Bazel build, test and quality command uses `--config=remote`, so execution
     stays on BuildBuddy RBE. Local work is limited to source edits, Git
-    operations and lightweight inspection (reading files, ripgrep, grep, git
-    diff/log, reviewing k8s YAML). Never compile, fetch dependencies or run
-    tests locally: no `mix compile`, `mix test`, `mix deps.get`, `mix format`,
-    `mix credo`, `go build`/`go test`/`go vet`, `npm`/`bun` builds, or `bazel`
+    operations and lightweight inspection (reading files, ripgrep, ripwire
+    symbol/call-graph queries such as `ripwire . --for=TASK`, `--callers=SYM`
+    or `--impact=SYM`, grep, git diff/log, reviewing k8s YAML). Never compile,
+    fetch dependencies or run tests locally: no `mix compile`, `mix test`,
+    `mix deps.get`, `mix format`, `mix credo`, `go build`/`go test`/`go vet`,
+    `npm`/`bun` builds, `docker build` / `docker compose build`, or `bazel`
     without `--config=remote`. Never pass `--warnings-as-errors`. If a check
     cannot run remotely, report it as untested instead of running it here.
 ci:
@@ -94,11 +102,13 @@ ci:
     REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
     Bazel build, test and quality command uses `--config=remote`, so execution
     stays on BuildBuddy RBE. Local work is limited to source edits, Git
-    operations and lightweight inspection (reading files, ripgrep, grep, git
-    diff/log, reviewing k8s YAML). Never compile, fetch dependencies or run
-    tests locally: no `mix compile`, `mix test`, `mix deps.get`, `mix format`,
-    `mix credo`, `go build`/`go test`/`go vet`, `npm`/`bun` builds, or `bazel`
+    operations and lightweight inspection (reading files, ripgrep, ripwire
+    symbol/call-graph queries such as `ripwire . --for=TASK`, `--callers=SYM`
+    or `--impact=SYM`, grep, git diff/log, reviewing k8s YAML). Never compile,
+    fetch dependencies or run tests locally: no `mix compile`, `mix test`,
+    `mix deps.get`, `mix format`, `mix credo`, `go build`/`go test`/`go vet`,
+    `npm`/`bun` builds, `docker build` / `docker compose build`, or `bazel`
     without `--config=remote`. Never pass `--warnings-as-errors`. If a check
-    cannot run remotely, report it as untested instead of running it here.
-    For a CI failure, read the BuildBuddy / forge log and fix from the
-    evidence; the PR's remote CI rerun is the proof.
+    cannot run remotely, report it as untested instead of running it here. For
+    a CI failure, read the BuildBuddy / forge log and fix from the evidence;
+    the PR's remote CI rerun is the proof.

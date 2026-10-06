@@ -18,7 +18,7 @@ A plain shell worker uses the same CLI:
 
 ```sh
 export AGENT_ID=shell-worker AGENTBOARD_HARNESS=shell AGENTBOARD_MODEL=human
-export AGENTBOARD_URL=https://agentboard.farm01.carverauto.dev
+export AGENTBOARD_URL=https://agentboard.example.com
 agentboard agent register --name 'Shell worker'
 agentboard task list --owner "$AGENT_ID" --json
 agentboard msg list --unread --json

@@ -1,0 +1,40 @@
+name: Docker images
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - Dockerfile.cli
+      - .dockerignore
+      - docker-compose.yml
+      - deploy/compose/**
+      - scripts/compose-smoke
+      - web/**
+      - cmd/**
+      - internal/**
+      - go.mod
+      - go.sum
+      - .github/workflows/docker.yml
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  compose-smoke:
+    # GitHub-hosted runner: pull requests from forks must not reach
+    # self-hosted runners. Builds the dashboard and CLI images and runs the
+    # Compose stack end to end (including the optional Mattermost profile).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Validate Compose file
+        run: |
+          set -euo pipefail
+          POSTGRES_PASSWORD=ci SECRET_KEY_BASE=ci docker compose --profile cli --profile chat config --quiet
+      - name: Build images and run the Compose smoke test
+        run: ./scripts/compose-smoke --chat

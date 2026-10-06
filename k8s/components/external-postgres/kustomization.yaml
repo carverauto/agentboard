@@ -1,0 +1,18 @@
+# Use your own PostgreSQL (14+) instead of the bundled CNPG Cluster.
+# agentboard always connects over TLS and verifies the server certificate and
+# hostname, so also:
+#   - set DATABASE_HOST (and DATABASE_PORT/DATABASE_NAME if needed) in your
+#     overlay's agentboard-config,
+#   - create Secret `agentboard-db-ca` with key `ca.crt` (the CA that signed
+#     your server certificate), and
+#   - create Secret `agentboard-db-credentials` (username/password).
+# See docs/setup/kubernetes.md.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+  - patch: |-
+      $patch: delete
+      apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      metadata:
+        name: agentboard-db

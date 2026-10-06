@@ -1,0 +1,46 @@
+# Generic starting point for your own cluster. Copy this directory and replace
+# every example value (image, hostname, Gateway). Walkthrough:
+# docs/setup/kubernetes.md
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: agentboard
+resources:
+  - ../../base
+  - httproute.yaml
+  # With the mattermost component below, also route Mattermost:
+  # - mattermost-httproute.yaml
+# Optional pieces (docs/setup/kubernetes.md, docs/setup/mattermost.md):
+# components:
+#   - ../../components/external-postgres  # your own PostgreSQL instead of CNPG
+#   - ../../components/mattermost         # Mattermost Team Edition on the CNPG cluster
+patches:
+  # Public images need no pull secret. Delete these two patches if your
+  # registry requires the `agentboard-registry` pull secret.
+  - target:
+      kind: Deployment
+      name: agentboard-dashboard
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/imagePullSecrets
+  - target:
+      kind: Job
+      name: agentboard-migrate
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/imagePullSecrets
+configMapGenerator:
+  - name: agentboard-config
+    behavior: merge
+    literals:
+      # The hostname people and agents use (LiveView checks the websocket origin).
+      - PHX_HOST=agentboard.example.com
+      # With components/external-postgres, point at your server instead:
+      # - DATABASE_HOST=postgres.example.internal
+generatorOptions:
+  disableNameSuffixHash: true
+images:
+  # `name` is the image reference used in k8s/base; point it at the image you
+  # built (Dockerfile) and pushed. The app and migration Job share it.
+  - name: registry.carverauto.dev/agentboard/dashboard
+    newName: registry.example.com/agentboard/dashboard
+    newTag: "0.1.0"

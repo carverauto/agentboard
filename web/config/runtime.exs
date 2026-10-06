@@ -64,7 +64,7 @@ if config_env() == :prod do
   config :agentboard, AgentboardWeb.Endpoint,
     server: System.get_env("PHX_SERVER") in ["true", "1"],
     url: [
-      host: System.get_env("PHX_HOST", "agentboard.farm01.carverauto.dev"),
+      host: System.get_env("PHX_HOST", "localhost"),
       port: 443,
       scheme: "https"
     ],

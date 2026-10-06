@@ -1,0 +1,42 @@
+# Route for the optional Mattermost component. Replace the Gateway reference
+# and hostname, and set the same URL as MM_SERVICESETTINGS_SITEURL.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mattermost
+  labels:
+    app.kubernetes.io/name: mattermost
+spec:
+  parentRefs:
+    - name: example-gateway
+      namespace: gateway-system
+      sectionName: https
+  hostnames:
+    - mattermost.example.com
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/v4/websocket
+      # Mattermost's websocket is long-lived.
+      timeouts:
+        request: 0s
+      backendRefs:
+        - name: mattermost
+          port: 8065
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v4/files
+        - path:
+            type: PathPrefix
+            value: /api/v4/uploads
+      # Large attachments can outlast a short default request timeout.
+      timeouts:
+        request: 600s
+      backendRefs:
+        - name: mattermost
+          port: 8065
+    - backendRefs:
+        - name: mattermost
+          port: 8065

@@ -1,0 +1,40 @@
+# Gateway API route for agentboard. Replace the Gateway reference and the
+# hostname. The three watch paths stream NDJSON for as long as an agent
+# watches, so they disable the request timeout; everything else keeps your
+# Gateway's default. The LiveView websocket (/live) needs the same treatment
+# if your Gateway applies a request timeout to upgraded connections.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: agentboard
+  labels:
+    app.kubernetes.io/name: agentboard
+spec:
+  parentRefs:
+    - name: example-gateway
+      namespace: gateway-system
+      sectionName: https
+  hostnames:
+    - agentboard.example.com
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/v1/tasks/watch
+        - path:
+            type: Exact
+            value: /api/v1/messages/watch
+        - path:
+            type: Exact
+            value: /api/v1/quota/watch
+        - path:
+            type: PathPrefix
+            value: /live
+      timeouts:
+        request: 0s
+      backendRefs:
+        - name: agentboard-dashboard
+          port: 4000
+    - backendRefs:
+        - name: agentboard-dashboard
+          port: 4000

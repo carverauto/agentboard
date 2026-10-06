@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# End-to-end smoke test for docker-compose.yml: build, start, migrate, check
+# readiness and the dashboard, then drive the CLI container. Pass --chat to
+# also start Mattermost. Intended for CI and disposable Linux hosts (it builds
+# images); see AGENTS.md. Uses a throwaway project name and env file, and
+# removes its containers and volumes on exit unless KEEP=1.
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$root"
+
+chat=0
+[[ "${1:-}" == "--chat" ]] && chat=1
+
+project="${SMOKE_PROJECT:-agentboard-smoke}"
+port="${SMOKE_PORT:-4000}"
+mm_port="${SMOKE_MM_PORT:-8065}"
+env_file="$(mktemp)"
+args=(-p "$project" --env-file "$env_file")
+trap 'status=$?; if [[ "${KEEP:-0}" != 1 ]]; then docker compose "${args[@]}" --profile cli --profile chat down -v --remove-orphans >/dev/null 2>&1 || true; fi; rm -f "$env_file"; exit $status' EXIT
+
+umask 077
+{
+  echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+  echo "SECRET_KEY_BASE=$(openssl rand -base64 64 | tr -d '\n')"
+  echo "MATTERMOST_DB_PASSWORD=$(openssl rand -hex 32)"
+  echo "AGENTBOARD_PORT=$port"
+  echo "MATTERMOST_PORT=$mm_port"
+  echo "MATTERMOST_SITE_URL=http://localhost:$mm_port"
+  echo "AGENT_ID=smoke-shell"
+  echo "AGENTBOARD_MODEL=human"
+  echo "AGENTBOARD_HARNESS=shell"
+} > "$env_file"
+profiles=()
+services=(dashboard)
+if [[ $chat == 1 ]]; then profiles=(--profile chat); services+=(mattermost); fi
+
+step() { printf '\n== %s\n' "$*"; }
+
+step "build"
+docker compose "${args[@]}" --profile cli build
+
+step "up"
+docker compose "${args[@]}" "${profiles[@]}" up -d --wait --wait-timeout 600 "${services[@]}"
+docker compose "${args[@]}" "${profiles[@]}" ps -a
+
+step "migrations"
+test "$(docker inspect -f '{{.State.ExitCode}}' "$(docker compose "${args[@]}" ps -aq migrate)")" = 0
+
+step "readiness"
+curl -fsS "http://127.0.0.1:$port/health/ready" | tee /dev/stderr | grep -q '"status":"ready"'
+
+step "dashboard"
+curl -fsS "http://127.0.0.1:$port/" | grep -q '<title>Agentboard</title>'
+curl -fsS -o /dev/null "http://127.0.0.1:$port/assets/app.js"
+
+step "cli"
+cli() { docker compose "${args[@]}" --profile cli run --rm --no-deps -T cli "$@"; }
+cli meta --json
+cli agent register --name "Smoke shell" --json >/dev/null
+cli task create --id smoke-task --title "Compose smoke task" --json >/dev/null
+cli task list --json | grep -q '"id":"smoke-task"'
+cli task claim smoke-task --json | grep -q '"status":"in_progress"'
+echo "registered agent, created/listed/claimed task"
+
+if [[ $chat == 1 ]]; then
+  step "mattermost"
+  curl -fsS "http://127.0.0.1:$mm_port/api/v4/system/ping?get_server_status=true" | tee /dev/stderr | grep -q '"database_status":"OK"'
+  curl -fsS "http://127.0.0.1:$mm_port/login" | grep -q '<title>Mattermost</title>'
+fi
+
+step "ok"

@@ -1,0 +1,182 @@
+# agentboard on Docker Compose: Postgres, a one-shot migration, and the
+# dashboard/API. Mattermost is optional (`--profile chat`).
+#
+#   cp .env.example .env      # then replace every placeholder
+#   docker compose up -d --build
+#   open http://localhost:4000
+#
+# Full guide: docs/setup/docker-compose.md
+#
+# agentboard has no built-in authentication yet. The published ports bind to
+# 127.0.0.1 by default; only expose them on a trusted network or behind your
+# own auth proxy.
+
+name: agentboard
+
+x-db-env: &db-env
+  DATABASE_HOST: db
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: ${POSTGRES_DB:-agentboard}
+  DATABASE_USER: ${POSTGRES_USER:-agentboard}
+  DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+  DATABASE_CA_FILE: /certs/ca.crt
+  SECRET_KEY_BASE: ${SECRET_KEY_BASE:?set SECRET_KEY_BASE in .env}
+  PHX_HOST: ${PHX_HOST:-localhost}
+  POOL_SIZE: ${POOL_SIZE:-10}
+
+services:
+  # Issues the private CA and server certificate for Postgres TLS (once).
+  db-certs:
+    image: ${POSTGRES_IMAGE:-postgres:18}
+    entrypoint: ["/bin/sh", "/gen-db-certs.sh"]
+    user: "0:0"
+    volumes:
+      - ./deploy/compose/gen-db-certs.sh:/gen-db-certs.sh:ro
+      - db-certs:/certs
+    restart: "no"
+
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:18}
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/certs/server.crt
+      - -c
+      - ssl_key_file=/certs/server.key
+      - -c
+      - password_encryption=scram-sha-256
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-agentboard}
+      POSTGRES_USER: ${POSTGRES_USER:-agentboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      # Used only by initdb/20-mattermost.sh to create the chat database.
+      MATTERMOST_DB_PASSWORD: ${MATTERMOST_DB_PASSWORD:-}
+    volumes:
+      # PostgreSQL 18+ images keep data in /var/lib/postgresql/<major>/docker.
+      - db-data:/var/lib/postgresql
+      - db-certs:/certs:ro
+      - ./deploy/compose/initdb:/docker-entrypoint-initdb.d:ro
+    depends_on:
+      db-certs:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  # Applies additive Ecto migrations from the same image that serves traffic,
+  # then exits. Re-runs (and is a no-op) on every `docker compose up`.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${AGENTBOARD_IMAGE:-agentboard-dashboard:local}
+    command: ["eval", "Agentboard.Release.migrate()"]
+    environment:
+      <<: *db-env
+      PHX_SERVER: "false"
+    volumes:
+      - db-certs:/certs:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  dashboard:
+    image: ${AGENTBOARD_IMAGE:-agentboard-dashboard:local}
+    environment:
+      <<: *db-env
+      PHX_SERVER: "true"
+      PORT: "4000"
+    ports:
+      - "${AGENTBOARD_BIND:-127.0.0.1}:${AGENTBOARD_PORT:-4000}:4000"
+    volumes:
+      - db-certs:/certs:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # The runtime image has no curl; bash's /dev/tcp probes /health/ready.
+      test:
+        - CMD
+        - bash
+        - -c
+        - exec 3<>/dev/tcp/127.0.0.1/4000 && printf 'GET /health/ready HTTP/1.0\r\n\r\n' >&3 && head -n 1 <&3 | grep -q ' 200 '
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  # The agentboard CLI in a container (`docker compose run --rm cli ...`).
+  # It shares the dashboard's network namespace so it reaches the API on
+  # http://localhost:4000; the CLI accepts plain HTTP only on loopback.
+  cli:
+    profiles: ["cli"]
+    build:
+      context: .
+      dockerfile: Dockerfile.cli
+    image: ${AGENTBOARD_CLI_IMAGE:-agentboard-cli:local}
+    network_mode: "service:dashboard"
+    environment:
+      AGENTBOARD_URL: http://localhost:4000
+      AGENT_ID: ${AGENT_ID:-}
+      AGENTBOARD_MODEL: ${AGENTBOARD_MODEL:-}
+      AGENTBOARD_HARNESS: ${AGENTBOARD_HARNESS:-}
+
+  # Optional chat surface: docker compose --profile chat up -d
+  mattermost:
+    profiles: ["chat"]
+    image: ${MATTERMOST_IMAGE:-mattermost/mattermost-team-edition:11.11.1@sha256:6ad5912b45875ef2fafc41886b5a70a3ec1b6c17ec706e0492566e8a2fd8aa85}
+    environment:
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      # The password is interpolated into a URL: use a URL-safe value (hex).
+      MM_SQLSETTINGS_DATASOURCE: postgres://mattermost:${MATTERMOST_DB_PASSWORD:-}@db:5432/mattermost?sslmode=verify-full&sslrootcert=/certs/ca.crt&connect_timeout=10
+      MM_SQLSETTINGS_MAXOPENCONNS: "20"
+      MM_SQLSETTINGS_MAXIDLECONNS: "10"
+      MM_SERVICESETTINGS_SITEURL: ${MATTERMOST_SITE_URL:-http://localhost:8065}
+      MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
+      MM_FILESETTINGS_DRIVERNAME: local
+      MM_FILESETTINGS_DIRECTORY: /mattermost/data/
+      MM_LOGSETTINGS_CONSOLELEVEL: INFO
+    ports:
+      - "${MATTERMOST_BIND:-127.0.0.1}:${MATTERMOST_PORT:-8065}:8065"
+    volumes:
+      - db-certs:/certs:ro
+      - mattermost-data:/mattermost/data
+      - mattermost-config:/mattermost/config
+      - mattermost-logs:/mattermost/logs
+      - mattermost-plugins:/mattermost/plugins
+      - mattermost-client-plugins:/mattermost/client/plugins
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # The image has no shell or curl; mmctl talks to the local-mode socket.
+      test: ["CMD", "/mattermost/bin/mmctl", "--local", "system", "status"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  db-certs:
+  mattermost-data:
+  mattermost-config:
+  mattermost-logs:
+  mattermost-plugins:
+  mattermost-client-plugins:
