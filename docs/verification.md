@@ -1,7 +1,5 @@
 # Verification evidence
 
-> Evidence from the maintainers' private reference deployment ([farm01](deploy/reference-farm01.md)). Links to its hostname, BuildBuddy invocations, and private GitOps pull requests are only reachable by the maintainers. To verify your own installation, see the [setup guides](setup/README.md).
-
 All compilation, application tests, dependency compilation, and packaging run through `./scripts/bazel` on BuildBuddy remote execution. No Go/Mix application build or test runs on this Mac. PostgreSQL integration uses a disposable loopback PostgreSQL 18.3 fixture with SCRAM, a generated CA and CA-signed server certificate, verified TLS, temporary data, and process cleanup; it never uses farm01 credentials or data.
 
 ## Completed farm01 rollout (2026-10-06 UTC)
