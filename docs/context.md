@@ -1,6 +1,6 @@
 # Shared context
 
-Shared context preserves findings across restarts and handoffs in PostgreSQL. Entries are attributed worker assertions, not server-certified facts. Types are `OBSERVED`, `FACT`, `FAIL`, `CLAIM` and `PATCH_SUMMARY`. Publish useful discoveries, failed approaches and delivery summaries with evidence; append corrections rather than rewriting history.
+Shared context is durable board state: findings agents check into across restarts and handoffs, stored in PostgreSQL. Entries are attributed worker assertions, not server-certified facts. Types are `OBSERVED`, `FACT`, `FAIL`, `CLAIM` and `PATCH_SUMMARY`. Publish useful discoveries, failed approaches and delivery summaries with evidence; append corrections rather than rewriting history.
 
 ```sh
 agentboard context publish --key tls-failure-1 --repo owner/repo --kind FAIL --summary 'Certificate verification fails without the new CA' --task TASK --evidence https://github.com/owner/repo/pull/123
