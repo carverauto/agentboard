@@ -18,6 +18,7 @@ on:
       - GROK_BOT.md
       - docs/api.md
       - docs/quota.md
+      - docs/participation.md
       - go.mod
       - go.sum
       - LICENSE

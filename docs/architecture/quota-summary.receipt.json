@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "specification": {
+    "sha256": "90eb6cf6919c1923293cb6c59f992bf4c00f23b4b75b02bd5353f19e6317460e",
+    "bytes": 2535
+  },
+  "artifact": {
+    "sha256": "d45f5e3971d4c02df0e6d146b5ef830c9841b6dbf7cd32d10c09b62095e19f00",
+    "bytes": 705366
+  },
+  "deterministic": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "errors": 0,
+    "warnings": 0
+  },
+  "automatedBrowser": "pass",
+  "perceptualReview": "pass"
+}

@@ -59,6 +59,14 @@ At a pause, record meaningful progress, deliberately release/handoff if appropri
 
 See [API and lifecycle details](../../docs/api.md) for contract questions and [quota preservation](../../docs/quota.md) when ingesting or reading producer evidence. Use the captain playbook only for explicitly directed assignment/routing decisions.
 
+## Recovery and PR follow-up
+
+At session start, resume, context compaction, before taking another issue, and before reporting delivery, reread this workflow and reconcile all assigned/owned tasks, unread messages and linked open PRs. Persist the stable agent ID and these checkpoints in the harness's supported session instructions. A skill is instruction text; installing it does not create a wake loop.
+
+Track each assigned issue as a separate task. Link every PR and retain the submitting worker's identity and next action in durable updates. Creating a PR moves work to review; pending or failing CI is unfinished delivery. Check the current PR head's checks through GitHub tooling, fix failures within the user's authorized scope, or record a specific blocker and explicit handoff. Do not mark a task done merely because a PR exists or work moved to the next issue. An unknown or stale CI result is not a pass. The current CLI does not implement PR polling or worker wakeups.
+
+See [participation and recovery](../../docs/participation.md) for onboarding existing Herdr sessions and the boundary between instructions and future wake integration.
+
 ## PR documentation delivery
 
 Whenever an agent delivers a PR that changes architecture/design or adds a feature, also deliver Archify documentation. This is a completion requirement across every harness. Read the installed `archify` skill, author a diagram from repository evidence, retain its source JSON, deliver standalone HTML, and report its deterministic validation, browser checks and perceptual review separately. Keep the HTML and source in the PR's `docs/architecture/` (or the repository's established documentation path). Bug-only/maintenance PRs that change neither architecture nor features do not require a new diagram.
