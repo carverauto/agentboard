@@ -16,6 +16,8 @@ port="${SMOKE_PORT:-4000}"
 mm_port="${SMOKE_MM_PORT:-8065}"
 env_file="$(mktemp)"
 args=(-p "$project" --env-file "$env_file")
+# status is assigned inside the trap itself.
+# shellcheck disable=SC2154
 trap 'status=$?; if [[ "${KEEP:-0}" != 1 ]]; then docker compose "${args[@]}" --profile cli --profile chat down -v --remove-orphans >/dev/null 2>&1 || true; fi; rm -f "$env_file"; exit $status' EXIT
 
 umask 077

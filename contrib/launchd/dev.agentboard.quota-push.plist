@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Runs scripts/quota-push.sh every 5 minutes as a per-user LaunchAgent.
+  launchd expands neither ~ nor $HOME: replace /Users/YOU with your home
+  directory and list every directory that holds node, quota-axi and
+  agentboard in PATH. Guide: docs/setup/quota-producer.md
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.agentboard.quota-push</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/YOU/.local/share/agentboard/quota-push.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- Example: an nvm-installed Node plus Homebrew. Adjust to your machine. -->
+    <key>PATH</key>
+    <string>/Users/YOU/.nvm/versions/node/v22.12.0/bin:/Users/YOU/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <!-- Settings file; see docs/setup/quota-producer.md -->
+    <key>AGENTBOARD_ENV_FILE</key>
+    <string>/Users/YOU/.config/agentboard/quota-push.env</string>
+  </dict>
+  <key>StartInterval</key>
+  <integer>300</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Users/YOU/Library/Logs/agentboard-quota-push.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOU/Library/Logs/agentboard-quota-push.log</string>
+</dict>
+</plist>

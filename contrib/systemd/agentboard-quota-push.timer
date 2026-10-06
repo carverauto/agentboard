@@ -1,0 +1,12 @@
+# Runs agentboard-quota-push.service every 5 minutes.
+# Guide: docs/setup/quota-producer.md
+[Unit]
+Description=Push a quota-axi snapshot to agentboard every 5 minutes
+
+[Timer]
+OnActiveSec=1min
+OnUnitActiveSec=5min
+RandomizedDelaySec=20s
+
+[Install]
+WantedBy=timers.target
