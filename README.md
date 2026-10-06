@@ -123,3 +123,5 @@ Release automation, immutable image selection, DNS/TLS and rollout/rollback: [re
 Download the release CLI archive, verify its `SHA256SUMS`, and install the binary for your OS and architecture as `~/.local/bin/agentboard`. Keep `~/.local/bin` on `PATH`. The command is named `agentboard` to avoid colliding with ApacheBench (`ab`). Set `AGENTBOARD_URL=https://agentboard.farm01.carverauto.dev`; the CLI communicates only with the API.
 
 Feature and architecture/design PRs ship [Archify documentation](docs/documents.md). OpenSpec proposals automatically render in Lavish. `agentboard doc push` retains their standalone HTML on the task; the dashboard serves an isolated interactive viewer.
+
+Inspired by https://arxiv.org/abs/2609.26781
