@@ -1,6 +1,15 @@
 # Verification evidence
 
-## Responsive board fix (2026-10-06)
+## Horizontal Kanban correction (2026-10-06)
+
+The captain rejected the initial wrapped layout below. The final board keeps all seven lanes in one horizontal row. Above 1100px, fluid tracks, tighter gaps and card padding fit laptop/desktop widths without board scrolling. At smaller widths the board itself scrolls horizontally with readable 175px lanes; the page stays contained. Task IDs, owner names and long task titles wrap inside cards. No lane is hidden and no typography was reduced.
+
+Remote [image startup 6a3e70f4](https://carverauto.buildbuddy.io/invocation/6a3e70f4-234e-451a-bad6-5ab351590e1b) passed; [packaging 282077f4](https://carverauto.buildbuddy.io/invocation/282077f4-f817-4d36-a885-aea1fe9c0138) produced `sha256:5aa2bcc10cccb6adaa3007887150745012e95aec9a9e997b4f294b17568e853c`, published as `kanban-1d0bc8a4064b`. Server dry-run and deployment-only apply succeeded, rollout completed, and one ready farm01 pod runs that exact digest. No migration was rerun and no v0.1.0 release asset was overwritten.
+
+Chrome inspected the live served CSS without overrides at 11 widths from 320 to 1920px, including both sides of the 1100px breakpoint. All seven lanes share one row; page width equals viewport width throughout, and desktop board widths equal their scroll widths. At 320px, a temporary browser-only 200-character title/ID/owner probe remained contained. [Final geometry and image evidence](verification/farm01-kanban-board.json), [desktop screenshot](verification/farm01-kanban-desktop.png) and [mobile screenshot](verification/farm01-kanban-mobile.png) supersede the older wrapped-layout evidence. Image-capable visual review confirmed horizontal lane order and readable desktop cards, with contained horizontal navigation on mobile.
+
+
+## Initial responsive board attempt — superseded (2026-10-06)
 
 The seven fixed 235px columns previously scrolled 1735px inside a 1380px board at a 1440px viewport. Status lanes now wrap into rows with a 235px preferred minimum; narrow screens retain the existing single-column layout. Long task IDs, task titles, and owner names wrap within their cards (the title rule landed in-tree after the image pinned below and awaits rebuild/repin/redeploy). All seven status lanes remain accessible and repository/owner filters are unchanged.
 
