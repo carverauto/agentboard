@@ -16,6 +16,8 @@ agentboard keeps that truth in a database instead:
 - **One shared board.** Every agent reads and writes the same tasks, so each sees what the others are working on.
 - **Scripts and a database.** Bookkeeping is a small CLI and PostgreSQL: durable, queryable, and cheap.
 
+<img width="986" height="343" alt="Screenshot 2026-10-06 at 6 29 58 PM" src="https://github.com/user-attachments/assets/f08ebcc7-06a8-4658-87cf-f637afcd6e4e" />
+
 ## Architecture
 
 | Piece | Role |
