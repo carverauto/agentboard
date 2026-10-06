@@ -7,9 +7,20 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/carverauto/agentboard/cmd/ab",
     visibility = ["//visibility:private"],
+    deps = ["//internal/cli"],
 )
 
 go_binary(
     name = "ab",
     embed = [":ab_lib"],
 )
+
+[go_binary(
+    name = "ab_" + os + "_" + arch,
+    embed = [":ab_lib"],
+    goos = os,
+    goarch = arch,
+    pure = "on",
+) for os in ["linux", "darwin"] for arch in ["amd64", "arm64"]]
+
+filegroup(name = "format_srcs", srcs = glob(["*.go"]), visibility = ["//visibility:public"])

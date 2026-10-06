@@ -1,0 +1,9 @@
+diff --git a/erlang_app.bzl b/erlang_app.bzl
+--- a/erlang_app.bzl
++++ b/erlang_app.bzl
+@@ -14,5 +14,4 @@
+ DEFAULT_ERLC_OPTS = [
+-    "-Werror",
+     "+deterministic",
+     "+debug_info",
+     "+warn_export_vars",

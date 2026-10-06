@@ -5,6 +5,8 @@ common --enable_bzlmod
 common --noannounce_rc
 common --color=yes
 build --incompatible_strict_action_env
+build --repo_env=RULES_ERLANG_SKIP_SYSTEM=1
+build --repo_env=RULES_ELIXIR_SKIP_SYSTEM=1
 test --test_output=errors
 test --flaky_test_attempts=1
 

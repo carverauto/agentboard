@@ -1,0 +1,90 @@
+defmodule AgentboardWeb.APIController do
+  use Phoenix.Controller, formats: [:json]
+  alias Agentboard.Board
+
+  def quota(conn, _), do: list(conn, "quota")
+  def push_quota(conn, _), do: reply(conn, Agentboard.Quota.push(actor(conn), conn.body_params))
+  def agents(conn, _), do: list(conn, "agents")
+  def tasks(conn, _), do: list(conn, "tasks")
+
+  def agent(conn, %{"id" => id}),
+    do: reply(conn, Board.show("agents", id, fetch_query_params(conn).query_params))
+
+  def task(conn, %{"id" => id}),
+    do: reply(conn, Board.show("tasks", id, fetch_query_params(conn).query_params))
+
+  def register(conn, _), do: reply(conn, Board.register(actor(conn), conn.body_params))
+  def create(conn, _), do: reply(conn, Board.create(actor(conn), conn.body_params))
+
+  def edit(conn, %{"id" => id}),
+    do: reply(conn, Board.mutate(id, "edit", actor(conn), conn.body_params))
+
+  def mutate(conn, %{"id" => id, "action" => action}),
+    do: reply(conn, Board.mutate(id, action, actor(conn), conn.body_params))
+
+  def heartbeat(conn, %{"id" => id}),
+    do: reply(conn, Board.heartbeat(id, actor(conn), conn.body_params))
+
+  def send_message(conn, _), do: reply(conn, Board.message(nil, actor(conn), conn.body_params))
+
+  def read_message(conn, %{"id" => id}) do
+    case Integer.parse(id) do
+      {n, ""} when n > 0 -> reply(conn, Board.message(n, actor(conn), conn.body_params))
+      _ -> reply(conn, {:error, "invalid_input", "Message ID must be positive"})
+    end
+  end
+
+  def messages(conn, _) do
+    conn = fetch_query_params(conn)
+
+    with {:ok, filters} <- message_filters(conn, "messages"),
+         do: reply(conn, Board.page("messages", filters)),
+         else: (error -> reply(conn, error))
+  end
+
+  def message_filters(conn, "messages") do
+    params = conn.query_params
+
+    cond do
+      Map.has_key?(params, "task") or Map.has_key?(params, "to") ->
+        {:ok, params}
+
+      Agentboard.Input.slug?(actor(conn)["agent"]) ->
+        {:ok, Map.put(params, "to", actor(conn)["agent"])}
+
+      true ->
+        {:error, "invalid_context", "Inbox reads require an agent ID or destination filter"}
+    end
+  end
+
+  def message_filters(conn, _), do: {:ok, conn.query_params}
+
+  def actor(conn) do
+    Map.new(~w(agent model harness), fn key -> {key, header(conn, "x-agentboard-" <> key)} end)
+  end
+
+  defp header(conn, key) do
+    case get_req_header(conn, key) do
+      [value] -> value
+      _ -> nil
+    end
+  end
+
+  defp list(conn, resource),
+    do: reply(conn, Board.page(resource, fetch_query_params(conn).query_params))
+
+  def reply(conn, {:ok, value}), do: json(conn, value)
+
+  def reply(conn, {:error, code, message}) do
+    status =
+      case code do
+        c when c in ~w(invalid_input invalid_context) -> 422
+        "not_found" -> 404
+        "conflict" -> 409
+        _ -> 503
+      end
+
+    conn |> put_status(status) |> json(%{error: %{code: code, message: message}})
+  end
+end
+

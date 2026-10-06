@@ -15,3 +15,6 @@ data:
   DATABASE_NAME: agentboard
   DATABASE_PORT: "5432"
   POOL_SIZE: "10"
+  DATABASE_CA_FILE: /etc/agentboard/db-ca/ca.crt
+  RELEASE_TMP: /tmp/agentboard
+  RELEASE_DISTRIBUTION: none

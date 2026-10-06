@@ -1,0 +1,7 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+go_library(
+    name = "mousetrap",
+    srcs = glob(["*.go"], exclude = ["*_test.go"]),
+    importpath = "github.com/inconshreveable/mousetrap",
+    visibility = ["//visibility:public"],
+)

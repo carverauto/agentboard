@@ -1,0 +1,10 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = ["config.go"],
+    importpath = "github.com/carverauto/agentboard/internal/config",
+    visibility = ["//:__subpackages__"],
+)
+
+filegroup(name = "format_srcs", srcs = glob(["*.go"]), visibility = ["//visibility:public"])

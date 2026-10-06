@@ -95,10 +95,19 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: db-ca
+              mountPath: /etc/agentboard/db-ca
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 128Mi
+        - name: db-ca
+          secret:
+            secretName: agentboard-db-ca
+            items:
+              - key: ca.crt
+                path: ca.crt
 ---
 apiVersion: v1
 kind: Service

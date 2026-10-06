@@ -1,0 +1,52 @@
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+sh_test(
+    name = "postgres_tls_test",
+    srcs = ["postgres_tls_test.sh"],
+    data = ["postgres_fixture.sh", ":postgres_runtime"],
+    args = ["$(rlocationpath :postgres_runtime)"],
+    size = "large",
+    timeout = "long",
+)
+
+exports_files(["postgres_fixture.sh", "postgres.MODULE.bazel"])
+
+sh_test(
+    name = "release_schema_test",
+    srcs = ["release_schema_test.sh"],
+    data = ["postgres_fixture.sh", ":postgres_runtime", "//web:release"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)"],
+    size = "medium",
+    timeout = "long",
+)
+
+genrule(
+    name = "postgres_runtime",
+    srcs = ["@test_postgresql_18_deb//file", "@test_postgresql_client_18_deb//file", "@test_libpq5_deb//file", "@test_libicu74_deb//file", "@test_libxml2_deb//file", "@test_libxslt_deb//file", "@test_liburing2_deb//file", "@test_libnuma1_deb//file", "@test_libldap2_deb//file"],
+    outs = ["postgres-runtime.tar.gz"],
+    cmd = """
+      set -euo pipefail
+      scratch=$$(mktemp -d)
+      trap 'rm -rf "$$scratch"' EXIT
+      for deb in $(SRCS); do dpkg-deb -x "$$deb" "$$scratch"; done
+      tar -czf $@ -C "$$scratch" usr
+    """,
+)
+
+sh_test(
+    name = "board_api_test",
+    srcs = ["board_api_test.sh"],
+    data = ["board_api_test.py", "liveview_client.py", "watch_proxy.py", "//testdata/quota:fixtures", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/ab:ab"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/ab:ab)"],
+    size = "large",
+    timeout = "long",
+)
+
+sh_test(
+    name = "image_startup_test",
+    srcs = ["image_startup_test.sh"],
+    data = ["postgres_fixture.sh", "as_image_user.py", ":postgres_runtime", "//build/release:image_rootfs"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //build/release:image_rootfs)"],
+    size = "large",
+    timeout = "long",
+)

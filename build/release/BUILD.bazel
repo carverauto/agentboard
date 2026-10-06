@@ -1,0 +1,108 @@
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["runtime.MODULE.bazel"])
+
+genrule(
+    name = "runtime_layer",
+    srcs = ["@runtime_" + name + "//file" for name in ["ssl", "ncurses", "tinfo", "stdcpp", "gcc", "gmp", "ca"]],
+    outs = ["runtime.tar"],
+    cmd = """
+      set -euo pipefail
+      scratch=$$(mktemp -d)
+      chmod 755 "$$scratch"
+      trap 'rm -rf "$$scratch"' EXIT
+      for deb in $(SRCS); do dpkg-deb -x "$$deb" "$$scratch"; done
+      mkdir -p "$$scratch/etc/ssl/certs"
+      cat "$$scratch"/usr/share/ca-certificates/mozilla/*.crt > "$$scratch/etc/ssl/certs/ca-certificates.crt"
+      tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf $@ -C "$$scratch" .
+    """,
+)
+
+genrule(
+    name = "app_layer",
+    srcs = ["//web:release"],
+    outs = ["app.tar"],
+    cmd = """
+      set -euo pipefail
+      scratch=$$(mktemp -d)
+      chmod 755 "$$scratch"
+      trap 'rm -rf "$$scratch"' EXIT
+      mkdir -p "$$scratch/app" "$$scratch/etc" "$$scratch/tmp"
+      chmod 1777 "$$scratch/tmp"
+      tar -xzf $(location //web:release) -C "$$scratch/app"
+      chmod 755 "$$scratch/app"
+      printf 'root:x:0:0:root:/root:/bin/bash\\nnobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\\nagentboard:x:10001:10001:agentboard:/tmp:/usr/sbin/nologin\\n' > "$$scratch/etc/passwd"
+      printf 'root:x:0:\\nnogroup:x:65534:\\nagentboard:x:10001:\\n' > "$$scratch/etc/group"
+      tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf $@ -C "$$scratch" .
+    """,
+)
+
+oci_image(
+    name = "dashboard",
+    base = "@ubuntu_noble_linux_amd64",
+    tars = [":runtime_layer", ":app_layer"],
+    user = "10001:10001",
+    workdir = "/app",
+    entrypoint = ["/app/bin/agentboard"],
+    cmd = ["start"],
+    exposed_ports = ["4000/tcp"],
+    env = {
+        "PHX_SERVER": "true",
+        "RELEASE_TMP": "/tmp/agentboard",
+        "RELEASE_DISTRIBUTION": "none",
+        "HOME": "/tmp",
+        "LANG": "C.UTF-8",
+        "ELIXIR_ERL_OPTIONS": "+fnu",
+    },
+    labels = {
+        "org.opencontainers.image.title": "agentboard",
+        "org.opencontainers.image.source": "https://github.com/carverauto/agentboard",
+        "org.opencontainers.image.version": "0.1.0",
+    },
+)
+
+genrule(
+    name = "image_rootfs",
+    srcs = [":dashboard", "flatten_image.py"],
+    outs = ["dashboard-rootfs.tar.gz"],
+    cmd = "python3 $(location flatten_image.py) $(location :dashboard) $@",
+)
+
+genrule(
+    name = "cli_artifacts",
+    srcs = ["//cmd/ab:ab_" + os + "_" + arch for os in ["linux", "darwin"] for arch in ["amd64", "arm64"]],
+    outs = ["agentboard-cli-0.1.0.tar.gz"],
+    cmd = """
+      set -euo pipefail
+      scratch=$$(mktemp -d)
+      trap 'rm -rf "$$scratch"' EXIT
+      cp $(location //cmd/ab:ab_linux_amd64) "$$scratch/ab-linux-amd64"
+      cp $(location //cmd/ab:ab_linux_arm64) "$$scratch/ab-linux-arm64"
+      cp $(location //cmd/ab:ab_darwin_amd64) "$$scratch/ab-darwin-amd64"
+      cp $(location //cmd/ab:ab_darwin_arm64) "$$scratch/ab-darwin-arm64"
+      (cd "$$scratch" && sha256sum ab-* > SHA256SUMS)
+      tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf $@ -C "$$scratch" .
+    """,
+)
+
+sh_test(
+    name = "cli_artifacts_test",
+    srcs = ["cli_artifacts_test.sh"],
+    data = [":cli_artifacts", "@test_qemu_user_static//file"],
+    args = ["$(rlocationpath :cli_artifacts)", "$(rlocationpath @test_qemu_user_static//file)"],
+    size = "small",
+)
+
+sh_test(
+    name = "workflow_tools_test",
+    srcs = ["workflow_tools_test.sh"],
+    data = ["@ci_bazelisk//file", "@ci_gh//file"],
+    args = ["$(rlocationpath @ci_bazelisk//file)", "$(rlocationpath @ci_gh//file)"],
+    size = "small",
+    exec_properties = {
+        "container-image": "docker://registry.carverauto.dev/serviceradar/buildbuddy-workflow-runner:v1.0.24.5@sha256:7f64c7cdf563c032ed7c5546eb9e4492cd527df64a615b55788fc518aa8752dd",
+    },
+)

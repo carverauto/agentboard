@@ -1,1 +1,8 @@
+load("@rules_elixir//:mix_payloads.bzl", "mix_payloads")
 package(default_visibility = ["//visibility:public"])
+mix_payloads(name = "payloads", archives = ["@hex//:archive"])
+toolchain(
+    name = "mix_payloads",
+    toolchain = ":payloads",
+    toolchain_type = "@rules_elixir//:mix_payloads_toolchain_type",
+)

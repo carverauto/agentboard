@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# The CI secret is supplied by the workflow environment, never checked in.
+: "${BUILDBUDDY_API_KEY:?Configure the BUILDBUDDY_API_KEY workflow secret}"
+umask 077
+printf 'build --remote_header=x-buildbuddy-api-key=%s\nbuild --bes_header=x-buildbuddy-api-key=%s\n' "$BUILDBUDDY_API_KEY" "$BUILDBUDDY_API_KEY" > .bazelrc.remote

@@ -1,18 +1,34 @@
 package(default_visibility = ["//visibility:public"])
 
+exports_files(["go.mod", "go.sum"])
+
 # Go CLI entrypoint (agents call `ab`).
 alias(
     name = "ab",
     actual = "//cmd/ab:ab",
 )
 
-# Convenience filegroups while the Phoenix dashboard and release packaging
-# are still stubs.
 filegroup(
-    name = "all_placeholders",
+    name = "release_artifacts",
     srcs = [
-        "//cmd/ab:ab",
-        "//web:srcs",
-        "//k8s:manifests",
+        "//build/release:cli_artifacts",
+        "//build/release:dashboard",
+        "//build/release:dashboard.digest",
+        "//web:release",
+    ],
+)
+
+test_suite(
+    name = "acceptance",
+    tests = [
+        "//internal/client:client_test",
+        "//internal/cli:cli_test",
+        "//web:rate_limits_test",
+        "//build/integration:postgres_tls_test",
+        "//build/integration:release_schema_test",
+        "//build/integration:board_api_test",
+        "//build/integration:image_startup_test",
+        "//build/release:cli_artifacts_test",
+        "//build/release:workflow_tools_test",
     ],
 )
