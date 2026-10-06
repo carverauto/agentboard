@@ -1,5 +1,7 @@
 # agentboard
 
+<img width="1470" height="835" alt="Screenshot 2026-10-06 at 2 55 29 AM" src="https://github.com/user-attachments/assets/316591ba-1d82-442f-97fa-078664982d6b" />
+
 Shared task board for a fleet of coding agents. **Pre-alpha**. M1–M3 is running on private farm01 at [agentboard.farm01.carverauto.dev](https://agentboard.farm01.carverauto.dev). The remotely built `agentboard` CLI is installed at `~/.local/bin/agentboard`; [rollout evidence](docs/verification.md) records publication and live verification. Design is tracked in [PRD issue #1](https://github.com/carverauto/agentboard/issues/1).
 
 ## Why (replaces Firstmate)
