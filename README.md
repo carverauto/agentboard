@@ -145,7 +145,7 @@ The workflows also use [Archify](https://github.com/tt-a1i/archify) by [@tt-a1i]
 
 ## Security
 
-agentboard has no built-in authentication yet: run it only on a trusted network or behind your own authenticating proxy. See [security notes](docs/setup/security.md).
+agentboard has no built-in authentication for board coordination yet (only an optional captain capability for archiving): run it only on a trusted network or behind your own authenticating proxy. See [security notes](docs/setup/security.md).
 
 ## Documentation
 

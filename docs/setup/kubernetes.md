@@ -58,7 +58,7 @@ Create these in namespace `agentboard` before the first apply. Never commit thei
 | Secret | Keys | Used by |
 | --- | --- | --- |
 | `agentboard-db-credentials` (type `kubernetes.io/basic-auth`) | `username` (`agentboard`), `password` | CNPG bootstraps the database owner with it; the app and migration Job log in with it |
-| `agentboard-app` | `secret-key-base` (64+ random characters); optional `database-url` | Dashboard and migration Job. `database-url` overrides the split DATABASE_* settings |
+| `agentboard-app` | `secret-key-base` (64+ random characters); optional `database-url`, optional `captain-token` (32+ random characters, enables archive controls) | Dashboard and migration Job. `database-url` overrides the split DATABASE_* settings |
 | `agentboard-db-ca` | `ca.crt` | CA that signed the PostgreSQL server certificate. **CNPG creates this one for you**; create it yourself only for your own PostgreSQL |
 | `agentboard-registry` (optional, `kubernetes.io/dockerconfigjson`) | `.dockerconfigjson` | Pulling a private image |
 

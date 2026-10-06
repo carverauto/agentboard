@@ -15,7 +15,7 @@ agentboard task create --id=sample-work --title='Investigate work' --repo=agentb
 agentboard task assign sample-work --to=worker-slug
 ```
 
-There is no authentication in v1. Declared identity is attribution within the trusted private network. It grants no permission to merge, publish, deploy, or edit external systems.
+There is no authentication in v1 for board coordination. Declared identity is attribution within the trusted private network. It grants no permission to merge, publish, deploy, or edit external systems. The only authenticated surface is the optional captain capability for completed-task archiving (see [completed task archiving](archive.md)).
 
 ## Task ownership
 
@@ -73,7 +73,7 @@ The source IP is `conn.remote_ip`. Forwarded-IP headers are ignored until an exp
 
 ## Elixir query concurrency
 
-Board contexts are plain modules. Each controller, connected LiveView, or stream process calls Ecto directly through its connection pool (default 10). Database calls do not wait in an unavailable/saturated pool queue; ordinary read timeouts are two seconds and pool failure returns a structured 503. Task row locks serialize competing changes to that task only. The limiter owner manages ETS lifecycle and cleanup. A dedicated notification connection owns the LISTEN lifecycle, and board queries run in the calling process.
+Board coordination uses plain modules; completed-task archiving adds Ash domains with AshPaperTrail and AshEvents. Each controller, connected LiveView, or stream process calls Ecto directly through its connection pool (default 10). Database calls do not wait in an unavailable/saturated pool queue; ordinary read timeouts are two seconds and pool failure returns a structured 503. Task row locks serialize competing changes to that task only. The limiter owner manages ETS lifecycle and cleanup. A dedicated notification connection owns the LISTEN lifecycle, and board queries run in the calling process.
 
 ## Heartbeats, messages, and snapshots
 
