@@ -40,6 +40,12 @@ spec:
             - configMapRef:
                 name: agentboard-config
           env:
+            - name: AGENTBOARD_CAPTAIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agentboard-app
+                  key: captain-token
+                  optional: true
             - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:

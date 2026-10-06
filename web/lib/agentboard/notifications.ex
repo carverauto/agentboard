@@ -37,6 +37,7 @@ defmodule Agentboard.Notifications do
       Agentboard.Repo.config()
       |> Keyword.take([:hostname, :port, :database, :username, :password, :ssl, :socket_options])
       |> Keyword.put(:sync_connect, true)
+      |> Keyword.put(:parameters, application_name: "agentboard-board-listener")
 
     case Postgrex.Notifications.start_link(options) do
       {:ok, pid} ->

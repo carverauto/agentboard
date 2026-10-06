@@ -29,4 +29,4 @@ export QUOTA_FIXTURES="$TEST_SRCDIR/$TEST_WORKSPACE/testdata/quota"
 export FIXTURE_CONTROL="$fixture_bin/pg_ctl" FIXTURE_DATA="$fixture_root/data"
 export FIXTURE_PSQL="$fixture_bin/psql"
 export PGHOST=127.0.0.1 PGPORT="$DATABASE_PORT" PGDATABASE=agentboard_test PGUSER=agentboard PGPASSWORD="$DATABASE_PASSWORD" PGSSLMODE=verify-full PGSSLROOTCERT="$DATABASE_CA_FILE"
-python3 "$TEST_SRCDIR/$TEST_WORKSPACE/build/integration/board_api_test.py" || { tail -60 "$TEST_TMPDIR/web.log"; exit 1; }
+python3 "$TEST_SRCDIR/$TEST_WORKSPACE/build/integration/${AGENTBOARD_API_TEST_SCRIPT:-board_api_test.py}" || { tail -60 "$TEST_TMPDIR/web.log"; exit 1; }

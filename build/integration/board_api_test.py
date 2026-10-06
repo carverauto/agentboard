@@ -225,8 +225,8 @@ assert watch.wait(lambda s:s['reason']=='change' and any(t['id']=='watched' for 
 ab('task','update','watched','--body','reject-fixture',code=2)
 assert watch.wait(lambda s:s['reason']=='change',timeout=1) is None
 # Killing only the dedicated listener connection forces reconnect and reloading.
-assert sql("SELECT count(*) FROM pg_stat_activity WHERE query LIKE 'LISTEN%' AND pid<>pg_backend_pid()")=='1'
-sql("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE 'LISTEN%' AND pid<>pg_backend_pid()")
+assert sql("SELECT count(*) FROM pg_stat_activity WHERE application_name='agentboard-board-listener' AND query LIKE 'LISTEN%' AND pid<>pg_backend_pid()")=='1'
+sql("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name='agentboard-board-listener' AND query LIKE 'LISTEN%' AND pid<>pg_backend_pid()")
 assert watch.wait(lambda s:s['reason']=='reconnect',timeout=4), 'No listener reconnect reload'
 watch.close()
 

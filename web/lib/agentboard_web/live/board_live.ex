@@ -5,7 +5,7 @@ defmodule AgentboardWeb.BoardLive do
   @topics ~w(ab_agents ab_tasks ab_messages ab_quota)
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
     socket =
       assign(socket,
         data: %{},
@@ -15,6 +15,8 @@ defmodule AgentboardWeb.BoardLive do
         loaded: false,
         refresh_pending: false,
         quota_detail: nil,
+        captain: session["captain"],
+        archive_error: nil,
         statuses: @statuses
       )
 
@@ -45,6 +47,28 @@ defmodule AgentboardWeb.BoardLive do
   end
 
   def handle_event("close_quota", _, socket), do: {:noreply, assign(socket, quota_detail: nil)}
+
+  def handle_event("archive_task", params, socket) do
+    with true <- Agentboard.Captain.authorized?(socket.assigns.captain),
+         true <- params["archived"] in ~w(true false),
+         {revision, ""} <- Integer.parse(params["revision"] || ""),
+         {:ok, _} <-
+           Agentboard.Housekeeping.change(
+             params["id"],
+             params["archived"] == "true",
+             revision,
+             Agentboard.Captain.actor()
+           ) do
+      {:noreply, socket |> assign(archive_error: nil) |> reload()}
+    else
+      {:error, _, message} ->
+        {:noreply, assign(socket, archive_error: message)}
+
+      _ ->
+        {:noreply,
+         assign(socket, archive_error: "Unlock captain controls in Settings before archiving")}
+    end
+  end
 
   @impl true
   def handle_info({:board_changed, _topic, _reason}, socket) do
@@ -79,8 +103,11 @@ defmodule AgentboardWeb.BoardLive do
     end
   end
 
-  defp load(:board, filters) do
-    selected = if filters["status"] in @statuses, do: [filters["status"]], else: @statuses
+  defp load(view, filters) when view in [:board, :archive] do
+    selected =
+      if view == :archive,
+        do: ["done"],
+        else: if(filters["status"] in @statuses, do: [filters["status"]], else: @statuses)
 
     with {:ok, roster} <- Board.snapshot("agents", %{}) do
       columns =
@@ -89,6 +116,7 @@ defmodule AgentboardWeb.BoardLive do
             filters
             |> Map.take(~w(owner repo label cursor))
             |> Map.merge(%{"status" => status, "limit" => "20"})
+            |> Map.put("archive", if(view == :archive, do: "archived", else: "active"))
 
           case Board.page("tasks", q) do
             {:ok, page} -> {:cont, {:ok, Map.put(columns, status, page)}}
@@ -151,6 +179,7 @@ defmodule AgentboardWeb.BoardLive do
   defp path(view) do
     case view do
       :board -> "/"
+      :archive -> "/archive"
       :agents -> "/agents"
       :messages -> "/messages"
       :quota -> "/quota"
@@ -200,19 +229,21 @@ defmodule AgentboardWeb.BoardLive do
       </div>
       <aside :if={@unavailable} class="notice danger" role="alert">Board unavailable. <span :if={@last_read}>Showing the last successful read; retrying automatically.</span><span :if={!@last_read}>No board data has been loaded. Check readiness and migrations.</span></aside>
       <p :if={!@loaded and !@unavailable} class="notice" role="status">Connecting to the board…</p>
+      <p :if={@archive_error} class="notice danger" role="alert">{@archive_error}</p>
       <%= if @loaded do %>
         <%= case @live_action do %>
-          <% :board -> %>
-            <form action="/" method="get" class="filters">
+          <% view when view in [:board, :archive] -> %>
+            <form action={path(@live_action)} method="get" class="filters">
               <label>Repository <input name="repo" value={@filters["repo"]} placeholder="All repositories" /></label>
               <label>Owner <input name="owner" value={@filters["owner"]} placeholder="All agents" /></label>
-              <button type="submit">Filter board</button><a href="/">Clear filters</a>
+              <button type="submit">Filter board</button><a href={path(@live_action)}>Clear filters</a><a :if={@live_action==:board} href="/archive">Archived tasks</a>
             </form>
-            <div class="board-columns">
+            <div class={if @live_action==:archive,do: "board-columns archive-columns",else: "board-columns"}>
               <section :for={status <- @statuses} :if={Map.has_key?(@data["columns"],status)} class="column" aria-label={label(status)}>
                 <h2><span class={"status-marker "<>status}></span>{label(status)}<span class="count">{length(@data["columns"][status]["tasks"])}</span></h2>
                 <p :if={@data["columns"][status]["tasks"]==[]} class="empty">No {String.replace(status,"_"," ")} tasks.</p>
-                <article :for={task <- @data["columns"][status]["tasks"]} class="task-card">
+                <.completed_card :for={task <- @data["columns"][status]["tasks"]} :if={status=="done"} task={task} archived={@live_action==:archive} captain={@captain} />
+                <article :for={task <- @data["columns"][status]["tasks"]} :if={status != "done"} class="task-card">
                   <div class="card-meta"><span>{task["id"]}</span><span class="priority">P{task["priority"]}</span></div>
                   <h3><a href={"/tasks/"<>task["id"]}>{task["title"]}</a></h3>
                   <p>{task["repo"] || "No repository"}</p>
@@ -220,13 +251,15 @@ defmodule AgentboardWeb.BoardLive do
                   <div class="flags"><span :if={task["claim_expired"]} class="flag danger">Claim expired</span><span :if={owner_stale?(task,@data["roster"])} class="flag warning">Agent stale</span></div>
                   <div class="links"><a :if={task["issue_url"]} href={task["issue_url"]} target="_blank" rel="noopener noreferrer">Issue</a><a :if={task["pr_url"]} href={task["pr_url"]} target="_blank" rel="noopener noreferrer">Pull request</a></div>
                 </article>
-                <a :if={@data["columns"][status]["next_cursor"]} class="more" href={page_link(:board,Map.put(@filters,"status",status),@data["columns"][status]["next_cursor"])}>Next tasks in {label(status)}</a>
+                <a :if={@data["columns"][status]["next_cursor"]} class="more" href={page_link(@live_action,Map.put(@filters,"status",status),@data["columns"][status]["next_cursor"])}>Next tasks in {label(status)}</a>
               </section>
             </div>
           <% :task -> %>
             <article class="task-detail">
               <div class="card-meta">{@data["task"]["id"]} <span class="flag">{label(@data["task"]["status"])} / P{@data["task"]["priority"]}</span></div>
               <h2>{@data["task"]["title"]}</h2><p class="description">{@data["task"]["description"]}</p>
+              <p :if={@data["archive"]["archived_at"]} class="notice">Archived {@data["archive"]["archived_at"]}. This task remains Done and its records are retained.</p>
+              <button :if={@data["task"]["status"]=="done" and Agentboard.Captain.authorized?(@captain)} type="button" phx-click="archive_task" phx-value-id={@data["task"]["id"]} phx-value-archived={if @data["archive"]["archived_at"],do: "false",else: "true"} phx-value-revision={@data["archive"]["revision"]}>{if @data["archive"]["archived_at"],do: "Restore to Done",else: "Archive task"}</button>
               <dl><dt>Owner</dt><dd>{@data["task"]["assignee_id"] || "Unassigned"}</dd><dt>Assigned by</dt><dd>{@data["task"]["assigner_id"] || "None"}</dd><dt>Claimed</dt><dd>{@data["task"]["claimed_at"] || "No active claim"}</dd><dt>Lease expires</dt><dd>{@data["task"]["claim_expires_at"] || "No active lease"}</dd><dt>Revision</dt><dd>{@data["task"]["revision"]}</dd><dt>Repository</dt><dd>{@data["task"]["repo"] || "None"}</dd></dl>
               <div class="flags"><span :if={@data["task"]["claim_expired"]} class="flag danger">Claim expired; explicit recovery required</span><span :if={owner_stale?(@data["task"],@data["roster"])} class="flag warning">Agent stale</span></div>
               <div class="links"><a :if={@data["task"]["issue_url"]} href={@data["task"]["issue_url"]} target="_blank" rel="noopener noreferrer">GitHub issue</a><a :if={@data["task"]["pr_url"]} href={@data["task"]["pr_url"]} target="_blank" rel="noopener noreferrer">GitHub pull request</a></div>
@@ -307,6 +340,21 @@ defmodule AgentboardWeb.BoardLive do
 
       </section>
     </dialog>
+    """
+  end
+
+  defp completed_card(assigns) do
+    ~H"""
+    <details id={"completed-"<>@task["id"]} class="task-card completed-card" phx-hook="CompletedCard">
+      <summary title={@task["title"]}><strong>{@task["title"]}</strong><span>{@task["repo"] || "No repository"}</span></summary>
+      <div class="completed-detail">
+        <div class="card-meta"><span>{@task["id"]}</span><span>P{@task["priority"]}</span></div>
+        <p class="owner">{@task["assignee_id"] || "Unassigned"}</p>
+        <div class="links"><a href={"/tasks/"<>@task["id"]}>Task history &amp; docs</a><a :if={@task["pr_url"]} href={@task["pr_url"]} target="_blank" rel="noopener noreferrer">Pull request</a><a :if={@task["issue_url"]} href={@task["issue_url"]} target="_blank" rel="noopener noreferrer">Issue</a></div>
+        <button :if={Agentboard.Captain.authorized?(@captain)} type="button" phx-click="archive_task" phx-value-id={@task["id"]} phx-value-archived={if @archived,do: "false",else: "true"} phx-value-revision={@task["archive_revision"]}>{if @archived,do: "Restore to Done",else: "Archive task"}</button>
+        <a :if={!Agentboard.Captain.authorized?(@captain)} href="/settings">Unlock archive controls</a>
+      </div>
+    </details>
     """
   end
 

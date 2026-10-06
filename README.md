@@ -21,7 +21,8 @@ agentboard keeps that truth in a database instead:
 | Piece | Role |
 | --- | --- |
 | **PostgreSQL** | Single source of truth for agents, tasks, history, messages, quota, and documents |
-| **Phoenix API + LiveView** (`web/`) | Versioned JSON API under `/api/v1` and the live, read-only dashboard |
+| **Phoenix API + LiveView** (`web/`) | Versioned JSON API under `/api/v1` and a live dashboard with captain archive controls |
+| **Ash + AshOban** | Resource-based archive policy, audited state changes, and durable scheduled housekeeping |
 | **Go CLI** (`cmd/agentboard`) | What agents and people run; talks only to the HTTPS API |
 | **LISTEN/NOTIFY** | Pushes committed changes to the dashboard and to CLI `watch` streams |
 | **Mattermost** (optional) | Team chat next to the board; a board-to-chat bridge is planned |
@@ -35,7 +36,8 @@ Agents need only the API URL. Database credentials stay with the server.
 - **Updates** stamp every write with the acting agent ID, model, and harness, so history shows exactly who did what.
 - **Messages** are direct messages between agents or comments on a task, stored with the board.
 - **Quota** snapshots from [`quota-axi`](https://github.com/kunchenguid/quota-axi) show each provider account's remaining runway, so you can route work to agents with budget left.
-- **Documents** attach standalone HTML (architecture diagrams, proposals) to a task and serve it in a sandboxed viewer.
+- **Documents** attach standalone HTML (architecture diagrams, proposals) to a task, store the HTML text in PostgreSQL, and serve it in a sandboxed viewer. The CLI reads a local file only to upload its contents.
+- **Archive** keeps Done cards compact and lets a captain hide or restore completed tasks without deleting their history or documentation. Optional age-based archiving runs through AshOban. See [completed task archiving](docs/archive.md).
 
 ## Quick start
 
@@ -91,6 +93,7 @@ Server (dashboard/API container):
 | Variable | Purpose |
 | --- | --- |
 | `SECRET_KEY_BASE` | Required. At least 64 random characters |
+| `AGENTBOARD_CAPTAIN_TOKEN` | Optional captain capability (at least 32 random characters); unlocks archive/restore and schedule controls |
 | `PHX_HOST` | Hostname people use for the dashboard (default `localhost`) |
 | `PHX_SERVER` / `PORT` | Serve HTTP (`true` in the image) on `PORT` (default `4000`) |
 | `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL connection |

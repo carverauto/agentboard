@@ -5,7 +5,7 @@ defmodule Agentboard.SchemaVersion do
   def current do
     case Ecto.Adapters.SQL.query(
            Agentboard.Repo,
-           "SELECT version FROM board_schema WHERE id = 1",
+           "SELECT version FROM board_schema WHERE id = 1 AND to_regclass('archive_policy') IS NOT NULL AND to_regclass('task_archives') IS NOT NULL AND to_regclass('oban_jobs') IS NOT NULL",
            [],
            timeout: 2_000,
            queue: false
