@@ -1,0 +1,27 @@
+{
+  "proof": [
+    {
+      "agentboardIsolation": true,
+      "scriptsRan": true,
+      "originDenied": true,
+      "fetchDenied": true,
+      "senderOrigin": "null"
+    }
+  ],
+  "contentDocument": null,
+  "width": 1440,
+  "scrollWidth": 1440,
+  "url": "https://agentboard.farm01.carverauto.dev/documents/3",
+  "checked_at": "2026-10-06T04:21:41.599621+00:00",
+  "rendering": {
+    "archify_url": "https://agentboard.farm01.carverauto.dev/documents/1",
+    "theme_toggle_observed": true,
+    "dark_screenshot": "farm01-archify-dark.png",
+    "light_screenshot": "farm01-archify-light.png",
+    "openspec_url": "https://agentboard.farm01.carverauto.dev/documents/2",
+    "wrapper_viewport_width": 500,
+    "wrapper_scroll_width": 500,
+    "openspec_screenshot": "farm01-openspec-500.png",
+    "perceptual_review": "Live Archify nodes, labels and controls were readable in both themes at 1440x900. The portable OpenSpec cards and wrapper links wrap cleanly at 500x900."
+  }
+}

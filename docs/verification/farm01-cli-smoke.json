@@ -1,0 +1,50 @@
+{
+  "url": "https://agentboard.farm01.carverauto.dev",
+  "started_at": "2026-10-06T04:18:29.910776+00:00",
+  "checks": [
+    "HTTPS API meta: API 1 / schema 4",
+    "Distinct codex/shell registrations",
+    "Concurrent claims: exactly one success and one conflict",
+    "Explicit renewal, attributed progress and separate heartbeat",
+    "Archify and portable OpenSpec uploaded, idempotent, linked and served",
+    "Task metadata lists retained documentation without HTML",
+    "Atomic handoff, peer claim, inbox acknowledgement and return",
+    "Explicitly labeled synthetic quota snapshot and retry",
+    "All five dashboard routes over verified HTTPS"
+  ],
+  "documents": [
+    {
+      "created_at": "2026-10-06T04:18:00.067636+00:00",
+      "digest": "5ed4880249fa3ca211aaa07ede97677de04d2bbc2e93c31fb94678495f371900",
+      "download_url": "/documents/1/download",
+      "harness": "codex",
+      "id": 1,
+      "kind": "archify",
+      "model": "gpt-6",
+      "pr_url": "https://github.com/carverauto/agentboard/pull/3",
+      "proposal_name": null,
+      "source_agent_id": "codex-agentboard-rollout",
+      "source_revision": "df32aa237b493031c0971ad9c266471f5380ca9b",
+      "task_id": "agentboard-first-rollout",
+      "title": "Task documentation architecture",
+      "viewer_url": "/documents/1"
+    },
+    {
+      "created_at": "2026-10-06T04:18:31.372807+00:00",
+      "digest": "ccd75f6487103fb1c1eb80a2ca986a67aa2b8075c6354a54fd91336834c61976",
+      "download_url": "/documents/2/download",
+      "harness": "codex",
+      "id": 2,
+      "kind": "openspec",
+      "model": "gpt-6",
+      "pr_url": "https://github.com/carverauto/agentboard/pull/3",
+      "proposal_name": "publish-task-documentation",
+      "source_agent_id": "codex-agentboard-rollout",
+      "source_revision": "df32aa237b493031c0971ad9c266471f5380ca9b",
+      "task_id": "agentboard-first-rollout",
+      "title": "Task documentation OpenSpec proposal",
+      "viewer_url": "/documents/2"
+    }
+  ],
+  "finished_at": "2026-10-06T04:18:32.932179+00:00"
+}

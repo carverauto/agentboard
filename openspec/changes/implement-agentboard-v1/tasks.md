@@ -48,7 +48,7 @@
 - [x] 6.4 Prepare a companion GitOps PR for exact-host agentboard HTTP/HTTPS listeners, cert-manager Certificate/DNS01 solver scope, and farm01 external-dns domain scope/source/RBAC; verify manifest rendering preserves existing solvers/listeners, TXT owner, upsert-only policy, and unrelated DNS filters.
 - [x] 6.5 Point app-owned HTTPRoutes at the new listener section names and document automated certificate/DNS, CLI private API connectivity/HTTPS trust, and rollout/rollback prerequisites; verify the app and companion GitOps manifests agree on hostname, listener names, TLS secret, and Gateway references.
 - [x] 6.6 Replace placeholder-only BuildBuddy validation with M1 remote targets and wire artifact publication automation; verify the pipeline builds/tests/packages real outputs without local compilation or warning-as-error flags.
-- [ ] 6.7 After release/operator rollout authorization, verify isolated M1 end-to-end behavior and farm01 prerequisites: CNPG/migration readiness, Certificate Ready, Gateway listener status, HTTPRoute Accepted/ResolvedRefs, private DNS, HTTPS certificate, redirect, and board/CLI smoke flow; record actual evidence and keep deployment incomplete if any prerequisite fails.
+- [x] 6.7 After release/operator rollout authorization, verify isolated M1 end-to-end behavior and farm01 prerequisites: CNPG/migration readiness, Certificate Ready, Gateway listener status, HTTPRoute Accepted/ResolvedRefs, private DNS, HTTPS certificate, redirect, and board/CLI smoke flow; record actual evidence and keep deployment incomplete if any prerequisite fails.
 
 ## 7. M2 — Heartbeats and stale work
 
