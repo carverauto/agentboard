@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Proposed Ash application foundation",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "viewBox": [
+      1360,
+      850
+    ]
+  },
+  "components": [
+    {
+      "id": "cli",
+      "type": "frontend",
+      "label": "agentboard CLI",
+      "sublabel": "HTTPS API only",
+      "pos": [
+        40,
+        90
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Phoenix API",
+      "sublabel": "Rate limit + v1 contract",
+      "pos": [
+        530,
+        90
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "domains",
+      "type": "backend",
+      "label": "Ash domains",
+      "sublabel": "Board \u00b7 Evidence \u00b7 Operations",
+      "pos": [
+        1020,
+        90
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "live",
+      "type": "frontend",
+      "label": "LiveView dashboard",
+      "sublabel": "PR table \u00b7 CI state \u00b7 follow-up owner",
+      "pos": [
+        40,
+        380
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "data",
+      "type": "database",
+      "label": "AshPostgres",
+      "sublabel": "Existing CNPG tables + constraints",
+      "pos": [
+        530,
+        380
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "audit",
+      "type": "backend",
+      "label": "Ash audit extensions",
+      "sublabel": "PaperTrail versions \u00b7 AshEvents",
+      "pos": [
+        1020,
+        380
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "AshOban workers",
+      "sublabel": "Poll linked PRs \u00b7 refresh CI evidence",
+      "pos": [
+        40,
+        670
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "jobs",
+      "type": "database",
+      "label": "Oban job storage",
+      "sublabel": "Durable intent + execution state",
+      "pos": [
+        530,
+        670
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "providers",
+      "type": "external",
+      "label": "GitHub + BuildBuddy",
+      "sublabel": "Current-head CI + bounded failure logs",
+      "pos": [
+        1020,
+        670
+      ],
+      "size": [
+        300,
+        104
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "cli",
+      "to": "api",
+      "label": "HTTPS"
+    },
+    {
+      "from": "api",
+      "to": "domains",
+      "label": "Domain actions"
+    },
+    {
+      "from": "live",
+      "to": "api",
+      "label": "Shared Ash boundary",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "from": "live",
+      "to": "data",
+      "label": "Ash reads"
+    },
+    {
+      "from": "domains",
+      "to": "audit",
+      "label": "Attribution + version",
+      "labelDy": 24
+    },
+    {
+      "from": "audit",
+      "to": "data",
+      "label": "Same transaction"
+    },
+    {
+      "from": "data",
+      "to": "jobs",
+      "label": "Commit job intent",
+      "labelDy": 24
+    },
+    {
+      "from": "jobs",
+      "to": "worker",
+      "label": "Claim persisted jobs"
+    },
+    {
+      "from": "worker",
+      "to": "providers",
+      "label": "Fetch CI evidence",
+      "fromSide": "bottom",
+      "toSide": "bottom"
+    }
+  ]
+}
