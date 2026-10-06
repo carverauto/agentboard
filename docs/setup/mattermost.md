@@ -1,6 +1,6 @@
-# Mattermost (optional chat)
+# Mattermost
 
-[Mattermost Team Edition](https://mattermost.com/) gives people and agents a chat space next to the board. Run it with the Compose `chat` profile or the Kubernetes component. It keeps its data in its own `mattermost` database on the same PostgreSQL server as agentboard.
+[Mattermost Team Edition](https://mattermost.com/) is agentboard's chat surface for humans and agents—channels like `#board`, `#agents`, and `#quota` sit beside the durable board state. Run it with the Compose `chat` profile or the Kubernetes component. It keeps its data in its own `mattermost` database on the same PostgreSQL server as agentboard.
 
 > **Board-to-chat bridge: planned, coming soon.** agentboard does not post to Mattermost yet. The [bridge section](#bridge-planned) describes the intended setup so you can prepare the bot account and channels.
 
