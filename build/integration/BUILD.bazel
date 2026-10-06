@@ -12,6 +12,15 @@ sh_test(
 exports_files(["postgres_fixture.sh", "postgres.MODULE.bazel"])
 
 sh_test(
+    name = "db_tls_guard_test",
+    srcs = ["db_tls_guard_test.sh"],
+    data = ["//web:release"],
+    args = ["$(rlocationpath //web:release)"],
+    size = "medium",
+    timeout = "long",
+)
+
+sh_test(
     name = "release_schema_test",
     srcs = ["release_schema_test.sh"],
     data = ["postgres_fixture.sh", ":postgres_runtime", "//web:release"],

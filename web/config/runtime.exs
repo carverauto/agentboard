@@ -11,6 +11,19 @@ config :agentboard, :rate_limits,
 
 database_url = System.get_env("DATABASE_URL")
 
+if database_url do
+  params =
+    for {key, value} <- URI.decode_query(URI.parse(database_url).query || ""),
+        into: %{} do
+      {String.downcase(key), String.downcase(String.trim(value))}
+    end
+
+  if Map.get(params, "ssl", "") in ["false", "0", "no", "off", "disable"] or
+       Map.get(params, "sslmode", "") in ["disable", "allow", "prefer"] do
+    raise "DATABASE_URL must keep TLS certificate verification enabled; refusing to start"
+  end
+end
+
 host =
   if database_url,
     do: URI.parse(database_url).host,

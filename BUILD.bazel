@@ -25,6 +25,7 @@ test_suite(
         "//internal/cli:cli_test",
         "//web:rate_limits_test",
         "//build/integration:postgres_tls_test",
+        "//build/integration:db_tls_guard_test",
         "//build/integration:release_schema_test",
         "//build/integration:board_api_test",
         "//build/integration:image_startup_test",
