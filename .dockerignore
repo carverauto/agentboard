@@ -21,4 +21,5 @@ build
 !docs/api.md
 !docs/quota.md
 !docs/participation.md
+!docs/context.md
 !GROK_BOT.md
