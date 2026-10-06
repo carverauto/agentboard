@@ -23,4 +23,5 @@ generatorOptions:
   disableNameSuffixHash: true
 images:
   - name: registry.carverauto.dev/agentboard/dashboard
-    newTag: build-required
+    # Built and remotely verified; publication is a separate operator step.
+    digest: sha256:e67b703253ffd06cc66b11951d9905be25528fab179cb932bed11e9e001f8829

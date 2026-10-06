@@ -3,12 +3,112 @@ module(
     version = "0.1.0",
 )
 
-bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "bazel_skylib", version = "1.7.1")
-bazel_dep(name = "rules_go", version = "0.55.1", repo_name = "io_bazel_rules_go")
-bazel_dep(name = "gazelle", version = "0.42.0", repo_name = "bazel_gazelle")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
+bazel_dep(name = "rules_go", version = "0.64.1", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "rules_erlang", version = "3.19.0")
+bazel_dep(name = "rules_elixir", version = "1.2.0")
+bazel_dep(name = "toolchains_buildbuddy", version = "0.0.4", repo_name = "io_buildbuddy_buildbuddy_toolchain")
+bazel_dep(name = "rules_shell", version = "0.8.0")
+bazel_dep(name = "rules_oci", version = "2.3.0")
+
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(
+    name = "ubuntu_noble",
+    image = "registry.carverauto.dev/mirror/library/ubuntu",
+    digest = "sha256:d1e2e92c075e5ca139d51a140fff46f84315c0fdce203eab2807c7e495eff4f9",
+    platforms = ["linux/amd64"],
+)
+use_repo(oci, "ubuntu_noble", "ubuntu_noble_linux_amd64")
+
+buildbuddy = use_extension("@io_buildbuddy_buildbuddy_toolchain//:extensions.bzl", "buildbuddy")
+buildbuddy.platform(container_image = "docker://registry.carverauto.dev/serviceradar/rbe-executor:v1.0.25.1@sha256:779e9889e18fd8c7a3372d79a130c3d346205fcbfc8190d12c8393b88692dfa5")
+buildbuddy.gcc_toolchain(gcc_major_version = "13")
+use_repo(buildbuddy, "buildbuddy_toolchain")
+register_toolchains("@buildbuddy_toolchain//:ubuntu_cc_toolchain")
+
+git_override(
+    module_name = "rules_erlang",
+    commit = "effba3214d0e5637c66430cad67d59810ce8f1c3",
+    remote = "https://github.com/bazelverse/rules_erlang.git",
+    patches = ["//third_party/rules_erlang:no_warnings_as_errors.patch"],
+    patch_args = ["-p1"],
+)
+git_override(
+    module_name = "rules_elixir",
+    commit = "31e99980a43598211d2a6c5fbb893a21a9c0644b",
+    remote = "https://github.com/bazelverse/rules_elixir.git",
+)
+
+hexpm_ext = use_extension("//third_party/hex:extensions.bzl", "hex")
+use_repo(hexpm_ext, "hexpm", "hex_phoenix", "hex_phoenix_html", "hex_phoenix_live_view")
+
+erlang_config_ext = use_extension("@rules_erlang//bzlmod:extensions.bzl", "erlang_config")
+erlang_config_ext.prebuilt_erlang_from_hex_builds(
+    name = "otp_28_1",
+    arch = "amd64",
+    os = "ubuntu-24.04",
+    version = "28.1",
+    sha256 = "6f7a95250a83f999909cf64dc375fd08809eb057f61b24eecdf2b3b44fe621ab",
+    exec_compatible_with = ["@platforms//os:linux"],
+)
+use_repo(erlang_config_ext, "erlang_config")
+elixir_config_ext = use_extension("@rules_elixir//bzlmod:extensions.bzl", "elixir_config")
+elixir_config_ext.prebuilt_elixir_from_hex_builds(
+    name = "elixir_1_19_4",
+    otp_major = "28",
+    version = "1.19.4",
+    sha256 = "8fd7b5705b756c0e1ec71f9e8281b4b75801b9564f0205b5035319e8505ad2b4",
+)
+use_repo(elixir_config_ext, "elixir_config")
+hex_ext = use_extension("@rules_elixir//bzlmod:extensions.bzl", "hex")
+hex_ext.from_github_release(
+    version = "2.5.1",
+    sha256 = "dabd99ea48ba8064c32bc2e97d59ab1b1055a38a1dd178c5389d95c35e985d2d",
+)
+use_repo(hex_ext, "hex")
+register_toolchains(
+    "//build:mix_payloads",
+    "@erlang_config//otp_28_1:toolchain_major",
+    "@erlang_config//otp_28_1:toolchain_major_minor",
+    "@elixir_config//elixir_1_19_4:toolchain",
+)
 
 go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(version = "1.24.2")
-use_repo(go_sdk, "go_default_sdk")
+use_repo(go_sdk, "go_default_sdk", go_sdk_linux_amd64 = "main___download_0_linux_amd64")
 register_toolchains("@go_default_sdk//:all")
+
+# Explicit source archives avoid Gazelle's repository-time host Go compilation.
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+http_archive(
+    name = "esbuild_linux_x86_64",
+    urls = ["https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.25.4.tgz"],
+    sha256 = "387f77dd2ed4f66ab2b02150943554c6131431a7df36a62191112ec21453f009",
+    strip_prefix = "package",
+    build_file_content = "filegroup(name = \"bin\", srcs = [\"bin/esbuild\"], visibility = [\"//visibility:public\"])",
+)
+http_archive(
+    name = "com_github_spf13_cobra",
+    urls = ["https://proxy.golang.org/github.com/spf13/cobra/@v/v1.9.1.zip"],
+    sha256 = "e44a319d167f096bd3ba0bd0c13cf17d8dc0b7d51ac784fa7440d005dd2ed5cb",
+    strip_prefix = "github.com/spf13/cobra@v1.9.1",
+    build_file = "//third_party/go:cobra.BUILD.bazel",
+)
+http_archive(
+    name = "com_github_spf13_pflag",
+    urls = ["https://proxy.golang.org/github.com/spf13/pflag/@v/v1.0.6.zip"],
+    sha256 = "d8dac1115c17fa667a93d50f34ddf37648eeb6b92446f429c6120777aa839678",
+    strip_prefix = "github.com/spf13/pflag@v1.0.6",
+    build_file = "//third_party/go:pflag.BUILD.bazel",
+)
+http_archive(
+    name = "com_github_inconshreveable_mousetrap",
+    urls = ["https://proxy.golang.org/github.com/inconshreveable/mousetrap/@v/v1.1.0.zip"],
+    sha256 = "526674de624d7db108cfe7653ef110ccdfd97bc85026254224815567928ed243",
+    strip_prefix = "github.com/inconshreveable/mousetrap@v1.1.0",
+    build_file = "//third_party/go:mousetrap.BUILD.bazel",
+)
+
+include("//build/integration:postgres.MODULE.bazel")
+include("//build/release:runtime.MODULE.bazel")

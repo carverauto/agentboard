@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+: "${RELEASE_TAG:?}" "${HARBOR_USERNAME:?}" "${HARBOR_PASSWORD:?}" "${GH_TOKEN:?}"
+test "$RELEASE_TAG" = v0.1.0
+crane=/tmp/agentboard-tools/crane
+image="registry.carverauto.dev/agentboard/dashboard:$RELEASE_TAG"
+digest=$(cat bazel-bin/build/release/dashboard.json.sha256)
+printf '%s' "$HARBOR_PASSWORD" | "$crane" auth login registry.carverauto.dev --username "$HARBOR_USERNAME" --password-stdin
+# Refuse to overwrite an already-published version with different content.
+error_file=$(mktemp)
+trap 'rm -f "$error_file"' EXIT
+if ! existing=$("$crane" digest "$image" 2>"$error_file"); then
+  if ! grep -Eq 'MANIFEST_UNKNOWN|404 Not Found' "$error_file"; then
+    echo 'Cannot verify release tag availability; refusing publication.' >&2
+    exit 1
+  fi
+  existing=
+fi
+rm -f "$error_file"
+if [[ -n "$existing" && "$existing" != "$digest" ]]; then
+  echo 'Release image tag already resolves to another digest; refusing overwrite.' >&2
+  exit 1
+fi
+"$crane" push bazel-bin/build/release/dashboard "$image"
+test "$("$crane" digest "$image")" = "$digest"
+release_dir=$(mktemp -d)
+trap 'rm -rf "$release_dir"' EXIT
+tar -xzf bazel-bin/build/release/agentboard-cli-0.1.0.tar.gz -C "$release_dir"
+printf '%s@%s\n' registry.carverauto.dev/agentboard/dashboard "$digest" > "$release_dir/dashboard-image.txt"
+cp bazel-bin/web/agentboard-release.tar.gz "$release_dir/"
+cp k8s/overlays/farm01/kustomization.yaml "$release_dir/kustomization.yaml"
+python3 - "$release_dir/kustomization.yaml" "$digest" <<'PY'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]);s=p.read_text()
+start=s.index('images:\n')
+s=s[:start]+'images:\n  - name: registry.carverauto.dev/agentboard/dashboard\n    digest: '+sys.argv[2]+'\n'
+p.write_text(s)
+PY
+/tmp/agentboard-tools/gh release create "$RELEASE_TAG" --repo carverauto/agentboard --verify-tag --draft --title "agentboard $RELEASE_TAG" --notes 'Pre-alpha M1–M3. See docs/release.md for private farm01 prerequisites and additive-schema rollback. CLI checksums and dashboard image digest are attached.' "$release_dir"/*

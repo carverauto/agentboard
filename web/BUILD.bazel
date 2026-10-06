@@ -1,10 +1,63 @@
+load("@rules_elixir//:mix_app.bzl", "mix_app")
+load("@rules_elixir//:elixir_release.bzl", "elixir_release")
+load("@rules_elixir//:ex_unit_test.bzl", "ex_unit_test")
+
 package(default_visibility = ["//visibility:public"])
 
-# Placeholder for the Phoenix LiveView dashboard package.
 filegroup(
     name = "srcs",
     srcs = glob(
-        ["**/*"],
+        ["lib/**", "config/**", "priv/**", "mix.exs", "mix.lock"],
         allow_empty = True,
     ),
 )
+
+mix_app(
+    name = "erlang_app",
+    app_name = "agentboard",
+    srcs = [":srcs"],
+    deps = [
+        "@hexpm//:bandit", "@hexpm//:ecto_sql", "@hexpm//:jason",
+        "@hexpm//:phoenix", "@hexpm//:phoenix_ecto", "@hexpm//:phoenix_html",
+        "@hexpm//:phoenix_live_view", "@hexpm//:postgrex", "@rules_elixir//elixir",
+    ],
+)
+
+elixir_release(
+    name = "release",
+    srcs = [":srcs"],
+    app = ":erlang_app",
+    out = "agentboard-release.tar.gz",
+    mix_env = "prod",
+    overlays = {":static": "priv/static"},
+)
+
+genrule(
+    name = "assets",
+    srcs = ["assets/app.js", "assets/app.css", "@hex_phoenix//:browser_js", "@hex_phoenix_html//:browser_js", "@hex_phoenix_live_view//:browser_js"],
+    tools = ["@esbuild_linux_x86_64//:bin"],
+    outs = ["static_build/assets/app.js", "static_build/assets/app.css"],
+    cmd = """
+      set -euo pipefail
+      "$(location @esbuild_linux_x86_64//:bin)" web/assets/app.js --bundle --minify --outdir="$(RULEDIR)/static_build/assets" \
+        --alias:phoenix="$$PWD/$(location @hex_phoenix//:browser_js)" \
+        --alias:phoenix_html="$$PWD/$(location @hex_phoenix_html//:browser_js)" \
+        --alias:phoenix_live_view="$$PWD/$(location @hex_phoenix_live_view//:browser_js)"
+    """,
+)
+
+genrule(
+    name = "static",
+    srcs = [":assets"],
+    outs = ["agentboard-static.tar.gz"],
+    cmd = "tar -czf $@ -C $(RULEDIR)/static_build assets",
+)
+
+ex_unit_test(
+    name = "rate_limits_test",
+    srcs = ["test/test_helper.exs", "test/rate_limits_test.exs"],
+    deps = [":erlang_app"],
+    size = "small",
+)
+
+filegroup(name = "format_srcs", srcs = glob(["lib/**/*.ex", "config/*.exs", "priv/repo/migrations/*.exs", "test/*.exs", "mix.exs"]))

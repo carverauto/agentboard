@@ -33,12 +33,13 @@ spec:
       containers:
         - name: migrate
           image: registry.carverauto.dev/agentboard/dashboard:build-required
-          # Phoenix release migrate entrypoint — adjust when the release binary lands.
           command: ["/app/bin/agentboard", "eval", "Agentboard.Release.migrate()"]
           envFrom:
             - configMapRef:
                 name: agentboard-config
           env:
+            - name: PHX_SERVER
+              value: "false"
             - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:
@@ -74,7 +75,16 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: db-ca
+              mountPath: /etc/agentboard/db-ca
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
+        - name: db-ca
+          secret:
+            secretName: agentboard-db-ca
+            items:
+              - key: ca.crt
+                path: ca.crt

@@ -1,13 +1,22 @@
-// Command ab is the agentboard CLI agents use to claim work, post updates,
-// message peers, and push quota snapshots. Stub only — wire Postgres next.
+// Command ab is the agentboard CLI.
 package main
 
 import (
-	"fmt"
+	"context"
 	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/carverauto/agentboard/internal/cli"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "ab: not implemented yet (see https://github.com/carverauto/agentboard/issues/1)")
-	os.Exit(2)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	root := cli.NewRoot()
+	err := root.ExecuteContext(ctx)
+	if err != nil {
+		cli.PrintError(root, os.Stderr, err)
+	}
+	os.Exit(cli.ExitCode(err))
 }

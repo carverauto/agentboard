@@ -1,0 +1,57 @@
+# Test-only binary packages; application compilation never runs on the Mac.
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+http_file(
+    name = "test_postgresql_18_deb",
+    urls = ["https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-18_18.3-1.pgdg24.04+1_amd64.deb"],
+    sha256 = "9e8a64afde91dbf818526b8c200a3ed4a6fd1975171b06a31fe0bd378fe8c7c6",
+    downloaded_file_path = "postgresql_18.deb",
+)
+http_file(
+    name = "test_postgresql_client_18_deb",
+    urls = ["https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-client-18_18.3-1.pgdg24.04+1_amd64.deb"],
+    sha256 = "571d7977a64de78487d7def807e3cfb304a47a2ece3e62cd01018cf39bb4f6ec",
+    downloaded_file_path = "postgresql_client_18.deb",
+)
+http_file(
+    name = "test_libpq5_deb",
+    urls = ["https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/libpq5_18.3-1.pgdg24.04+1_amd64.deb"],
+    sha256 = "79915c8c7f8ae908a600e97260491856199311e83c6ea6c4ea4966e89ee1e95c",
+    downloaded_file_path = "libpq5.deb",
+)
+http_file(
+    name = "test_libicu74_deb",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/i/icu/libicu74_74.2-1ubuntu3_amd64.deb"],
+    sha256 = "d29c97a21a3e3254731cfac186e4d4e611e5e67d2c9a0430f6acfbd9acaefa2e",
+    downloaded_file_path = "libicu74.deb",
+)
+http_file(
+    name = "test_libxml2_deb",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/libx/libxml2/libxml2_2.9.14+dfsg-1.3ubuntu3_amd64.deb"],
+    sha256 = "8c4efd7abe155df3cf0f9b64d659f2d866215785f8e8c44234fbb341d58cc967",
+    downloaded_file_path = "libxml2.deb",
+)
+http_file(
+    name = "test_libxslt_deb",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/libx/libxslt/libxslt1.1_1.1.39-0exp1build1_amd64.deb"],
+    sha256 = "152684a8e830291d02999bbc7f35b807d365e4aa52ff921db625bb6b04c3b229",
+    downloaded_file_path = "libxslt.deb",
+)
+http_file(
+    name = "test_liburing2_deb",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/libu/liburing/liburing2_2.5-1build1_amd64.deb"],
+    sha256 = "c2aef62accee92a06263c3ad4ef46132c13e409b54296c44792a20491830a7b0",
+    downloaded_file_path = "liburing2.deb",
+)
+http_file(
+    name = "test_libnuma1_deb",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/n/numactl/libnuma1_2.0.18-1build1_amd64.deb"],
+    sha256 = "508daa855e99959acaa945e6a89d218e0be6b5727fd28773580942ff37cf5805",
+    downloaded_file_path = "libnuma1.deb",
+)
+http_file(
+    name = "test_libldap2_deb",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/o/openldap/libldap2_2.6.7+dfsg-1~exp1ubuntu8_amd64.deb"],
+    sha256 = "35294f2750d3601b3f134eb90500e4b542b0f60c7f411e0b024bd00018c80c24",
+    downloaded_file_path = "libldap2.deb",
+)

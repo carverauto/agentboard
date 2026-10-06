@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wrapper: every bazel invocation from agents/scripts gets --config=remote
-# unless the caller already passed a config= remote|ci|cache_only.
+# unless the caller already passed a config= remote|ci.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
@@ -13,7 +13,7 @@ fi
 has_config=0
 for arg in "$@"; do
   case "$arg" in
-    --config=remote|--config=ci|--config=cache_only|--config=remote_base) has_config=1 ;;
+    --config=remote|--config=ci) has_config=1 ;;
   esac
 done
 

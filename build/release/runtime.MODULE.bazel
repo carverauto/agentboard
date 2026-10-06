@@ -1,0 +1,63 @@
+# Ubuntu Noble runtime dependencies from published package metadata.
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+http_file(
+    name = "ci_bazelisk",
+    urls = ["https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64"],
+    sha256 = "e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76",
+    downloaded_file_path = "bazel",
+    executable = True,
+)
+http_file(
+    name = "ci_gh",
+    urls = ["https://github.com/cli/cli/releases/download/v2.65.0/gh_2.65.0_linux_amd64.tar.gz"],
+    sha256 = "762569efe785082b7d1feb06995efece1a9cecce16da8503ac6fdbcbea04085b",
+    downloaded_file_path = "gh.tar.gz",
+)
+http_file(
+    name = "test_qemu_user_static",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user-static_8.2.2+ds-0ubuntu1.18_amd64.deb"],
+    sha256 = "5bb397f66063efa349f6fd5cb3b68cd96f29edd0994e4ba5115cf0859a716bf0",
+    downloaded_file_path = "qemu.deb",
+)
+http_file(
+    name = "runtime_ssl",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl3t64_3.0.13-0ubuntu3.16_amd64.deb"],
+    sha256 = "219f43b1cd836a4da550938db5fda93160d269d39a4edcf1f1ce698a470db797",
+    downloaded_file_path = "ssl.deb",
+)
+http_file(
+    name = "runtime_ncurses",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/n/ncurses/libncurses6_6.4+20240113-1ubuntu2.2_amd64.deb"],
+    sha256 = "59e8527dfd14473393960bfb7c69566f1ad9d576423421dcb8b8dcdbb3e7fca1",
+    downloaded_file_path = "ncurses.deb",
+)
+http_file(
+    name = "runtime_tinfo",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/n/ncurses/libtinfo6_6.4+20240113-1ubuntu2.2_amd64.deb"],
+    sha256 = "b67a6df2bdab61d273eabebd208bb6a3fb12618a390a067e1ee305a409ff03d9",
+    downloaded_file_path = "tinfo.deb",
+)
+http_file(
+    name = "runtime_stdcpp",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-14/libstdc++6_14.2.0-4ubuntu2~24.04.1_amd64.deb"],
+    sha256 = "a51f8de7829211db961a31f02158058ad1a95f92ac6d0a5dff6350e2821c54c0",
+    downloaded_file_path = "stdcpp.deb",
+)
+http_file(
+    name = "runtime_gcc",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-14/libgcc-s1_14.2.0-4ubuntu2~24.04.1_amd64.deb"],
+    sha256 = "aa7fadbe33b78bcf99885318040601c550c208929565b179891d9a3cc2aa68cd",
+    downloaded_file_path = "gcc.deb",
+)
+http_file(
+    name = "runtime_gmp",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/g/gmp/libgmp10_6.3.0+dfsg-2ubuntu6.1_amd64.deb"],
+    sha256 = "285f8a505dfa8e1b33f357a9d8d3477ad35bf18c0b34771a6df4c25923f3ae0d",
+    downloaded_file_path = "gmp.deb",
+)
+http_file(
+    name = "runtime_ca",
+    urls = ["https://archive.ubuntu.com/ubuntu/pool/main/c/ca-certificates/ca-certificates_20260601~24.04.1_all.deb"],
+    sha256 = "6bac2a01979e210d9eac1d4d56747ec709ea60654744d66705dc3c36e7629e50",
+    downloaded_file_path = "ca.deb",
+)

@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+go_library(
+    name = "client",
+    srcs = ["client.go"],
+    importpath = "github.com/carverauto/agentboard/internal/client",
+    visibility = ["//:__subpackages__"],
+    deps = ["//internal/config"],
+)
+go_test(
+    name = "client_test",
+    srcs = ["client_test.go"],
+    deps = [":client", "//internal/config"],
+    size = "small",
+)
+
+filegroup(name = "format_srcs", srcs = glob(["*.go"]), visibility = ["//visibility:public"])

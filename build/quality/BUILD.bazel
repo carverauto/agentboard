@@ -1,0 +1,25 @@
+package(default_visibility = ["//visibility:public"])
+
+genrule(
+    name = "formatted_sources",
+    srcs = ["//" + pkg + ":format_srcs" for pkg in ["internal/cli", "internal/client", "internal/config", "cmd/ab", "web"]] + ["//web:release"],
+    tools = ["@go_sdk_linux_amd64//:tools"],
+    outs = ["formatted-sources.tar.gz"],
+    cmd = """
+      set -euo pipefail
+      scratch=$$(mktemp -d)
+      trap 'rm -rf "$$scratch"' EXIT
+      mkdir -p "$$scratch/src" "$$scratch/release"
+      for source in $(SRCS); do
+        case "$$source" in *.go|*.ex|*.exs) cp --parents "$$source" "$$scratch/src" ;; esac
+      done
+      for tool in $(locations @go_sdk_linux_amd64//:tools); do
+        case "$$tool" in */bin/gofmt) find "$$scratch/src" -name '*.go' -exec "$$tool" -w {} + ;; esac
+      done
+      tar -xzf $(location //web:release) -C "$$scratch/release"
+      export PHX_SERVER=false SECRET_KEY_BASE=synthetic-formatting-key-with-more-than-sixty-four-characters-for-config
+      export RELEASE_TMP="$$scratch/runtime" ELIXIR_ERL_OPTIONS='+fnu +S 2:2' FORMAT_SOURCE_DIR="$$scratch/src"
+      "$$scratch/release/bin/agentboard" eval 'for file <- Path.wildcard(Path.join(System.fetch_env!("FORMAT_SOURCE_DIR"), "**/*.{ex,exs}")), do: File.write!(file, [Code.format_file!(file), "\\n"])'
+      tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf $@ -C "$$scratch/src" .
+    """,
+)
