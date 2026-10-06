@@ -72,7 +72,7 @@ func NewRoot() *cobra.Command {
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), Version)
 		return err
 	}})
-	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills())
+	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands())
 	return root
 }
 func env(key, fallback string) string {
@@ -108,6 +108,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasPrefix(path, "quota") {
 		required = 3
 	}
+	if strings.HasPrefix(path, "context") {
+		required = 5
+	}
 	if strings.HasSuffix(path, "/documents") {
 		required = 4
 	}
@@ -130,7 +133,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents"} {
+	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "entry", "entries"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue
@@ -149,6 +152,12 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 	}
 	if next := envelope["next_cursor"]; next != nil {
 		fmt.Fprintf(table, "next_cursor\t%v\n", next)
+	}
+	if acknowledged := envelope["acknowledged"]; acknowledged != nil {
+		fmt.Fprintf(table, "acknowledged\t%v\n", acknowledged)
+	}
+	if more, ok := envelope["more"]; ok {
+		fmt.Fprintf(table, "more\t%v\n", more)
 	}
 	return table.Flush()
 }

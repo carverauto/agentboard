@@ -21,6 +21,14 @@ oci.pull(
 )
 use_repo(oci, "ubuntu_noble", "ubuntu_noble_linux_amd64")
 
+oci.pull(
+    name = "cnpg_pg18",
+    image = "ghcr.io/cloudnative-pg/postgresql",
+    digest = "sha256:94aa172fc7ce295d482f5fe8bcf8d1e3423f30c15ba40c7d34114b68dc152b0a",
+    platforms = ["linux/amd64"],
+)
+use_repo(oci, "cnpg_pg18", "cnpg_pg18_linux_amd64")
+
 buildbuddy = use_extension("@io_buildbuddy_buildbuddy_toolchain//:extensions.bzl", "buildbuddy")
 buildbuddy.platform(container_image = "docker://registry.carverauto.dev/serviceradar/rbe-executor:v1.0.25.1@sha256:779e9889e18fd8c7a3372d79a130c3d346205fcbfc8190d12c8393b88692dfa5")
 buildbuddy.gcc_toolchain(gcc_major_version = "13")
@@ -88,6 +96,12 @@ http_file(
     urls = ["https://github.com/tailwindlabs/tailwindcss/releases/download/v4.1.12/tailwindcss-linux-x64"],
     sha256 = "5eeee66ea237eae9a160fa3314fd0cf76ab993551a99fafb16fa1db6c6b90289",
     executable = True,
+)
+http_archive(
+    name = "pg_textsearch_18",
+    urls = ["https://github.com/timescale/pg_textsearch/releases/download/v1.5.1/pg-textsearch-v1.5.1-pg18-amd64.zip"],
+    sha256 = "6adc4c390c61109af337c5d5c15239623d6fc8b89e972625de04f52a5771cebf",
+    build_file_content = "exports_files([\"pg-textsearch-postgresql-18_1.5.1-1_amd64.deb\"])\nfilegroup(name=\"deb\", srcs=[\"pg-textsearch-postgresql-18_1.5.1-1_amd64.deb\"], visibility=[\"//visibility:public\"])",
 )
 http_archive(
     name = "esbuild_linux_x86_64",

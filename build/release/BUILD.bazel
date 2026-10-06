@@ -3,7 +3,7 @@ load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 package(default_visibility = ["//visibility:public"])
 
-exports_files(["runtime.MODULE.bazel"])
+exports_files(["runtime.MODULE.bazel", "flatten_image.py"])
 
 genrule(
     name = "runtime_layer",

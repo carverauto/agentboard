@@ -13,7 +13,7 @@ export PHX_SERVER=false
 
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 4 ]]
+[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 5 ]]
 
 fixture_psql "INSERT INTO agents (id, name, model, harness) VALUES ('worker','Worker','model-1','codex')" >/dev/null
 fixture_psql "INSERT INTO tasks (id, title) VALUES ('sample','Sample')" >/dev/null

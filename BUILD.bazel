@@ -42,7 +42,7 @@ test_suite(
 go_library(
     name = "skill_bundle",
     srcs = ["skill_bundle.go"],
-    embedsrcs = glob(["skills/*/SKILL.md"]) + ["docs/api.md", "docs/quota.md", "docs/participation.md", "GROK_BOT.md"],
+    embedsrcs = glob(["skills/*/SKILL.md"]) + ["docs/api.md", "docs/quota.md", "docs/participation.md", "docs/context.md", "GROK_BOT.md"],
     importpath = "github.com/carverauto/agentboard",
 )
 filegroup(name = "format_srcs", srcs = ["skill_bundle.go"])
