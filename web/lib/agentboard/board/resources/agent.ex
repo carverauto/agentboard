@@ -35,36 +35,18 @@ defmodule Agentboard.Board.Resources.Agent do
         :host,
         :capabilities,
         :metadata,
-        :reported_status,
-        :last_heartbeat,
         :created_at,
-        :updated_at,
-        :current_task_id
+        :updated_at
       ])
     end
 
     update :register do
-      accept([
-        :name,
-        :harness,
-        :model,
-        :host,
-        :capabilities,
-        :metadata,
-        :reported_status,
-        :last_heartbeat,
-        :updated_at,
-        :current_task_id
-      ])
+      accept([:name, :model, :host, :capabilities, :metadata, :updated_at])
     end
 
     update :heartbeat do
       accept([
-        :name,
-        :harness,
         :model,
-        :host,
-        :capabilities,
         :metadata,
         :reported_status,
         :last_heartbeat,
@@ -137,6 +119,22 @@ defmodule Agentboard.Board.Resources.Agent do
 
     attribute :current_task_id, :string do
       constraints(trim?: false, allow_empty?: true)
+      public?(true)
+    end
+  end
+
+  calculations do
+    calculate :stale,
+              :boolean,
+              expr(
+                fragment(
+                  "? IS NULL OR ? < clock_timestamp() - (?::double precision * interval '1 second')",
+                  last_heartbeat,
+                  last_heartbeat,
+                  ^arg(:seconds)
+                )
+              ) do
+      argument(:seconds, :float, allow_nil?: false)
       public?(true)
     end
   end

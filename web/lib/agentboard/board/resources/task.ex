@@ -39,10 +39,6 @@ defmodule Agentboard.Board.Resources.Task do
         :issue_url,
         :pr_url,
         :status,
-        :assignee_id,
-        :assigner_id,
-        :claimed_at,
-        :claim_expires_at,
         :revision,
         :created_at,
         :updated_at
@@ -50,71 +46,19 @@ defmodule Agentboard.Board.Resources.Task do
     end
 
     update :assign do
-      accept([
-        :title,
-        :description,
-        :priority,
-        :repo,
-        :labels,
-        :issue_url,
-        :pr_url,
-        :status,
-        :assignee_id,
-        :assigner_id,
-        :claimed_at,
-        :claim_expires_at,
-        :revision,
-        :updated_at
-      ])
+      accept([:status, :assignee_id, :assigner_id, :revision, :updated_at])
     end
 
     update :claim do
-      accept([
-        :title,
-        :description,
-        :priority,
-        :repo,
-        :labels,
-        :issue_url,
-        :pr_url,
-        :status,
-        :assignee_id,
-        :assigner_id,
-        :claimed_at,
-        :claim_expires_at,
-        :revision,
-        :updated_at
-      ])
+      accept([:status, :assignee_id, :claimed_at, :claim_expires_at, :revision, :updated_at])
     end
 
     update :renew do
-      accept([
-        :title,
-        :description,
-        :priority,
-        :repo,
-        :labels,
-        :issue_url,
-        :pr_url,
-        :status,
-        :assignee_id,
-        :assigner_id,
-        :claimed_at,
-        :claim_expires_at,
-        :revision,
-        :updated_at
-      ])
+      accept([:claim_expires_at, :revision, :updated_at])
     end
 
     update :reclaim do
       accept([
-        :title,
-        :description,
-        :priority,
-        :repo,
-        :labels,
-        :issue_url,
-        :pr_url,
         :status,
         :assignee_id,
         :assigner_id,
@@ -127,13 +71,6 @@ defmodule Agentboard.Board.Resources.Task do
 
     update :release do
       accept([
-        :title,
-        :description,
-        :priority,
-        :repo,
-        :labels,
-        :issue_url,
-        :pr_url,
         :status,
         :assignee_id,
         :assigner_id,
@@ -153,63 +90,21 @@ defmodule Agentboard.Board.Resources.Task do
         :labels,
         :issue_url,
         :pr_url,
-        :status,
-        :assignee_id,
-        :assigner_id,
-        :claimed_at,
-        :claim_expires_at,
         :revision,
         :updated_at
       ])
     end
 
     update :link do
-      accept([
-        :title,
-        :description,
-        :priority,
-        :repo,
-        :labels,
-        :issue_url,
-        :pr_url,
-        :status,
-        :assignee_id,
-        :assigner_id,
-        :claimed_at,
-        :claim_expires_at,
-        :revision,
-        :updated_at
-      ])
+      accept([:issue_url, :pr_url, :revision, :updated_at])
     end
 
     update :update do
-      accept([
-        :title,
-        :description,
-        :priority,
-        :repo,
-        :labels,
-        :issue_url,
-        :pr_url,
-        :status,
-        :assignee_id,
-        :assigner_id,
-        :claimed_at,
-        :claim_expires_at,
-        :revision,
-        :updated_at
-      ])
+      accept([:status, :claimed_at, :claim_expires_at, :revision, :updated_at])
     end
 
     update :handoff do
       accept([
-        :title,
-        :description,
-        :priority,
-        :repo,
-        :labels,
-        :issue_url,
-        :pr_url,
         :status,
         :assignee_id,
         :assigner_id,
@@ -226,6 +121,26 @@ defmodule Agentboard.Board.Resources.Task do
       source_attribute(:id)
       destination_attribute(:id)
       domain(Agentboard.Housekeeping)
+    end
+  end
+
+  calculations do
+    calculate :claim_expired,
+              :boolean,
+              expr(
+                fragment(
+                  "? IS NOT NULL AND ? <= clock_timestamp()",
+                  claim_expires_at,
+                  claim_expires_at
+                )
+              ) do
+      public?(true)
+    end
+
+    calculate :archive_revision,
+              :integer,
+              expr(fragment("coalesce((SELECT revision FROM task_archives WHERE id = ?), 0)", id)) do
+      public?(true)
     end
   end
 

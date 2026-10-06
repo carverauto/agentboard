@@ -311,13 +311,15 @@ defmodule Agentboard.Board.Operations do
     stamp
   end
 
-  defp sql!(sql, args), do: Ecto.Adapters.SQL.query!(Repo, sql, args, timeout: 10_000)
+  defp sql!(sql, args), do: Repo.statement!(sql, args)
 
   def reject(code, message),
     do: raise(Agentboard.Board.OperationError, code: code, message: message)
 
   def transaction(fun) do
-    case Ash.transact([Agent, Task, Message, TaskEvent, Agentboard.Board.AuditEvent], fun) do
+    case Ash.transact([Agent, Task, Message, TaskEvent, Agentboard.Board.AuditEvent], fun,
+           timeout: Repo.write_timeout()
+         ) do
       {:ok, result} ->
         {:ok, result}
 

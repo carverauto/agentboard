@@ -92,12 +92,7 @@ defmodule Agentboard.Board do
   end
 
   def query(sql, params, options \\ []) do
-    case Ecto.Adapters.SQL.query(
-           Repo,
-           sql,
-           params,
-           options |> Keyword.put_new(:timeout, 10_000) |> Keyword.put_new(:queue, false)
-         ) do
+    case Repo.statement(sql, params, options) do
       {:ok, result} ->
         {:ok, result}
 

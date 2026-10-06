@@ -6,10 +6,11 @@ defmodule Agentboard.Board.Reads do
 
   def show("tasks", id, filters) do
     with true <- Agentboard.Input.slug?(id),
-         {:ok, task} <- get(Task, id),
+         {:ok, query} <- load_flags(Task |> Ash.Query.filter(id == ^id), "tasks", filters),
+         {:ok, task} <- fetch(query),
          {:ok, events} <- page("events", Map.put(filters, "task", id)),
          {:ok, documents} <- Agentboard.Documents.list(id) do
-      [task] = decorate([task], "tasks", filters)
+      [task] = decorate([task], "tasks")
 
       {:ok,
        %{
@@ -27,9 +28,9 @@ defmodule Agentboard.Board.Reads do
 
   def show("agents", id, filters) do
     with true <- Agentboard.Input.slug?(id),
-         {:ok, _} <- threshold(filters),
-         {:ok, agent} <- get(Agent, id) do
-      [agent] = decorate([agent], "agents", filters)
+         {:ok, query} <- load_flags(Agent |> Ash.Query.filter(id == ^id), "agents", filters),
+         {:ok, agent} <- fetch(query) do
+      [agent] = decorate([agent], "agents")
       {:ok, %{"agent" => agent}}
     else
       false -> invalid("Invalid agent ID")
@@ -48,8 +49,9 @@ defmodule Agentboard.Board.Reads do
          {:ok, query} <- cursor(query, resource, filters),
          query = Ash.Query.sort(query, order),
          query = if(snapshot?, do: query, else: Ash.Query.limit(query, limit + 1)),
-         {:ok, records} <- Ash.read(query) do
-      rows = records |> Enum.map(&Operations.public/1) |> decorate(resource, filters)
+         {:ok, query} <- load_flags(query, resource, filters),
+         {:ok, records} <- ash_read(query) do
+      rows = decorate(records, resource)
       rows = if snapshot?, do: rows, else: Enum.take(rows, limit)
 
       next =
@@ -192,61 +194,79 @@ defmodule Agentboard.Board.Reads do
 
   defp after_cursor(_, _, _), do: invalid("Cursor does not match this query")
 
-  defp decorate(records, "tasks", _filters) do
-    ids = Enum.map(records, & &1["id"])
+  defp load_flags(query, "tasks", _filters),
+    do: {:ok, Ash.Query.load(query, [:claim_expired, :archive_revision])}
 
-    archives =
-      Agentboard.Housekeeping.Archive
-      |> Ash.Query.filter(id in ^ids)
-      |> Ash.read!()
-      |> Map.new(&{&1.id, &1.revision})
+  defp load_flags(query, "agents", filters) do
+    case threshold(filters) do
+      {:ok, seconds} -> {:ok, Ash.Query.load(query, stale: %{seconds: seconds})}
+      error -> error
+    end
+  end
 
-    now = DateTime.utc_now()
+  defp load_flags(query, _, _), do: {:ok, query}
 
-    Enum.map(records, fn t ->
-      Map.merge(t, %{
-        "archive_revision" => Map.get(archives, t["id"], 0),
-        "claim_expired" => expired?(t["claim_expires_at"], now)
+  defp decorate(records, "tasks") do
+    Enum.map(records, fn row ->
+      row
+      |> Operations.public()
+      |> Map.merge(%{
+        "archive_revision" => row.archive_revision,
+        "claim_expired" => row.claim_expired
       })
     end)
   end
 
-  defp decorate(records, "agents", filters) do
-    {:ok, seconds} = threshold(filters)
-    cutoff = DateTime.add(DateTime.utc_now(), -round(seconds * 1_000_000), :microsecond)
-
-    Enum.map(
-      records,
-      &Map.put(
-        &1,
-        "stale",
-        expired?(&1["last_heartbeat"], cutoff) or is_nil(&1["last_heartbeat"])
-      )
-    )
+  defp decorate(records, "agents") do
+    Enum.map(records, fn row ->
+      row |> Operations.public() |> Map.put("stale", row.stale)
+    end)
   end
 
-  defp decorate(records, _, _), do: records
-  defp expired?(nil, _), do: false
-
-  defp expired?(stamp, now) do
-    {:ok, time, _} = DateTime.from_iso8601(stamp)
-    DateTime.compare(time, now) != :gt
-  end
+  defp decorate(records, _), do: Enum.map(records, &Operations.public/1)
 
   defp archive(id) do
-    case Ash.get!(Agentboard.Housekeeping.Archive, id, not_found_error?: false) do
-      nil -> %{"id" => id, "revision" => 0, "archived_at" => nil}
-      row -> Operations.public(row)
+    query =
+      Agentboard.Housekeeping.Archive
+      |> Ash.Query.filter(id == ^id)
+      |> Agentboard.Repo.read_query()
+
+    case ash_read_one(query) do
+      {:ok, nil} -> %{"id" => id, "revision" => 0, "archived_at" => nil}
+      {:ok, row} -> Operations.public(row)
+      _ -> %{"id" => id, "revision" => 0, "archived_at" => nil}
     end
   end
 
-  defp get(module, id) do
-    case Ash.get(module, id, not_found_error?: false) do
+  defp fetch(query) do
+    case ash_read_one(query) do
       {:ok, nil} -> {:error, "not_found", "Record not found"}
-      {:ok, row} -> {:ok, Operations.public(row)}
-      _ -> {:error, "unavailable", "Board database is unavailable"}
+      {:ok, row} -> {:ok, row}
+      error -> error
     end
   end
+
+  defp ash_read(query) do
+    case Ash.read(Agentboard.Repo.read_query(query)) do
+      {:ok, rows} -> {:ok, rows}
+      _ -> unavailable()
+    end
+  rescue
+    DBConnection.ConnectionError -> unavailable()
+    Postgrex.Error -> unavailable()
+  end
+
+  defp ash_read_one(query) do
+    case Ash.read_one(Agentboard.Repo.read_query(query)) do
+      {:ok, row} -> {:ok, row}
+      _ -> unavailable()
+    end
+  rescue
+    DBConnection.ConnectionError -> unavailable()
+    Postgrex.Error -> unavailable()
+  end
+
+  defp unavailable, do: {:error, "unavailable", "Board database is unavailable"}
 
   defp encode(resource, filters, record) do
     fields =
@@ -286,8 +306,13 @@ defmodule Agentboard.Board.Reads do
 
   defp threshold(filters) do
     case Float.parse(Map.get(filters, "stale_after", "600")) do
-      {n, ""} when n > 0 -> {:ok, n}
-      _ -> invalid("Stale threshold must be positive seconds")
+      {n, ""} ->
+        if Agentboard.Input.representable_offset?(n),
+          do: {:ok, n},
+          else: invalid("Stale threshold must be positive seconds")
+
+      _ ->
+        invalid("Stale threshold must be positive seconds")
     end
   end
 

@@ -78,4 +78,6 @@ The quota latest-observation SQL projection, public audit inspection, Delivery
 schema, PR workers/providers/UI/CLI, completion guard and live rollout remain
 unchecked. Scoped Task audit isolation is demonstrated; PR lock ordering is not
 yet implemented, so 3.3 remains open. Archify documents this stage; it does not
-claim CI-monitor delivery.
+claim CI-monitor delivery. The later database-clock, pool-checkout, time-range,
+and action-accept fixes are in the tree; this worktree has no remote Bazel
+credentials, so those fixes were not re-run here.

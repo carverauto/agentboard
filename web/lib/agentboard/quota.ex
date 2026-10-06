@@ -21,37 +21,45 @@ defmodule Agentboard.Quota do
 
   def read_spec(filters) do
     case Float.parse(Map.get(filters, "stale_after", "600")) do
-      {seconds, ""} when seconds > 0 ->
-        seconds = Float.to_string(seconds)
-
-        from = """
-        (SELECT DISTINCT ON (o.provider,o.account_key) o.*,r.source_agent_id,r.model,r.harness,r.generated_at,r.ingested_at
-        FROM quota_observations o JOIN quota_reports r ON r.id=o.report_id
-        ORDER BY o.provider,o.account_key,r.generated_at DESC,r.ingested_at DESC,r.id DESC) q
-        """
-
-        json = """
-        jsonb_build_object('id',q.id,'report_id',q.report_id,'provider',q.provider,'account_key',q.account_key,
-          'source_agent_id',q.source_agent_id,'model',q.model,'harness',q.harness,'generated_at',q.generated_at,'ingested_at',q.ingested_at,
-          'observation_stale',q.generated_at < clock_timestamp()-#{seconds}::double precision*interval '1 second',
-          'state',q.provider_data->'state','plan',q.provider_data->'plan','account_keys',q.provider_data->'account_keys',
-          'quota_semantics',q.provider_data->'quota_semantics',
-          'windows',coalesce((SELECT jsonb_agg(w.data ORDER BY w.window_id) FROM quota_windows w WHERE w.observation_id=q.id),'[]'),
-          'scopes',coalesce((SELECT jsonb_agg(s.data ORDER BY s.scope) FROM quota_scopes s WHERE s.observation_id=q.id),'[]'))
-        """
-
-        {:ok,
-         %{
-           from: from,
-           json: json,
-           order: "q.provider ASC,q.account_key ASC",
-           sort: ~w(provider account_key),
-           fields: %{"provider" => "q.provider", "account" => "q.account_key"}
-         }}
+      {seconds, ""} ->
+        if Agentboard.Input.representable_offset?(seconds) do
+          quota_spec(seconds)
+        else
+          {:error, "invalid_input", "Quota stale threshold must be positive seconds"}
+        end
 
       _ ->
         {:error, "invalid_input", "Quota stale threshold must be positive seconds"}
     end
+  end
+
+  defp quota_spec(seconds) do
+    seconds = Float.to_string(seconds)
+
+    from = """
+    (SELECT DISTINCT ON (o.provider,o.account_key) o.*,r.source_agent_id,r.model,r.harness,r.generated_at,r.ingested_at
+    FROM quota_observations o JOIN quota_reports r ON r.id=o.report_id
+    ORDER BY o.provider,o.account_key,r.generated_at DESC,r.ingested_at DESC,r.id DESC) q
+    """
+
+    json = """
+    jsonb_build_object('id',q.id,'report_id',q.report_id,'provider',q.provider,'account_key',q.account_key,
+      'source_agent_id',q.source_agent_id,'model',q.model,'harness',q.harness,'generated_at',q.generated_at,'ingested_at',q.ingested_at,
+      'observation_stale',q.generated_at < clock_timestamp()-#{seconds}::double precision*interval '1 second',
+      'state',q.provider_data->'state','plan',q.provider_data->'plan','account_keys',q.provider_data->'account_keys',
+      'quota_semantics',q.provider_data->'quota_semantics',
+      'windows',coalesce((SELECT jsonb_agg(w.data ORDER BY w.window_id) FROM quota_windows w WHERE w.observation_id=q.id),'[]'),
+      'scopes',coalesce((SELECT jsonb_agg(s.data ORDER BY s.scope) FROM quota_scopes s WHERE s.observation_id=q.id),'[]'))
+    """
+
+    {:ok,
+     %{
+       from: from,
+       json: json,
+       order: "q.provider ASC,q.account_key ASC",
+       sort: ~w(provider account_key),
+       fields: %{"provider" => "q.provider", "account" => "q.account_key"}
+     }}
   end
 
   defp validate(%{"schemaVersion" => version, "generatedAt" => stamp, "providers" => providers})

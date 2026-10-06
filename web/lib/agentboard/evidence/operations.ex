@@ -24,6 +24,7 @@ defmodule Agentboard.Evidence.Operations do
         |> Ash.Query.filter(
           task_id == ^id and source_agent_id == ^actor["agent"] and digest == ^digest
         )
+        |> Agentboard.Repo.read_query()
         |> Ash.read_one!()
 
       if existing do
@@ -37,7 +38,11 @@ defmodule Agentboard.Evidence.Operations do
                do:
                  Operations.reject("conflict", "Documentation upload requires a live task owner")
 
-        count = Document |> Ash.Query.filter(task_id == ^id) |> Ash.count!()
+        count =
+          Document
+          |> Ash.Query.filter(task_id == ^id)
+          |> Agentboard.Repo.read_query()
+          |> Ash.count!()
 
         if count >= 100,
           do: Operations.reject("invalid_input", "Task already has 100 documentation versions")
@@ -84,18 +89,17 @@ defmodule Agentboard.Evidence.Operations do
   end
 
   def documents(id) do
-    case Ash.get(Task, id, not_found_error?: false) do
+    case read_one(Task |> Ash.Query.filter(id == ^id)) do
       {:ok, nil} ->
         {:error, "not_found", "Record not found"}
 
       {:ok, _} ->
-        with {:ok, records} <-
+        case read(
                Document
                |> Ash.Query.filter(task_id == ^id)
                |> Ash.Query.sort(id: :desc)
-               |> Ash.read() do
-          {:ok, %{"documents" => Enum.map(records, &metadata/1)}}
-        else
+             ) do
+          {:ok, records} -> {:ok, %{"documents" => Enum.map(records, &metadata/1)}}
           _ -> {:error, "unavailable", "Board database is unavailable"}
         end
 
@@ -107,11 +111,25 @@ defmodule Agentboard.Evidence.Operations do
   def fetch_document(id) do
     fields = Ash.Resource.Info.attributes(Document) |> Enum.map(& &1.name)
 
-    case Document |> Ash.Query.filter(id == ^id) |> Ash.Query.select(fields) |> Ash.read_one() do
+    case read_one(Document |> Ash.Query.filter(id == ^id) |> Ash.Query.select(fields)) do
       {:ok, nil} -> {:error, "not_found", "Record not found"}
       {:ok, record} -> {:ok, Map.put(metadata(record), "html", record.html)}
       _ -> {:error, "unavailable", "Board database is unavailable"}
     end
+  end
+
+  defp read(query) do
+    Ash.read(Agentboard.Repo.read_query(query))
+  rescue
+    DBConnection.ConnectionError -> {:error, :unavailable}
+    Postgrex.Error -> {:error, :unavailable}
+  end
+
+  defp read_one(query) do
+    Ash.read_one(Agentboard.Repo.read_query(query))
+  rescue
+    DBConnection.ConnectionError -> {:error, :unavailable}
+    Postgrex.Error -> {:error, :unavailable}
   end
 
   def quota(actor, report, providers, digest) do
@@ -121,11 +139,12 @@ defmodule Agentboard.Evidence.Operations do
       <<key::signed-64, _::binary>> =
         :crypto.hash(:sha256, "quota:" <> actor["agent"] <> ":" <> digest)
 
-      Ecto.Adapters.SQL.query!(Agentboard.Repo, "SELECT pg_advisory_xact_lock($1)", [key])
+      Agentboard.Repo.statement!("SELECT pg_advisory_xact_lock($1)", [key])
 
       existing =
         QuotaReport
         |> Ash.Query.filter(source_agent_id == ^actor["agent"] and digest == ^digest)
+        |> Agentboard.Repo.read_query()
         |> Ash.read_one!()
 
       if existing do
@@ -183,7 +202,7 @@ defmodule Agentboard.Evidence.Operations do
           end
         end
 
-        Ecto.Adapters.SQL.query!(Agentboard.Repo, "SELECT pg_notify('ab_quota',$1)", [
+        Agentboard.Repo.statement!("SELECT pg_notify('ab_quota',$1)", [
           Jason.encode!(%{id: result.id})
         ])
 

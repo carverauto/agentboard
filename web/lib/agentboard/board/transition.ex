@@ -120,8 +120,13 @@ defmodule Agentboard.Board.Transition do
 
   defp expired?(t, now), do: DateTime.compare(t.claim_expires_at, now) != :gt
 
-  defp expiry(now, data),
-    do: DateTime.add(now, round(Map.get(data, "ttl_seconds", 7200) * 1_000_000), :microsecond)
+  defp expiry(now, data) do
+    seconds = Map.get(data, "ttl_seconds", 7200)
+
+    if Agentboard.Input.representable_offset?(seconds),
+      do: DateTime.add(now, round(seconds * 1_000_000), :microsecond),
+      else: Operations.reject("invalid_input", "Invalid task fields or action")
+  end
 
   defp conflict(message), do: Operations.reject("conflict", message)
 end

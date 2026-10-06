@@ -507,6 +507,100 @@ ab('doc','push','docs-expired','--file',str(doc_file),'--title','Expired upload'
 assert ab('task','show','docs-expired')==expired_before
 print('Documentation API/CLI ownership, retry, persistence, task links and sandbox serving passed')
 
+def get_api(path, timeout=5):
+    req=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/'+path, headers={
+        'X-Agentboard-Agent':'alpha','X-Agentboard-Model':'model-a','X-Agentboard-Harness':'codex'})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return response.status, json.load(response)
+    except urllib.error.HTTPError as response:
+        return response.code, json.load(response)
+
+# Database clock, not the application clock, decides expiry, strict staleness and archive revision.
+ab('task','create','--id','clock-lease','--title','Database clock lease')
+ab('task','claim','clock-lease')
+sql("UPDATE tasks SET claim_expires_at = clock_timestamp() - interval '1 second' WHERE id='clock-lease'")
+sql("INSERT INTO task_archives(id,revision,changed_by) VALUES ('clock-lease',4,'fixture')")
+shown=ab('task','show','clock-lease')['task']
+listed=[row for row in ab('task','list','--limit','1000')['tasks'] if row['id']=='clock-lease'][0]
+assert shown['claim_expired'] and listed['claim_expired']
+assert shown['archive_revision']==listed['archive_revision']==4
+assert sql("SELECT claim_expires_at <= clock_timestamp() FROM tasks WHERE id='clock-lease'")=='t'
+ab('task','renew','clock-lease',code=4)
+sql("UPDATE tasks SET claim_expires_at = clock_timestamp() + interval '5 minutes' WHERE id='clock-lease'")
+live=ab('task','show','clock-lease')['task']
+assert not live['claim_expired'] and live['archive_revision']==4
+ab('task','renew','clock-lease')
+assert ab('agent','show','gamma')['agent']['stale']
+sql("UPDATE agents SET last_heartbeat = clock_timestamp() - interval '2 hours' WHERE id='gamma'")
+assert ab('--stale-after','600s','agent','show','gamma')['agent']['stale']
+sql("UPDATE agents SET last_heartbeat = clock_timestamp() - interval '10 seconds' WHERE id='gamma'")
+assert not ab('--stale-after','600s','agent','show','gamma')['agent']['stale']
+status,error=get_api('agents?stale_after=1e20')
+assert status==422 and error['error']['code']=='invalid_input', (status, error)
+status,error=get_api('quota?stale_after=1e20')
+assert status==422 and error['error']['code']=='invalid_input', (status, error)
+before=ab('task','show','clock-lease')
+status,error=api('tasks/clock-lease/renew',json.dumps({'ttl_seconds':1e20}).encode())
+assert status==422 and error['error']['code']=='invalid_input', (status, error)
+assert ab('task','show','clock-lease')['task']['revision']==before['task']['revision']
+
+# A saturated pool returns structured unavailable without waiting to check out.
+pool_eval = r'''
+defmodule AgentboardPoolCheck do
+  def wait(held, rejected, deadline) do
+    cond do
+      held > 0 and rejected > 0 -> {held, rejected}
+      System.monotonic_time(:millisecond) > deadline -> {held, rejected}
+      true ->
+        receive do
+          :held -> wait(held + 1, rejected, deadline)
+          :no -> wait(held, rejected + 1, deadline)
+        after
+          50 -> wait(held, rejected, deadline)
+        end
+    end
+  end
+end
+{:ok, _} = Application.ensure_all_started(:agentboard)
+parent = self()
+for _ <- 1..30 do
+  spawn(fn ->
+    try do
+      Agentboard.Repo.checkout(fn ->
+        send(parent, :held)
+        receive do
+          :release -> :ok
+        after
+          8_000 -> :ok
+        end
+      end, timeout: 200, queue: false)
+    rescue
+      _ -> send(parent, :no)
+    catch
+      _, _ -> send(parent, :no)
+    end
+  end)
+end
+{held, rejected} = AgentboardPoolCheck.wait(0, 0, System.monotonic_time(:millisecond) + 3_000)
+if held < 1 or rejected < 1, do: raise("did not saturate pool")
+started = System.monotonic_time(:millisecond)
+result =
+  try do
+    Agentboard.Board.page("tasks", %{})
+  rescue
+    error in DBConnection.ConnectionError -> {:error, "unavailable", Exception.message(error)}
+  end
+elapsed = System.monotonic_time(:millisecond) - started
+case result do
+  {:error, "unavailable", _} when elapsed < 1_000 -> IO.puts("pool-unavailable")
+  other -> raise("expected immediate unavailable, got #{elapsed}ms #{inspect(other)}")
+end
+'''
+pool = subprocess.run([os.environ['AGENTBOARD_BIN'], 'eval', pool_eval], env=dict(os.environ, POOL_SIZE='4', PHX_SERVER='false'), capture_output=True, text=True, timeout=60)
+assert pool.returncode == 0 and 'pool-unavailable' in pool.stdout, (pool.returncode, pool.stdout, pool.stderr)
+print('Database-clock expiry, bounded time input and nonqueued pool checkout passed')
+
 # Throttling happens before a valid task write, with health/browser bypass.
 for _ in range(2001):
     status,_=api('tasks',b'{broken',actor='rate-probe')
