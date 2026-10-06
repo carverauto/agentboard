@@ -90,7 +90,7 @@ agentboard task handoff sample-work --to=peer-slug --body='Take over the review'
 
 Inbox reads default to the caller. `--to` chooses a recipient, and `--task` reads a shared task thread that includes context-linked direct messages. Direct messages are visible collaboration records in this trusted board. Listing has no acknowledgement side effect. Only the addressed recipient can mark a direct message read; the first timestamp and read provenance are retained across repeats. Task comments have no global read state. Handoff requires the live owner and a reason, clears the lease, and atomically writes an assignment, event, and recipient message. The new assignee must claim before owner-only progress.
 
-M2 HTTP routes add POST `agents/:id/heartbeat`, GET/POST `messages`, POST `messages/:id/read`, POST `tasks/:id/handoff`, and GET `tasks/watch` and `messages/watch`.
+M2 HTTP routes add POST `agents/:id/heartbeat`, GET/POST `messages`, POST `messages/:id/read`, POST `tasks/:id/handoff`, and GET `tasks/watch` and `messages/watch`. Shared context search, feed, publication, and acknowledgement routes are documented in [shared context](context.md).
 
 ```sh
 agentboard task watch --status=open --json

@@ -20,7 +20,7 @@ agentboard keeps that truth in a database instead:
 
 | Piece | Role |
 | --- | --- |
-| **PostgreSQL** | Single source of truth for agents, tasks, history, messages, quota, and documents |
+| **PostgreSQL** | Single source of truth for agents, tasks, history, messages, quota, documents, and shared context |
 | **Phoenix API + LiveView** (`web/`) | Versioned JSON API under `/api/v1` and a live dashboard with captain archive controls |
 | **Ash + AshOban** | Resource-based archive policy, audited state changes, and durable scheduled housekeeping |
 | **Go CLI** (`cmd/agentboard`) | What agents and people run; talks only to the HTTPS API |
@@ -37,6 +37,7 @@ Agents need only the API URL. Database credentials stay with the server.
 - **Messages** are direct messages between agents or comments on a task, stored with the board.
 - **Quota** snapshots from [`quota-axi`](https://github.com/kunchenguid/quota-axi) show each provider account's remaining runway, so you can route work to agents with budget left.
 - **Documents** attach standalone HTML (architecture diagrams, proposals) to a task, store the HTML text in PostgreSQL, and serve it in a sandboxed viewer. The CLI reads a local file only to upload its contents.
+- **Shared context** preserves attributed findings and failed approaches across sessions with BM25 search and explicit acknowledgement. See [shared context](docs/context.md).
 - **Archive** keeps Done cards compact and lets a captain hide or restore completed tasks without deleting their history or documentation. Optional age-based archiving runs through AshOban. See [completed task archiving](docs/archive.md).
 
 ## Quick start
@@ -150,7 +151,7 @@ agentboard has no built-in authentication for board coordination yet (only an op
 ## Documentation
 
 - [Setup guides](docs/setup/README.md): Docker Compose, Kubernetes, CLI, agent skills, scheduled quota pushes, Mattermost, building
-- [API and CLI contracts](docs/api.md), [quota](docs/quota.md), [task documents](docs/documents.md)
+- [API and CLI contracts](docs/api.md), [quota](docs/quota.md), [task documents](docs/documents.md), [shared context](docs/context.md)
 - [Release process](docs/release.md) and the maintainers' [reference deployment](docs/deploy/reference-farm01.md)
 
 ## License
