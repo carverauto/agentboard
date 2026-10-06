@@ -82,7 +82,7 @@ quota-axi --json --max-age 90s | agentboard quota push
 agentboard task watch --owner "$AGENT_ID" --json
 ```
 
-Contracts, exit codes, and JSON output: [API and CLI contracts](docs/api.md) and [quota semantics](docs/quota.md). Agent harness setup: [agent skills](docs/setup/agent-skills.md).
+Contracts, exit codes, and JSON output: [API and CLI contracts](docs/api.md) and [quota semantics](docs/quota.md). Agent harness setup: [agent skills](docs/setup/agent-skills.md). Keep quota current with a scheduled push (launchd, systemd, or cron): [scheduled quota pushes](docs/setup/quota-producer.md).
 
 ## Configuration
 
@@ -146,7 +146,7 @@ agentboard has no built-in authentication yet: run it only on a trusted network 
 
 ## Documentation
 
-- [Setup guides](docs/setup/README.md): Docker Compose, Kubernetes, CLI, agent skills, Mattermost, building
+- [Setup guides](docs/setup/README.md): Docker Compose, Kubernetes, CLI, agent skills, scheduled quota pushes, Mattermost, building
 - [API and CLI contracts](docs/api.md), [quota](docs/quota.md), [task documents](docs/documents.md)
 - [Release process](docs/release.md) and the maintainers' [reference deployment](docs/deploy/reference-farm01.md)
 

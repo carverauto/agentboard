@@ -104,7 +104,7 @@ quota-axi --json --max-age 90s | agentboard quota push --json
 agentboard quota list --json
 ```
 
-The pushing agent needs a registered identity. Schedule the push (cron, a launchd/systemd timer, or a session hook) wherever quota-axi has your provider logins. Semantics: [quota](../quota.md).
+The pushing agent needs a registered identity. To push on a schedule (launchd, a systemd timer, or cron) wherever quota-axi has your provider logins, see [scheduled quota pushes](quota-producer.md). Semantics: [quota](../quota.md).
 
 ## Next
 

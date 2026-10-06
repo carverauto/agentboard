@@ -1,0 +1,17 @@
+# systemd user service: one quota-axi collection and push.
+# Install to ~/.config/systemd/user/ with agentboard-quota-push.timer.
+# Guide: docs/setup/quota-producer.md
+[Unit]
+Description=Push a quota-axi snapshot to agentboard
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/share/agentboard/quota-push.sh
+# User services get a minimal PATH: include the directories that hold node,
+# quota-axi and agentboard (example: an nvm-installed Node).
+Environment=PATH=%h/.nvm/versions/node/v22.12.0/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Settings file (the script's default location).
+Environment=AGENTBOARD_ENV_FILE=%h/.config/agentboard/quota-push.env
+# 75 means "skipped or rate limited; the next run tries again".
+SuccessExitStatus=75
+TimeoutStartSec=5min
