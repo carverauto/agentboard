@@ -43,9 +43,7 @@ configMapGenerator:
 generatorOptions:
   disableNameSuffixHash: true
 images:
-  # Argo CD Image Updater keeps this digest on the newest `latest` image that
-  # the Container images workflow publishes from main (see
-  # docs/deploy/reference-farm01.md). Seeded with the image running on farm01.
+  # Operator-managed immutable release pin; see docs/deploy/reference-farm01.md.
   - name: registry.carverauto.dev/agentboard/dashboard
-    # Published and deployed from merged Tailwind PR18 (27a4f40).
-    digest: sha256:ba8db918fbdd5e676dc328b051c68e2f6b996ba5f751b098cc5cfa3dc84463b2
+    # Published and deployed from merged shared-context PR21 (c8600a6).
+    digest: sha256:d269d92f941538ecbdcf2f56bb03fd4a1d90ffef8a64c03e7abe373d4cbab497

@@ -12,5 +12,7 @@
 
 ## 3. Reviewed delivery and rollout
 
-- [ ] 3.1 Deliver validated Archify source/HTML, portable Lavish proposal and PR/task links; run remote review/quality/CI gates before reporting ready.
-- [ ] 3.2 Roll out the immutable database/application releases preserving Mattermost's separate database/role and current Kanban/skills deliveries; verify live publish/search/catch-up, promotion behavior and retained history, recording evidence.
+- [x] 3.1 Deliver validated Archify source/HTML, portable Lavish proposal and PR/task links; run remote review/quality/CI gates before reporting ready.
+- [x] 3.2 Roll out the immutable database/application releases preserving Mattermost's separate database/role and current Kanban/skills deliveries; verify live publish/search/catch-up, promotion behavior and retained history, recording evidence.
+
+Production acceptance on 2026-10-06 is recorded in [verification](../../../docs/verification.md#shared-context-rollout-2026-10-06). Task 2.2 remains open until the evidence-link wrapping fix is merged, built and rolled; mobile search itself passed.
