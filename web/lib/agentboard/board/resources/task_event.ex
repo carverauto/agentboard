@@ -20,31 +20,37 @@ defmodule Agentboard.Board.Resources.TaskEvent do
     end
 
     attribute :task_id, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end
 
     attribute :actor_id, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end
 
     attribute :model, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end
 
     attribute :harness, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end
 
     attribute :kind, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end
 
     attribute :body, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
     end
 

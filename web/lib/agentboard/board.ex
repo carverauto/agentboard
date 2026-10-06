@@ -1,7 +1,12 @@
 defmodule Agentboard.Board do
-  use Ash.Domain, backwards_compatible_interface?: false
+  use Ash.Domain, backwards_compatible_interface?: false, extensions: [AshPaperTrail.Domain]
+
+  paper_trail do
+    include_versions?(true)
+  end
 
   resources do
+    resource(Agentboard.Board.AuditEvent)
     resource(Agentboard.Board.Resources.Agent)
     resource(Agentboard.Board.Resources.Task)
     resource(Agentboard.Board.Resources.TaskEvent)
@@ -10,112 +15,14 @@ defmodule Agentboard.Board do
 
   alias Agentboard.{Input, Repo}
 
-  # Ordinary module functions: SQL executes in the calling request or LiveView process.
-  def register(actor, data) do
-    with {:ok, actor} <- Input.actor(actor), :ok <- Input.registration(data) do
-      query_one(
-        """
-        INSERT INTO agents(id,name,model,harness,host,capabilities,metadata)
-        VALUES ($1,$2,$3,$4,$5,$6,$7)
-        ON CONFLICT(id) DO UPDATE SET model=EXCLUDED.model,
-          name=CASE WHEN 'name'=ANY($8) THEN EXCLUDED.name ELSE agents.name END,
-          host=CASE WHEN 'host'=ANY($8) THEN EXCLUDED.host ELSE agents.host END,
-          capabilities=CASE WHEN 'capabilities'=ANY($8) THEN EXCLUDED.capabilities ELSE agents.capabilities END,
-          metadata=CASE WHEN 'metadata'=ANY($8) THEN EXCLUDED.metadata ELSE agents.metadata END,
-          updated_at=clock_timestamp() WHERE agents.harness=EXCLUDED.harness
-        RETURNING jsonb_build_object('agent',to_jsonb(agents.*))
-        """,
-        [
-          actor["agent"],
-          Map.get(data, "name", actor["agent"]),
-          actor["model"],
-          actor["harness"],
-          data["host"],
-          Map.get(data, "capabilities", []),
-          Map.get(data, "metadata", %{}),
-          Map.keys(data)
-        ],
-        {:error, "conflict", "That agent ID belongs to another harness"}
-      )
-    end
-  end
+  # Public domain boundary; mutations use real Ash writes and transactional audit hooks.
+  def register(actor, data), do: Agentboard.Board.Operations.register(actor, data)
+  def heartbeat(id, actor, data), do: Agentboard.Board.Operations.heartbeat(id, actor, data)
 
-  def mutate(id, action, actor, data) do
-    with {:ok, actor} <- Input.actor(actor),
-         :ok <- Input.task(action, data),
-         true <- Input.slug?(id) do
-      if action == "handoff" do
-        query_one("SELECT board_handoff_task($1,$2,$3,$4,$5)", [
-          id,
-          data,
-          actor["agent"],
-          actor["model"],
-          actor["harness"]
-        ])
-      else
-        query_one("SELECT board_mutate_task($1,$2,$3,$4,$5,$6)", [
-          id,
-          action,
-          data,
-          actor["agent"],
-          actor["model"],
-          actor["harness"]
-        ])
-      end
-    else
-      false -> {:error, "invalid_input", "Invalid task ID"}
-      error -> error
-    end
-  end
+  def mutate(id, action, actor, data),
+    do: Agentboard.Board.Operations.mutate(id, action, actor, data)
 
-  def heartbeat(id, actor, data) do
-    with {:ok, actor} <- Input.actor(actor),
-         true <- id == actor["agent"],
-         true <-
-           is_map(data) and data["status"] in ~w(busy idle) and
-             Enum.all?(data, fn
-               {"status", _} -> true
-               {"task", v} -> is_nil(v) or Input.slug?(v)
-               {"backend", v} -> Input.text?(v)
-               _ -> false
-             end) do
-      query_one("SELECT board_heartbeat($1,$2,$3,$4)", [
-        data,
-        actor["agent"],
-        actor["model"],
-        actor["harness"]
-      ])
-    else
-      false -> {:error, "invalid_input", "Invalid heartbeat fields or caller"}
-      error -> error
-    end
-  end
-
-  def message(id, actor, data) do
-    with {:ok, actor} <- Input.actor(actor),
-         true <- is_map(data),
-         true <-
-           is_integer(id) or
-             (is_nil(id) and Input.text?(data["body"]) and
-                (Input.slug?(data["to"]) or Input.slug?(data["task"]))),
-         true <-
-           Enum.all?(data, fn
-             {"body", v} -> Input.text?(v)
-             {k, v} when k in ~w(to task) -> Input.slug?(v)
-             _ -> false
-           end) do
-      query_one("SELECT board_message($1,$2,$3,$4,$5)", [
-        id,
-        data,
-        actor["agent"],
-        actor["model"],
-        actor["harness"]
-      ])
-    else
-      false -> {:error, "invalid_input", "Message requires valid destination and nonempty body"}
-      error -> error
-    end
-  end
+  def message(id, actor, data), do: Agentboard.Board.Operations.message(id, actor, data)
 
   def create(actor, data) do
     with :ok <- Input.task("create", data) do
@@ -126,40 +33,12 @@ defmodule Agentboard.Board do
 
   def show(resource, id, filters \\ %{})
 
-  def show("tasks", id, filters) do
-    with true <- Input.slug?(id),
-         {:ok, %{rows: [[task]]}} <-
-           query("SELECT #{task_json()} FROM tasks t WHERE t.id=$1", [id], timeout: 2_000),
-         {:ok, events} <- page("events", Map.put(filters, "task", id)),
-         {:ok, documents} <- Agentboard.Documents.list(id) do
-      {:ok,
-       %{
-         "task" => task,
-         "events" => events["events"],
-         "next_cursor" => events["next_cursor"],
-         "documents" => documents["documents"],
-         "archive" => archive_state(id)
-       }}
-    else
-      false -> {:error, "invalid_input", "Invalid task ID"}
-      {:ok, %{rows: []}} -> {:error, "not_found", "Task not found"}
-      error -> error
-    end
-  end
+  def show(resource, id, filters), do: Agentboard.Board.Reads.show(resource, id, filters)
 
-  def show("agents", id, filters) do
-    with true <- Input.slug?(id), {:ok, seconds} <- stale_seconds(filters) do
-      query_one(
-        "SELECT jsonb_build_object('agent', #{agent_json("$2")}) FROM agents a WHERE a.id=$1",
-        [id, seconds]
-      )
-    else
-      false -> {:error, "invalid_input", "Invalid agent ID"}
-      error -> error
-    end
-  end
+  def page(resource, filters) when resource != "quota",
+    do: Agentboard.Board.Reads.page(resource, filters)
 
-  def page(resource, filters) do
+  def page("quota" = resource, filters) do
     if Enum.all?(filters, fn {k, v} -> is_binary(k) and is_binary(v) and byte_size(v) <= 4096 end),
        do: do_page(resource, filters),
        else: {:error, "invalid_input", "List filters must be scalar strings"}
@@ -187,7 +66,10 @@ defmodule Agentboard.Board do
     end
   end
 
-  def snapshot(resource, filters) do
+  def snapshot(resource, filters) when resource != "quota",
+    do: Agentboard.Board.Reads.snapshot(resource, filters)
+
+  def snapshot("quota" = resource, filters) do
     filters = Map.drop(filters, ~w(limit cursor))
 
     with true <-
@@ -210,12 +92,7 @@ defmodule Agentboard.Board do
   end
 
   def query(sql, params, options \\ []) do
-    case Ecto.Adapters.SQL.query(
-           Repo,
-           sql,
-           params,
-           options |> Keyword.put_new(:timeout, 10_000) |> Keyword.put_new(:queue, false)
-         ) do
+    case Repo.statement(sql, params, options) do
       {:ok, result} ->
         {:ok, result}
 
@@ -242,81 +119,6 @@ defmodule Agentboard.Board do
     end
   rescue
     DBConnection.ConnectionError -> {:error, "unavailable", "Board database is unavailable"}
-  end
-
-  def query_one(sql, params, missing \\ {:error, "not_found", "Record not found"}) do
-    case query(sql, params) do
-      {:ok, %{rows: [[value]]}} -> {:ok, value}
-      {:ok, %{rows: []}} -> missing
-      error -> error
-    end
-  end
-
-  defp task_json do
-    "to_jsonb(t.*) || jsonb_build_object('claim_expired',t.claim_expires_at IS NOT NULL AND t.claim_expires_at <= clock_timestamp(),'archive_revision',coalesce((SELECT a.revision FROM task_archives a WHERE a.id=t.id),0))"
-  end
-
-  defp agent_json(seconds) do
-    "to_jsonb(a.*) || jsonb_build_object('stale',a.last_heartbeat IS NULL OR a.last_heartbeat < clock_timestamp()-#{seconds}::double precision*interval '1 second')"
-  end
-
-  defp read_spec("tasks", _),
-    do:
-      {:ok,
-       %{
-         from: "tasks t",
-         json: task_json(),
-         order: "t.priority ASC,t.updated_at DESC,t.id ASC",
-         sort: ~w(priority updated_at id),
-         fields: %{
-           "status" => "t.status",
-           "owner" => "t.assignee_id",
-           "repo" => "t.repo",
-           "label" => "ANY(t.labels)",
-           "archive" =>
-             "CASE WHEN EXISTS (SELECT 1 FROM task_archives a WHERE a.id=t.id AND a.archived_at IS NOT NULL) THEN 'archived' ELSE 'active' END"
-         }
-       }}
-
-  defp read_spec("agents", filters) do
-    with {:ok, seconds} <- stale_seconds(filters) do
-      {:ok,
-       %{
-         from: "agents a",
-         json: agent_json(Float.to_string(seconds * 1.0)),
-         order: "a.id ASC",
-         sort: ["id"],
-         fields: %{"harness" => "a.harness", "status" => "a.reported_status"}
-       }}
-    end
-  end
-
-  defp read_spec("events", _),
-    do:
-      {:ok,
-       %{
-         from: "task_events e",
-         json: "to_jsonb(e.*)",
-         order: "e.created_at ASC,e.id ASC",
-         sort: ~w(created_at id),
-         fields: %{"task" => "e.task_id"}
-       }}
-
-  defp read_spec("messages", filters) do
-    fields = %{"to" => "m.recipient_id", "task" => "m.task_id"}
-    from = "messages m"
-    json = "to_jsonb(m.*)"
-
-    {:ok,
-     %{
-       from: from,
-       json: json,
-       order: "m.created_at ASC,m.id ASC",
-       sort: ~w(created_at id),
-       fields: fields,
-       unread: filters["unread"] == "true",
-       alias: "m"
-     }}
   end
 
   defp read_spec("quota", filters), do: Agentboard.Quota.read_spec(filters)
@@ -387,20 +189,7 @@ defmodule Agentboard.Board do
   defp valid_cursor?(["provider", "account_key"], [provider, account]),
     do: Input.text?(provider) and Input.text?(account)
 
-  defp valid_cursor?(["id"], [id]), do: Input.slug?(id)
-
-  defp valid_cursor?(["priority", "updated_at", "id"], [p, time, id]),
-    do: is_integer(p) and p >= 0 and datetime?(time) and Input.slug?(id)
-
-  defp valid_cursor?(["created_at", "id"], [time, id]),
-    do: datetime?(time) and is_integer(id) and id > 0
-
   defp valid_cursor?(_, _), do: false
-
-  defp datetime?(value) when is_binary(value),
-    do: match?({:ok, _, _}, DateTime.from_iso8601(value))
-
-  defp datetime?(_), do: false
 
   defp encode_cursor(resource, filters, spec, record) do
     Jason.encode!(%{
@@ -431,16 +220,6 @@ defmodule Agentboard.Board do
     end
   end
 
-  defp stale_seconds(filters) do
-    case parse_float(Map.get(filters, "stale_after", "600")) do
-      {n, ""} when n > 0 -> {:ok, n}
-      _ -> {:error, "invalid_input", "Stale threshold must be positive seconds"}
-    end
-  end
-
-  defp parse_float(value) when is_binary(value), do: Float.parse(value)
-  defp parse_float(_), do: :error
-
   defp generated_id(title) do
     base =
       title
@@ -451,13 +230,6 @@ defmodule Agentboard.Board do
 
     if(base == "", do: "task", else: base) <>
       "-" <> Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
-  end
-
-  defp archive_state(id) do
-    case query("SELECT to_jsonb(a.*) FROM task_archives a WHERE id=$1", [id]) do
-      {:ok, %{rows: [[archive]]}} -> archive
-      _ -> %{"id" => id, "revision" => 0, "archived_at" => nil}
-    end
   end
 end
 

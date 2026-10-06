@@ -16,6 +16,7 @@ export PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1"
 export PHX_HOST=127.0.0.1
 export PHX_SERVER=true API_RATE_LIMIT_IP=1000 API_RATE_LIMIT_AGENT=1000
 export AGENTBOARD_URL="http://127.0.0.1:$PORT"
+export AGENTBOARD_BIN="$release_root/bin/agentboard"
 "$release_root/bin/agentboard" start >"$TEST_TMPDIR/web.log" 2>&1 &
 web_pid=$!
 cleanup_board() { kill "$web_pid" 2>/dev/null || true; wait "$web_pid" 2>/dev/null || true; cleanup_fixture; }

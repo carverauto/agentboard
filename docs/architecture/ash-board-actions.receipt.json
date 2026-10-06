@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "type": "architecture",
+  "input": "docs/architecture/ash-board-actions.architecture.json",
+  "output": "docs/architecture/ash-board-actions.html",
+  "specification": {
+    "sha256": "daadcbe15bc4225efff36bf4d29fac4af8a9c193655528af5841cbd622167d9a",
+    "bytes": 3114
+  },
+  "artifact": {
+    "sha256": "e7e8d0e39aece69666e16a5aa75b6f8c832e814f3dd2a035d38c14cb4953a7b4",
+    "bytes": 706307
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "errors": 0,
+    "warnings": 0,
+    "compositionStatus": "pass",
+    "compositionProfile": "showcase"
+  }
+}

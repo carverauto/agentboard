@@ -103,8 +103,30 @@ defmodule Agentboard.Input do
   defp valid_field?("note", value), do: text?(value)
   defp valid_field?("expired", value), do: is_boolean(value)
   defp valid_field?("revision", value), do: is_integer(value) and value > 0
-  defp valid_field?("ttl_seconds", value), do: is_number(value) and value > 0
+  defp valid_field?("ttl_seconds", value), do: representable_offset?(value)
   defp valid_field?(_, _), do: false
+
+  def representable_offset?(seconds)
+      when is_integer(seconds) and seconds > 0 and seconds <= 1_000_000_000_000,
+      do: fits?(seconds)
+
+  def representable_offset?(seconds)
+      when is_float(seconds) and seconds > 0 and seconds <= 1.0e12 and seconds == seconds,
+      do: fits?(seconds)
+
+  def representable_offset?(_), do: false
+
+  defp fits?(seconds) do
+    skew = round(seconds * 1_000_000) + 86_400_000_000
+    now = DateTime.utc_now()
+    _ = DateTime.add(now, skew, :microsecond)
+    _ = DateTime.add(now, -skew, :microsecond)
+    true
+  rescue
+    ArgumentError -> false
+    ArithmeticError -> false
+  end
+
   defp strings?(value), do: is_list(value) and Enum.all?(value, &is_binary/1)
 end
 

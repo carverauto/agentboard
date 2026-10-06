@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Agentboard \u00b7 Audited Ash Actions",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1370,
+      760
+    ]
+  },
+  "components": [
+    {
+      "id": "agents",
+      "type": "frontend",
+      "label": "Go CLI",
+      "sublabel": "Stable agent / model / harness",
+      "pos": [
+        40,
+        320
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "phoenix",
+      "type": "backend",
+      "label": "Phoenix requests",
+      "sublabel": "API v1 + LiveView",
+      "pos": [
+        380,
+        320
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "actions",
+      "type": "backend",
+      "label": "Ash domains",
+      "sublabel": "Board + Evidence",
+      "pos": [
+        720,
+        320
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "database",
+      "type": "database",
+      "label": "PostgreSQL pool",
+      "sublabel": "State + HTML + quota + BM25",
+      "pos": [
+        1060,
+        320
+      ],
+      "size": [
+        260,
+        100
+      ]
+    },
+    {
+      "id": "audit",
+      "type": "backend",
+      "label": "Audit hooks",
+      "sublabel": "AshPaperTrail + AshEvents",
+      "pos": [
+        720,
+        70
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "timeline",
+      "type": "backend",
+      "label": "Timeline projection",
+      "sublabel": "Append-only task_events",
+      "pos": [
+        720,
+        570
+      ],
+      "size": [
+        240,
+        100
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "api",
+      "from": "agents",
+      "to": "phoenix",
+      "label": "HTTP API",
+      "variant": "emphasis"
+    },
+    {
+      "id": "shared",
+      "from": "phoenix",
+      "to": "actions",
+      "label": "Domain calls",
+      "variant": "emphasis"
+    },
+    {
+      "id": "pool",
+      "from": "actions",
+      "to": "database",
+      "label": "Pooled SQL",
+      "variant": "emphasis"
+    },
+    {
+      "id": "version",
+      "from": "actions",
+      "to": "audit",
+      "label": "Actor + action",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "projection",
+      "from": "actions",
+      "to": "timeline",
+      "label": "Same transaction",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Atomic ownership",
+      "items": [
+        "Task-row lock, then lease clock",
+        "Revision compare-and-set; one claim winner"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Audit boundaries",
+      "items": [
+        "Per-resource record keys; no global query process",
+        "HTML, raw quota and heartbeat refreshes excluded"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Next delivery stage",
+      "items": [
+        "PR inventory, CI monitor and follow-ups still pending",
+        "Mattermost bridge and agent wakeups are separate"
+      ]
+    }
+  ]
+}

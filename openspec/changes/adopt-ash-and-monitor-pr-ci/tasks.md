@@ -8,16 +8,16 @@
 
 ## 2. Existing operations through Ash
 
-- [ ] 2.1 Convert Agent registration/heartbeat and board read/pagination/snapshots to domain actions; verify current API/CLI registration, harness conflict and keyset/full-watch behavior remotely.
-- [ ] 2.2 Convert Task create/assign/claim/renew/release/reclaim/status/link/update to atomic resource operations; verify one-winner claims, revision conflicts, manual expiry recovery, lifecycle restrictions and compatible error envelopes remotely.
-- [ ] 2.3 Convert handoff and Message send/recipient acknowledgement into shared transactional actions; verify assignment/event/message rollback and recipient-only acknowledgement through the real API/CLI remotely.
-- [ ] 2.4 Convert quota evidence resources/ingest and immutable Document uploads/fetches; verify schema 5/6 retention, canonical retries, live-owner/terminal rules, size bounds and metadata reads excluding HTML remotely.
+- [x] 2.1 Convert Agent registration/heartbeat and board read/pagination/snapshots to domain actions; verify current API/CLI registration, harness conflict and keyset/full-watch behavior remotely.
+- [x] 2.2 Convert Task create/assign/claim/renew/release/reclaim/status/link/update to atomic resource operations; verify one-winner claims, revision conflicts, manual expiry recovery, lifecycle restrictions and compatible error envelopes remotely.
+- [x] 2.3 Convert handoff and Message send/recipient acknowledgement into shared transactional actions; verify assignment/event/message rollback and recipient-only acknowledgement through the real API/CLI remotely.
+- [x] 2.4 Convert quota evidence resources/ingest and immutable Document uploads/fetches; verify schema 5/6 retention, canonical retries, live-owner/terminal rules, size bounds and metadata reads excluding HTML remotely.
 - [ ] 2.5 Route API/watch/document controllers and LiveView reads through domain interfaces, removing independent mutation authorities; verify all existing routes/streams and sandbox viewer in remote acceptance plus a real browser, and document the shared operation boundary.
 
 ## 3. Attributed audit and concurrency
 
-- [ ] 3.1 Enable atomic-compatible PaperTrail versions on meaningful mutable state with actor/action metadata and heartbeat/HTML exclusions; verify versions reflect actual mutations and contain no noisy refreshes or full document copies remotely.
-- [ ] 3.2 Add versioned AshEvents recording and one compatible task timeline projection in each mutation transaction; verify an induced audit insert failure rolls back state and timeline remotely.
+- [x] 3.1 Enable atomic-compatible PaperTrail versions on meaningful mutable state with actor/action metadata and heartbeat/HTML exclusions; verify versions reflect actual mutations and contain no noisy refreshes or full document copies remotely.
+- [x] 3.2 Add versioned AshEvents recording and one compatible task timeline projection in each mutation transaction; verify an induced audit insert failure rolls back state and timeline remotely.
 - [ ] 3.3 Implement aggregate-scoped advisory keys, ordered multi-record locking and no shared actor-row write lock; verify an intentionally held unrelated task/PR lock does not block independent mutations or reads remotely.
 - [ ] 3.4 Expose bounded escaped version/event reads without public replay; verify legacy/new history attribution and absence of secrets/HTML in read payloads remotely, and document the audit cutoff and concurrency rules.
 
@@ -63,3 +63,22 @@
 - [ ] 9.2 Publish a new immutable image/CLI release and deploy additive migration plus Ash application in observation-only mode; verify healthy CNPG/app/jobs, provider access, complete linked PR inventory, expected checks and BuildBuddy correlations.
 - [ ] 9.3 Enable follow-ups/completion guard after observation evidence passes; demonstrate a controlled failing PR row/job/log, one assigned follow-up, rejected early completion, successful retry and passing delivery, retaining exact head/digest evidence.
 - [ ] 9.4 Verify live long-lived PR/task/message/quota watches through Gateway, all dashboard routes and sandbox documentation; record rollout/rollback evidence and mark tasks complete only after demonstrated behavior.
+
+## Foundation-stage evidence
+
+The first implementation stage completes Board registration/lifecycle/messages,
+board read/watch queries, immutable document and quota ingestion, and attributed
+PaperTrail/AshEvents writes. The packaged release/CLI acceptance passed remotely
+in [BuildBuddy 6809dbc8](https://carverauto.buildbuddy.io/invocation/6809dbc8-0cc4-4715-9486-9dda39a4a54c),
+including audit insert failures, one-winner claims, scoped audit contention,
+canonical evidence retries, raw retention, HTML exclusions and sandbox serving.
+Schema-6 fresh, repeat, and schema-4 upgrades passed in
+[BuildBuddy 5d07772f](https://carverauto.buildbuddy.io/invocation/5d07772f-147e-47f2-a049-9fe5a0164b9a).
+The quota latest-observation SQL projection, public audit inspection, Delivery
+schema, PR workers/providers/UI/CLI, completion guard and live rollout remain
+unchecked. Scoped Task audit isolation is demonstrated; PR lock ordering is not
+yet implemented, so 3.3 remains open. Archify documents this stage; it does not
+claim CI-monitor delivery. Database-clock expiry, bounded time input, and
+nonqueued pool checkout then passed packaged board API and schema acceptance in
+[BuildBuddy 4f96f5ff](https://carverauto.buildbuddy.io/invocation/4f96f5ff-8ecf-48aa-a7f2-990e10c76b9c).
+That run did not execute the other acceptance targets or a live rollout.

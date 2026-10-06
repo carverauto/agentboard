@@ -8,7 +8,7 @@ defmodule Agentboard.Evidence.Resources.QuotaObservation do
   end
 
   actions do
-    defaults([:read])
+    defaults([:read, create: [:report_id, :provider, :account_key, :provider_data]])
   end
 
   attributes do
@@ -25,11 +25,13 @@ defmodule Agentboard.Evidence.Resources.QuotaObservation do
     end
 
     attribute :provider, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end
 
     attribute :account_key, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end

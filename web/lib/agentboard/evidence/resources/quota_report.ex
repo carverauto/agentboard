@@ -1,14 +1,33 @@
 defmodule Agentboard.Evidence.Resources.QuotaReport do
   @moduledoc "Existing quota_reports records; migrations retain their original table and constraints."
-  use Ash.Resource, domain: Agentboard.Evidence, data_layer: AshPostgres.DataLayer
+  use Ash.Resource,
+    domain: Agentboard.Evidence,
+    data_layer: AshPostgres.DataLayer,
+    extensions: [AshEvents.Events]
 
   postgres do
     table("quota_reports")
     repo(Agentboard.Repo)
   end
 
+  events do
+    event_log(Agentboard.Board.AuditEvent)
+  end
+
   actions do
-    defaults([:read])
+    defaults([
+      :read,
+      create: [
+        :source_agent_id,
+        :model,
+        :harness,
+        :schema_version,
+        :digest,
+        :generated_at,
+        :ingested_at,
+        :raw
+      ]
+    ])
   end
 
   attributes do
@@ -20,16 +39,19 @@ defmodule Agentboard.Evidence.Resources.QuotaReport do
     end
 
     attribute :source_agent_id, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end
 
     attribute :model, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end
 
     attribute :harness, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end
@@ -40,6 +62,7 @@ defmodule Agentboard.Evidence.Resources.QuotaReport do
     end
 
     attribute :digest, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end

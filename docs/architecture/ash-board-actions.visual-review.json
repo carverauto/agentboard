@@ -1,0 +1,13 @@
+{
+  "artifact_sha256": "e7e8d0e39aece69666e16a5aa75b6f8c832e814f3dd2a035d38c14cb4953a7b4",
+  "artifact_bytes": 706307,
+  "visual_review": "passed",
+  "reviewer": "Codex image-capable review",
+  "scope": "1440x900 light and 2048x1320 dark screenshots; automated containment at 1440/1600/1920/2048 widths",
+  "observations": [
+    "Actor/action and same-transaction labels clear without intersections",
+    "All diagram nodes and three explanation cards remain contained in the first screen",
+    "Light and dark text and routing legible; pending delivery stage explicitly identified"
+  ],
+  "correction_rounds": 1
+}
