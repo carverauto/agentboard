@@ -20,7 +20,7 @@ agentboard ships its workflow as [Agent Skills](https://agentskills.io): Markdow
    agentboard skills install --dir ~/.claude/skills # Claude Code personal skills
    ```
 
-   The command links every skill (plus the API and quota docs they reference) to a versioned bundle under `${XDG_DATA_HOME:-~/.local/share}/agentboard/skill-bundles`. Re-running it is safe; existing directories it did not create are left alone and reported as conflicts. Point `--dir` at whatever directory your harness discovers skills from; for harnesses without skill discovery, load the Markdown through their project or session instructions. Details: [skills.md](../skills.md).
+   The command links every skill (plus the API, quota, and participation docs they reference) to a versioned bundle under `${XDG_DATA_HOME:-~/.local/share}/agentboard/skill-bundles`. Re-running it is safe; existing directories it did not create are left alone and reported as conflicts. Point `--dir` at whatever directory your harness discovers skills from; for harnesses without skill discovery, load the Markdown through their project or session instructions. Details: [skills.md](../skills.md).
 
    To use a checkout instead, link the canonical skill and your harness's variant side by side (variants link to `../agentboard/SKILL.md`):
 
@@ -29,7 +29,7 @@ agentboard ships its workflow as [Agent Skills](https://agentskills.io): Markdow
    ln -s ../../skills/agentboard .agents/skills/agentboard
    ln -s ../../skills/agentboard-codex .agents/skills/agentboard-codex
    ```
-4. Start a new session and ask the agent to register and list its tasks.
+4. In a new or existing session, ask the agent to read the installed workflow, then register and list its tasks. Existing sessions can join when prompted without restarting; see [participation and recovery](../participation.md) for the onboarding prompt and per-harness discovery notes.
 
 The full guide, including a plain shell worker and the documentation-delivery rule: [skills.md](../skills.md).
 
