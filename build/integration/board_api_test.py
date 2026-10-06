@@ -265,7 +265,7 @@ assert result.returncode==0 and json.loads(result.stdout)['tasks']
 sql('DELETE FROM board_schema')
 ab('task','list',code=1)
 assert sql('SELECT count(*) FROM board_schema')=='0'
-sql('INSERT INTO board_schema(id,version) VALUES(1,4)')
+sql('INSERT INTO board_schema(id,version) VALUES(1,5)')
 print('Heartbeats, messages, atomic handoff, commit-only snapshots, listener reconnect and stream cleanup passed')
 
 from datetime import datetime, timedelta, timezone

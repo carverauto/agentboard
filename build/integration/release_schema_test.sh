@@ -39,3 +39,24 @@ export ASH_COMPAT_SCRIPT="$TEST_SRCDIR/$TEST_WORKSPACE/build/integration/ash_sch
 [[ -s "$release_root/lib/agentboard-0.1.0/priv/static/assets/app.js" ]]
 [[ -s "$release_root/lib/agentboard-0.1.0/priv/static/assets/app.css" ]]
 echo "Packaged release migrations, schema guards, and assets passed"
+
+# Upgrade the actual current schema-4 migration set, retaining existing history.
+"$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_upgrade
+export DATABASE_NAME=agentboard_upgrade
+"$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261006000700) end)'
+upgrade_psql() {
+  PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=agentboard_upgrade user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -Atc "$1"
+}
+[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 4 ]]
+upgrade_psql "INSERT INTO agents(id,name,model,harness) VALUES ('retained','Retained worker','model','codex');
+INSERT INTO tasks(id,title) VALUES ('retained-task','Retained task');
+INSERT INTO task_events(task_id,actor_id,model,harness,kind,new_revision) VALUES ('retained-task','retained','model','codex','created',1);
+INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html,digest) VALUES ('retained-task','retained','model','codex','archify','Retained diagram','<!doctype html><p>Retained</p>',repeat('c',64));
+CREATE EXTENSION pg_textsearch VERSION '1.5.1';" >/dev/null
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 5 ]]
+[[ "$(upgrade_psql "SELECT count(*) FROM task_events WHERE task_id='retained-task'")" == 1 ]]
+[[ "$(upgrade_psql "SELECT html FROM task_documents WHERE task_id='retained-task'")" == '<!doctype html><p>Retained</p>' ]]
+[[ "$(upgrade_psql "SELECT count(*) FROM pg_indexes WHERE indexname='context_entries_bm25'")" == 1 ]]
+echo 'Schema-4 upgrade and repeated migration preserve task history and document bytes.'

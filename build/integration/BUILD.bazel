@@ -71,13 +71,14 @@ sh_test(
 
 sh_test(
     name = "context_api_test",
-    env = {"FIXTURE_NORMAL_ROLE": "true"},
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "context_api_test.py"},
     srcs = ["board_api_test.sh"],
     data = ["context_api_test.py", "liveview_client.py", "//testdata/quota:fixtures", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
-    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)", "$(rlocationpath context_api_test.py)"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
     size = "medium",
     timeout = "long",
 )
+
 
 sh_test(
     name = "cnpg_image_startup_test",

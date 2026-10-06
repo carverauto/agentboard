@@ -32,6 +32,7 @@ defmodule AgentboardWeb.Router do
     pipe_through([:browser, :captain_control])
     post("/unlock", CaptainController, :unlock)
     post("/lock", CaptainController, :lock)
+  end
 
   pipeline :api do
     plug(AgentboardWeb.Plugs.RateLimit)
@@ -78,13 +79,13 @@ defmodule AgentboardWeb.Router do
 
   scope "/api/v1", AgentboardWeb do
     pipe_through([:api, :compatible])
+    get("/quota", APIController, :quota)
+    post("/quota", APIController, :push_quota)
     get("/context/search", APIController, :context_search)
     get("/context/feed", APIController, :context_feed)
     get("/context/:id", APIController, :context_show)
     post("/context", APIController, :context_publish)
     post("/context/:id/ack", APIController, :context_ack)
-    get("/quota", APIController, :quota)
-    post("/quota", APIController, :push_quota)
     get("/agents", APIController, :agents)
     post("/agents/register", APIController, :register)
     post("/agents/:id/heartbeat", APIController, :heartbeat)
