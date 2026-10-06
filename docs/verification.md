@@ -1,5 +1,16 @@
 # Verification evidence
 
+## Responsive board fix (2026-10-06)
+
+The seven fixed 235px columns previously scrolled 1735px inside a 1380px board at a 1440px viewport. Status lanes now wrap into rows with a 235px preferred minimum; narrow screens retain the existing single-column layout. Long task IDs and owner names wrap within their cards. All seven status lanes remain accessible and repository/owner filters are unchanged.
+
+Remote [acceptance bf87ac6e](https://carverauto.buildbuddy.io/invocation/bf87ac6e-7d57-471d-979c-351e9982d1fb) passed all 10 targets. Remote [packaging 01e620e0](https://carverauto.buildbuddy.io/invocation/01e620e0-7a1f-4412-9975-0a6c3ff4e955) produced dashboard digest `sha256:80e3947c9f7aab154fb7be940c2f3305ea4398d42142b6a6b0b4bf75759543d2`, published under `responsive-b7a1142966e9`; the v0.1.0 tag and CLI assets were not republished. A temporary project-scoped push credential was deleted after publication.
+
+The farm01 overlay pins the new digest. Server dry-run and deployment-only apply succeeded; rollout completed with one ready pod running that exact image ID. No database migrations were needed or rerun. The prior image digest remains available for rollback through the overlay.
+
+Chrome checked the live served application (without injected CSS) at 1920, 1440, 1280, 1024, 768, 700, 500, 390 and 320px. Both page and board fit their measured widths at every size; all seven lanes remained present. A temporary browser-only 200-character task ID and owner probe wrapped at 390px without overflow. [Geometry/runtime evidence](verification/farm01-responsive-board.json), [desktop dark screenshot](verification/farm01-responsive-desktop.png) and [mobile light screenshot](verification/farm01-responsive-mobile.png) record those checks. Visual inspection confirmed readable cards and wrapping header/filters. Remote checks ran through BuildBuddy; no application builds or tests ran locally.
+
+
 All compilation, application tests, dependency compilation, and packaging run through `./scripts/bazel` on BuildBuddy remote execution. No Go/Mix application build or test runs on this Mac. PostgreSQL integration uses a disposable loopback PostgreSQL 18.3 fixture with SCRAM, a generated CA and CA-signed server certificate, verified TLS, temporary data, and process cleanup; it never uses farm01 credentials or data.
 
 ## Completed farm01 rollout (2026-10-06 UTC)

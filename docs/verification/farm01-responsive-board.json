@@ -1,0 +1,182 @@
+{
+  "checked_at": "2026-10-06T06:13:18.435745+00:00",
+  "url": "https://agentboard.farm01.carverauto.dev/",
+  "source_commit": "b7a1142966e98a03e851c8eb0b56304d66de9fec",
+  "image_digest": "sha256:80e3947c9f7aab154fb7be940c2f3305ea4398d42142b6a6b0b4bf75759543d2",
+  "before_1440": {
+    "board_width": 1380,
+    "board_scroll": 1735
+  },
+  "acceptance_invocation": "bf87ac6e-7d57-471d-979c-351e9982d1fb",
+  "package_invocation": "01e620e0-7a1f-4412-9975-0a6c3ff4e955",
+  "live_viewports": [
+    {
+      "viewport": 1920,
+      "page": 1920,
+      "board_width": 1740,
+      "board_scroll": 1740,
+      "lanes": [
+        "Open",
+        "Assigned",
+        "In progress",
+        "Blocked",
+        "Review",
+        "Done",
+        "Cancelled"
+      ],
+      "columns": "235.703px 235.719px 235.719px 235.703px 235.719px 235.719px 235.703px",
+      "preview": false
+    },
+    {
+      "viewport": 1440,
+      "page": 1440,
+      "board_width": 1380,
+      "board_scroll": 1380,
+      "lanes": [
+        "Open",
+        "Assigned",
+        "In progress",
+        "Blocked",
+        "Review",
+        "Done",
+        "Cancelled"
+      ],
+      "columns": "264px 264px 264px 264px 264px",
+      "preview": false
+    },
+    {
+      "viewport": 1280,
+      "page": 1280,
+      "board_width": 1220,
+      "board_scroll": 1220,
+      "lanes": [
+        "Open",
+        "Assigned",
+        "In progress",
+        "Blocked",
+        "Review",
+        "Done",
+        "Cancelled"
+      ],
+      "columns": "293.75px 293.75px 293.75px 293.75px",
+      "preview": false
+    },
+    {
+      "viewport": 1024,
+      "page": 1024,
+      "board_width": 964,
+      "board_scroll": 964,
+      "lanes": [
+        "Open",
+        "Assigned",
+        "In progress",
+        "Blocked",
+        "Review",
+        "Done",
+        "Cancelled"
+      ],
+      "columns": "311.328px 311.328px 311.344px",
+      "preview": false
+    },
+    {
+      "viewport": 768,
+      "page": 768,
+      "board_width": 708,
+      "board_scroll": 708,
+      "lanes": [
+        "Open",
+        "Assigned",
+        "In progress",
+        "Blocked",
+        "Review",
+        "Done",
+        "Cancelled"
+      ],
+      "columns": "346.5px 346.5px",
+      "preview": false
+    },
+    {
+      "viewport": 700,
+      "page": 700,
+      "board_width": 670,
+      "board_scroll": 670,
+      "lanes": [
+        "Open",
+        "Assigned",
+        "In progress",
+        "Blocked",
+        "Review",
+        "Done",
+        "Cancelled"
+      ],
+      "columns": "670px",
+      "preview": false
+    },
+    {
+      "viewport": 500,
+      "page": 500,
+      "board_width": 470,
+      "board_scroll": 470,
+      "lanes": [
+        "Open",
+        "Assigned",
+        "In progress",
+        "Blocked",
+        "Review",
+        "Done",
+        "Cancelled"
+      ],
+      "columns": "470px",
+      "preview": false
+    },
+    {
+      "viewport": 390,
+      "page": 390,
+      "board_width": 360,
+      "board_scroll": 360,
+      "lanes": [
+        "Open",
+        "Assigned",
+        "In progress",
+        "Blocked",
+        "Review",
+        "Done",
+        "Cancelled"
+      ],
+      "columns": "360px",
+      "preview": false
+    },
+    {
+      "viewport": 320,
+      "page": 320,
+      "board_width": 290,
+      "board_scroll": 290,
+      "lanes": [
+        "Open",
+        "Assigned",
+        "In progress",
+        "Blocked",
+        "Review",
+        "Done",
+        "Cancelled"
+      ],
+      "columns": "290px",
+      "preview": false
+    }
+  ],
+  "live_pod": "agentboard-dashboard-5bc4dd7f95-s5c6z",
+  "ready": true,
+  "long_metadata_390": {
+    "description": "Temporarily substituted 200-character task ID and owner in browser DOM, restored immediately; no database writes",
+    "page": 390,
+    "board_width": 360,
+    "board_scroll": 360,
+    "id_height": 108,
+    "owner_height": 114.75
+  },
+  "visual_review": [
+    "1440px dark desktop: five lanes then two, readable cards, no clipping",
+    "390px light mobile: one lane, header and filters wrap, vertical scrolling remains available"
+  ],
+  "screenshot_tool_note": "CLI reported missing saved screenshot path after emulation, but files were created and inspected successfully"
+}
