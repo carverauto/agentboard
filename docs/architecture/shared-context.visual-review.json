@@ -1,0 +1,21 @@
+{
+  "artifact_sha256": "6a0a084720006a505e5265c24e09c0c63f2b29e788bed59be36d132dbb0d3408",
+  "bytes": 708287,
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "reviewer": "codex image-capable reviewer",
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "viewport": [
+    2048,
+    1320
+  ],
+  "observations": [
+    "Readable labels and main flow",
+    "No route crossings or clipped content",
+    "Balanced panel and provenance/catch-up/rollout cards"
+  ],
+  "correction_rounds": 2
+}

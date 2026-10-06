@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/tmp/agentboard-bm25-doc/shared-context.architecture.json",
+  "output": "/tmp/agentboard-bm25-doc/shared-context.html",
+  "specification": {
+    "sha256": "0c9d01b5451eea22ee774839096741288630ffbd9dbfa1b9d6aea50b7976c3f1",
+    "bytes": 3875
+  },
+  "artifact": {
+    "sha256": "6a0a084720006a505e5265c24e09c0c63f2b29e788bed59be36d132dbb0d3408",
+    "bytes": 708287
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  },
+  "evidence": {
+    "verified": true,
+    "repository": "https://github.com/carverauto/agentboard",
+    "revision": "7c20962ee7fe1a67301fc12625ac0612ad448913",
+    "references": 6
+  }
+}

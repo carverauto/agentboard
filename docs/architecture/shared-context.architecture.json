@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Agentboard shared context and BM25",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1300,
+      640
+    ],
+    "repository": {
+      "url": "https://github.com/carverauto/agentboard",
+      "revision": "7c20962ee7fe1a67301fc12625ac0612ad448913"
+    }
+  },
+  "components": [
+    {
+      "id": "agent-cli",
+      "type": "frontend",
+      "label": "Agents \u00b7 Go CLI",
+      "sublabel": "Publish, search, catch up",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        230,
+        85
+      ],
+      "sources": [
+        {
+          "path": "internal/cli/context.go"
+        }
+      ]
+    },
+    {
+      "id": "phoenix-api",
+      "type": "backend",
+      "label": "Phoenix API",
+      "sublabel": "Rate limits \u00b7 429 handling",
+      "pos": [
+        370,
+        260
+      ],
+      "size": [
+        230,
+        85
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard_web/router.ex"
+        }
+      ]
+    },
+    {
+      "id": "ash-context",
+      "type": "backend",
+      "label": "Ash Context",
+      "sublabel": "Actions \u00b7 concurrent Repo pool",
+      "pos": [
+        700,
+        260
+      ],
+      "size": [
+        230,
+        85
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/context.ex"
+        }
+      ]
+    },
+    {
+      "id": "pg-primary",
+      "type": "database",
+      "label": "PostgreSQL 18.6",
+      "sublabel": "pg_textsearch 1.5.1 \u00b7 BM25",
+      "pos": [
+        1030,
+        260
+      ],
+      "size": [
+        230,
+        85
+      ],
+      "sources": [
+        {
+          "path": "build/database/BUILD.bazel"
+        }
+      ]
+    },
+    {
+      "id": "captain-ui",
+      "type": "frontend",
+      "label": "Captain dashboard",
+      "sublabel": "Browse findings and evidence",
+      "pos": [
+        370,
+        60
+      ],
+      "size": [
+        230,
+        85
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard_web/live/context_live.ex"
+        }
+      ]
+    },
+    {
+      "id": "pg-standby",
+      "type": "database",
+      "label": "CNPG standby",
+      "sublabel": "Replay \u00b7 restart \u00b7 promotion",
+      "pos": [
+        1030,
+        500
+      ],
+      "size": [
+        230,
+        85
+      ],
+      "sources": [
+        {
+          "path": "build/integration/bm25_replication_test.sh"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "cli-api",
+      "from": "agent-cli",
+      "to": "phoenix-api",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-domain",
+      "from": "phoenix-api",
+      "to": "ash-context",
+      "label": "Actions"
+    },
+    {
+      "id": "domain-store",
+      "from": "ash-context",
+      "to": "pg-primary",
+      "label": "SQL"
+    },
+    {
+      "id": "captain-read",
+      "from": "captain-ui",
+      "to": "phoenix-api",
+      "label": "Read-only",
+      "variant": "dashed",
+      "labelDy": 24
+    },
+    {
+      "id": "wal-replay",
+      "from": "pg-primary",
+      "to": "pg-standby",
+      "label": "WAL replay",
+      "variant": "emphasis",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Attributed history",
+      "items": [
+        "Immutable findings, evidence and correction links",
+        "Author, model, harness and commit retained"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Reliable catch-up",
+      "items": [
+        "Unread receipts per agent; explicit acknowledgement",
+        "Late commits remain visible until handled"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Rollout boundary",
+      "items": [
+        "Database image and extension before app migration",
+        "Mattermost retains its separate database and role"
+      ]
+    }
+  ]
+}
