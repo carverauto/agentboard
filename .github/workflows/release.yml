@@ -45,10 +45,6 @@ jobs:
           echo 'e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76  /tmp/agentboard-tools/bazel' | sha256sum -c -
           chmod +x /tmp/agentboard-tools/bazel
           echo /tmp/agentboard-tools >> "$GITHUB_PATH"
-      - name: Test and package on BuildBuddy
-        run: |
-          ./scripts/bazel test --config=ci //:acceptance
-          ./scripts/bazel build --config=ci --remote_download_toplevel //:release_artifacts
       - name: Install pinned publication client
         shell: bash
         run: |
@@ -60,6 +56,18 @@ jobs:
           curl -fsSL https://github.com/cli/cli/releases/download/v2.65.0/gh_2.65.0_linux_amd64.tar.gz -o /tmp/agentboard-tools/gh.tar.gz
           echo '762569efe785082b7d1feb06995efece1a9cecce16da8503ac6fdbcbea04085b  /tmp/agentboard-tools/gh.tar.gz' | sha256sum -c -
           tar -xzf /tmp/agentboard-tools/gh.tar.gz -C /tmp/agentboard-tools --strip-components=2 gh_2.65.0_linux_amd64/bin/gh
+      - name: Authenticate mirrored base image
+        shell: bash
+        env:
+          HARBOR_BUILD_USERNAME: ${{ secrets.HARBOR_BUILD_USERNAME }}
+          HARBOR_BUILD_PASSWORD: ${{ secrets.HARBOR_BUILD_PASSWORD }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$HARBOR_BUILD_PASSWORD" | /tmp/agentboard-tools/crane auth login registry.carverauto.dev --username "$HARBOR_BUILD_USERNAME" --password-stdin
+      - name: Test and package on BuildBuddy
+        run: |
+          ./scripts/bazel test --config=ci //:acceptance
+          ./scripts/bazel build --config=ci --remote_download_toplevel //:release_artifacts
       - name: Publish immutable image and release assets
         shell: bash
         env:
