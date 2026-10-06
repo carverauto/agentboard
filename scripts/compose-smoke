@@ -47,7 +47,9 @@ step "migrations"
 test "$(docker inspect -f '{{.State.ExitCode}}' "$(docker compose "${args[@]}" ps -aq migrate)")" = 0
 
 step "readiness"
-curl -fsS "http://127.0.0.1:$port/health/ready" | tee /dev/stderr | grep -q '"status":"ready"'
+ready="$(curl -fsS "http://127.0.0.1:$port/health/ready")"
+echo "$ready"
+grep -q '"status":"ready"' <<<"$ready"
 
 step "dashboard"
 curl -fsS "http://127.0.0.1:$port/" | grep -q '<title>Agentboard</title>'
@@ -64,7 +66,9 @@ echo "registered agent, created/listed/claimed task"
 
 if [[ $chat == 1 ]]; then
   step "mattermost"
-  curl -fsS "http://127.0.0.1:$mm_port/api/v4/system/ping?get_server_status=true" | tee /dev/stderr | grep -q '"database_status":"OK"'
+  ping="$(curl -fsS "http://127.0.0.1:$mm_port/api/v4/system/ping?get_server_status=true")"
+  echo "$ping"
+  grep -q '"database_status":"OK"' <<<"$ping"
   curl -fsS "http://127.0.0.1:$mm_port/login" | grep -q '<title>Mattermost</title>'
 fi
 
