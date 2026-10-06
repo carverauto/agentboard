@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Agentboard skill installation",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1380,
+      600
+    ]
+  },
+  "components": [
+    {
+      "id": "embedded-workflows",
+      "type": "backend",
+      "label": "Bundled workflows",
+      "sublabel": "11 skills + docs + Grok charter",
+      "pos": [
+        40,
+        50
+      ],
+      "size": [
+        280,
+        100
+      ]
+    },
+    {
+      "id": "offline-installer",
+      "type": "backend",
+      "label": "CLI skill installer",
+      "sublabel": "agentboard skills install",
+      "pos": [
+        540,
+        50
+      ],
+      "size": [
+        280,
+        100
+      ]
+    },
+    {
+      "id": "verified-bundle",
+      "type": "external",
+      "label": "Verified local bundle",
+      "sublabel": "Content-addressed data directory",
+      "pos": [
+        1040,
+        50
+      ],
+      "size": [
+        280,
+        100
+      ]
+    },
+    {
+      "id": "discovery-links",
+      "type": "external",
+      "label": "Skill discovery directory",
+      "sublabel": "~/.agents/skills or --dir",
+      "pos": [
+        1040,
+        380
+      ],
+      "size": [
+        280,
+        100
+      ]
+    },
+    {
+      "id": "agent-session",
+      "type": "frontend",
+      "label": "Agent session",
+      "sublabel": "Load shared + harness workflow",
+      "pos": [
+        540,
+        380
+      ],
+      "size": [
+        280,
+        100
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "embedded-workflows",
+      "to": "offline-installer",
+      "label": "Read embedded files"
+    },
+    {
+      "from": "offline-installer",
+      "to": "verified-bundle",
+      "label": "Stage and verify",
+      "labelDy": 24
+    },
+    {
+      "from": "verified-bundle",
+      "to": "discovery-links",
+      "label": "Publish owned links",
+      "labelDy": 24
+    },
+    {
+      "from": "discovery-links",
+      "to": "agent-session",
+      "label": "Discover skills",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Preserve local work",
+      "items": [
+        "Repeat installs reuse the same bundle.",
+        "Unmanaged or edited skills are preserved."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Offline workflow delivery",
+      "items": [
+        "Supporting document links resolve locally.",
+        "Hooks and wake adapters are separate."
+      ]
+    }
+  ]
+}
