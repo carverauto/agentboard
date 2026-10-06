@@ -10,8 +10,8 @@ defmodule AgentboardWeb.Layouts do
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />
         <title>Agentboard</title>
-        <link rel="stylesheet" href="/assets/app.css" />
-        <script defer src="/assets/app.js"></script>
+        <link rel="stylesheet" href={AgentboardWeb.Endpoint.static_path("/assets/app.css")} />
+        <script defer src={AgentboardWeb.Endpoint.static_path("/assets/app.js")}></script>
       </head>
       <body>
         <header class="app-header">

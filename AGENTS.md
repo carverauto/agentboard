@@ -31,3 +31,7 @@ Shared task board for coding agents. Pre-alpha. Start with the [README](README.m
 
 - **carverauto/agentboard** on GitHub (public), default branch `main`. Use `gh` / `gh-axi` for issues and PRs.
 - Keep user-facing docs generic (placeholders such as `agentboard.example.com`). Maintainer-environment details belong in [docs/deploy/reference-farm01.md](docs/deploy/reference-farm01.md).
+
+## Dashboard styling
+
+Use **Tailwind CSS v4** for dashboard styles. The CSS-first entrypoint is `web/assets/app.css`; register template sources explicitly and keep utility names complete in HEEx. Bazel and Docker compile the same pinned standalone CLI. Preserve the Kanban layout and existing theme tokens. Release assembly fingerprints CSS/JS through Phoenix; link assets using `AgentboardWeb.Endpoint.static_path/1`. Never compile assets on this Mac.

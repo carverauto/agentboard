@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Tailwind v4 dashboard delivery",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1125,
+      560
+    ]
+  },
+  "components": [
+    {
+      "id": "source",
+      "type": "frontend",
+      "label": "Dashboard sources",
+      "sublabel": "CSS tokens + HEEx + JS",
+      "pos": [
+        50,
+        90
+      ],
+      "size": [
+        235,
+        90
+      ]
+    },
+    {
+      "id": "compiler",
+      "type": "backend",
+      "label": "Tailwind v4 / esbuild",
+      "sublabel": "Pinned tools \u00b7 remote Linux",
+      "pos": [
+        445,
+        90
+      ],
+      "size": [
+        235,
+        90
+      ]
+    },
+    {
+      "id": "release",
+      "type": "backend",
+      "label": "Phoenix release",
+      "sublabel": "Native digest + manifest",
+      "pos": [
+        840,
+        90
+      ],
+      "size": [
+        235,
+        90
+      ]
+    },
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "Browser cache",
+      "sublabel": "New bytes \u2192 new URLs",
+      "pos": [
+        50,
+        340
+      ],
+      "size": [
+        235,
+        90
+      ]
+    },
+    {
+      "id": "endpoint",
+      "type": "backend",
+      "label": "Phoenix endpoint",
+      "sublabel": "static_path + Plug.Static",
+      "pos": [
+        445,
+        340
+      ],
+      "size": [
+        235,
+        90
+      ]
+    },
+    {
+      "id": "package",
+      "type": "cloud",
+      "label": "Runtime package",
+      "sublabel": "CSS / JS + fingerprints",
+      "pos": [
+        840,
+        340
+      ],
+      "size": [
+        235,
+        90
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "source",
+      "to": "compiler",
+      "label": "Explicit source scan"
+    },
+    {
+      "from": "compiler",
+      "to": "release",
+      "label": "Compiled CSS + JS"
+    },
+    {
+      "from": "release",
+      "to": "package",
+      "label": "Fingerprinted assets",
+      "labelDy": 24
+    },
+    {
+      "from": "package",
+      "to": "endpoint",
+      "label": "Release files"
+    },
+    {
+      "from": "endpoint",
+      "to": "browser",
+      "label": "Versioned URLs"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One styling contract",
+      "items": [
+        "Tailwind v4.1.12 in Bazel and Docker",
+        "Existing Kanban geometry and theme tokens retained"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Cache follows content",
+      "items": [
+        "Phoenix owns fingerprints and HTTP serving",
+        "No browser compiler or runtime CDN dependency"
+      ]
+    }
+  ]
+}

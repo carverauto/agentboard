@@ -158,3 +158,5 @@ agentboard has no built-in authentication for board coordination yet (only an op
 Copyright 2026 Carver Automation Corporation. Licensed under the [Apache License, Version 2.0](LICENSE).
 
 Inspired by <https://arxiv.org/abs/2609.26781>.
+
+Dashboard styling uses [Tailwind CSS v4 and fingerprinted release assets](docs/styling.md).

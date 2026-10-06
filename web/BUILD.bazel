@@ -43,9 +43,9 @@ elixir_release(
 
 genrule(
     name = "assets",
-    srcs = ["assets/app.js", "assets/app.css", "@hex_phoenix//:browser_js", "@hex_phoenix_html//:browser_js", "@hex_phoenix_live_view//:browser_js"],
+    srcs = ["assets/app.js", "@hex_phoenix//:browser_js", "@hex_phoenix_html//:browser_js", "@hex_phoenix_live_view//:browser_js"],
     tools = ["@esbuild_linux_x86_64//:bin"],
-    outs = ["static_build/assets/app.js", "static_build/assets/app.css"],
+    outs = ["static_build/assets/app.js"],
     cmd = """
       set -euo pipefail
       "$(location @esbuild_linux_x86_64//:bin)" web/assets/app.js --bundle --minify --outdir="$(RULEDIR)/static_build/assets" \
@@ -56,8 +56,16 @@ genrule(
 )
 
 genrule(
+    name = "styles",
+    srcs = ["assets/app.css", "assets/app.js"] + glob(["lib/agentboard_web/**/*.ex"]),
+    tools = ["@tailwindcss_linux_x64//file"],
+    outs = ["static_build/assets/app.css"],
+    cmd = "$(location @tailwindcss_linux_x64//file) --input=$(location assets/app.css) --output=$@ --minify",
+)
+
+genrule(
     name = "static",
-    srcs = [":assets"],
+    srcs = [":assets", ":styles"],
     outs = ["agentboard-static.tar.gz"],
     cmd = "tar -czf $@ -C $(RULEDIR)/static_build assets",
 )

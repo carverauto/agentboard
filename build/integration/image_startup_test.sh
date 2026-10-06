@@ -48,5 +48,44 @@ root=Path(os.environ['TEST_TMPDIR'])
 assert json.loads((root/'live.json').read_text())['status']=='live'
 assert json.loads((root/'ready.json').read_text())['status']=='ready'
 PY
+# Consume the release's public HTML and static HTTP endpoints. This catches
+# missing packaged fingerprints and stale logical asset links after upgrades.
+IMAGE_BASE="$base" python3 - <<'PY_ASSETS'
+import hashlib, os, re, urllib.error, urllib.request
+from html.parser import HTMLParser
+
+class Assets(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.paths = []
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        path = attrs.get('href') if tag == 'link' else attrs.get('src') if tag == 'script' else None
+        if path and path.startswith('/assets/'):
+            self.paths.append(path)
+
+base = os.environ['IMAGE_BASE']
+parser = Assets()
+parser.feed(urllib.request.urlopen(base + '/').read().decode())
+assert len(parser.paths) == 2, parser.paths
+for path in parser.paths:
+    match = re.fullmatch(r'/assets/app-([0-9a-f]{32})\.(css|js)\?vsn=d', path)
+    assert match, path
+    with urllib.request.urlopen(base + path) as response:
+        content = response.read()
+        assert 'max-age=31536000' in response.headers['Cache-Control']
+    assert hashlib.md5(content).hexdigest() == match[1]
+    logical = base + '/assets/app.' + match[2]
+    with urllib.request.urlopen(logical) as response:
+        assert response.read() == content
+        etag = response.headers['ETag']
+    try:
+        urllib.request.urlopen(urllib.request.Request(logical, headers={'If-None-Match': etag}))
+    except urllib.error.HTTPError as error:
+        assert error.code == 304
+    else:
+        raise AssertionError('Expected cached asset revalidation to return 304')
+print('Public HTML links content fingerprints; CSS/JS are served and cache revalidation works.')
+PY_ASSETS
 echo 'Actual OCI rootfs started and migrated as UID/GID 10001 with app/etc unwritable and temporary state under /tmp.'
 echo 'A Kubernetes readOnlyRootFilesystem mount and production CNPG image remain rollout checks.'

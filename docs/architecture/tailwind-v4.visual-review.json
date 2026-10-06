@@ -1,0 +1,14 @@
+{
+  "artifact_sha256": "97e697528c7487d8c29e5a4e2d77991ec81e59c17004308330bbb0e42bee383a",
+  "reviewer": "Codex image-capable review",
+  "visual_review": "passed",
+  "scope": [
+    "2048x1320 light",
+    "2048x1320 dark"
+  ],
+  "observations": [
+    "Main path and return delivery path are readable, balanced and unobstructed",
+    "Versioned URL boundary and remote build ownership are clear"
+  ],
+  "correction_rounds": 1
+}
