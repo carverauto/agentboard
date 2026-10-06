@@ -1,6 +1,6 @@
 {
-  "session": "44caab2c627029ee",
   "feedback": "approved",
-  "session_ended": true,
-  "note": "Final export incorporates the discovered CNPG admission requirement: image-only update, then preload/memory configuration. User-ended review was not reopened."
+  "note": "Final export incorporates the discovered CNPG admission requirement: image-only update, then preload/memory configuration. User-ended review was not reopened. Post-approval mechanical refresh: re-delivered Archify HTML at reachable revision e1710a5 with verified CNPG primaryUpdateMethod switchover persisted; proposal badge now database-deployed with context app awaiting merge. No topology change; not a new approval.",
+  "session": "44caab2c627029ee",
+  "session_ended": true
 }

@@ -10,7 +10,12 @@ defmodule AgentboardWeb.ContextLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    socket = assign(socket, filters: Map.take(params, ~w(id repo task kind q cursor)))
+    filters =
+      params
+      |> Map.take(~w(id repo task kind q cursor))
+      |> Map.reject(fn {_key, value} -> value == "" end)
+
+    socket = assign(socket, filters: filters)
     {:noreply, if(connected?(socket), do: reload(socket), else: socket)}
   end
 

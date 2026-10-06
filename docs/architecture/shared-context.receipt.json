@@ -3,14 +3,14 @@
   "ok": true,
   "command": "deliver",
   "type": "architecture",
-  "input": "/tmp/agentboard-bm25-doc/shared-context.architecture.json",
-  "output": "/tmp/agentboard-bm25-doc/shared-context.html",
+  "input": "/Users/mfreeman/.no-mistakes/worktrees/8a9dafec2afa/01M48DT8XRVBPWBCTNBMAP1Q2R/docs/architecture/shared-context.architecture.json",
+  "output": "/Users/mfreeman/.no-mistakes/worktrees/8a9dafec2afa/01M48DT8XRVBPWBCTNBMAP1Q2R/docs/architecture/shared-context.html",
   "specification": {
-    "sha256": "0c9d01b5451eea22ee774839096741288630ffbd9dbfa1b9d6aea50b7976c3f1",
+    "sha256": "140b58d9928056fbe8f67a9d90b65d0358176115782452e2979ba330cc21649d",
     "bytes": 3875
   },
   "artifact": {
-    "sha256": "6a0a084720006a505e5265c24e09c0c63f2b29e788bed59be36d132dbb0d3408",
+    "sha256": "ca44a75a70aac66af62a9e82ec30595a7e1b0a4e408422fd77c51b694c4ad6b3",
     "bytes": 708287
   },
   "validation": {
@@ -24,7 +24,7 @@
   "evidence": {
     "verified": true,
     "repository": "https://github.com/carverauto/agentboard",
-    "revision": "7c20962ee7fe1a67301fc12625ac0612ad448913",
+    "revision": "e1710a54fd70c4fb20c8d1fda2300fcd0153a10f",
     "references": 6
   }
 }

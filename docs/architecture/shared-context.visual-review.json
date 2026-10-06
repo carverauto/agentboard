@@ -1,9 +1,12 @@
 {
-  "artifact_sha256": "6a0a084720006a505e5265c24e09c0c63f2b29e788bed59be36d132dbb0d3408",
+  "artifact_sha256": "ca44a75a70aac66af62a9e82ec30595a7e1b0a4e408422fd77c51b694c4ad6b3",
+  "browser_evidence": "pending",
   "bytes": 708287,
-  "browser_evidence": "passed",
-  "visual_review": "passed",
-  "reviewer": "codex image-capable reviewer",
+  "correction_rounds": 0,
+  "observations": [
+    "Automated visual-check passed on fresh light/dark captures; human perceptual review not yet performed on this revision"
+  ],
+  "reviewer": "pending root inspection of fresh light/dark PNGs",
   "themes": [
     "light",
     "dark"
@@ -12,10 +15,5 @@
     2048,
     1320
   ],
-  "observations": [
-    "Readable labels and main flow",
-    "No route crossings or clipped content",
-    "Balanced panel and provenance/catch-up/rollout cards"
-  ],
-  "correction_rounds": 2
+  "visual_review": "pending"
 }
