@@ -9,13 +9,32 @@ defmodule Agentboard.MixProject do
       elixirc_paths: ["lib"],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      releases: [agentboard: [include_executables_for: [:unix]]],
+      releases: [
+        agentboard: [include_executables_for: [:unix], steps: [&digest_assets/1, :assemble]]
+      ],
       package: [licenses: ["Apache-2.0"]]
     ]
   end
 
   def application do
     [mod: {Agentboard.Application, []}, extra_applications: [:logger, :runtime_tools]]
+  end
+
+  # Runs in the remote release assembler for both Bazel and Docker. Phoenix owns
+  # fingerprinting; normalize only wall-clock metadata for reproducible archives.
+  defp digest_assets(release) do
+    static = Path.join(Mix.Project.app_path(), "priv/static")
+    :ok = Phoenix.Digester.compile(static, static, true)
+    path = Path.join(static, "cache_manifest.json")
+    manifest = Jason.decode!(File.read!(path))
+
+    manifest =
+      update_in(manifest["digests"], fn digests ->
+        Map.new(digests, fn {name, metadata} -> {name, Map.put(metadata, "mtime", 0)} end)
+      end)
+
+    File.write!(path, Jason.encode!(manifest))
+    release
   end
 
   defp deps do

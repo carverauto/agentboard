@@ -16,6 +16,7 @@ ARG RUNTIME_IMAGE=ubuntu:noble
 
 FROM ${ELIXIR_IMAGE} AS build
 ARG ESBUILD_VERSION=0.25.4
+ARG TAILWIND_VERSION=4.1.12
 ARG TARGETARCH
 ENV MIX_ENV=prod LANG=C.UTF-8
 RUN apt-get update \
@@ -30,6 +31,16 @@ RUN set -eu; \
     curl -fsSL "https://registry.npmjs.org/@esbuild/${pkg}/-/${pkg}-${ESBUILD_VERSION}.tgz" \
       | tar -xz -C /usr/local --strip-components=1 package/bin/esbuild; \
     esbuild --version
+# Standalone Tailwind is build-only, pinned and verified on each supported CPU.
+RUN set -eu; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) tw_arch=x64; tw_sha=5eeee66ea237eae9a160fa3314fd0cf76ab993551a99fafb16fa1db6c6b90289 ;; \
+      arm64) tw_arch=arm64; tw_sha=181332974fff1b3423ad75d6a2f1d09adf1ca63eb1324db0afbc4c30ff1ad086 ;; \
+      *) echo "unsupported TARGETARCH ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/tailwindlabs/tailwindcss/releases/download/v${TAILWIND_VERSION}/tailwindcss-linux-${tw_arch}" -o /usr/local/bin/tailwindcss; \
+    echo "${tw_sha}  /usr/local/bin/tailwindcss" | sha256sum -c -; \
+    chmod 0755 /usr/local/bin/tailwindcss
 RUN mix local.hex --force && mix local.rebar --force
 WORKDIR /src/web
 
@@ -42,7 +53,8 @@ COPY web/lib lib
 COPY web/priv priv
 COPY web/assets assets
 COPY web/config/runtime.exs config/
-RUN esbuild assets/app.js --bundle --minify --outdir=priv/static/assets \
+RUN tailwindcss --input=assets/app.css --output=priv/static/assets/app.css --minify \
+ && esbuild assets/app.js --bundle --minify --outdir=priv/static/assets \
       --alias:phoenix="$PWD/deps/phoenix/priv/static/phoenix.mjs" \
       --alias:phoenix_html="$PWD/deps/phoenix_html/priv/static/phoenix_html.js" \
       --alias:phoenix_live_view="$PWD/deps/phoenix_live_view/priv/static/phoenix_live_view.esm.js" \
