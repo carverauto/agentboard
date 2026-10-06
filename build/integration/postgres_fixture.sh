@@ -73,3 +73,7 @@ fixture_psql() {
 }
 
 fixture_psql "CREATE EXTENSION pg_textsearch" >/dev/null
+
+if [[ "${FIXTURE_NORMAL_ROLE:-false}" == true ]]; then
+  fixture_psql "ALTER ROLE agentboard NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS" >/dev/null
+fi

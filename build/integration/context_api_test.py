@@ -21,6 +21,7 @@ def post(data, actor='alpha'):
         with urllib.request.urlopen(r,timeout=15) as response:return response.status,json.load(response)
     except urllib.error.HTTPError as response:return response.code,json.load(response)
 
+assert sql("SELECT rolsuper FROM pg_roles WHERE rolname=current_user")=='f'
 ab('agent','register','--name','Alpha')
 ab('agent','register','--name','Beta',actor='beta')
 ab('task','create','--id','tls-work','--title','Investigate TLS')
@@ -85,7 +86,8 @@ def texts(value):
         for child in value.values():yield from texts(child)
 assert 'History finding 1' not in set(texts(view.initial))
 from html import unescape
-links=[unescape(t) for t in texts(view.initial) if '/context?' in t and 'cursor=' in t]
+import re
+links=[unescape(path) for text in texts(view.initial) for path in re.findall(r'/context\?[^"\s<>]+',text) if 'cursor=' in path]
 assert len(links)==1,links
 older_path=links[0]
 view.close()
