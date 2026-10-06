@@ -76,16 +76,16 @@ defmodule Agentboard.Repo do
   end
 
   def statement(sql, params, opts \\ []) do
-    Ecto.Adapters.SQL.query(__MODULE__, sql, params, checkout(opts))
+    Ecto.Adapters.SQL.query(__MODULE__, sql, params, sql_opts(opts))
   end
 
   def statement!(sql, params, opts \\ []) do
-    Ecto.Adapters.SQL.query!(__MODULE__, sql, params, checkout(opts))
+    Ecto.Adapters.SQL.query!(__MODULE__, sql, params, sql_opts(opts))
   end
 
   def write_timeout, do: @write_timeout
 
-  defp checkout(opts) do
+  defp sql_opts(opts) do
     opts |> Keyword.put(:queue, false) |> Keyword.put_new(:timeout, @write_timeout)
   end
 end

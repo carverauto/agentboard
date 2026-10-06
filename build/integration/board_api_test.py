@@ -519,7 +519,7 @@ def get_api(path, timeout=5):
 # Database clock, not the application clock, decides expiry, strict staleness and archive revision.
 ab('task','create','--id','clock-lease','--title','Database clock lease')
 ab('task','claim','clock-lease')
-sql("UPDATE tasks SET claim_expires_at = clock_timestamp() - interval '1 second' WHERE id='clock-lease'")
+sql("UPDATE tasks SET claimed_at = clock_timestamp() - interval '2 seconds', claim_expires_at = clock_timestamp() - interval '1 second' WHERE id='clock-lease'")
 sql("INSERT INTO task_archives(id,revision,changed_by) VALUES ('clock-lease',4,'fixture')")
 shown=ab('task','show','clock-lease')['task']
 listed=[row for row in ab('task','list','--limit','1000')['tasks'] if row['id']=='clock-lease'][0]
@@ -536,6 +536,10 @@ sql("UPDATE agents SET last_heartbeat = clock_timestamp() - interval '2 hours' W
 assert ab('--stale-after','600s','agent','show','gamma')['agent']['stale']
 sql("UPDATE agents SET last_heartbeat = clock_timestamp() - interval '10 seconds' WHERE id='gamma'")
 assert not ab('--stale-after','600s','agent','show','gamma')['agent']['stale']
+sql("UPDATE agents SET last_heartbeat = clock_timestamp() - interval '601 seconds' WHERE id='gamma'")
+assert ab('--stale-after','600s','agent','show','gamma')['agent']['stale']
+sql("UPDATE agents SET last_heartbeat = clock_timestamp() - interval '599 seconds' WHERE id='gamma'")
+assert not ab('--stale-after','600s','agent','show','gamma')['agent']['stale']
 before=ab('task','show','clock-lease')
 for value in ('1e20','1e308'):
     status,error=get_api('agents?stale_after='+value)
@@ -549,11 +553,34 @@ for value in ('1e20','1e308'):
         assert status==422 and error['error']['code']=='invalid_input', (value, action, status, error)
     assert ab('task','show','clock-lease')==before
 
+# A missing archive is revision 0. A failed archive read must not reuse that default.
+ab('task','create','--id','archive-gap','--title','Archive read outage')
+status,body=get_api('tasks/archive-gap')
+assert status==200 and body['archive']=={'id':'archive-gap','revision':0,'archived_at':None}, (status, body)
+sql('ALTER TABLE task_archives RENAME COLUMN changed_by TO changed_by_hidden')
+try:
+    for task_id in ('archive-gap','clock-lease'):
+        status,error=get_api('tasks/'+task_id)
+        assert status==503 and error['error']['code']=='unavailable', (task_id, status, error)
+finally:
+    sql('ALTER TABLE task_archives RENAME COLUMN changed_by_hidden TO changed_by')
+status,body=get_api('tasks/archive-gap')
+assert status==200 and body['archive']['revision']==0 and body['archive']['archived_at'] is None, (status, body)
+status,body=get_api('tasks/clock-lease')
+assert status==200 and body['archive']['revision']==4, (status, body)
+
 # Hold every configured checkout, then require the real Board and Evidence tuples.
 pool_eval = r'''
 {:ok, _} = Application.ensure_all_started(:ash_postgres)
-{:ok, _} = Agentboard.Repo.start_link()
+case Agentboard.Repo.start_link() do
+  {:ok, _} -> :ok
+  {:error, {:already_started, _}} -> :ok
+end
 pool = String.to_integer(System.get_env("POOL_SIZE"))
+# A cold pool has no idle connection yet. Establish each one before proving saturation.
+for _ <- 1..pool do
+  :ok = Agentboard.Repo.checkout(fn -> :ok end, timeout: 2_000)
+end
 parent = self()
 for _ <- 1..pool do
   spawn(fn ->
