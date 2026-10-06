@@ -35,6 +35,8 @@ metadata:
     app.kubernetes.io/component: database
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
+    # Argo CD never prunes or deletes this resource: it holds data.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   name: mattermost
   owner: mattermost
@@ -52,6 +54,8 @@ metadata:
     app.kubernetes.io/name: mattermost
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
+    # Argo CD never prunes or deletes this resource: it holds data.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   # Uses the default StorageClass; patch storageClassName in your overlay.
   accessModes: [ReadWriteOnce]

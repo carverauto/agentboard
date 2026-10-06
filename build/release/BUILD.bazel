@@ -65,6 +65,42 @@ oci_image(
 )
 
 genrule(
+    name = "cli_layer",
+    srcs = ["//cmd/agentboard:agentboard_linux_amd64"],
+    outs = ["cli.tar"],
+    cmd = """
+      set -euo pipefail
+      scratch=$$(mktemp -d)
+      chmod 755 "$$scratch"
+      trap 'rm -rf "$$scratch"' EXIT
+      mkdir -p "$$scratch/usr/local/bin" "$$scratch/tmp"
+      chmod 1777 "$$scratch/tmp"
+      cp $(location //cmd/agentboard:agentboard_linux_amd64) "$$scratch/usr/local/bin/agentboard"
+      chmod 755 "$$scratch/usr/local/bin/agentboard"
+      tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf $@ -C "$$scratch" .
+    """,
+)
+
+# Static CLI on the same base and CA bundle as the dashboard image.
+oci_image(
+    name = "cli",
+    base = "@ubuntu_noble_linux_amd64",
+    tars = [":runtime_layer", ":cli_layer"],
+    user = "65534:65534",
+    workdir = "/tmp",
+    entrypoint = ["/usr/local/bin/agentboard"],
+    env = {
+        "HOME": "/tmp",
+        "LANG": "C.UTF-8",
+    },
+    labels = {
+        "org.opencontainers.image.title": "agentboard-cli",
+        "org.opencontainers.image.source": "https://github.com/carverauto/agentboard",
+        "org.opencontainers.image.licenses": "Apache-2.0",
+    },
+)
+
+genrule(
     name = "image_rootfs",
     srcs = [":dashboard", "flatten_image.py"],
     outs = ["dashboard-rootfs.tar.gz"],
