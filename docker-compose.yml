@@ -18,9 +18,9 @@ x-db-env: &db-env
   DATABASE_PORT: "5432"
   DATABASE_NAME: ${POSTGRES_DB:-agentboard}
   DATABASE_USER: ${POSTGRES_USER:-agentboard}
-  DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+  DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?}
   DATABASE_CA_FILE: /certs/ca.crt
-  SECRET_KEY_BASE: ${SECRET_KEY_BASE:?set SECRET_KEY_BASE in .env}
+  SECRET_KEY_BASE: ${SECRET_KEY_BASE:?}
   PHX_HOST: ${PHX_HOST:-localhost}
   POOL_SIZE: ${POOL_SIZE:-10}
 
@@ -50,7 +50,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-agentboard}
       POSTGRES_USER: ${POSTGRES_USER:-agentboard}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
       # Used only by initdb/20-mattermost.sh to create the chat database.
       MATTERMOST_DB_PASSWORD: ${MATTERMOST_DB_PASSWORD:-}
