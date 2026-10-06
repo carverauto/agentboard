@@ -1,7 +1,8 @@
-# Mattermost Team Edition: chat surface for the captain and the agent fleet.
+# Mattermost Team Edition: optional chat surface for people and agents.
 # Shares the agentboard-db CNPG Cluster through its own `mattermost` role
-# (cnpg.yaml spec.managed.roles) and database (Database CR below). The role
+# (added by this component's patch) and database (Database CR below). The role
 # password lives in the out-of-band `mattermost-db-credentials` Secret.
+# See docs/setup/mattermost.md.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,9 +12,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-2"
 data:
-  # Hostname and Site URL are set by the overlay.
+  # Set the public URL in your overlay (it must match the route hostname).
   MM_DB_HOST: agentboard-db-rw
-  MM_SERVICESETTINGS_SITEURL: ""
+  MM_SERVICESETTINGS_SITEURL: https://mattermost.example.com
   MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
   MM_SQLSETTINGS_DRIVERNAME: postgres
   # agentboard-db allows 100 connections; the role is capped at 40.
@@ -52,7 +53,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
-  # Storage class is set by the overlay.
+  # Uses the default StorageClass; patch storageClassName in your overlay.
   accessModes: [ReadWriteOnce]
   resources:
     requests:

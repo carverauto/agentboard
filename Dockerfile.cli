@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+#
+# agentboard CLI image (static Go binary). Handy in CI or with
+# `docker compose run --rm cli ...`; most people install the binary instead
+# (see docs/setup/cli.md).
+#
+#   docker build -f Dockerfile.cli -t agentboard-cli .
+
+ARG GO_IMAGE=golang:1.24-bookworm
+
+FROM ${GO_IMAGE} AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd cmd
+COPY internal internal
+# Skills bundled into the binary (`agentboard skills install`, skill_bundle.go).
+COPY skill_bundle.go GROK_BOT.md ./
+COPY skills skills
+COPY docs/api.md docs/quota.md docs/
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -trimpath -ldflags="-s -w" -o /out/agentboard ./cmd/agentboard
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/agentboard /usr/local/bin/agentboard
+COPY LICENSE /usr/share/doc/agentboard/LICENSE
+LABEL org.opencontainers.image.title="agentboard-cli" \
+      org.opencontainers.image.source="https://github.com/carverauto/agentboard" \
+      org.opencontainers.image.licenses="Apache-2.0"
+USER nonroot:nonroot
+ENTRYPOINT ["/usr/local/bin/agentboard"]

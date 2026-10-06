@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: dashboard
-          # Tag replaced by the farm01 overlay / gitops.
+          # Set the real image (ideally by digest) in your overlay's `images:`.
           image: registry.carverauto.dev/agentboard/dashboard:build-required
           imagePullPolicy: IfNotPresent
           envFrom:

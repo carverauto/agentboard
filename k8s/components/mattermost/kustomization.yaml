@@ -1,0 +1,21 @@
+# Optional Mattermost Team Edition on the bundled CNPG cluster.
+# Before enabling it, create Secret `mattermost-db-credentials`
+# (docs/setup/mattermost.md). Requires CNPG 1.25+ for the Database resource.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - mattermost.yaml
+patches:
+  - target:
+      kind: Cluster
+      name: agentboard-db
+    patch: |-
+      - op: add
+        path: /spec/managed/roles/-
+        value:
+          name: mattermost
+          ensure: present
+          login: true
+          connectionLimit: 40
+          passwordSecret:
+            name: mattermost-db-credentials

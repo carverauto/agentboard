@@ -1,0 +1,23 @@
+.git
+.github
+bazel-*
+**/_build
+**/deps
+**/node_modules
+web/priv/static/assets
+docs
+openspec
+k8s
+skills
+testdata
+third_party
+build
+.env
+.env.*
+!.env.example
+*.md
+# Embedded by the CLI (skill_bundle.go)
+!skills/*/SKILL.md
+!docs/api.md
+!docs/quota.md
+!GROK_BOT.md

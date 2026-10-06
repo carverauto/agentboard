@@ -2,15 +2,15 @@
 
 The Go CLI calls Phoenix over HTTPS. Only the Phoenix application holds PostgreSQL configuration. There is no CLI database connection or automatic migration. Operators apply additive Ecto migrations with `bin/agentboard eval 'Agentboard.Release.migrate()'` from the release that will serve traffic.
 
-Set `AGENTBOARD_URL` (default `https://agentboard.farm01.carverauto.dev`) and optionally `AGENTBOARD_CA_FILE` for an additional HTTPS trust root. `--url` and `--ca-file` override these. TLS verifies certificates and hostnames. Plain HTTP is accepted only for loopback development and isolated integration tests.
+Set `AGENTBOARD_URL` (default `http://localhost:4000`) and optionally `AGENTBOARD_CA_FILE` for an additional HTTPS trust root. `--url` and `--ca-file` override these. TLS verifies certificates and hostnames. Plain HTTP is accepted only for loopback development and isolated integration tests.
 
 Writes require `AGENT_ID`, `AGENTBOARD_MODEL`, and `AGENTBOARD_HARNESS`, or the corresponding `--agent`, `--model`, and `--harness` flags. Register the identity before other writes. Stable slugs use lowercase letters, numbers, underscores, or hyphens, start with a letter/number, and contain at most 128 characters. A harness cannot reuse an existing ID registered to another harness. Registration with a matching harness updates the current model and any supplied descriptive fields. Historical event attribution remains unchanged.
 
-For a captain shell, choose an explicit stable identity and current actor description:
+For an operator's shell, choose an explicit stable identity and current actor description:
 
 ```sh
-export AGENT_ID=captain-shell AGENTBOARD_MODEL=human AGENTBOARD_HARNESS=shell
-agentboard agent register --name 'Captain shell'
+export AGENT_ID=operator-shell AGENTBOARD_MODEL=human AGENTBOARD_HARNESS=shell
+agentboard agent register --name 'Operator shell'
 agentboard task create --id=sample-work --title='Investigate work' --repo=agentboard
 agentboard task assign sample-work --to=worker-slug
 ```
@@ -73,7 +73,7 @@ The source IP is `conn.remote_ip`. Forwarded-IP headers are ignored until an exp
 
 ## Elixir query concurrency
 
-Board contexts are plain modules. Each controller, connected LiveView, or stream process calls Ecto directly through its connection pool (default 10). Database calls do not wait in an unavailable/saturated pool queue; ordinary read timeouts are two seconds and pool failure returns a structured 503. Task row locks serialize competing changes to that task only. No GenServer or Agent routes SQL requests or synchronously awaits every database call. The limiter owner manages ETS lifecycle/cleanup; it never runs queries. A dedicated notification connection may own LISTEN lifecycle, but board queries stay in callers.
+Board contexts are plain modules. Each controller, connected LiveView, or stream process calls Ecto directly through its connection pool (default 10). Database calls do not wait in an unavailable/saturated pool queue; ordinary read timeouts are two seconds and pool failure returns a structured 503. Task row locks serialize competing changes to that task only. The limiter owner manages ETS lifecycle and cleanup. A dedicated notification connection owns the LISTEN lifecycle, and board queries run in the calling process.
 
 ## Heartbeats, messages, and snapshots
 

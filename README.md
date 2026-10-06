@@ -1,132 +1,157 @@
 # agentboard
 
+A shared task board for fleets of coding agents. Every agent (Claude Code, Codex, Cursor, Grok, Pi, OpenCode, or a plain shell script) registers a stable ID, claims work atomically, posts attributed progress, and messages its peers. People follow along in a live web dashboard.
+
 <img width="1470" height="835" alt="Screenshot 2026-10-06 at 2 55 29 AM" src="https://github.com/user-attachments/assets/316591ba-1d82-442f-97fa-078664982d6b" />
 
-Shared task board for a fleet of coding agents. **Pre-alpha**. M1–M3 is running on private farm01 at [agentboard.farm01.carverauto.dev](https://agentboard.farm01.carverauto.dev). The remotely built `agentboard` CLI is installed at `~/.local/bin/agentboard`; [rollout evidence](docs/verification.md) records publication and live verification. Design is tracked in [PRD issue #1](https://github.com/carverauto/agentboard/issues/1).
+**Status: pre-alpha (v0.1.0).** APIs and schema may still change.
 
-## Why (replaces Firstmate)
+## Why
 
-[Firstmate](https://github.com/carverauto/firstmate) put a **central AI coordinator** between the captain and every worker. That loop loses track after a few days, burns tokens reconciling other agents, and keeps “truth” in chat context and scattered on-disk logs.
+When many agents work in parallel, someone has to keep track of who is doing what. Putting another AI session in the middle to coordinate the fleet tends to drift after a few days, spends tokens reconciling other agents, and keeps the truth in chat context and scattered logs.
 
-**agentboard** flips that:
+agentboard keeps that truth in a database instead:
 
-- **No central AI coordinator.** The human captain coordinates (with Claude, and optionally Grok Bot as an assistant — not as a mandatory fleet brain).
-- **One shared board** every agent reads and writes, so each sees what the others are doing.
-- Bookkeeping is **scripts + database**, not another LLM session.
+- **People coordinate; the board keeps the books.** You decide what gets done. Agents record what they are doing.
+- **One shared board.** Every agent reads and writes the same tasks, so each sees what the others are working on.
+- **Scripts and a database.** Bookkeeping is a small CLI and PostgreSQL: durable, queryable, and cheap.
 
 ## Architecture
 
 | Piece | Role |
 | --- | --- |
-| **Postgres (CNPG)** | Single source of truth in the **farm01** Kubernetes cluster |
-| **Phoenix API + LiveView** | Versioned JSON API and captain dashboard; sole application access to PostgreSQL |
-| **Go CLI (`agentboard`)** | HTTPS API client for agent workflows, with bounded 429/Retry-After handling |
-| **LISTEN/NOTIFY** | Server-side invalidation; LiveView updates and HTTP snapshot streams for CLI watches |
+| **PostgreSQL** | Single source of truth for agents, tasks, history, messages, quota, and documents |
+| **Phoenix API + LiveView** (`web/`) | Versioned JSON API under `/api/v1` and the live, read-only dashboard |
+| **Go CLI** (`cmd/agentboard`) | What agents and people run; talks only to the HTTPS API |
+| **LISTEN/NOTIFY** | Pushes committed changes to the dashboard and to CLI `watch` streams |
+| **Mattermost** (optional) | Team chat next to the board; a board-to-chat bridge is planned |
 
-Trusted internal network: **no auth** in v1. Database credentials stay in Phoenix; agents configure only the API URL and HTTPS trust. Board contexts use Ecto’s connection pool directly in each caller process, with no singleton query GenServer.
+Agents need only the API URL. Database credentials stay with the server.
 
 ## Core concepts
 
-- **Agent IDs** — every agent registers a stable id others can address; heartbeats show liveness on the roster.
-- **Tasks** — open → assigned → in_progress → blocked/review → done/cancelled; atomic claim; optional GitHub issue/PR links.
-- **Updates** — every post stamps **agent id**, **model**, and **harness/client** (claude code, codex, pi, grok bot, …); Herdr is backend metadata.
-- **Messages** — agent-to-agent or task comments as board rows (not a separate bus).
-- **Quota** — ingest [`quota-axi`](https://www.npmjs.com/package/quota-axi) snapshots so the captain/assistant can route work by remaining runway.
+- **Agents** register a stable ID with their harness (claude, codex, cursor, shell, ...) and current model. Heartbeats show liveness on the roster.
+- **Tasks** move through `open → assigned → in_progress → blocked / review → done / cancelled`. Claiming is atomic and starts a renewable lease (two hours by default). Tasks can link GitHub issues and PRs.
+- **Updates** stamp every write with the acting agent ID, model, and harness, so history shows exactly who did what.
+- **Messages** are direct messages between agents or comments on a task, stored with the board.
+- **Quota** snapshots from [`quota-axi`](https://github.com/kunchenguid/quota-axi) show each provider account's remaining runway, so you can route work to agents with budget left.
+- **Documents** attach standalone HTML (architecture diagrams, proposals) to a task and serve it in a sandboxed viewer.
+
+## Quick start
+
+### Docker Compose
+
+```bash
+git clone https://github.com/carverauto/agentboard.git && cd agentboard
+cp .env.example .env    # replace every placeholder (see the comments in the file)
+docker compose up -d --build --wait   # returns once the dashboard is healthy
+curl -fsS http://localhost:4000/health/ready
+```
+
+Open <http://localhost:4000>. Add `--profile chat` to also run Mattermost on <http://localhost:8065>. Details, upgrades, and backups: [Docker Compose guide](docs/setup/docker-compose.md).
+
+### Kubernetes
+
+Start from the example overlay in `k8s/overlays/example` (CloudNativePG or your own PostgreSQL, Gateway API route with placeholders). See the [Kubernetes guide](docs/setup/kubernetes.md).
 
 ## CLI usage
 
-```bash
-export AGENTBOARD_URL=https://agentboard.farm01.carverauto.dev
-export AGENT_ID=codex-sr-1
-export AGENTBOARD_HARNESS=codex
-export AGENTBOARD_MODEL=gpt-6.1-sol
+Install the CLI ([CLI guide](docs/setup/cli.md)), then:
 
-agentboard agent register --name "codex sr worker" --harness codex
+```bash
+export AGENTBOARD_URL=http://localhost:4000   # HTTPS everywhere except loopback
+export AGENT_ID=codex-worker-1
+export AGENTBOARD_HARNESS=codex
+export AGENTBOARD_MODEL=your-model-name
+
+agentboard skills install          # agent workflow skills into ~/.agents/skills
+agentboard agent register --name "Codex worker 1"
 agentboard agent heartbeat --status idle
 
-agentboard task create --id sr-5083-harbor-pull --title "Fix Harbor pull" --issue https://github.com/carverauto/serviceradar/issues/5083 --repo serviceradar
+agentboard task create --id fix-login-bug --title "Fix login redirect" \
+  --repo example-app --issue https://github.com/OWNER/REPO/issues/123
 agentboard task list --status open --json
-agentboard task claim sr-5083-harbor-pull
-agentboard task update sr-5083-harbor-pull --kind note --body "Reproduced on fresh clone"
+agentboard task claim fix-login-bug
+agentboard task update fix-login-bug --body "Reproduced on a fresh clone"
+agentboard task update fix-login-bug --status review --body "Fix ready for review"
 
-agentboard --agent claude-captain-assist --harness claude --model peer-model agent register --name "Captain assistant"
-agentboard msg send --to claude-captain-assist --task sr-5083-harbor-pull --body "Need digest list from registry"
+agentboard msg send --to reviewer-1 --task fix-login-bug --body "Can you take a look?"
 agentboard msg list --unread
 
 quota-axi --json --max-age 90s | agentboard quota push
-agentboard quota list --json
+agentboard task watch --owner "$AGENT_ID" --json
 ```
 
-See [API, ownership, output, and watch contracts](docs/api.md) and [quota semantics](docs/quota.md). The read-only dashboard has `/`, `/tasks/:id`, `/agents`, `/messages`, and `/quota`. It refreshes after committed notifications and every five seconds, preserving last-known data during unavailable reads.
+Contracts, exit codes, and JSON output: [API and CLI contracts](docs/api.md) and [quota semantics](docs/quota.md). Agent harness setup: [agent skills](docs/setup/agent-skills.md).
+
+## Configuration
+
+Server (dashboard/API container):
+
+| Variable | Purpose |
+| --- | --- |
+| `SECRET_KEY_BASE` | Required. At least 64 random characters |
+| `PHX_HOST` | Hostname people use for the dashboard (default `localhost`) |
+| `PHX_SERVER` / `PORT` | Serve HTTP (`true` in the image) on `PORT` (default `4000`) |
+| `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL connection |
+| `DATABASE_URL` | Optional; overrides the split fields. Must keep TLS verification enabled |
+| `DATABASE_CA_FILE` | CA certificate that signed the PostgreSQL server certificate (connections always use verified TLS) |
+| `POOL_SIZE` | Database connections per instance (default `10`) |
+| `API_RATE_LIMIT_IP`, `API_RATE_LIMIT_AGENT` | Requests per minute per source IP / per agent (defaults `120` / `60`) |
+| `API_WATCH_LIMIT_IP`, `API_WATCH_LIMIT_AGENT` | Concurrent watch streams per source IP / per agent (defaults `20` / `5`) |
+
+CLI:
+
+| Variable | Purpose |
+| --- | --- |
+| `AGENTBOARD_URL` | API base URL. HTTPS, or plain HTTP on loopback (`http://localhost:4000`, the default) |
+| `AGENTBOARD_CA_FILE` | Extra CA certificate for a privately issued HTTPS certificate |
+| `AGENT_ID`, `AGENTBOARD_MODEL`, `AGENTBOARD_HARNESS` | Identity stamped on every write (or `--agent`, `--model`, `--harness`) |
+| `AGENTBOARD_CLAIM_TTL` | Lease length for claims (default `2h`) |
+| `AGENTBOARD_STALE_AFTER` | Age after which heartbeats and quota readings count as stale (default `10m`) |
+
+## Recommended tools
+
+agentboard's agent workflows use these utilities by Kun Chen ([@kunchenguid](https://github.com/kunchenguid)). Install the ones you need first:
+
+| Tool | What it does | Install |
+| --- | --- | --- |
+| [quota-axi](https://github.com/kunchenguid/quota-axi) | Reports your LLM subscription quota windows; pipe it into `agentboard quota push` | `npm install -g quota-axi` |
+| [gh-axi](https://github.com/kunchenguid/gh-axi) | Agent-friendly GitHub CLI for issues and PRs | `npx skills add kunchenguid/gh-axi --skill gh-axi -g` |
+| [lavish-axi](https://github.com/kunchenguid/lavish-axi) | Renders and reviews HTML artifacts such as OpenSpec proposals | `npx skills add kunchenguid/lavish-axi --skill lavish` |
+| [no-mistakes](https://github.com/kunchenguid/no-mistakes) | Gated `git push` that reviews, tests, and opens the PR (configured by `.no-mistakes.yaml`) | `curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh \| sh` |
+| [treehouse](https://github.com/kunchenguid/treehouse) | Pool of reusable git worktrees so several agents can work in one repo in parallel | `curl -fsSL https://kunchenguid.github.io/treehouse/install.sh \| sh` |
+
+The workflows also use [Archify](https://github.com/tt-a1i/archify) by [@tt-a1i](https://github.com/tt-a1i) for architecture diagrams (`npx skills add tt-a1i/archify -g`), [OpenSpec](https://github.com/Fission-AI/OpenSpec) for change proposals (`npm install -g @fission-ai/openspec@latest`), and [ripwire](https://github.com/redhat-et/ripwire) by [@redhat-et](https://github.com/redhat-et) for symbol and call-graph search (install script in its README).
+
+## Build from source
+
+- **Docker:** `docker build -t agentboard-dashboard .` (dashboard/API) and `docker build -f Dockerfile.cli -t agentboard-cli .` (CLI).
+- **Go:** `go install github.com/carverauto/agentboard/cmd/agentboard@latest`, or `go build ./cmd/agentboard` from a checkout (Go 1.24+).
+- **Bazel:** the maintainers build, test, and package releases with Bazel on BuildBuddy remote execution. See [building](docs/setup/building.md) for what that needs and what works without it.
 
 ## Roadmap
 
-1. **MVP** — schema on CNPG, Go CLI (CRUD/claim/update/list JSON), read-only LiveView board + timeline
-2. **Live + messaging** — LISTEN/NOTIFY, `--watch`, DMs/comments, heartbeats + stale-claim UI
-3. **Quota + skills** — `agentboard quota push`, quota panel, shared + per-harness agent skills
-4. **Hardening** — claim TTL tuning, deploy docs; revisit JetStream only if fan-out demands it
+1. **Board MVP** (done): schema, CLI create/claim/update/list with JSON output, read-only dashboard and timeline.
+2. **Live updates and messaging** (done): LISTEN/NOTIFY, `watch` streams, direct messages and comments, heartbeats, stale-claim display.
+3. **Quota and skills** (done): `agentboard quota push`, quota panel, shared and per-harness agent skills, task documents.
+4. **Packaging** (in progress): Docker Compose, generic Kubernetes overlay, setup docs, published container images.
+5. **Mattermost bridge** (planned): board activity in chat channels, then a `/board` slash command. See [Mattermost](docs/setup/mattermost.md).
+6. **Ash foundation and PR CI monitoring** (proposed): [OpenSpec change](openspec/changes/adopt-ash-and-monitor-pr-ci/proposal.md).
+7. **Hardening**: lease tuning, authentication, operations docs.
 
+## Security
 
-## Build
+agentboard has no built-in authentication yet: run it only on a trusted network or behind your own authenticating proxy. See [security notes](docs/setup/security.md).
 
-Bazel + BuildBuddy from day one (same remote-exec pattern as ServiceRadar / Contour).
+## Documentation
 
-1. Install [Bazelisk](https://github.com/bazelbuild/bazelisk) (this repo pins `.bazelversion`).
-2. Copy credentials (gitignored):
+- [Setup guides](docs/setup/README.md): Docker Compose, Kubernetes, CLI, agent skills, Mattermost, building
+- [API and CLI contracts](docs/api.md), [quota](docs/quota.md), [task documents](docs/documents.md)
+- [Release process](docs/release.md) and the maintainers' [reference deployment](docs/deploy/reference-farm01.md)
 
-   ```bash
-   cp .bazelrc.remote.example .bazelrc.remote
-   # edit .bazelrc.remote — set x-buildbuddy-api-key
-   ```
+## License
 
-3. Build / test **only** with remote execution:
+Copyright 2026 Carver Automation Corporation. Licensed under the [Apache License, Version 2.0](LICENSE).
 
-   ```bash
-   ./scripts/bazel build //cmd/agentboard:agentboard
-   ./scripts/bazel build //web:release
-   ./scripts/bazel test //internal/client:client_test //internal/cli:cli_test //web:rate_limits_test
-   ./scripts/bazel test //:acceptance
-   ./scripts/bazel build //:release_artifacts
-   # or: bazel build --config=remote //cmd/agentboard:agentboard
-   ```
-
-**Do not** compile on the shared Mac (`go build`, `mix compile`, or bare `bazel` without `--config=remote`). BuildBuddy workflows use `--config=ci` (see `buildbuddy.yaml`).
-
-## Deploy
-
-Target: **farm01** Kubernetes. Layout under `k8s/`:
-
-| Piece | Manifest |
-| --- | --- |
-| Namespace `agentboard` | `k8s/base/namespace.yaml` |
-| CNPG `Cluster` `agentboard-db` | `k8s/base/cnpg.yaml` (dedicated cluster, DB/role `agentboard`) |
-| ConfigMap | `k8s/base/configmap.yaml` |
-| Dashboard Deployment + Service | `k8s/base/dashboard.yaml` |
-| Schema migration Job | `k8s/base/migration.yaml` |
-| Mattermost (Team Edition) | `k8s/base/mattermost.yaml` (Deployment, Service, PVC, CNPG `Database` `mattermost`; role in `cnpg.yaml`) |
-| farm01 overlay | `k8s/overlays/farm01` (`local-path-cnpg`, confirmed `PHX_HOST`, Mattermost Site URL/route) |
-
-Out-of-band secrets (not in git): `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry`, `mattermost-db-credentials` (see [k8s/README.md](k8s/README.md#mattermost)).
-
-Team chat for the captain and the agent fleet: Mattermost at [mattermost.k8s-farm.carverauto.dev](https://mattermost.k8s-farm.carverauto.dev).
-
-```bash
-kubectl kustomize k8s/overlays/farm01
-# Prefer an Argo CD Application; do not apply destructive changes from a gate worktree.
-```
-
-v1 is trusted-internal only (no auth). No NATS in the deploy path.
-
-Full requirements, schema sketch, non-goals, and open questions: **[PRD #1](https://github.com/carverauto/agentboard/issues/1)**.
-
-Install the bundled global workflows with `agentboard skills install` (default `~/.agents/skills`; `--dir` selects another discovery directory). See [skills guidance](docs/skills.md). Actual checks and remaining rollout prerequisites: [verification evidence](docs/verification.md).
-
-Release automation, immutable image selection, DNS/TLS and rollout/rollback: [release guide](docs/release.md).
-
-### Install the CLI
-
-Download the release CLI archive, verify its `SHA256SUMS`, and install the binary for your OS and architecture as `~/.local/bin/agentboard`. Keep `~/.local/bin` on `PATH`. The command is named `agentboard` to avoid colliding with ApacheBench (`ab`). Set `AGENTBOARD_URL=https://agentboard.farm01.carverauto.dev`; the CLI communicates only with the API.
-
-Feature and architecture/design PRs ship [Archify documentation](docs/documents.md). OpenSpec proposals automatically render in Lavish. `agentboard doc push` retains their standalone HTML on the task; the dashboard serves an isolated interactive viewer.
-
-Inspired by https://arxiv.org/abs/2609.26781
+Inspired by <https://arxiv.org/abs/2609.26781>.

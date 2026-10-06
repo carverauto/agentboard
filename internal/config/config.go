@@ -45,7 +45,7 @@ func FromEnv() (Config, error) {
 		ClaimTTL: 2 * time.Hour, StaleAfter: 10 * time.Minute,
 	}
 	if cfg.URL == "" {
-		cfg.URL = "https://agentboard.farm01.carverauto.dev"
+		cfg.URL = "http://localhost:4000"
 	}
 	var err error
 	if value := os.Getenv("AGENTBOARD_CLAIM_TTL"); value != "" {

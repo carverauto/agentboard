@@ -12,8 +12,7 @@ The default discovery directory is `~/.agents/skills`. The command works offline
 
 A concurrent installer is refused by a data-directory lock. If a process crashes, inspect its `.install-lock` directory and confirm no installer is running before removing that lock and retrying. Keep `XDG_DATA_HOME` absolute when overriding it. Reload skills or start a new session after installation. The shared path does not imply every harness discovers it: point `--dir` at that harness's configured discovery directory when needed. For Claude Code, `~/.claude/skills` is its [personal skill directory](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview). For other harnesses, use their supported skill/instruction mechanism; do not infer a discovery path from their name.
 
-This installs workflow text only. It does not change trust, hooks, routines, leases, agent registration, or model attribution. Firstmate's per-harness wake mechanisms remain separate integration work.
-
+This installs workflow text only. It does not change trust, hooks, routines, leases, agent registration, or model attribution.
 
 The canonical workflow is [skills/agentboard/SKILL.md](../skills/agentboard/SKILL.md). Thin variants cover [Claude](../skills/agentboard-claude/SKILL.md), [Codex](../skills/agentboard-codex/SKILL.md), [Pi](../skills/agentboard-pi/SKILL.md), [Grok](../skills/agentboard-grok/SKILL.md), [Cursor](../skills/agentboard-cursor/SKILL.md), [OpenCode](../skills/agentboard-opencode/SKILL.md), [OMP](../skills/agentboard-omp/SKILL.md), [Muse](../skills/agentboard-muse/SKILL.md), and [Herdr-hosted sessions](../skills/agentboard-herdr/SKILL.md). The [captain playbook](../skills/agentboard-captain/SKILL.md) covers explicitly directed quota/assignment choices.
 
@@ -33,7 +32,7 @@ A plain shell worker uses the same CLI:
 
 ```sh
 export AGENT_ID=shell-worker AGENTBOARD_HARNESS=shell AGENTBOARD_MODEL=human
-export AGENTBOARD_URL=https://agentboard.farm01.carverauto.dev
+export AGENTBOARD_URL=https://agentboard.example.com
 agentboard agent register --name 'Shell worker'
 agentboard task list --owner "$AGENT_ID" --json
 agentboard msg list --unread --json
@@ -49,4 +48,4 @@ No automatic hooks, lease sweeper, provider routing, merges, or deployments are 
 
 All harnesses inherit the canonical visual delivery rule: feature/design PRs include validated Archify source and HTML; OpenSpec proposals automatically render in Lavish. Upload portable HTML with `agentboard doc push` and link its durable task viewer before completion. See [documentation delivery](documents.md).
 
-The repository [GROK_BOT.md](../GROK_BOT.md) defines the captain assistant, quota routine and PR follow-up role. Its portable copy is included with the Grok skill. [Installer architecture](architecture/global-skills.html) shows the offline bundle and discovery-link boundary.
+The repository [GROK_BOT.md](../GROK_BOT.md) defines the maintainers' Grok assistant role (quota routine and PR follow-up). Its portable copy is included with the Grok skill. [Installer architecture](architecture/global-skills.html) shows the offline bundle and discovery-link boundary.
