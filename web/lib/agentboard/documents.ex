@@ -101,4 +101,3 @@ defmodule Agentboard.Documents do
   defp validate(_), do: {:error, "invalid_input", "Document payload must be an object"}
   defp text?(v, n), do: Input.text?(v) and byte_size(v) <= n and not String.contains?(v, <<0>>)
 end
-

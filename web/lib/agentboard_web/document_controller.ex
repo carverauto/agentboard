@@ -72,4 +72,3 @@ defmodule AgentboardWeb.DocumentController do
         "Documentation unavailable"
       )
 end
-

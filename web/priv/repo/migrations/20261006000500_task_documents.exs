@@ -45,4 +45,3 @@ defmodule Agentboard.Repo.Migrations.TaskDocuments do
 
   def down, do: raise("Preserve documentation; roll back a compatible application image")
 end
-
