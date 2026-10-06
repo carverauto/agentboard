@@ -1,5 +1,5 @@
 defmodule Agentboard.Quota do
-  alias Agentboard.{Board, Input}
+  alias Agentboard.Input
 
   def push(actor, report) do
     with {:ok, actor} <- Input.actor(actor), :ok <- validate(report) do
@@ -15,13 +15,7 @@ defmodule Agentboard.Quota do
 
       digest = :crypto.hash(:sha256, canonical(report)) |> Base.encode16(case: :lower)
 
-      Board.query_one("SELECT board_quota($1,$2,$3,$4,$5)", [
-        %{"raw" => report, "providers" => providers},
-        digest,
-        actor["agent"],
-        actor["model"],
-        actor["harness"]
-      ])
+      Agentboard.Evidence.Operations.quota(actor, report, providers, digest)
     end
   end
 

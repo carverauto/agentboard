@@ -40,3 +40,42 @@ The dashboard image uses a pinned Ubuntu Noble base, UID/GID 10001, release stat
 - CLI users download the platform binary and `SHA256SUMS` from the GitHub release and verify the checksum before installing ([CLI guide](setup/cli.md)).
 
 The maintainers' own rollout runbook is in the [reference deployment](deploy/reference-farm01.md).
+
+## Schema 6: audited Board and Evidence actions
+
+The schema-6 release adds `agents_versions`, `tasks_versions`,
+`messages_versions`, and the append-only `board_action_events` log. It retains
+all existing primary keys, task history, evidence, and HTML bytes. Migrations
+are repeatable and upgrade schema 4 through the existing schema-5 migration.
+Audit history starts with this application's first Ash mutation; historical
+`task_events` remain the public timeline and are not backfilled as Ash events.
+
+API and LiveView board reads share Ash queries. Board lifecycle, message, and
+evidence writes execute through Ash actions in the request process and the
+PostgreSQL pool. Task state, PaperTrail versions, AshEvents, and the compatible
+SQL timeline projection commit in one transaction. A failed audit or timeline
+insert rolls all of them back. The operation metadata records the registered
+agent, model, harness, and operation version; it never rewrites earlier
+attribution. Heartbeats do not produce durable versions or events, and audit
+records omit document HTML, raw quota payloads, and private agent metadata.
+The existing quota latest-observation projection remains a SQL read; replacing
+that projection with a domain read is still pending.
+
+Task-row locks precede lease clock sampling; revisions are compared on Ash
+updates. Agent validation is a read, without a shared actor-row write lock.
+AshEvents locks use signed 64-bit hashes of the resource and record ID, so an
+unrelated task can write while another task's audit insertion waits. Evidence
+retries lock their own task or caller/digest key. No GenServer serializes these
+queries. Audit tables reject update, delete, and truncate; there is no public
+replay action.
+
+Deploy the migration and application from the same immutable image. The old
+schema-5 application can read the additive schema after an image rollback, but
+its SQL writes will not produce the new audit records. Document any such gap;
+do not drop the audit tables or downgrade `board_schema`. The schema-6
+application refuses traffic until its required tables and version exist.
+
+This stage does not add PR polling, CI verdicts, follow-up tasks, a completion
+gate, or the Mattermost bridge. Those remain in
+`openspec/changes/adopt-ash-and-monitor-pr-ci/tasks.md`. The operation boundary
+is documented in [the Archify diagram](architecture/ash-board-actions.html).

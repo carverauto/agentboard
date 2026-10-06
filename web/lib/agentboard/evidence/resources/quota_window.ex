@@ -8,7 +8,7 @@ defmodule Agentboard.Evidence.Resources.QuotaWindow do
   end
 
   actions do
-    defaults([:read])
+    defaults([:read, create: [:observation_id, :window_id, :data]])
   end
 
   attributes do
@@ -25,6 +25,7 @@ defmodule Agentboard.Evidence.Resources.QuotaWindow do
     end
 
     attribute :window_id, :string do
+      constraints(trim?: false, allow_empty?: true)
       public?(true)
       allow_nil?(false)
     end

@@ -138,13 +138,60 @@ while True:
     page=ab('task','list','--limit','2','--cursor',cursor)
 assert len(ids)==len(set(ids))==int(sql('SELECT count(*) FROM tasks'))
 ab('task','show','does-not-exist',code=3)
-print('API-only CLI, ownership concurrency, lifecycle, attribution, rollback and pagination passed')
+# State, version, Ash event, and compatibility timeline are one commit boundary.
+def audit_counts(task_id):
+    return sql(f"SELECT (SELECT count(*) FROM tasks_versions WHERE version_source_id='{task_id}')||','||(SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Board.Resources.Task' AND record_id='{task_id}')||','||(SELECT count(*) FROM task_events WHERE task_id='{task_id}')")
+ab('task','create','--id','audit-rollback','--title','Audited task')
+assert audit_counts('audit-rollback')=='1,1,1', audit_counts('audit-rollback')
+version=json.loads(sql("SELECT row_to_json(v) FROM tasks_versions v WHERE version_source_id='audit-rollback'"))
+assert version['version_action_name']=='create' and version['provenance']=={'agent':'alpha','model':'model-a','harness':'codex','operation_version':1}
+audit=json.loads(sql("SELECT row_to_json(e) FROM board_action_events e WHERE resource='Elixir.Agentboard.Board.Resources.Task' AND record_id='audit-rollback'"))
+assert audit['version']==1 and audit['metadata']==version['provenance']
+for table, condition in [('board_action_events',"NEW.record_id='audit-rollback' AND NEW.action='edit'"),('tasks_versions',"NEW.version_source_id='audit-rollback' AND NEW.version_action_name='edit'")]:
+    sql(f"CREATE FUNCTION reject_audit_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF {condition} THEN RAISE EXCEPTION 'Synthetic audit persistence failure'; END IF; RETURN NEW; END $$")
+    sql(f'CREATE TRIGGER reject_audit_fixture BEFORE INSERT ON {table} FOR EACH ROW EXECUTE FUNCTION reject_audit_fixture()')
+    before_task=ab('task','show','audit-rollback')
+    before_audit=audit_counts('audit-rollback')
+    ab('task','edit','audit-rollback','--title','Must roll back',code=1)
+    assert ab('task','show','audit-rollback')==before_task and audit_counts('audit-rollback')==before_audit
+    sql(f'DROP TRIGGER reject_audit_fixture ON {table}; DROP FUNCTION reject_audit_fixture()')
+ab('task','edit','audit-rollback','--title','Committed audit')
+assert audit_counts('audit-rollback')=='2,2,2'
+
+# Hold one transaction inside its Ash event insert. Another task from the same
+# caller must still read and mutate without a global event or actor-row bottleneck.
+ab('task','create','--id','audit-locked','--title','Held audit transaction')
+sql("CREATE FUNCTION hold_audit_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.resource='Elixir.Agentboard.Board.Resources.Task' AND NEW.record_id='audit-locked' AND NEW.action='claim' THEN PERFORM pg_advisory_xact_lock(987654321::bigint); END IF; RETURN NEW; END $$")
+sql('CREATE TRIGGER hold_audit_fixture BEFORE INSERT ON board_action_events FOR EACH ROW EXECUTE FUNCTION hold_audit_fixture()')
+locker=subprocess.Popen([os.environ['FIXTURE_PSQL'],'-At','-v','ON_ERROR_STOP=1','-c',"BEGIN; SELECT pg_advisory_xact_lock(987654321::bigint); SELECT pg_sleep(3); COMMIT;"],env=lock_env,stdout=subprocess.PIPE,text=True)
+for _ in range(100):
+    if sql("SELECT count(*) FROM pg_stat_activity WHERE application_name='agentboard-fixture-row-lock' AND wait_event='PgSleep'")=='1':break
+    time.sleep(.01)
+else:raise AssertionError('Audit fixture did not acquire barrier')
+with concurrent.futures.ThreadPoolExecutor(1) as pool:
+    blocked=pool.submit(ab,'task','claim','audit-locked')
+    for _ in range(100):
+        if sql("SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND classid=0 AND objid=987654321 AND NOT granted")=='1':break
+        time.sleep(.01)
+    else:raise AssertionError('Mutation did not reach its audit insert')
+    started=time.monotonic()
+    assert ab('task','show','audit-rollback')['task']['title']=='Committed audit'
+    ab('task','edit','audit-rollback','--title','Independent audit')
+    assert time.monotonic()-started<2 and not blocked.done(), 'Unrelated writes serialized behind audit/actor lock'
+    assert blocked.result()['task']['assignee_id']=='alpha'
+assert locker.wait(timeout=10)==0
+sql('DROP TRIGGER hold_audit_fixture ON board_action_events; DROP FUNCTION hold_audit_fixture()')
+print('API-only CLI, ownership concurrency, lifecycle, attribution, rollback, scoped audit and pagination passed')
+
+# Heartbeats do not create durable audit noise.
+heartbeat_audit=sql("SELECT (SELECT count(*) FROM agents_versions)||','||(SELECT count(*) FROM board_action_events)")
 
 # Heartbeats do not renew, and freshness is independent of a short expired lease.
 lease=ab('task','show','expiring')['task']['claim_expires_at']
 ab('agent','heartbeat','--status','busy','--task','expiring','--backend','herdr',actor='beta',harness='claude',model='model-heartbeat')
 assert ab('task','show','expiring')['task']['claim_expires_at']==lease
 assert not ab('agent','show','beta')['agent']['stale']
+assert sql("SELECT (SELECT count(*) FROM agents_versions)||','||(SELECT count(*) FROM board_action_events)")==heartbeat_audit
 ab('agent','heartbeat','--status','busy','--task','expiring',code=4)
 ab('agent','heartbeat','--status','busy','--task','missing',actor='beta',harness='claude',code=4)
 ab('task','create','--id','fresh-expired','--title','Fresh agent with expired lease')
@@ -171,6 +218,8 @@ first=ab('msg','read',str(message['id']),actor='beta',harness='claude',model='re
 assert first['read_model']=='read-model' and first['read_at']
 again=ab('msg','read',str(message['id']),actor='beta',harness='claude',model='different')['message']
 assert first==again
+assert sql(f"SELECT count(*) FROM messages_versions WHERE version_source_id={message['id']} AND version_action_name='acknowledge'")=='1'
+assert sql(f"SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Board.Resources.Message' AND record_id='{message['id']}'")=='2'
 assert ab('msg','list','--unread',actor='beta',harness='claude')['messages']==[]
 ab('msg','send','--to','unknown','--body','Invalid destination',code=2)
 before=sql('SELECT count(*) FROM messages')
@@ -265,7 +314,7 @@ assert result.returncode==0 and json.loads(result.stdout)['tasks']
 sql('DELETE FROM board_schema')
 ab('task','list',code=1)
 assert sql('SELECT count(*) FROM board_schema')=='0'
-sql('INSERT INTO board_schema(id,version) VALUES(1,5)')
+sql('INSERT INTO board_schema(id,version) VALUES(1,6)')
 print('Heartbeats, messages, atomic handoff, commit-only snapshots, listener reconnect and stream cleanup passed')
 
 from datetime import datetime, timedelta, timezone
@@ -419,6 +468,10 @@ assert after['task']['revision']==prior['task']['revision']+1
 assert len(after['events'])==len(prior['events'])+1 and after['documents']==[d]
 assert ab('doc','list','documented')['documents']==[d]
 assert doc_html not in json.dumps(ab('task','list'))
+assert sql("SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Evidence.Resources.Document' AND data->>'html' IS NOT NULL")=='0'
+assert sql("SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Evidence.Resources.QuotaReport' AND data->>'raw' IS NOT NULL")=='0'
+assert sql("SELECT count(*) FROM board_action_events WHERE changed_attributes ? 'html' OR changed_attributes ? 'raw'")=='0'
+assert doc_html not in sql("SELECT changes FROM tasks_versions WHERE version_source_id='documented'")
 base=os.environ['AGENTBOARD_URL']
 with urllib.request.urlopen(base+d['viewer_url']) as r:
     wrapper=r.read().decode()

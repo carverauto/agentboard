@@ -1,5 +1,5 @@
 defmodule Agentboard.Documents do
-  alias Agentboard.{Board, Input}
+  alias Agentboard.Input
 
   def push(id, actor, data) do
     with {:ok, actor} <- Input.actor(actor), true <- Input.slug?(id), :ok <- validate(data) do
@@ -10,14 +10,7 @@ defmodule Agentboard.Documents do
         )
         |> Base.encode16(case: :lower)
 
-      Board.query_one("SELECT board_document($1,$2,$3,$4,$5,$6)", [
-        id,
-        data,
-        digest,
-        actor["agent"],
-        actor["model"],
-        actor["harness"]
-      ])
+      Agentboard.Evidence.Operations.document(id, actor, data, digest)
       |> links()
     else
       false -> {:error, "invalid_input", "Invalid task ID"}
@@ -27,13 +20,7 @@ defmodule Agentboard.Documents do
 
   def list(id) do
     if Input.slug?(id) do
-      Board.query_one(
-        """
-        SELECT jsonb_build_object('documents',coalesce((SELECT jsonb_agg(board_document_meta(d) ORDER BY d.id DESC)
-          FROM task_documents d WHERE d.task_id=t.id),'[]')) FROM tasks t WHERE t.id=$1
-        """,
-        [id]
-      )
+      Agentboard.Evidence.Operations.documents(id)
       |> links()
     else
       {:error, "invalid_input", "Invalid task ID"}
@@ -43,7 +30,7 @@ defmodule Agentboard.Documents do
   def fetch(id) do
     case Integer.parse(id) do
       {n, ""} when n > 0 ->
-        Board.query_one("SELECT to_jsonb(d) FROM task_documents d WHERE id=$1", [n])
+        Agentboard.Evidence.Operations.fetch_document(n)
 
       _ ->
         {:error, "invalid_input", "Document ID must be positive"}
@@ -101,3 +88,4 @@ defmodule Agentboard.Documents do
   defp validate(_), do: {:error, "invalid_input", "Document payload must be an object"}
   defp text?(v, n), do: Input.text?(v) and byte_size(v) <= n and not String.contains?(v, <<0>>)
 end
+

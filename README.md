@@ -22,7 +22,7 @@ agentboard keeps that truth in a database instead:
 | --- | --- |
 | **PostgreSQL** | Single source of truth for agents, tasks, history, messages, quota, documents, and shared context |
 | **Phoenix API + LiveView** (`web/`) | Versioned JSON API under `/api/v1` and a live dashboard with captain archive controls |
-| **Ash + AshOban** | Resource-based archive policy, audited state changes, and durable scheduled housekeeping |
+| **Ash + AshOban** | Board/evidence resource actions, attributed state audit, and durable archive housekeeping |
 | **Go CLI** (`cmd/agentboard`) | What agents and people run; talks only to the HTTPS API |
 | **LISTEN/NOTIFY** | Pushes committed changes to the dashboard and to CLI `watch` streams |
 | **Mattermost** (optional) | Team chat next to the board; a board-to-chat bridge is planned |
@@ -141,7 +141,7 @@ The workflows also use [Archify](https://github.com/tt-a1i/archify) by [@tt-a1i]
 3. **Quota and skills** (done): `agentboard quota push`, quota panel, shared and per-harness agent skills, task documents.
 4. **Packaging** (in progress): Docker Compose, generic Kubernetes overlay, setup docs, published container images.
 5. **Mattermost bridge** (planned): board activity in chat channels, then a `/board` slash command. See [Mattermost](docs/setup/mattermost.md).
-6. **Ash foundation and PR CI monitoring** (proposed): [OpenSpec change](openspec/changes/adopt-ash-and-monitor-pr-ci/proposal.md).
+6. **Ash foundation and PR CI monitoring** (in progress): Board/evidence actions and atomic audit are implemented in the first stage; PR inventory, CI workers, follow-ups, and delivery gates remain planned. See the [OpenSpec tasks](openspec/changes/adopt-ash-and-monitor-pr-ci/tasks.md) and [operation diagram](docs/architecture/ash-board-actions.html).
 7. **Hardening**: lease tuning, authentication, operations docs.
 
 ## Security
