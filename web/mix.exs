@@ -27,7 +27,6 @@ defmodule Agentboard.MixProject do
       {:ash_paper_trail, "== 0.7.0"},
       {:ash_oban, "== 0.8.14"},
       {:oban, "== 2.24.1"},
-      {:req, "== 0.7.4"},
       {:simple_sat, "== 0.1.4"},
       {:castore, "== 1.0.21"},
       {:bandit, "== 1.12.5"},

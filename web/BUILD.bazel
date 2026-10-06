@@ -24,7 +24,6 @@ mix_app(
         "@hexpm//:ash_paper_trail",
         "@hexpm//:ash_oban",
         "@hexpm//:oban",
-        "@hexpm//:req",
         "@hexpm//:simple_sat",
         "@hexpm//:castore",
         "@hexpm//:bandit", "@hexpm//:ecto_sql", "@hexpm//:jason",
