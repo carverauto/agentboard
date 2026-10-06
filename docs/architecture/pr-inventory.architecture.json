@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Agentboard \u00b7 Durable PR Inventory",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1370,
+      760
+    ]
+  },
+  "components": [
+    {
+      "id": "submitter",
+      "type": "frontend",
+      "label": "Agent CLI",
+      "sublabel": "Task create / edit / link",
+      "pos": [
+        40,
+        320
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "taskWrite",
+      "type": "backend",
+      "label": "Board actions",
+      "sublabel": "Phoenix API \u00b7 task + timeline",
+      "pos": [
+        380,
+        320
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "prInventory",
+      "type": "backend",
+      "label": "Ash Delivery",
+      "sublabel": "Canonical PR + task links",
+      "pos": [
+        720,
+        320
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "durableStore",
+      "type": "database",
+      "label": "PostgreSQL pool",
+      "sublabel": "Immutable submission records",
+      "pos": [
+        1060,
+        320
+      ],
+      "size": [
+        260,
+        100
+      ]
+    },
+    {
+      "id": "legacyDiscovery",
+      "type": "backend",
+      "label": "Legacy discovery",
+      "sublabel": "Keyset pages \u00b7 terminal tasks too",
+      "pos": [
+        720,
+        70
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "inventoryAudit",
+      "type": "backend",
+      "label": "Audit hooks",
+      "sublabel": "PaperTrail + AshEvents",
+      "pos": [
+        720,
+        570
+      ],
+      "size": [
+        240,
+        100
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "submitApi",
+      "from": "submitter",
+      "to": "taskWrite",
+      "label": "HTTP API",
+      "variant": "emphasis"
+    },
+    {
+      "id": "atomicRecord",
+      "from": "taskWrite",
+      "to": "prInventory",
+      "label": "Same transaction",
+      "variant": "emphasis"
+    },
+    {
+      "id": "poolRecord",
+      "from": "prInventory",
+      "to": "durableStore",
+      "label": "Pooled SQL",
+      "variant": "emphasis"
+    },
+    {
+      "id": "legacyEvidence",
+      "from": "legacyDiscovery",
+      "to": "prInventory",
+      "label": "Timeline attribution",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "atomicAudit",
+      "from": "prInventory",
+      "to": "inventoryAudit",
+      "label": "Atomic audit",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Durable ownership",
+      "items": [
+        "One PR identity; many linked tasks",
+        "First submitting agent survives handoff and unlink"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Scoped coordination",
+      "items": [
+        "Task row, then canonical PR identity lock",
+        "No global actor lock or SQL GenServer"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Next monitoring stage",
+      "items": [
+        "Unknown legacy submitters stay unknown",
+        "CI polling, verdicts and follow-ups remain pending"
+      ]
+    }
+  ]
+}

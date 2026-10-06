@@ -23,7 +23,7 @@
 
 ## 4. Durable PR inventory and worker runtime
 
-- [ ] 4.1 Implement canonical monitored PR/task links and submitting-agent attribution; verify paginated discovery includes terminal tasks and deduplicates multiple links to one PR remotely.
+- [x] 4.1 Implement canonical monitored PR/task links and submitting-agent attribution; verify paginated discovery includes terminal tasks and deduplicates multiple links to one PR remotely.
 - [ ] 4.2 Supervise Oban/AshOban with stable module names, due-record scheduler, immediate link scheduling and queue budgets; verify restart recovery and schedule reconciliation remotely, and document per-pod concurrency/poll defaults.
 - [ ] 4.3 Implement reservation/fetch/commit orchestration with provider I/O outside transactions and generation comparison; verify timeout/crash recovery, overlapping polls and out-of-order replies remotely.
 - [ ] 4.4 Add immutable CI snapshots/check attempts/evidence and current projection with idempotent identity; verify duplicate job delivery produces no duplicate snapshots or obligations remotely.
@@ -82,3 +82,27 @@ claim CI-monitor delivery. Database-clock expiry, bounded time input, and
 nonqueued pool checkout then passed packaged board API and schema acceptance in
 [BuildBuddy 4f96f5ff](https://carverauto.buildbuddy.io/invocation/4f96f5ff-8ecf-48aa-a7f2-990e10c76b9c).
 That run did not execute the other acceptance targets or a live rollout.
+
+
+### Durable PR inventory stage
+
+Task 4.1 is implemented with the Ash Delivery domain, atomic task submission
+links, per-task first submitting-agent/model/harness evidence, case-canonical
+PR deduplication, immutable links retained after handoff/URL changes, and
+keyset discovery of current links including terminal and archived tasks.
+Legacy introduction events supply attribution; absent provenance and time
+remain explicitly unknown. No historical task/timeline rows are rewritten.
+
+The [15-target remote acceptance run](https://carverauto.buildbuddy.io/invocation/806505ce-555b-4bf3-9514-a00e607e7ddd)
+passed; the [focused final inventory proof](https://carverauto.buildbuddy.io/invocation/2d534d51-125b-4267-bc34-d2b87c66b16f)
+also covers archived-terminal discovery and explicit immutable-trigger errors.
+Fresh/repeated/schema-4 upgrade migrations preserve existing IDs, timeline and
+HTML bytes. The [Archify diagram](../../../docs/architecture/pr-inventory.html)
+has all nine deterministic checks with no warnings, four desktop browser
+measurements and separate light/dark perceptual review receipts.
+
+Task 1.3 remains unchecked: this preparatory schema does not supply the complete
+Delivery snapshot/policy schema or Ash migration-generator baselines. Tasks
+4.2–4.4 and the provider, follow-up, CI dashboard/API/CLI and monitored rollout
+remain pending. Discovery is an explicit domain operation until the next
+AshOban scheduler stage; inventory existence is not a CI health verdict.

@@ -5,6 +5,7 @@ config :agentboard,
   ash_domains: [
     Agentboard.Board,
     Agentboard.Evidence,
+    Agentboard.Delivery,
     Agentboard.Housekeeping,
     Agentboard.Context
   ]

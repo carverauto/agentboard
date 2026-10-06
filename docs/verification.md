@@ -142,3 +142,36 @@ The [normalized receipt](verification/farm01-ash-foundation.json) records unchan
 The installed CLI watched the live API through the Gateway for 45 seconds, receiving ten valid NDJSON snapshots with no stderr and clean cancellation. BM25 search returned a positive score using `pg_textsearch-1.5.1`. CNPG remains healthy with two instances, the application roles remain nonsuperuser, and Mattermost HTTPS ping reports database and filestore OK. Its configuration and storage were not changed. No application compilation or tests ran locally.
 
 This is the first bounded Ash Board/Evidence stage. The full delivery task remains in Review: PR inventory/providers/AshOban monitoring, CI dashboard/API/CLI, completion guard, durable followups, Mattermost bridge and wakeup integration remain pending. An older schema-5 image can read the additive data after rollback but resumes legacy writes without the new audit coverage; preserve schema 6 and fix forward for an audited writer.
+
+## Durable PR inventory acceptance (2026-10-06)
+
+The next Ash Delivery stage passed all 15 [remote acceptance targets](https://carverauto.buildbuddy.io/invocation/806505ce-555b-4bf3-9514-a00e607e7ddd).
+Packaged Phoenix and the real API-only Go CLI against normal-role TLS
+PostgreSQL prove canonical case deduplication under concurrent submissions,
+per-task first submitter/model/harness evidence retained after handoff and URL
+replacement, atomic task/version/event/timeline/inventory rollback on audit
+failure, terminal keyset discovery and idempotent overlapping sweeps. The
+[final focused proof](https://carverauto.buildbuddy.io/invocation/2d534d51-125b-4267-bc34-d2b87c66b16f)
+adds archived-terminal coverage and verifies update/delete/truncate failures
+come from immutable guards. Unknown legacy attribution and submission time
+stay unset. Fresh and repeated schema-7 migrations and schema-4 upgrade
+preserve existing IDs, timeline and HTML. The
+[remote formatter](https://carverauto.buildbuddy.io/invocation/44881ec0-581a-402e-9a56-5f8585f6a52c)
+ran in the packaged release on RBE.
+
+[Archify inventory source](architecture/pr-inventory.architecture.json) and
+[standalone HTML](architecture/pr-inventory.html) have a
+[9-check delivery receipt](architecture/pr-inventory.receipt.json),
+[automated browser receipt](architecture/pr-inventory.visual-check.json) and
+[separate image review](architecture/pr-inventory.visual-review.json).
+Light-theme measurements pass at 1440×900, 1600×1000, 1920×1080 and 2048×1320;
+light/dark endpoint screenshots were inspected for containment, route clarity
+and balanced height. The diagram uses Archify's existing classic viewer, with
+no custom page redesign or active Lavish review.
+
+Only OpenSpec task 4.1 is complete in this stage (9/37 overall). The full
+schema/generator baselines, scheduler, provider polls/verdicts, followups,
+completion guard, PR dashboard/API/CLI and live monitoring rollout remain
+unchecked. This is pre-merge acceptance, not production deployment evidence.
+
+Actual [release image and CLI packaging](https://carverauto.buildbuddy.io/invocation/b3808aa8-76df-4701-bc94-744ff98c97b9) passed remotely.

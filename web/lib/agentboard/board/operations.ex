@@ -224,6 +224,10 @@ defmodule Agentboard.Board.Operations do
         stamp
       )
 
+    if task.pr_url && Map.has_key?(data, "pr_url") do
+      Agentboard.Delivery.Inventory.record(task, event_id, stamp)
+    end
+
     %{"task" => public(task), "event_id" => event_id}
   end
 
@@ -317,9 +321,17 @@ defmodule Agentboard.Board.Operations do
     do: raise(Agentboard.Board.OperationError, code: code, message: message)
 
   def transaction(fun) do
-    case Ash.transact([Agent, Task, Message, TaskEvent, Agentboard.Board.AuditEvent], fun,
-           timeout: Repo.write_timeout()
-         ) do
+    case Ash.transact(
+           [
+             Agent,
+             Task,
+             Message,
+             TaskEvent,
+             Agentboard.Board.AuditEvent,
+             Agentboard.Delivery.PullRequest,
+             Agentboard.Delivery.TaskLink
+           ],
+           fun, timeout: Repo.write_timeout()) do
       {:ok, result} ->
         {:ok, result}
 
@@ -389,4 +401,3 @@ defmodule Agentboard.Board.Operations do
     defp action_name(unquote(Atom.to_string(name))), do: unquote(name)
   end
 end
-

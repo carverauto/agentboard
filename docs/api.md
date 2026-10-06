@@ -105,3 +105,11 @@ Watches require an agent ID. They return complete filtered snapshots, even when 
 The server subscribes before reading initial state, then re-reads after committed invalidation notifications. Rollbacks produce no notification. One supervised LISTEN connection feeds Phoenix PubSub; clients never subscribe to PostgreSQL. The listener re-establishes subscriptions and announces reconnect so consumers reload. Stream processes query through the pool themselves and retain a five-second fallback for missed notifications and time-derived flags. Transport keepalives detect disconnected peers and free bounded watch reservations without additional queries.
 
 The CLI reconnects with bounded backoff, reloads durable state, and labels the first new snapshot reconnect. Stream handshake 429 responses use the same Retry-After policy; a delay beyond the bounded handshake budget ends the watch rather than retrying early. SIGINT/SIGTERM cancels promptly. This is a snapshot subscription, not a replayable durable event stream or a guarantee to emit every intermediate mutation. Task history remains independently readable.
+
+From schema 7, existing task create/edit/link requests containing `pr_url`
+atomically retain a canonical Delivery PR and its first task submission.
+The task response and watch payloads are unchanged. Submitted agent/model/
+harness attribution survives later handoff or URL replacement. Historical
+links without an introducing timeline event remain unknown; current task
+ownership is not evidence of PR submission. This inventory stage does not yet
+expose PR list/show/watch endpoints or a CI verdict.

@@ -1,7 +1,6 @@
 defmodule Agentboard.Input do
   @slug ~r/^[a-z0-9][a-z0-9_-]{0,127}$/
   @issue ~r/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/[1-9][0-9]*$/
-  @pr ~r/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*$/
   def slug?(value), do: is_binary(value) and Regex.match?(@slug, value)
   def text?(value), do: is_binary(value) and String.trim(value) != ""
 
@@ -93,7 +92,7 @@ defmodule Agentboard.Input do
     do: is_nil(value) or (is_binary(value) and Regex.match?(@issue, value))
 
   defp valid_field?("pr_url", value),
-    do: is_nil(value) or (is_binary(value) and Regex.match?(@pr, value))
+    do: is_nil(value) or match?({:ok, _}, Agentboard.Delivery.Inventory.canonical(value))
 
   defp valid_field?("to", value), do: slug?(value)
 

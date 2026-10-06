@@ -32,6 +32,7 @@ test_suite(
         "//build/integration:db_tls_guard_test",
         "//build/integration:release_schema_test",
         "//build/integration:board_api_test",
+        "//build/integration:delivery_inventory_test",
         "//build/integration:archive_api_test",
         "//build/integration:context_api_test",
         "//build/integration:bm25_replication_test",
