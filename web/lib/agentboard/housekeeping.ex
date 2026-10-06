@@ -185,6 +185,9 @@ defmodule Agentboard.Housekeeping do
 
   defp transaction(fun) do
     case Repo.transaction(fun) do
+      {:ok, %{skipped: true} = result} ->
+        {:ok, result}
+
       {:ok, result} ->
         Phoenix.PubSub.broadcast(
           Agentboard.PubSub,
