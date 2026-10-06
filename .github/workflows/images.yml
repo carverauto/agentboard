@@ -1,0 +1,169 @@
+name: Container images
+# Builds the dashboard and CLI images with Bazel on BuildBuddy remote
+# execution and pushes them to Harbor:
+#   push to main  -> sha-<commit> and latest
+#   push of v*    -> sha-<commit> and the version tag
+# Pull requests run the plan job only (no secrets, nothing pushed).
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths-ignore:
+      # Deployment pins (written back by Argo CD Image Updater) and docs do
+      # not change the images.
+      - k8s/**
+      - docs/**
+      - openspec/**
+      - contrib/**
+      - "**/*.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/images.yml
+      - BUILD.bazel
+      - MODULE.bazel
+      - MODULE.bazel.lock
+      - build/**
+      - cmd/**
+      - internal/**
+      - web/**
+      - k8s/**
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  REGISTRY: registry.carverauto.dev
+  KUSTOMIZE_VERSION: v5.8.1
+  KUSTOMIZE_SHA256: 029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d
+jobs:
+  plan:
+    runs-on: arc-runner-set
+    timeout-minutes: 10
+    outputs:
+      tags: ${{ steps.tags.outputs.tags }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Show runner
+        run: echo "runner=${RUNNER_NAME:-unknown}"
+      - name: Resolve image tags
+        id: tags
+        run: |
+          set -euo pipefail
+          tags="sha-${GITHUB_SHA}"
+          case "${GITHUB_REF}" in
+            refs/heads/main) tags="${tags} latest" ;;
+            refs/tags/v*) tags="${tags} ${GITHUB_REF#refs/tags/}" ;;
+          esac
+          echo "tags=${tags}" >> "${GITHUB_OUTPUT}"
+          for image in dashboard cli; do
+            for tag in ${tags}; do
+              echo "${GITHUB_EVENT_NAME}: ${REGISTRY}/agentboard/${image}:${tag}"
+            done
+          done
+      - name: Install kustomize
+        run: |
+          set -euo pipefail
+          archive="kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/${archive}" -o "${RUNNER_TEMP}/${archive}"
+          echo "${KUSTOMIZE_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum -c -
+          mkdir -p "${HOME}/.local/bin"
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${HOME}/.local/bin" kustomize
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+      - name: Check the farm01 deployment
+        run: |
+          set -euo pipefail
+          rendered="$(kustomize build k8s/overlays/farm01)"
+          # Both the app and the migration Job use the pinned dashboard image.
+          test "$(grep -c "image: ${REGISTRY}/agentboard/dashboard@sha256:" <<<"${rendered}")" -eq 2
+          # Stateful resources must never be pruned or deleted by Argo CD.
+          protected="$(awk '
+            /^---$/ { if (keep) print kind "/" name; kind = name = ""; keep = 0; next }
+            /^kind: / { kind = $2 }
+            /^  name: / && name == "" { name = $2 }
+            /argocd.argoproj.io\/sync-options: Prune=false,Delete=false/ { keep = 1 }
+            END { if (keep) print kind "/" name }
+          ' <<<"${rendered}" | sort)"
+          expected="$(printf '%s\n' Cluster/agentboard-db Database/mattermost Namespace/agentboard PersistentVolumeClaim/mattermost-data | sort)"
+          echo "Protected from prune/delete: $(tr '\n' ' ' <<<"${protected}")"
+          test "${protected}" = "${expected}"
+
+  publish:
+    needs: plan
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: arc-runner-set
+    timeout-minutes: 60
+    environment: agentboard-release
+    container:
+      image: registry.carverauto.dev/serviceradar/buildbuddy-workflow-runner:v1.0.24.5@sha256:7f64c7cdf563c032ed7c5546eb9e4492cd527df64a615b55788fc518aa8752dd
+    env:
+      BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      TAGS: ${{ needs.plan.outputs.tags }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Show runner
+        shell: bash
+        run: |
+          echo "runner=${RUNNER_NAME:-unknown}"
+          # ARC's container checkout is owned by the runner, not the job UID.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Configure remote execution
+        run: ./scripts/ci-bazelrc
+      - name: Install pinned build driver and registry client
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/agentboard-tools
+          curl -fsSL https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /tmp/agentboard-tools/bazel
+          echo 'e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76  /tmp/agentboard-tools/bazel' | sha256sum -c -
+          chmod +x /tmp/agentboard-tools/bazel
+          curl -fsSL https://github.com/google/go-containerregistry/releases/download/v0.21.7/go-containerregistry_Linux_x86_64.tar.gz -o /tmp/agentboard-tools/crane.tar.gz
+          echo '1a57bc98207fa1c0d04bf760699099e26f8383499bfd55b99c1b919a928a7230  /tmp/agentboard-tools/crane.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/agentboard-tools/crane.tar.gz -C /tmp/agentboard-tools crane
+          echo /tmp/agentboard-tools >> "$GITHUB_PATH"
+      - name: Authenticate mirrored base image
+        shell: bash
+        env:
+          HARBOR_BUILD_USERNAME: ${{ secrets.HARBOR_BUILD_USERNAME }}
+          HARBOR_BUILD_PASSWORD: ${{ secrets.HARBOR_BUILD_PASSWORD }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$HARBOR_BUILD_PASSWORD" | crane auth login "$REGISTRY" --username "$HARBOR_BUILD_USERNAME" --password-stdin
+      # --config=ci is --config=remote plus build metadata; nothing compiles
+      # on the runner. Only tested commits are published.
+      - name: Test on BuildBuddy
+        run: ./scripts/bazel test --config=ci //:acceptance
+      - name: Build images on BuildBuddy
+        run: >-
+          ./scripts/bazel build --config=ci --remote_download_toplevel
+          //build/release:dashboard //build/release:dashboard.digest
+          //build/release:cli //build/release:cli.digest
+      - name: Push images
+        shell: bash
+        env:
+          HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$HARBOR_PASSWORD" | crane auth login "$REGISTRY" --username "$HARBOR_USERNAME" --password-stdin
+          {
+            echo "### Published images"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          for image in dashboard cli; do
+            repo="$REGISTRY/agentboard/$image"
+            digest="$(cat "bazel-bin/build/release/$image.json.sha256")"
+            first=""
+            for tag in $TAGS; do
+              if [[ -z "$first" ]]; then
+                crane push "bazel-bin/build/release/$image" "$repo:$tag"
+                first="$tag"
+              else
+                crane tag "$repo:$first" "$tag"
+              fi
+              test "$(crane digest "$repo:$tag")" = "$digest"
+              echo "- \`$repo:$tag\` → \`$digest\`" >> "$GITHUB_STEP_SUMMARY"
+            done
+          done

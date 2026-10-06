@@ -16,6 +16,8 @@ filegroup(
         "//build/release:cli_artifacts",
         "//build/release:dashboard",
         "//build/release:dashboard.digest",
+        "//build/release:cli",
+        "//build/release:cli.digest",
         "//web:release",
     ],
 )

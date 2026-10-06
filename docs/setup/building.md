@@ -29,7 +29,7 @@ The maintainers build, test, and package releases with Bazel (`.bazelversion`, B
 cp .bazelrc.remote.example .bazelrc.remote   # add a BuildBuddy API key for the project's org
 ./scripts/bazel build //cmd/agentboard:agentboard //web:release
 ./scripts/bazel test //:acceptance
-./scripts/bazel build //:release_artifacts   # CLI binaries + SHA256SUMS, OTP release, dashboard OCI image
+./scripts/bazel build //:release_artifacts   # CLI binaries + SHA256SUMS, OTP release, dashboard and CLI OCI images
 ```
 
 `--config=remote` points at the maintainers' BuildBuddy organization and remote executor image, so it needs their API key. Bazel without remote execution is untested today: the module registers the remote executor's C/C++ toolchain, and the dashboard image target pulls its Ubuntu base from the maintainers' registry mirror. If you do not have project BuildBuddy access, use Docker, `go`, and `mix` as described above. Contributions that make a local Bazel configuration work are welcome.

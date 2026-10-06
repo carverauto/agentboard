@@ -7,6 +7,8 @@ metadata:
     app.kubernetes.io/component: database
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
+    # Argo CD never prunes or deletes this resource: it holds data.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   # Dedicated CNPG Cluster for agentboard (not a database on a shared instance).
   instances: 2

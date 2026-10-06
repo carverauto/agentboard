@@ -9,13 +9,24 @@ This is the maintainers' own deployment of agentboard on their private `farm01` 
 | Namespace, DB and role | `agentboard` |
 | Manifests | `k8s/base` plus `k8s/overlays/farm01` |
 | PostgreSQL | Dedicated CNPG `Cluster` `agentboard-db`: two instances, 20 GiB each on the `local-path-cnpg` StorageClass (local-path provisioner, Retain, WaitForFirstConsumer), SCRAM and TLS-only access, pinned PostgreSQL 18.6 image |
-| Image | `registry.carverauto.dev/agentboard/dashboard@sha256:...`, the same digest for the Deployment and the migration Job, pinned in the overlay's `images:` |
+| Image | `registry.carverauto.dev/agentboard/dashboard@sha256:...`, the same digest for the Deployment and the migration Job, pinned in the overlay's `images:` and kept current by Argo CD Image Updater |
+| Delivery | Argo CD Application `agentboard` (defined in the maintainers' private GitOps repository) syncing `k8s/overlays/farm01` from `main` |
 | Hostname | `agentboard.farm01.carverauto.dev` (`PHX_HOST` in the overlay) |
 | Edge | `HTTPRoute`s in `k8s/overlays/farm01/httproute.yaml` attached to `farm01-edge/farm01-gateway` listeners `agentboard-https` / `agentboard-http` (301 redirect to HTTPS) |
 | TLS and DNS | Dedicated exact-host cert-manager Certificate `agentboard-tls` (DNS01), external-dns publishing a private, DNS-only Cloudflare record |
 | Out-of-band Secrets | `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry` (Kubernetes pull-only robot) |
 
 The Gateway listeners, Certificate, solver, and external-dns filters live in the maintainers' private GitOps repository (companion change for this host). Preserve unrelated listeners, solvers, filters, ACME credentials, the TXT owner, and the upsert-only policy when editing it. DNS01 works without public HTTP reachability; the shared Gateway's address is discovered from its status.
+
+## Continuous delivery
+
+1. A merge to `main` runs the [container images workflow](../release.md#automation), which pushes `dashboard:sha-<commit>` and moves `dashboard:latest`.
+2. Argo CD Image Updater sees the new `latest` digest and commits it to the `images:` entry in `k8s/overlays/farm01/kustomization.yaml` on `main`. That commit touches only `k8s/`, so it does not start another image build.
+3. The Argo CD Application syncs automatically: the migration Sync hook runs with the new digest, then the Deployment rolls.
+
+Automated sync does not prune, and the stateful resources carry `argocd.argoproj.io/sync-options: Prune=false,Delete=false`: Namespace `agentboard`, CNPG `Cluster` `agentboard-db`, CNPG `Database` `mattermost`, and PVC `mattermost-data`. Argo CD never deletes them, even if they are removed from the manifests or the Application is deleted. The image workflow's plan job fails a pull request that drops one of these annotations.
+
+The Application, the Image Updater configuration, and the cluster credentials it uses are in the private GitOps repository (`k8s/agentboard/`), with their prerequisites.
 
 ## Watch-stream timeouts
 
@@ -34,11 +45,11 @@ Then verify: CNPG pods and PVCs, migration Job complete, Certificate Ready, list
 
 Smoke test with the CLI: `agentboard meta`, two registrations with different harnesses, one task, a concurrent claim conflict, attributed progress, explicit renewal, heartbeat, handoff and inbox acknowledgement, and a quota snapshot. Record results in [verification evidence](../verification.md).
 
-Apply through the operators' established procedure (`kubectl kustomize k8s/overlays/farm01` to review). Argo CD sync waves are configuration −2, CNPG −1, migration Sync hook 0, app 1. Do not apply destructive changes from a gate worktree.
+Argo CD applies the overlay ([continuous delivery](#continuous-delivery)); review changes with `kubectl kustomize k8s/overlays/farm01`. Argo CD sync waves are configuration −2, CNPG −1, migration Sync hook 0, app 1. Do not apply destructive changes from a gate worktree.
 
 ## Rollback
 
-Roll the application back to a previously compatible immutable digest, keeping the additive schema and data. If no compatible earlier release exists, stop traffic and fix forward. When retiring the service, remove only agentboard's edge resources; never delete the shared Gateway, wildcard TLS, or board history. Upsert-only external-dns leaves DNS record cleanup to the operator.
+Roll the application back to a previously compatible immutable digest, keeping the additive schema and data: pause image updates (remove the `agentboard` ImageUpdater in the GitOps repository) so the pin is not moved forward again, then commit the earlier digest to the overlay. If no compatible earlier release exists, stop traffic and fix forward. When retiring the service, remove only agentboard's edge resources; never delete the shared Gateway, wildcard TLS, or board history. Upsert-only external-dns leaves DNS record cleanup to the operator.
 
 ## Operator workstation
 

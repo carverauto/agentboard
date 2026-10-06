@@ -43,6 +43,8 @@ configMapGenerator:
 generatorOptions:
   disableNameSuffixHash: true
 images:
+  # Argo CD Image Updater keeps this digest on the newest `latest` image that
+  # the Container images workflow publishes from main (see
+  # docs/deploy/reference-farm01.md). Seeded with the image running on farm01.
   - name: registry.carverauto.dev/agentboard/dashboard
-    # Built and remotely verified; publication is a separate operator step.
-    digest: sha256:5aa2bcc10cccb6adaa3007887150745012e95aec9a9e997b4f294b17568e853c
+    digest: sha256:ba8db918fbdd5e676dc328b051c68e2f6b996ba5f751b098cc5cfa3dc84463b2
