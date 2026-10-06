@@ -7,7 +7,7 @@ Firstmate's central AI coordinator drifts and spends tokens reconciling task sta
 ## What Changes
 
 - Implement the full M1–M3 scope from [PRD #1](https://github.com/carverauto/agentboard/issues/1), delivered in three independently verifiable stages: core board; live updates and messaging; quota and skills.
-- Replace the `ab` stub with an HTTP API-backed Go CLI for registration, heartbeats, task creation/editing, assignment, atomic claim, explicit lease renewal, release, handoff, links, messages, watches, and quota ingestion. Provide stable JSON for non-interactive callers.
+- Replace the `agentboard` stub with an HTTP API-backed Go CLI for registration, heartbeats, task creation/editing, assignment, atomic claim, explicit lease renewal, release, handoff, links, messages, watches, and quota ingestion. Provide stable JSON for non-interactive callers.
 - Persist agent identities, current task state, append-only provenance-bearing events, messages, and quota reports in the dedicated CNPG database. Use caller-chosen stable slugs and two-hour claim leases; expiry requires deliberate release/reclaim and never silently reallocates work.
 - Host a versioned JSON API in the Phoenix application as the sole CLI transport; only Phoenix connects to PostgreSQL. Apply configurable API rate limits before mutations and return 429 with Retry-After; the CLI uses bounded, cancellable retries that respect the advertised delay.
 - Build a Phoenix/Ecto/LiveView captain dashboard with board, roster, timeline, message feed, and quota panel. M1 is read-only with a documented refresh interval of at most five seconds; M2 adds database notifications and stale ownership visibility.
@@ -36,7 +36,7 @@ None. The main OpenSpec spec inventory is empty.
 
 ## Impact
 
-- Implement `cmd/ab` and new focused Go packages; use Go net/http for API transport and CLI argument handling with pinned Bazel dependencies; distribute no PostgreSQL driver or database credentials to agents.
+- Implement `cmd/agentboard` and new focused Go packages; use Go net/http for API transport and CLI argument handling with pinned Bazel dependencies; distribute no PostgreSQL driver or database credentials to agents.
 - Create the Phoenix application, Ecto migrations, API controllers/contexts, rate-limit plug, read models, notification subscriber, assets, and release entrypoint under `web/`.
 - Extend `MODULE.bazel`, Bazel targets, remote toolchains/platforms, and `buildbuddy.yaml` beyond their current placeholder checks; add packaging/release automation and `skills/` documentation.
 - Adapt existing `k8s/` manifests for real image digests, runtime database TLS configuration, migration ordering, and probes. Coordinate a separate GitOps change for cert-manager, shared Gateway listeners, and external-dns hostname scope, following inspected farm01 conventions. No deployment or GitOps source edit is performed by this proposal.

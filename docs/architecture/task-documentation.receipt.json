@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/mfreeman/src/agentboard/docs/architecture/task-documentation.architecture.json",
+  "output": "/Users/mfreeman/src/agentboard/docs/architecture/task-documentation.html",
+  "specification": {
+    "sha256": "2947b8ce4ba378f64dae67db30eb37a3bdb299f98a40a037fb0bafa4a6492ee6",
+    "bytes": 2349
+  },
+  "artifact": {
+    "sha256": "12416381c259897cf6a70c442e450d94b177622afafa1b50cb8d086e08ce6185",
+    "bytes": 706954
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

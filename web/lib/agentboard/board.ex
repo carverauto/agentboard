@@ -121,9 +121,15 @@ defmodule Agentboard.Board do
     with true <- Input.slug?(id),
          {:ok, %{rows: [[task]]}} <-
            query("SELECT #{task_json()} FROM tasks t WHERE t.id=$1", [id], timeout: 2_000),
-         {:ok, events} <- page("events", Map.put(filters, "task", id)) do
+         {:ok, events} <- page("events", Map.put(filters, "task", id)),
+         {:ok, documents} <- Agentboard.Documents.list(id) do
       {:ok,
-       %{"task" => task, "events" => events["events"], "next_cursor" => events["next_cursor"]}}
+       %{
+         "task" => task,
+         "events" => events["events"],
+         "next_cursor" => events["next_cursor"],
+         "documents" => documents["documents"]
+       }}
     else
       false -> {:error, "invalid_input", "Invalid task ID"}
       {:ok, %{rows: []}} -> {:error, "not_found", "Task not found"}

@@ -30,6 +30,17 @@ defmodule AgentboardWeb.Router do
     plug(AgentboardWeb.Plugs.JSONBody)
   end
 
+  pipeline :documents do
+    plug(AgentboardWeb.Plugs.RateLimit)
+  end
+
+  scope "/documents", AgentboardWeb do
+    pipe_through(:documents)
+    get("/:id", DocumentController, :show)
+    get("/:id/html", DocumentController, :content)
+    get("/:id/download", DocumentController, :download)
+  end
+
   pipeline :compatible do
     plug(AgentboardWeb.Plugs.Compatibility)
   end
@@ -64,6 +75,8 @@ defmodule AgentboardWeb.Router do
     get("/messages", APIController, :messages)
     post("/messages", APIController, :send_message)
     post("/messages/:id/read", APIController, :read_message)
+    get("/tasks/:id/documents", APIController, :documents)
+    post("/tasks/:id/documents", APIController, :push_document)
     get("/tasks/:id", APIController, :task)
     patch("/tasks/:id", APIController, :edit)
     post("/tasks/:id/:action", APIController, :mutate)

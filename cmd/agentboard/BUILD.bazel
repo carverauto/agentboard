@@ -3,21 +3,21 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 package(default_visibility = ["//visibility:public"])
 
 go_library(
-    name = "ab_lib",
+    name = "agentboard_lib",
     srcs = ["main.go"],
-    importpath = "github.com/carverauto/agentboard/cmd/ab",
+    importpath = "github.com/carverauto/agentboard/cmd/agentboard",
     visibility = ["//visibility:private"],
     deps = ["//internal/cli"],
 )
 
 go_binary(
-    name = "ab",
-    embed = [":ab_lib"],
+    name = "agentboard",
+    embed = [":agentboard_lib"],
 )
 
 [go_binary(
-    name = "ab_" + os + "_" + arch,
-    embed = [":ab_lib"],
+    name = "agentboard_" + os + "_" + arch,
+    embed = [":agentboard_lib"],
     goos = os,
     goarch = arch,
     pure = "on",

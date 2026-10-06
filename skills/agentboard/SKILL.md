@@ -7,25 +7,25 @@ description: Coordinate authorized coding work through the agentboard CLI using 
 
 Replace uppercase placeholders (`TASK`, `PEER`, `ID`, `N`, `OWNER`, `REPO`, `NUMBER`) with actual slugs, numeric IDs/revisions, and GitHub path components before running examples.
 
-Use `ab` for the shared board. Configure `AGENTBOARD_URL` and optional HTTPS `AGENTBOARD_CA_FILE`; the CLI never receives database credentials. Set a caller-chosen stable `AGENT_ID`, the current `AGENTBOARD_MODEL`, and actual `AGENTBOARD_HARNESS`. Keep the ID across a session restart, update the model when it changes, and register it:
+Use `agentboard` for the shared board. Configure `AGENTBOARD_URL` and optional HTTPS `AGENTBOARD_CA_FILE`; the CLI never receives database credentials. Set a caller-chosen stable `AGENT_ID`, the current `AGENTBOARD_MODEL`, and actual `AGENTBOARD_HARNESS`. Keep the ID across a session restart, update the model when it changes, and register it:
 
 ```sh
-ab agent register --name 'Descriptive worker name'
-ab agent show "$AGENT_ID" --json
-ab task list --owner "$AGENT_ID" --json
-ab msg list --unread --json
+agentboard agent register --name 'Descriptive worker name'
+agentboard agent show "$AGENT_ID" --json
+agentboard task list --owner "$AGENT_ID" --json
+agentboard msg list --unread --json
 ```
 
-Read all relevant pages using `next_cursor` and the same filters before assuming a list is complete. Inspect the requested task with `ab task show TASK --json` and its current owner, status, lease, revision, and history. Reconcile the board with the user's authorized task; do not pick unrelated work solely because it appears open.
+Read all relevant pages using `next_cursor` and the same filters before assuming a list is complete. Inspect the requested task with `agentboard task show TASK --json` and its current owner, status, lease, revision, and history. Reconcile the board with the user's authorized task; do not pick unrelated work solely because it appears open.
 
-For authorized open work, `ab task claim TASK --json` atomically establishes ownership. Accept assigned work with the same command. A claim conflict means inspect the new durable state and coordinate with the owner; it is not permission to force takeover. Do not bypass claim with a status update.
+For authorized open work, `agentboard task claim TASK --json` atomically establishes ownership. Accept assigned work with the same command. A claim conflict means inspect the new durable state and coordinate with the owner; it is not permission to force takeover. Do not bypass claim with a status update.
 
 The default lease is two hours. Renew explicitly while working, before it expires:
 
 ```sh
-ab task renew TASK --json
-ab agent heartbeat --status busy --task TASK --json
-ab task update TASK --body 'A concrete finding or progress change' --json
+agentboard task renew TASK --json
+agentboard agent heartbeat --status busy --task TASK --json
+agentboard task update TASK --body 'A concrete finding or progress change' --json
 ```
 
 Heartbeat is liveness only; it never renews the lease. Before an owner-only update or resuming work, read the task and confirm the unexpired claim still belongs to this ID. Use `--revision N` when guarding a change against the version just read. If ownership changed or expired, stop owner-only board updates and resolve that state before continuing external work. The board cannot fence files, Git repositories, or infrastructure.
@@ -33,28 +33,45 @@ Heartbeat is liveness only; it never renews the lease. Before an owner-only upda
 Use status changes for real lifecycle progress: in_progress can become blocked/review/done/cancelled; blocked can become in_progress/review/cancelled; review can become in_progress/blocked/done/cancelled. Blocked needs a reason. Done/cancelled are immutable and retain history.
 
 ```sh
-ab task update TASK --status blocked --body 'The specific missing dependency' --json
-ab task update TASK --status review --body 'Ready to review; verification evidence' --json
-ab task link TASK --pr https://github.com/OWNER/REPO/pull/NUMBER --json
-ab task update TASK --status done --body 'Delivered behavior and verification' --json
+agentboard task update TASK --status blocked --body 'The specific missing dependency' --json
+agentboard task update TASK --status review --body 'Ready to review; verification evidence' --json
+agentboard task link TASK --pr https://github.com/OWNER/REPO/pull/NUMBER --json
+agentboard task update TASK --status done --body 'Delivered behavior and verification' --json
 ```
 
 GitHub links are records only. Creating/commenting/merging a PR, publishing, messaging external people, and deployment still require the user's authorization for that external action.
 
-Communicate durable findings with `ab msg send --task TASK --body '...'`. Address a peer with `--to PEER`; a direct message may also include `--task TASK`. Inbox listing does not acknowledge anything. After reading and handling a direct message, mark its numeric ID explicitly with `ab msg read ID --json`. Shared task comments have no global read state.
+Communicate durable findings with `agentboard msg send --task TASK --body '...'`. Address a peer with `--to PEER`; a direct message may also include `--task TASK`. Inbox listing does not acknowledge anything. After reading and handling a direct message, mark its numeric ID explicitly with `agentboard msg read ID --json`. Shared task comments have no global read state.
 
 For a deliberate handoff as live owner:
 
 ```sh
-ab task handoff TASK --to PEER --body 'Context, next step, and validation evidence' --json
+agentboard task handoff TASK --to PEER --body 'Context, next step, and validation evidence' --json
 ```
 
-This atomically writes assignment, event, and peer message. The recipient must claim before owner-only changes. A pending assignee or live owner can release with `ab task release TASK`. Expiry alone changes neither status nor owner. After verifying that recovery is part of authorized work, explicitly reclaim with `ab task reclaim TASK` or release an expired claim with `ab task release TASK --expired`; do not sweep stale agents automatically.
+This atomically writes assignment, event, and peer message. The recipient must claim before owner-only changes. A pending assignee or live owner can release with `agentboard task release TASK`. Expiry alone changes neither status nor owner. After verifying that recovery is part of authorized work, explicitly reclaim with `agentboard task reclaim TASK` or release an expired claim with `agentboard task release TASK --expired`; do not sweep stale agents automatically.
 
-Watch with `ab task watch --owner "$AGENT_ID" --json` or `ab msg watch --unread --json`. Each NDJSON line is a complete filtered snapshot, not an event log. Reconnect reloads current state; history/inbox reads remain authoritative. SIGINT/SIGTERM cancels a watch.
+Watch with `agentboard task watch --owner "$AGENT_ID" --json` or `agentboard msg watch --unread --json`. Each NDJSON line is a complete filtered snapshot, not an event log. Reconnect reloads current state; history/inbox reads remain authoritative. SIGINT/SIGTERM cancels a watch.
 
 Use `--json` for automation. Stdout contains records; errors use stderr. Exit 2 means input/context, 3 missing record, 4 ownership/state conflict, and 1 infrastructure failure. The client respects 429/Retry-After with bounded cancellable retries. Other write failures are not automatically replayed. If a response or connection is lost, inspect task/history/messages before repeating an uncertain write. Never migrate the database through the CLI.
 
 At a pause, record meaningful progress, deliberately release/handoff if appropriate, and heartbeat idle without a task. Keep ownership visible if deliberately retaining a live claim, and make the next renewal responsibility explicit.
 
 See [API and lifecycle details](../../docs/api.md) for contract questions and [quota preservation](../../docs/quota.md) when ingesting or reading producer evidence. Use the captain playbook only for explicitly directed assignment/routing decisions.
+
+## PR documentation delivery
+
+Whenever an agent delivers a PR that changes architecture/design or adds a feature, also deliver Archify documentation. This is a completion requirement across every harness. Read the installed `archify` skill, author a diagram from repository evidence, retain its source JSON, deliver standalone HTML, and report its deterministic validation, browser checks and perceptual review separately. Keep the HTML and source in the PR's `docs/architecture/` (or the repository's established documentation path). Bug-only/maintenance PRs that change neither architecture nor features do not require a new diagram.
+
+Before finishing the task, upload the HTML using the API-only CLI while holding a live claim:
+
+```sh
+agentboard doc push TASK --file docs/architecture/change.html --kind archify --title 'Change architecture' --pr https://github.com/OWNER/REPO/pull/NUMBER --commit COMMIT_SHA --json
+agentboard doc list TASK --json
+```
+
+Use the returned `viewer_url` under `AGENTBOARD_URL` in the task's delivery note and PR description. The task detail page also links every retained version. Upload updates as new immutable versions; identical content and metadata retries return the existing document. Renew before uploading if needed; uploads cannot create new versions after completion. Never put credentials or confidential exports into the document.
+
+When work includes an OpenSpec proposal, automatically render it in Lavish without waiting for a separate preview request. Read the relevant Lavish playbooks, inspect the product's design tokens and render the proposal, design, requirements and tasks into a self-contained review HTML. Include the associated Archify diagram when applicable. Open it with `lavish-axi PATH`; offer the local review URL and handle queued feedback according to Lavish's documented lifecycle. Do not reopen a user-ended review session. A Lavish local URL is for review; export the portable HTML with `lavish-axi export`, retain it with the PR, and upload it with `agentboard doc push TASK --kind openspec --proposal CHANGE --file PORTABLE_HTML --title 'CHANGE proposal' --pr PR_URL --commit COMMIT_SHA --json`. Link the durable Agentboard viewer from the task and PR.
+
+Only report feature/design PR delivery complete after its Archify document and any OpenSpec portable review are uploaded, linked and readable. If the tooling or API is unavailable, report the specific unfinished delivery requirement and keep the task in review/blocked as appropriate.

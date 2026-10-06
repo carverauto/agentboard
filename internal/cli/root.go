@@ -28,7 +28,7 @@ type commands struct {
 func NewRoot() *cobra.Command {
 	cfg, _ := config.FromEnv()
 	c := &commands{cfg: cfg, ttl: env("AGENTBOARD_CLAIM_TTL", "2h"), stale: env("AGENTBOARD_STALE_AFTER", "10m")}
-	root := &cobra.Command{Use: "ab", Short: "Shared task board for coding agents", SilenceErrors: true, SilenceUsage: true,
+	root := &cobra.Command{Use: "agentboard", Short: "Shared task board for coding agents", SilenceErrors: true, SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Name() == "version" {
@@ -72,7 +72,7 @@ func NewRoot() *cobra.Command {
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), Version)
 		return err
 	}})
-	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota())
+	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents())
 	return root
 }
 func env(key, fallback string) string {
@@ -108,6 +108,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasPrefix(path, "quota") {
 		required = 3
 	}
+	if strings.HasSuffix(path, "/documents") {
+		required = 4
+	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
 	}
@@ -127,7 +130,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report"} {
+	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue
@@ -169,12 +172,14 @@ func PrintError(root *cobra.Command, w io.Writer, err error) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": code, "message": err.Error()}})
 	} else {
-		fmt.Fprintln(w, "ab:", err)
+		fmt.Fprintln(w, "agentboard:", err)
 	}
 }
 
 func printRecord(table io.Writer, r map[string]any) {
-	if r["title"] != nil {
+	if r["viewer_url"] != nil {
+		fmt.Fprintf(table, "%v\t%v\t%v\t%v\t%v\n", r["id"], r["kind"], r["source_agent_id"], r["title"], r["viewer_url"])
+	} else if r["title"] != nil {
 		fmt.Fprintf(table, "%v\t%v\t%v\texpired=%v\t%v\n", r["id"], r["status"], r["assignee_id"], r["claim_expired"], r["title"])
 	} else if r["name"] != nil {
 		fmt.Fprintf(table, "%v\t%v\t%v\tstale=%v\n", r["id"], r["harness"], r["model"], r["stale"])

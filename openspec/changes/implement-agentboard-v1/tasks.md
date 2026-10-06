@@ -2,7 +2,7 @@
 
 ## 1. M1 — Remote build and application foundation
 
-- [x] 1.1 Add Go HTTP CLI dependencies and pinned Bazel dependency declarations without host compilation; verify a minimal configured CLI builds on BuildBuddy through `./scripts/bazel build //cmd/ab:ab`.
+- [x] 1.1 Add Go HTTP CLI dependencies and pinned Bazel dependency declarations without host compilation; verify a minimal configured CLI builds on BuildBuddy through `./scripts/bazel build //cmd/agentboard:agentboard`.
 - [x] 1.2 Establish pinned remote OTP/Elixir and asset tool inputs plus a minimal Phoenix/API app under `web/`; verify a real application compile/release target on RBE, replacing the placeholder filegroup as the only web check.
 - [x] 1.3 Provide an isolated remote PostgreSQL integration-test environment with TLS and deterministic cleanup; verify connectivity and that its DB is separate from farm01 and document the remote test recipe.
 
@@ -17,7 +17,7 @@
 - [x] 3.1 Implement API URL/flag precedence, verified HTTPS trust, required actor/model/harness context, and structured HTTP/exit-code mapping; verify missing context, unknown actor, TLS failure, and direct malformed API calls leave state unchanged with stdout uncontaminated.
 - [x] 3.2 Implement stable register/list/show, descriptive metadata/model refresh, and conflicting-harness rejection; verify re-registration preserves references and historical attribution remotely.
 - [x] 3.3 Add stable JSON envelopes, UTC timestamps, null handling, deterministic ordering, and bounded keyset pagination; verify an actual non-interactive command can parse empty/populated/multipage results.
-- [x] 3.4 Document API-only configuration, captain shell identity, registration, and JSON/error contracts in README/CLI help; verify the examples against remote-built `ab` without exposing credentials.
+- [x] 3.4 Document API-only configuration, captain shell identity, registration, and JSON/error contracts in README/CLI help; verify the examples against remote-built `agentboard` without exposing credentials.
 
 - [x] 3.5 Add versioned Phoenix resource/action API routes with validated provenance, bounded JSON parsing, shared context reads/mutation helpers, compatibility metadata, and structured status errors; verify CLI operations work with no database credentials and direct API calls enforce the same ownership constraints.
 - [x] 3.6 Add a supervised configurable API rate-limit plug before parsing/mutations plus bounded watch reservations; verify 429/Retry-After/no-store, no mutation on throttling, expired bucket cleanup, disconnect capacity release, limiter failure, and unaffected health probes. Document per-replica and trusted-proxy behavior.

@@ -45,8 +45,8 @@ genrule(
 sh_test(
     name = "board_api_test",
     srcs = ["board_api_test.sh"],
-    data = ["board_api_test.py", "liveview_client.py", "watch_proxy.py", "//testdata/quota:fixtures", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/ab:ab"],
-    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/ab:ab)"],
+    data = ["board_api_test.py", "liveview_client.py", "watch_proxy.py", "//testdata/quota:fixtures", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
     size = "large",
     timeout = "long",
 )

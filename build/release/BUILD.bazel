@@ -73,17 +73,17 @@ genrule(
 
 genrule(
     name = "cli_artifacts",
-    srcs = ["//cmd/ab:ab_" + os + "_" + arch for os in ["linux", "darwin"] for arch in ["amd64", "arm64"]],
+    srcs = ["//cmd/agentboard:agentboard_" + os + "_" + arch for os in ["linux", "darwin"] for arch in ["amd64", "arm64"]],
     outs = ["agentboard-cli-0.1.0.tar.gz"],
     cmd = """
       set -euo pipefail
       scratch=$$(mktemp -d)
       trap 'rm -rf "$$scratch"' EXIT
-      cp $(location //cmd/ab:ab_linux_amd64) "$$scratch/ab-linux-amd64"
-      cp $(location //cmd/ab:ab_linux_arm64) "$$scratch/ab-linux-arm64"
-      cp $(location //cmd/ab:ab_darwin_amd64) "$$scratch/ab-darwin-amd64"
-      cp $(location //cmd/ab:ab_darwin_arm64) "$$scratch/ab-darwin-arm64"
-      (cd "$$scratch" && sha256sum ab-* > SHA256SUMS)
+      cp $(location //cmd/agentboard:agentboard_linux_amd64) "$$scratch/agentboard-linux-amd64"
+      cp $(location //cmd/agentboard:agentboard_linux_arm64) "$$scratch/agentboard-linux-arm64"
+      cp $(location //cmd/agentboard:agentboard_darwin_amd64) "$$scratch/agentboard-darwin-amd64"
+      cp $(location //cmd/agentboard:agentboard_darwin_arm64) "$$scratch/agentboard-darwin-arm64"
+      (cd "$$scratch" && sha256sum agentboard-* > SHA256SUMS)
       tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf $@ -C "$$scratch" .
     """,
 )
