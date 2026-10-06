@@ -20,6 +20,16 @@ defmodule Agentboard.MixProject do
 
   defp deps do
     [
+      {:ash, "== 3.34.3"},
+      {:ash_postgres, "== 2.14.2"},
+      {:ash_phoenix, "== 2.3.25"},
+      {:ash_events, "== 0.8.2"},
+      {:ash_paper_trail, "== 0.7.0"},
+      {:ash_oban, "== 0.8.14"},
+      {:oban, "== 2.24.1"},
+      {:req, "== 0.7.4"},
+      {:simple_sat, "== 0.1.4"},
+      {:castore, "== 1.0.21"},
       {:bandit, "== 1.12.5"},
       {:ecto_sql, "== 3.14.0"},
       {:jason, "== 1.4.5"},

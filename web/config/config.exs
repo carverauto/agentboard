@@ -1,6 +1,12 @@
 import Config
 
-config :agentboard, ecto_repos: [Agentboard.Repo]
+config :agentboard,
+  ecto_repos: [Agentboard.Repo],
+  ash_domains: [Agentboard.Board, Agentboard.Evidence]
+
+config :ash,
+  include_embedded_source_by_default?: false,
+  default_string_length_count: :codepoints
 
 config :agentboard, :rate_limits,
   ip: 120,

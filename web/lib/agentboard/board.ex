@@ -1,4 +1,13 @@
 defmodule Agentboard.Board do
+  use Ash.Domain, backwards_compatible_interface?: false
+
+  resources do
+    resource Agentboard.Board.Resources.Agent
+    resource Agentboard.Board.Resources.Task
+    resource Agentboard.Board.Resources.TaskEvent
+    resource Agentboard.Board.Resources.Message
+  end
+
   alias Agentboard.{Input, Repo}
 
   # Ordinary module functions: SQL executes in the calling request or LiveView process.
