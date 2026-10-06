@@ -31,7 +31,7 @@ sh_test(
 
 genrule(
     name = "postgres_runtime",
-    srcs = ["@test_postgresql_18_deb//file", "@test_postgresql_client_18_deb//file", "@test_libpq5_deb//file", "@test_libicu74_deb//file", "@test_libxml2_deb//file", "@test_libxslt_deb//file", "@test_liburing2_deb//file", "@test_libnuma1_deb//file", "@test_libldap2_deb//file"],
+    srcs = ["@test_postgresql_18_deb//file", "@test_postgresql_client_18_deb//file", "@test_libpq5_deb//file", "@test_libicu74_deb//file", "@test_libxml2_deb//file", "@test_libxslt_deb//file", "@test_liburing2_deb//file", "@test_libnuma1_deb//file", "@test_libldap2_deb//file", "@pg_textsearch_18//:deb"],
     outs = ["postgres-runtime.tar.gz"],
     cmd = """
       set -euo pipefail
@@ -40,6 +40,15 @@ genrule(
       for deb in $(SRCS); do dpkg-deb -x "$$deb" "$$scratch"; done
       tar -czf $@ -C "$$scratch" usr
     """,
+)
+
+sh_test(
+    name = "bm25_replication_test",
+    srcs = ["bm25_replication_test.sh"],
+    data = ["postgres_fixture.sh", ":postgres_runtime"],
+    args = ["$(rlocationpath :postgres_runtime)"],
+    size = "medium",
+    timeout = "long",
 )
 
 sh_test(
@@ -56,6 +65,26 @@ sh_test(
     srcs = ["image_startup_test.sh"],
     data = ["postgres_fixture.sh", "as_image_user.py", ":postgres_runtime", "//build/release:image_rootfs"],
     args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //build/release:image_rootfs)"],
+    size = "large",
+    timeout = "long",
+)
+
+sh_test(
+    name = "context_api_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "context_api_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["context_api_test.py", "liveview_client.py", "//testdata/quota:fixtures", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)
+
+
+sh_test(
+    name = "cnpg_image_startup_test",
+    srcs = ["cnpg_image_startup_test.sh"],
+    data = ["as_postgres_image_user.py", "//build/database:image_rootfs"],
+    args = ["$(rlocationpath //build/database:image_rootfs)"],
     size = "large",
     timeout = "long",
 )

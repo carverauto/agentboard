@@ -5,6 +5,7 @@ on:
     paths:
       - Dockerfile
       - Dockerfile.cli
+      - Dockerfile.db
       - .dockerignore
       - docker-compose.yml
       - deploy/compose/**
@@ -18,6 +19,7 @@ on:
       - GROK_BOT.md
       - docs/api.md
       - docs/quota.md
+      - docs/context.md
       - docs/participation.md
       - go.mod
       - go.sum

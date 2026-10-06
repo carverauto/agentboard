@@ -59,15 +59,19 @@ export DATABASE_PASSWORD="$(cat "$fixture_root/password")"
 export DATABASE_CA_FILE="$fixture_root/ca.crt"
 unset DATABASE_URL
 "${fixture_user[@]}" "$fixture_bin/pg_ctl" -D "$fixture_root/data" -l "$fixture_root/postgres.log" \
-  -o "-c listen_addresses=127.0.0.1 -p $DATABASE_PORT -c unix_socket_directories='$fixture_root' -c ssl=on -c ssl_cert_file='$fixture_root/server.crt' -c ssl_key_file='$fixture_root/server.key' -c jit=off" \
+  -o "-c listen_addresses=127.0.0.1 -p $DATABASE_PORT -c unix_socket_directories='$fixture_root' -c ssl=on -c ssl_cert_file='$fixture_root/server.crt' -c ssl_key_file='$fixture_root/server.key' -c jit=off -c shared_preload_libraries=pg_textsearch -c pg_textsearch.memory_limit=16MB" \
   -w start >/dev/null || { cat "$fixture_root/postgres.log" >&2; exit 1; }
-fixture_role_attribute=SUPERUSER
-if [[ "${FIXTURE_NORMAL_ROLE:-false}" == true ]]; then fixture_role_attribute=NOSUPERUSER; fi
 "$fixture_bin/psql" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -d postgres -v ON_ERROR_STOP=1 -Atc \
-  "CREATE ROLE agentboard LOGIN $fixture_role_attribute PASSWORD '$DATABASE_PASSWORD'" >/dev/null
+  "CREATE ROLE agentboard LOGIN SUPERUSER PASSWORD '$DATABASE_PASSWORD'" >/dev/null
 "$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_test
 fixture_psql() {
   PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" \
     "host=127.0.0.1 port=$DATABASE_PORT dbname=agentboard_test user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" \
     -v ON_ERROR_STOP=1 -Atc "$1"
 }
+
+fixture_psql "CREATE EXTENSION pg_textsearch" >/dev/null
+
+if [[ "${FIXTURE_NORMAL_ROLE:-false}" == true ]]; then
+  fixture_psql "ALTER ROLE agentboard NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS" >/dev/null
+fi

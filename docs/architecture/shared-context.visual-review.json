@@ -1,0 +1,19 @@
+{
+  "artifact_sha256": "ca44a75a70aac66af62a9e82ec30595a7e1b0a4e408422fd77c51b694c4ad6b3",
+  "browser_evidence": "pending",
+  "bytes": 708287,
+  "correction_rounds": 0,
+  "observations": [
+    "Automated visual-check passed on fresh light/dark captures; human perceptual review not yet performed on this revision"
+  ],
+  "reviewer": "pending root inspection of fresh light/dark PNGs",
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "viewport": [
+    2048,
+    1320
+  ],
+  "visual_review": "pending"
+}

@@ -65,6 +65,10 @@ cli task create --id smoke-task --title "Compose smoke task" --json >/dev/null
 cli task list --json | grep -q '"id":"smoke-task"'
 cli task claim smoke-task --json | grep -q '"status":"in_progress"'
 echo "registered agent, created/listed/claimed task"
+cli context publish --key compose-context --repo smoke/repo --kind FACT --summary 'TLS database startup verified' --task smoke-task --json >/dev/null
+cli context search 'TLS database' --repo smoke/repo --json | grep -q '"entry_key":"compose-context"'
+test "$(docker compose "${args[@]}" exec -T db psql -U agentboard -d agentboard -Atc "SELECT rolsuper FROM pg_roles WHERE rolname=current_user")" = f
+echo "shared context ranked through the CLI; application role is not a superuser"
 
 if [[ $chat == 1 ]]; then
   step "mattermost"

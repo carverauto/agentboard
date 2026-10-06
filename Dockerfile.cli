@@ -17,7 +17,7 @@ COPY internal internal
 # Skills bundled into the binary (`agentboard skills install`, skill_bundle.go).
 COPY skill_bundle.go GROK_BOT.md ./
 COPY skills skills
-COPY docs/api.md docs/quota.md docs/participation.md docs/
+COPY docs/api.md docs/quota.md docs/participation.md docs/context.md docs/
 ARG TARGETOS
 ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \

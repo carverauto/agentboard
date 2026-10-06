@@ -17,7 +17,7 @@ x-db-env: &db-env
   DATABASE_HOST: db
   DATABASE_PORT: "5432"
   DATABASE_NAME: ${POSTGRES_DB:-agentboard}
-  DATABASE_USER: ${POSTGRES_USER:-agentboard}
+  DATABASE_USER: ${AGENTBOARD_DATABASE_USER:-agentboard}
   DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?}
   DATABASE_CA_FILE: /certs/ca.crt
   SECRET_KEY_BASE: ${SECRET_KEY_BASE:?}
@@ -37,7 +37,10 @@ services:
     restart: "no"
 
   db:
-    image: ${POSTGRES_IMAGE:-postgres:18}
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    image: ${AGENTBOARD_DATABASE_IMAGE:-agentboard-db:local}
     command:
       - postgres
       - -c
@@ -48,9 +51,14 @@ services:
       - ssl_key_file=/certs/server.key
       - -c
       - password_encryption=scram-sha-256
+      - -c
+      - shared_preload_libraries=pg_textsearch
+      - -c
+      - pg_textsearch.memory_limit=16MB
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-agentboard}
-      POSTGRES_USER: ${POSTGRES_USER:-agentboard}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      AGENTBOARD_DATABASE_USER: ${AGENTBOARD_DATABASE_USER:-agentboard}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
       # Used only by initdb/20-mattermost.sh to create the chat database.

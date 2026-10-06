@@ -88,6 +88,7 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 			"../../docs/api.md", "references/api.md",
 			"../../docs/quota.md", "references/quota.md",
 			"../../docs/participation.md", "references/participation.md",
+			"../../docs/context.md", "references/context.md",
 		).Replace(string(body)))
 		if name == "agentboard-grok" {
 			body = []byte(strings.ReplaceAll(string(body), "../../GROK_BOT.md", "references/GROK_BOT.md"))
@@ -105,7 +106,7 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 		}
 		files["skills/"+name+"/SKILL.md"] = body
 		if name == "agentboard" || name == "agentboard-captain" {
-			for _, doc := range []string{"api.md", "quota.md", "participation.md"} {
+			for _, doc := range []string{"api.md", "quota.md", "participation.md", "context.md"} {
 				body, err := fs.ReadFile(payload.Skills, "docs/"+doc)
 				if err != nil {
 					return result, err

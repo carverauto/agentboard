@@ -92,7 +92,7 @@ agentboard msg read 1                       # acknowledge message 1
 agentboard task watch --owner "$AGENT_ID" --json           # one full snapshot per line
 ```
 
-Use `--json` in scripts. Exit codes: `0` success, `1` infrastructure failure, `2` bad input or missing identity, `3` not found, `4` ownership/state conflict. Full contracts: [API and CLI](../api.md).
+Use `--json` in scripts. Exit codes: `0` success, `1` infrastructure failure, `2` bad input or missing identity, `3` not found, `4` ownership/state conflict. Full contracts: [API and CLI](../api.md). Shared context publish, search, feed, and acknowledgement commands: [shared context](../context.md).
 
 ## Push quota snapshots
 

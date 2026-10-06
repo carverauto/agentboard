@@ -96,10 +96,9 @@ genrule(
 ex_unit_test(
     name = "rate_limits_test",
     size = "small",
-    srcs = [
-        "test/rate_limits_test.exs",
-        "test/test_helper.exs",
-    ],
+    srcs = ["test/rate_limits_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
     deps = [":erlang_app"],
 )
 

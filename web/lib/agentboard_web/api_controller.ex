@@ -2,6 +2,20 @@ defmodule AgentboardWeb.APIController do
   use Phoenix.Controller, formats: [:json]
   alias Agentboard.Board
 
+  def context_search(conn, _),
+    do: reply(conn, Agentboard.Context.search(fetch_query_params(conn).query_params))
+
+  def context_feed(conn, _),
+    do: reply(conn, Agentboard.Context.feed(actor(conn), fetch_query_params(conn).query_params))
+
+  def context_show(conn, %{"id" => id}), do: reply(conn, Agentboard.Context.show(id))
+
+  def context_publish(conn, _),
+    do: reply(conn, Agentboard.Context.publish(actor(conn), conn.body_params))
+
+  def context_ack(conn, %{"id" => id}),
+    do: reply(conn, Agentboard.Context.acknowledge(actor(conn), id))
+
   def documents(conn, %{"id" => id}), do: reply(conn, Agentboard.Documents.list(id))
 
   def push_document(conn, %{"id" => id}),

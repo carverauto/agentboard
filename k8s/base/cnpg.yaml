@@ -12,7 +12,11 @@ metadata:
 spec:
   # Dedicated CNPG Cluster for agentboard (not a database on a shared instance).
   instances: 2
-  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-202610050823-standard-bookworm@sha256:94aa172fc7ce295d482f5fe8bcf8d1e3423f30c15ba40c7d34114b68dc152b0a
+  primaryUpdateMethod: switchover
+  # Remotely verified PostgreSQL18.6 + WAL-backed BM25; existing databases need operator extension DDL.
+  imageName: registry.carverauto.dev/agentboard/postgres:18.6-bm25-1.5.1-7c20962@sha256:90ea5695afde3d2d56128baad84bd775b3121cf18d9830974910105aa08e3356
+  imagePullSecrets:
+    - name: agentboard-registry
   enableSuperuserAccess: false
   storage:
     size: 20Gi
@@ -20,6 +24,8 @@ spec:
     initdb:
       database: agentboard
       owner: agentboard
+      postInitApplicationSQL:
+        - "CREATE EXTENSION IF NOT EXISTS pg_textsearch VERSION '1.5.1';"
       secret:
         name: agentboard-db-credentials
   managed:
@@ -30,9 +36,11 @@ spec:
         passwordSecret:
           name: agentboard-db-credentials
   postgresql:
+    shared_preload_libraries: [pg_textsearch]
     parameters:
       max_connections: "100"
       shared_buffers: 128MB
+      pg_textsearch.memory_limit: 64MB
       password_encryption: scram-sha-256
     pg_hba:
       - hostssl all all all scram-sha-256

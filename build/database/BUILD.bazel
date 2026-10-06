@@ -1,0 +1,36 @@
+load("@rules_oci//oci:defs.bzl", "oci_image")
+
+package(default_visibility = ["//visibility:public"])
+
+genrule(
+    name = "bm25_layer",
+    srcs = ["@pg_textsearch_18//:deb"],
+    outs = ["pg-textsearch-layer.tar"],
+    cmd = """
+      set -euo pipefail
+      scratch=$$(mktemp -d)
+      trap 'rm -rf "$$scratch"' EXIT
+      dpkg-deb -x $(location @pg_textsearch_18//:deb) "$$scratch"
+      tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf $@ -C "$$scratch" .
+    """,
+)
+
+oci_image(
+    name = "cnpg",
+    base = "@cnpg_pg18_linux_amd64",
+    tars = [":bm25_layer"],
+    labels = {
+        "org.opencontainers.image.title": "agentboard-cnpg",
+        "org.opencontainers.image.source": "https://github.com/carverauto/agentboard",
+        "dev.carverauto.postgresql": "18.6",
+        "dev.carverauto.pg_textsearch": "1.5.1",
+    },
+)
+
+
+genrule(
+    name = "image_rootfs",
+    srcs = [":cnpg", "//build/release:flatten_image.py"],
+    outs = ["cnpg-rootfs.tar.gz"],
+    cmd = "python3 $(location //build/release:flatten_image.py) $(location :cnpg) $@ cnpg",
+)

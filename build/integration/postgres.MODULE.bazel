@@ -3,20 +3,20 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 
 http_file(
     name = "test_postgresql_18_deb",
-    urls = ["https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-18_18.3-1.pgdg24.04+1_amd64.deb"],
-    sha256 = "9e8a64afde91dbf818526b8c200a3ed4a6fd1975171b06a31fe0bd378fe8c7c6",
+    urls = ["https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-18_18.6-1.pgdg24.04+2_amd64.deb"],
+    sha256 = "c0773357df8769abb70e92722196d9b53422d71c0f29a4f39c834b94276cfa3d",
     downloaded_file_path = "postgresql_18.deb",
 )
 http_file(
     name = "test_postgresql_client_18_deb",
-    urls = ["https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-client-18_18.3-1.pgdg24.04+1_amd64.deb"],
-    sha256 = "571d7977a64de78487d7def807e3cfb304a47a2ece3e62cd01018cf39bb4f6ec",
+    urls = ["https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/postgresql-client-18_18.6-1.pgdg24.04+2_amd64.deb"],
+    sha256 = "b9d10d99a73bf7aa375be2fe36626c40499cfdf553d0ad174674a88a1b256b43",
     downloaded_file_path = "postgresql_client_18.deb",
 )
 http_file(
     name = "test_libpq5_deb",
-    urls = ["https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/libpq5_18.3-1.pgdg24.04+1_amd64.deb"],
-    sha256 = "79915c8c7f8ae908a600e97260491856199311e83c6ea6c4ea4966e89ee1e95c",
+    urls = ["https://apt.postgresql.org/pub/repos/apt/pool/main/p/postgresql-18/libpq5_18.6-1.pgdg24.04+2_amd64.deb"],
+    sha256 = "b487c5ed2ceb9244c6a9d6ae65818ed6707c3c44a2e14488394ae4194c52c53b",
     downloaded_file_path = "libpq5.deb",
 )
 http_file(

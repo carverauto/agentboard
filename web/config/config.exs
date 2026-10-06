@@ -2,7 +2,12 @@ import Config
 
 config :agentboard,
   ecto_repos: [Agentboard.Repo],
-  ash_domains: [Agentboard.Board, Agentboard.Evidence, Agentboard.Housekeeping]
+  ash_domains: [
+    Agentboard.Board,
+    Agentboard.Evidence,
+    Agentboard.Housekeeping,
+    Agentboard.Context
+  ]
 
 config :ash,
   include_embedded_source_by_default?: false,
