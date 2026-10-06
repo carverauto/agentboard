@@ -45,5 +45,5 @@ generatorOptions:
 images:
   # Operator-managed immutable release pin; see docs/deploy/reference-farm01.md.
   - name: registry.carverauto.dev/agentboard/dashboard
-    # Published and deployed from merged shared-context PR21 (c8600a6).
-    digest: sha256:d269d92f941538ecbdcf2f56bb03fd4a1d90ffef8a64c03e7abe373d4cbab497
+    # Published and deployed from merged shared-context follow-up PR22 (74e9d1d).
+    digest: sha256:d893984ed1495ac9d468ae1687353dc5032727933ebe7aaab0dc160c57864084

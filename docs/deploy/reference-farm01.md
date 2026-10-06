@@ -78,3 +78,8 @@ SMTP is not configured, so email notifications and email invites are unavailable
 ## Evidence
 
 [Verification evidence](../verification.md) records the first rollout (v0.1.0, 2026-10-06 UTC) and the [shared-context rollout](../verification.md#shared-context-rollout-2026-10-06) (PR21 c8600a6, 2026-10-06 UTC): release workflow and remote acceptance, image digest checks, CNPG and Gateway status, live CLI smoke, watch streams through the Gateway, and browser isolation of task documents.
+
+
+## Shared context completion release
+
+The 2026-10-06 completion rollout uses merged PR22 (`74e9d1d`) dashboard digest `sha256:d893984ed1495ac9d468ae1687353dc5032727933ebe7aaab0dc160c57864084` for both migration and Deployment. CNPG retains the already-deployed PostgreSQL 18.6 / pg_textsearch 1.5.1 image. Schema 5 and the mobile evidence-link fix are live; all six shared-context implementation tasks passed their delivery checks. See [final acceptance](../verification.md#shared-context-final-acceptance-pr22-2026-10-06).
