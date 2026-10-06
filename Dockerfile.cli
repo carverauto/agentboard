@@ -25,5 +25,9 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/agentboard /usr/local/bin/agentboard
+COPY LICENSE /usr/share/doc/agentboard/LICENSE
+LABEL org.opencontainers.image.title="agentboard-cli" \
+      org.opencontainers.image.source="https://github.com/carverauto/agentboard" \
+      org.opencontainers.image.licenses="Apache-2.0"
 USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/agentboard"]

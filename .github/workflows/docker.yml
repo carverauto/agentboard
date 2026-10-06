@@ -19,6 +19,7 @@ on:
       - docs/quota.md
       - go.mod
       - go.sum
+      - LICENSE
       - .github/workflows/docker.yml
   push:
     branches: [main]

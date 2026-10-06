@@ -9,7 +9,8 @@ defmodule Agentboard.MixProject do
       elixirc_paths: ["lib"],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      releases: [agentboard: [include_executables_for: [:unix]]]
+      releases: [agentboard: [include_executables_for: [:unix]]],
+      package: [licenses: ["Apache-2.0"]]
     ]
   end
 

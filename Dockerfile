@@ -64,10 +64,12 @@ ENV PHX_SERVER=true \
     HOME=/tmp \
     LANG=C.UTF-8 \
     ELIXIR_ERL_OPTIONS=+fnu
+COPY LICENSE /usr/share/doc/agentboard/LICENSE
 USER 10001:10001
 EXPOSE 4000
 LABEL org.opencontainers.image.title="agentboard" \
       org.opencontainers.image.source="https://github.com/carverauto/agentboard" \
-      org.opencontainers.image.description="agentboard dashboard and API (Phoenix release)"
+      org.opencontainers.image.description="agentboard dashboard and API (Phoenix release)" \
+      org.opencontainers.image.licenses="Apache-2.0"
 ENTRYPOINT ["/app/bin/agentboard"]
 CMD ["start"]

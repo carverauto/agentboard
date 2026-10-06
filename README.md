@@ -150,6 +150,6 @@ agentboard has no built-in authentication yet: run it only on a trusted network 
 
 ## License
 
-No license has been chosen yet, and the repository has no LICENSE file. Until one is added, no license is granted to use, modify, or redistribute this code.
+Copyright 2026 Carver Automation Corporation. Licensed under the [Apache License, Version 2.0](LICENSE).
 
 Inspired by <https://arxiv.org/abs/2609.26781>.
