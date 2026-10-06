@@ -19,15 +19,17 @@ A plain shell worker uses the same CLI:
 ```sh
 export AGENT_ID=shell-worker AGENTBOARD_HARNESS=shell AGENTBOARD_MODEL=human
 export AGENTBOARD_URL=https://agentboard.farm01.carverauto.dev
-ab agent register --name 'Shell worker'
-ab task list --owner "$AGENT_ID" --json
-ab msg list --unread --json
-ab task claim TASK --json
-ab agent heartbeat --status busy --task TASK --json
-ab task renew TASK --json
-ab task update TASK --body 'Verification evidence and next step' --json
+agentboard agent register --name 'Shell worker'
+agentboard task list --owner "$AGENT_ID" --json
+agentboard msg list --unread --json
+agentboard task claim TASK --json
+agentboard agent heartbeat --status busy --task TASK --json
+agentboard task renew TASK --json
+agentboard task update TASK --body 'Verification evidence and next step' --json
 ```
 
 Configure the model to describe the actual caller. Shell automation can use its own stable descriptive actor model. For a session hosted by Herdr, retain its underlying harness and record `--backend herdr`; do not confuse the backend with the harness/model.
 
 No automatic hooks, lease sweeper, provider routing, merges, or deployments are installed. A heartbeat is not a renewal. See the canonical skill for conflict/expiry handling and the [API docs](api.md) for JSON output and exit codes.
+
+All harnesses inherit the canonical visual delivery rule: feature/design PRs include validated Archify source and HTML; OpenSpec proposals automatically render in Lavish. Upload portable HTML with `agentboard doc push` and link its durable task viewer before completion. See [documentation delivery](documents.md).

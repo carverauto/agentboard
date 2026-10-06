@@ -2,7 +2,7 @@ package(default_visibility = ["//visibility:public"])
 
 genrule(
     name = "formatted_sources",
-    srcs = ["//" + pkg + ":format_srcs" for pkg in ["internal/cli", "internal/client", "internal/config", "cmd/ab", "web"]] + ["//web:release"],
+    srcs = ["//" + pkg + ":format_srcs" for pkg in ["internal/cli", "internal/client", "internal/config", "cmd/agentboard", "web"]] + ["//web:release"],
     tools = ["@go_sdk_linux_amd64//:tools"],
     outs = ["formatted-sources.tar.gz"],
     cmd = """

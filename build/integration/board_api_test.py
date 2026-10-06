@@ -265,7 +265,7 @@ assert result.returncode==0 and json.loads(result.stdout)['tasks']
 sql('DELETE FROM board_schema')
 ab('task','list',code=1)
 assert sql('SELECT count(*) FROM board_schema')=='0'
-sql('INSERT INTO board_schema(id,version) VALUES(1,3)')
+sql('INSERT INTO board_schema(id,version) VALUES(1,4)')
 print('Heartbeats, messages, atomic handoff, commit-only snapshots, listener reconnect and stream cleanup passed')
 
 from datetime import datetime, timedelta, timezone
@@ -382,6 +382,63 @@ sql('ALTER TABLE tasks DISABLE TRIGGER tasks_notify; ALTER TABLE task_events DIS
 ab('task','create','--id','ui-fallback','--title','UI fallback fixture')
 assert board.wait(lambda event:event[3]=='diff' and contains(event[4],'UI fallback fixture'),timeout=5.5)
 sql('ALTER TABLE tasks ENABLE TRIGGER tasks_notify; ALTER TABLE task_events ENABLE TRIGGER task_events_notify')
+# Documentation is an immutable public artifact contract; board reads omit content.
+ab('task','create','--id','documented','--title','Documented feature')
+ab('task','claim','documented')
+from pathlib import Path
+doc_file=Path(os.environ['TEST_TMPDIR'])/'diagram.html'
+doc_html='<!doctype html><html><head><title>Diagram</title></head><body><button id="run">Run</button><script>document.body.dataset.ready="yes"</script></body></html>'
+doc_file.write_text(doc_html)
+doc_args=('doc','push','documented','--file',str(doc_file),'--title','Feature architecture','--pr','https://github.com/carverauto/agentboard/pull/3','--commit','a'*40)
+prior=ab('task','show','documented')
+ab(*doc_args,actor='beta',harness='claude',code=4)
+assert ab('task','show','documented')==prior
+document=ab(*doc_args)
+assert not document['idempotent']
+d=document['document']
+assert d['task_id']=='documented' and d['source_agent_id']=='alpha' and d['harness']=='codex' and d['source_revision']=='a'*40
+assert 'html' not in d and d['viewer_url']==f"/documents/{d['id']}"
+assert ab(*doc_args)['idempotent']
+after=ab('task','show','documented')
+assert after['task']['revision']==prior['task']['revision']+1
+assert len(after['events'])==len(prior['events'])+1 and after['documents']==[d]
+assert ab('doc','list','documented')['documents']==[d]
+assert doc_html not in json.dumps(ab('task','list'))
+base=os.environ['AGENTBOARD_URL']
+with urllib.request.urlopen(base+d['viewer_url']) as r:
+    wrapper=r.read().decode()
+    assert 'sandbox="allow-scripts allow-downloads"' in wrapper and doc_html not in wrapper
+with urllib.request.urlopen(base+f"/documents/{d['id']}/html") as r:
+    assert r.read().decode()==doc_html
+    csp=r.headers['Content-Security-Policy']
+    assert "sandbox allow-scripts allow-downloads" in csp and "allow-same-origin" not in csp and "connect-src 'none'" in csp
+    assert r.headers['X-Content-Type-Options']=='nosniff' and r.headers['Cache-Control']=='no-store'
+with urllib.request.urlopen(base+d['download_url']) as r:
+    assert r.headers['Content-Disposition'].startswith('attachment;') and r.read().decode()==doc_html
+for invalid in [dict(kind='archify',title='Bad',html='plain text'),dict(kind='archify',title='Big',html='<html>'+('x'*(2<<20))+'</html>'),dict(kind='archify',title='Nul',html='<html>\x00</html>')]:
+    assert api('tasks/documented/documents',json.dumps(invalid).encode())[0]==422
+assert ab('task','show','documented')==after
+assert sql("SELECT count(*) FROM task_documents WHERE task_id='documented'")=='1'
+immutable=subprocess.run([os.environ['FIXTURE_PSQL'],'-v','ON_ERROR_STOP=1','-c',f"UPDATE task_documents SET title='tampered' WHERE id={d['id']}"],capture_output=True,text=True)
+assert immutable.returncode!=0 and 'append-only' in immutable.stderr
+ab('task','update','documented','--status','done')
+assert ab(*doc_args)['idempotent']
+ab('doc','push','documented','--file',str(doc_file),'--title','New version',code=4)
+assert ab('doc','list','documented')['documents']==[d]
+ab('task','create','--id','docs-full','--title','Documentation limit fixture')
+ab('task','claim','docs-full')
+sql("INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html,digest) SELECT 'docs-full','alpha','fixture','codex','archify','Fixture '||i,'<html>Fixture</html>',lpad(i::text,64,'0') FROM generate_series(1,100) i")
+full_before=ab('task','show','docs-full')
+ab('doc','push','docs-full','--file',str(doc_file),'--title','Over limit',code=2)
+assert ab('task','show','docs-full')==full_before
+ab('task','create','--id','docs-expired','--title','Expired documentation claim')
+ab('--ttl','100ms','task','claim','docs-expired')
+time.sleep(.15)
+expired_before=ab('task','show','docs-expired')
+ab('doc','push','docs-expired','--file',str(doc_file),'--title','Expired upload',code=4)
+assert ab('task','show','docs-expired')==expired_before
+print('Documentation API/CLI ownership, retry, persistence, task links and sandbox serving passed')
+
 # Throttling happens before a valid task write, with health/browser bypass.
 for _ in range(2001):
     status,_=api('tasks',b'{broken',actor='rate-probe')

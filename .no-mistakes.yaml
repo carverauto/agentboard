@@ -1,6 +1,6 @@
 # no-mistakes gate configuration. Read only from the trusted copy on the
 # default branch. Adapted from ServiceRadar conventions for agentboard's stack
-# (Go CLI `ab`, Phoenix/Elixir dashboard, k8s manifests, Bazel + BuildBuddy).
+# (Go CLI `agentboard`, Phoenix/Elixir dashboard, k8s manifests, Bazel + BuildBuddy).
 commands:
   # Run worktrees start with tracked files only, so the gitignored Bazel rc
   # files that carry the BuildBuddy key and remote-execution settings are

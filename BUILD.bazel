@@ -2,10 +2,10 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files(["go.mod", "go.sum"])
 
-# Go CLI entrypoint (agents call `ab`).
+# Go CLI entrypoint (agents call `agentboard`).
 alias(
-    name = "ab",
-    actual = "//cmd/ab:ab",
+    name = "agentboard",
+    actual = "//cmd/agentboard:agentboard",
 )
 
 filegroup(

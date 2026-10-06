@@ -6,7 +6,7 @@ See [proposal.md](proposal.md) for motivation and scope. The source of product i
 
 Observed implementation is foundation only:
 
-- `cmd/ab/main.go` prints “not implemented” and exits 2; `go.mod` contains no application dependencies.
+- The original `cmd/ab/main.go` stub prints “not implemented” and exits 2; `go.mod` contains no application dependencies.
 - `web/` contains only README and a placeholder filegroup. There is no Phoenix app, migration, API, or design system to preserve.
 - Bazel has Go tooling, a pinned Go SDK, an RBE platform, and remote profiles. `buildbuddy.yaml` builds the stub and filegroups, with no application tests or Phoenix packaging.
 - Kubernetes already specifies dedicated TLS-only CNPG, DB/role/namespace `agentboard`, migration release entrypoint, port 4000, health probe paths, nonroot/read-only containers, and a farm01 HTTPRoute. Images still use `build-required`.
@@ -113,7 +113,7 @@ Phoenix runs one supervised dedicated PostgreSQL listener, broadcasting invalida
 
 CLI watches connect to Phoenix HTTP NDJSON snapshot streams. The server subscribes to PubSub before loading an initial snapshot and processes queued invalidations; only the supervised Phoenix listener uses PostgreSQL LISTEN. Task/message/quota watches emit refreshed complete filtered snapshots, not a promise of replaying every historical notification. In JSON mode each NDJSON line contains `topic`, `kind=snapshot`, `observed_at`, `reason=initial|change|reconnect|fallback`, and the list envelope. Phoenix gathers each logical snapshot from one consistent database read transaction before streaming it, so pagination does not silently omit rows; large fleets may need a future delta protocol.
 
-Reconnect uses bounded backoff and Retry-After on 429, emits connection diagnostics on stderr, reopens the HTTP stream, and labels its first full snapshot reconnect. A five-second fallback checks persisted state if notifications are lost and recomputes lease flags. `ab task list --watch`, `ab msg list --watch`, and `ab quota list --watch` alias topic watches with the same filters. SIGINT/SIGTERM cancels the HTTP stream promptly; server disconnect cleanup releases watch slots and PubSub subscriptions.
+Reconnect uses bounded backoff and Retry-After on 429, emits connection diagnostics on stderr, reopens the HTTP stream, and labels its first full snapshot reconnect. A five-second fallback checks persisted state if notifications are lost and recomputes lease flags. `agentboard task list --watch`, `agentboard msg list --watch`, and `agentboard quota list --watch` alias topic watches with the same filters. SIGINT/SIGTERM cancels the HTTP stream promptly; server disconnect cleanup releases watch slots and PubSub subscriptions.
 
 Durable streaming cursors/outboxes were considered but exceed the fleet's current needs. Snapshot recovery handles missed changes without claiming exactly-once event delivery; historical task events remain independently readable.
 
@@ -197,3 +197,7 @@ Startup reads task state and unread inbox; active work explicitly renews the lea
 ## Open Questions
 
 No product-contract decisions remain open for this draft. Exact toolchain versions, release workflow credentials, worker API addresses, and the external Gateway rollout owner can be filled in during their specific delivery tasks without changing these specs. Those environmental prerequisites must be satisfied before deployment is reported complete.
+
+### Release command name
+
+The captain selected `agentboard` for the Go CLI (2026-10-05), avoiding the existing ApacheBench `ab` command. Source and Bazel entry points are `cmd/agentboard`; platform assets are `agentboard-{linux,darwin}-{amd64,arm64}`. Install the selected remotely built asset at `~/.local/bin/agentboard`. Database notification topic names remain unchanged.

@@ -27,6 +27,6 @@ fi
 echo "OK: tracked tree does not include BuildBuddy credentials"
 echo
 echo "Build/test with remote execution only:"
-echo "  ./scripts/bazel build //cmd/ab:ab"
+echo "  ./scripts/bazel build //cmd/agentboard:agentboard"
 echo "  ./scripts/bazel test //..."
 echo "Never: go build / mix compile / bazel without --config=remote on this laptop."

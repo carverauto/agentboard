@@ -13,13 +13,10 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    runs-on: [self-hosted, Linux, X64, arc-runner-set]
+    runs-on: arc-runner-set
     environment: agentboard-release
     container:
       image: registry.carverauto.dev/serviceradar/buildbuddy-workflow-runner:v1.0.24.5@sha256:7f64c7cdf563c032ed7c5546eb9e4492cd527df64a615b55788fc518aa8752dd
-      credentials:
-        username: ${{ secrets.HARBOR_USERNAME }}
-        password: ${{ secrets.HARBOR_PASSWORD }}
     env:
       BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
       RELEASE_TAG: ${{ inputs.tag }}

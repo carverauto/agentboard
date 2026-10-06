@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Task documentation delivery",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "viewBox": [
+      1360,
+      620
+    ]
+  },
+  "components": [
+    {
+      "id": "author",
+      "type": "frontend",
+      "label": "Coding agent",
+      "sublabel": "Archify HTML + OpenSpec review",
+      "pos": [
+        40,
+        140
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Phoenix API",
+      "sublabel": "Validate \u00b7 attribute \u00b7 bound uploads",
+      "pos": [
+        530,
+        140
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Immutable HTML + task / PR metadata",
+      "pos": [
+        1020,
+        140
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "review",
+      "type": "external",
+      "label": "Lavish review",
+      "sublabel": "Automatic OpenSpec proposal preview",
+      "pos": [
+        40,
+        430
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "viewer",
+      "type": "security",
+      "label": "Sandboxed viewer",
+      "sublabel": "Scripts allowed \u00b7 API access denied",
+      "pos": [
+        530,
+        430
+      ],
+      "size": [
+        300,
+        104
+      ]
+    },
+    {
+      "id": "board",
+      "type": "frontend",
+      "label": "Task detail",
+      "sublabel": "Documentation links + provenance",
+      "pos": [
+        1020,
+        430
+      ],
+      "size": [
+        300,
+        104
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "author",
+      "to": "api",
+      "label": "HTTPS upload"
+    },
+    {
+      "from": "api",
+      "to": "store",
+      "label": "Transactional SQL"
+    },
+    {
+      "from": "author",
+      "to": "review",
+      "label": "Local proposal HTML",
+      "labelDy": 24
+    },
+    {
+      "from": "store",
+      "to": "board",
+      "label": "Metadata only",
+      "labelDy": 24
+    },
+    {
+      "from": "board",
+      "to": "viewer",
+      "label": "Open artifact"
+    },
+    {
+      "from": "api",
+      "to": "viewer",
+      "label": "Bounded HTML",
+      "labelDy": 24
+    }
+  ]
+}

@@ -2,6 +2,11 @@ defmodule AgentboardWeb.APIController do
   use Phoenix.Controller, formats: [:json]
   alias Agentboard.Board
 
+  def documents(conn, %{"id" => id}), do: reply(conn, Agentboard.Documents.list(id))
+
+  def push_document(conn, %{"id" => id}),
+    do: reply(conn, Agentboard.Documents.push(id, actor(conn), conn.body_params))
+
   def quota(conn, _), do: list(conn, "quota")
   def push_quota(conn, _), do: reply(conn, Agentboard.Quota.push(actor(conn), conn.body_params))
   def agents(conn, _), do: list(conn, "agents")

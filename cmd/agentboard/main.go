@@ -1,4 +1,4 @@
-// Command ab is the agentboard CLI.
+// Command agentboard is the agentboard CLI.
 package main
 
 import (

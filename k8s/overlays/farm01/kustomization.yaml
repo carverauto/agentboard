@@ -24,4 +24,4 @@ generatorOptions:
 images:
   - name: registry.carverauto.dev/agentboard/dashboard
     # Built and remotely verified; publication is a separate operator step.
-    digest: sha256:e67b703253ffd06cc66b11951d9905be25528fab179cb932bed11e9e001f8829
+    digest: sha256:213d5a68d1316fae4803fc77a5461024a3541743b0c98e8f630db3307d06f16b
