@@ -131,7 +131,7 @@ CLI:
 agentboard's agent workflows use these utilities by Kun Chen ([@kunchenguid](https://github.com/kunchenguid)). Install the ones you need first:
 
 | Tool | What it does | Install |
-| --- | --- |
+| --- | --- | --- |
 | [quota-axi](https://github.com/kunchenguid/quota-axi) | Reports your LLM subscription quota windows; pipe it into `agentboard quota push` | `npm install -g quota-axi` |
 | [gh-axi](https://github.com/kunchenguid/gh-axi) | Agent-friendly GitHub CLI for issues and PRs | `npx skills add kunchenguid/gh-axi --skill gh-axi -g` |
 | [lavish-axi](https://github.com/kunchenguid/lavish-axi) | Renders and reviews HTML artifacts such as OpenSpec proposals | `npx skills add kunchenguid/lavish-axi --skill lavish` |
