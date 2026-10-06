@@ -29,6 +29,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # ARC's container checkout is owned by the runner, not the job UID.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           test "$RELEASE_TAG" = v0.1.0
           test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
           git merge-base --is-ancestor HEAD origin/main
