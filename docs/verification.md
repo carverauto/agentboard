@@ -2,7 +2,7 @@
 
 ## Responsive board fix (2026-10-06)
 
-The seven fixed 235px columns previously scrolled 1735px inside a 1380px board at a 1440px viewport. Status lanes now wrap into rows with a 235px preferred minimum; narrow screens retain the existing single-column layout. Long task IDs and owner names wrap within their cards. All seven status lanes remain accessible and repository/owner filters are unchanged.
+The seven fixed 235px columns previously scrolled 1735px inside a 1380px board at a 1440px viewport. Status lanes now wrap into rows with a 235px preferred minimum; narrow screens retain the existing single-column layout. Long task IDs, task titles, and owner names wrap within their cards (the title rule landed in-tree after the image pinned below and awaits rebuild/repin/redeploy). All seven status lanes remain accessible and repository/owner filters are unchanged.
 
 Remote [acceptance bf87ac6e](https://carverauto.buildbuddy.io/invocation/bf87ac6e-7d57-471d-979c-351e9982d1fb) passed all 10 targets. Remote [packaging 01e620e0](https://carverauto.buildbuddy.io/invocation/01e620e0-7a1f-4412-9975-0a6c3ff4e955) produced dashboard digest `sha256:80e3947c9f7aab154fb7be940c2f3305ea4398d42142b6a6b0b4bf75759543d2`, published under `responsive-b7a1142966e9`; the v0.1.0 tag and CLI assets were not republished. A temporary project-scoped push credential was deleted after publication.
 
