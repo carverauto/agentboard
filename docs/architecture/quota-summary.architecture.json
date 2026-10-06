@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Quota summary and evidence details",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1140,
+      560
+    ]
+  },
+  "components": [
+    {
+      "id": "collector",
+      "type": "external",
+      "label": "Quota collector",
+      "sublabel": "quota-axi \u2192 agentboard CLI",
+      "pos": [
+        55,
+        100
+      ],
+      "size": [
+        220,
+        78
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Phoenix API",
+      "sublabel": "Rate limits \u00b7 attributed ingestion",
+      "pos": [
+        440,
+        100
+      ],
+      "size": [
+        240,
+        78
+      ]
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Immutable reports and scopes",
+      "pos": [
+        870,
+        100
+      ],
+      "size": [
+        220,
+        78
+      ]
+    },
+    {
+      "id": "summary",
+      "type": "frontend",
+      "label": "Quota summary table",
+      "sublabel": "Latest provider / account evidence",
+      "pos": [
+        440,
+        350
+      ],
+      "size": [
+        240,
+        78
+      ]
+    },
+    {
+      "id": "dialog",
+      "type": "frontend",
+      "label": "Quota details dialog",
+      "sublabel": "Windows \u00b7 bounds \u00b7 provenance",
+      "pos": [
+        55,
+        350
+      ],
+      "size": [
+        220,
+        78
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "ingest",
+      "from": "collector",
+      "to": "api",
+      "label": "HTTPS / JSON"
+    },
+    {
+      "id": "persist",
+      "from": "api",
+      "to": "store",
+      "label": "Pooled SQL"
+    },
+    {
+      "id": "read",
+      "from": "store",
+      "to": "summary",
+      "label": "Latest quota"
+    },
+    {
+      "id": "inspect",
+      "from": "summary",
+      "to": "dialog",
+      "label": "Select row"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Evidence stays intact",
+      "items": [
+        "One row per provider and account",
+        "Scopes keep their own reported bounds"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Details on demand",
+      "items": [
+        "Native dialog contains keyboard focus",
+        "Escape, Close or backdrop returns to row"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Uncertainty stays visible",
+      "items": [
+        "Stale and untrusted capacity is unknown",
+        "Opening a row does not mutate quota"
+      ]
+    }
+  ]
+}

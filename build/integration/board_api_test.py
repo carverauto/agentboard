@@ -325,7 +325,17 @@ assert ab('quota','list','--account','work')['quota'][0]['report_id']==work['rep
 
 from liveview_client import LiveView, contains
 quota_view=LiveView(os.environ['AGENTBOARD_URL'],'/quota?account=work')
-assert contains(quota_view.initial,'Uncertain') and contains(quota_view.initial,'scope exhausted')
+assert contains(quota_view.initial,'Latest quota by provider') and contains(quota_view.initial,'Uncertain scope bounds')
+assert not contains(quota_view.initial,'Quota details') and not contains(quota_view.initial,'Reported remaining')
+quota_view.send(['1','2',quota_view.topic,'event',{'type':'click','event':'open_quota','value':{'id':str(work['id'])}}])
+opened=quota_view.wait(lambda e:e[3]=='phx_reply' and e[1]=='2')
+assert opened and opened[4]['status']=='ok' and contains(opened,'quota-detail-dialog') and contains(opened,'scope exhausted') and contains(opened,'Reported remaining'),opened
+quota_view.send(['1','3',quota_view.topic,'event',{'type':'click','event':'close_quota','value':{}}])
+closed=quota_view.wait(lambda e:e[3]=='phx_reply' and e[1]=='3')
+assert closed and closed[4]['status']=='ok',closed
+quota_view.send(['1','4',quota_view.topic,'event',{'type':'click','event':'open_quota','value':{'id':'999999'}}])
+missing=quota_view.wait(lambda e:e[3]=='phx_reply' and e[1]=='4')
+assert missing and missing[4]['status']=='ok' and not contains(missing,'quota-detail-dialog'),missing
 quota_view.close()
 
 quota_watch=Watch('quota','list','--watch','--account','work')
@@ -369,9 +379,14 @@ reads_before=sql('SELECT json_agg(row_to_json(m) ORDER BY id) FROM messages m')
 board=LiveView(base,'/')
 assert contains(board.initial,'&lt;script&gt;') and not contains(board.initial,injected), 'Task title is not escaped at the UI boundary'
 assert contains(board.initial,'https://github.com/carverauto/agentboard/issues/1')
-for route,text in [('/tasks/escaped-ui','Task history'),('/agents','codex'),('/messages?to=beta&unread=true','Dashboard must leave unread'),('/quota','Recovered quota stream fixture')]:
+for route,text in [('/tasks/escaped-ui','Task history'),('/agents','codex'),('/messages?to=beta&unread=true','Dashboard must leave unread'),('/quota','Unavailable')]:
     view=LiveView(base,route)
     assert contains(view.initial,text),(route,view.initial)
+    if route == '/quota':
+        current=ab('quota','list','--account','work')['quota'][0]
+        view.send(['1','2',view.topic,'event',{'type':'click','event':'open_quota','value':{'id':str(current['id'])}}])
+        detail=view.wait(lambda e:e[3]=='phx_reply' and e[1]=='2')
+        assert detail and contains(detail,'Recovered quota stream fixture'),detail
     view.close()
 assert sql('SELECT count(*) FROM task_events')==counts_before, 'Read-only dashboard mutated history'
 assert sql('SELECT json_agg(row_to_json(m) ORDER BY id) FROM messages m')==reads_before, 'Dashboard acknowledged or modified messages'

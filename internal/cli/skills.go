@@ -42,7 +42,7 @@ func (c *commands) skills() *cobra.Command {
 			if c.json {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(result)
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Installed %d Agentboard skills in %s. Reload skills or start a new session. Hooks and routines are not installed.\n", len(result.Skills), result.Directory)
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Installed %d Agentboard skills in %s. Read the installed workflow in existing sessions; refresh discovery if needed. Hooks and routines are not installed.\n", len(result.Skills), result.Directory)
 			return err
 		},
 	}
@@ -84,7 +84,11 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 		if err != nil {
 			return result, err
 		}
-		body = []byte(strings.ReplaceAll(strings.ReplaceAll(string(body), "../../docs/api.md", "references/api.md"), "../../docs/quota.md", "references/quota.md"))
+		body = []byte(strings.NewReplacer(
+			"../../docs/api.md", "references/api.md",
+			"../../docs/quota.md", "references/quota.md",
+			"../../docs/participation.md", "references/participation.md",
+		).Replace(string(body)))
 		if name == "agentboard-grok" {
 			body = []byte(strings.ReplaceAll(string(body), "../../GROK_BOT.md", "references/GROK_BOT.md"))
 			charter, err := fs.ReadFile(payload.Skills, "GROK_BOT.md")
@@ -101,7 +105,7 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 		}
 		files["skills/"+name+"/SKILL.md"] = body
 		if name == "agentboard" || name == "agentboard-captain" {
-			for _, doc := range []string{"api.md", "quota.md"} {
+			for _, doc := range []string{"api.md", "quota.md", "participation.md"} {
 				body, err := fs.ReadFile(payload.Skills, "docs/"+doc)
 				if err != nil {
 					return result, err

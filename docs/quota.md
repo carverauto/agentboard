@@ -24,3 +24,7 @@ Windows preserve reported IDs, kinds, labels, percentages, parent shares, resets
 Quota watches use `/api/v1/quota/watch` and the same full-snapshot/reconnect/fallback semantics as task/message watches. `agentboard quota list --watch` is an alias. The only quota notification is a compact committed report ID; raw reports and account metadata are not broadcast.
 
 Tests use invented reports constructed from the installed quota-axi public type contract. They do not collect or copy live quota, credentials, account email, or token-bearing provider exports.
+
+## Dashboard summary and details
+
+The quota page shows one summary row per provider/account. Effective remaining capacity and runway stay separate for each reported scope; no combined percentage is invented. Stale, unavailable, conflicting or untrusted evidence keeps capacity unknown. Selecting a row opens its observation snapshot with windows, scope bounds, provenance and provider errors. Close, Escape or the backdrop returns to the row. Opening and closing details never changes quota evidence. Narrow screens keep provider, capacity, evidence and Details visible; the modal retains the full report.

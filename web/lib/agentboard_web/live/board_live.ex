@@ -14,6 +14,7 @@ defmodule AgentboardWeb.BoardLive do
         last_read: nil,
         loaded: false,
         refresh_pending: false,
+        quota_detail: nil,
         statuses: @statuses
       )
 
@@ -33,9 +34,17 @@ defmodule AgentboardWeb.BoardLive do
         ~w(id status owner repo label to task unread provider account cursor message_cursor)
       )
 
-    socket = assign(socket, filters: filters)
+    socket = assign(socket, filters: filters, quota_detail: nil)
     {:noreply, if(connected?(socket), do: reload(socket), else: socket)}
   end
+
+  @impl true
+  def handle_event("open_quota", %{"id" => id}, %{assigns: %{live_action: :quota}} = socket) do
+    observation = Enum.find(socket.assigns.data["quota"] || [], &(to_string(&1["id"]) == id))
+    {:noreply, assign(socket, quota_detail: observation)}
+  end
+
+  def handle_event("close_quota", _, socket), do: {:noreply, assign(socket, quota_detail: nil)}
 
   @impl true
   def handle_info({:board_changed, _topic, _reason}, socket) do
@@ -247,24 +256,95 @@ defmodule AgentboardWeb.BoardLive do
           <% :quota -> %>
             <form action="/quota" method="get" class="filters"><label>Provider <input name="provider" value={@filters["provider"]} placeholder="All providers" /></label><label>Account <input name="account" value={@filters["account"]} placeholder="All accounts" /></label><button type="submit">Filter quota</button><a href="/quota">Clear filters</a></form>
             <p class="context">Reported quota is routing evidence. Unknown, stale, and untrusted readings are not available capacity.</p>
-            <p :if={@data["quota"]==[]} class="empty">No quota observations. Push a quota-axi report with <code>ab quota push</code>.</p>
-            <section :for={observation <- @data["quota"]} class="quota-observation">
-              <h2>{observation["provider"]}<span class="account">{observation["account_key"]}</span><span class={if observation["state"]["status"]=="fresh" and !observation["state"]["stale"] and !observation["observation_stale"],do: "flag healthy",else: "flag warning"}>{observation["state"]["status"]}{if observation["observation_stale"],do: " / observation old",else: ""}</span></h2>
-              <p class="attribution">Collected by {observation["source_agent_id"]} / {observation["model"]} / {observation["harness"]}. Generated {observation["generated_at"]}.</p>
-              <p :if={observation["state"]["error"]} class="notice warning">{observation["state"]["error"]}</p>
-              <p :if={observation["windows"]==[]} class="empty">No reported windows in this observation.</p>
-              <div class="table-scroll"><table><thead><tr><th>Window</th><th>Reported remaining</th><th>Used</th><th>Reset</th></tr></thead><tbody><tr :for={window <- observation["windows"]}><td>{window["label"]}<p>{window["id"]} / {window["kind"]}<span :if={window["share_of"]}> / share of {window["share_of"]}</span><span :if={window["id"] in Map.get(observation["state"],"untrusted_window_ids",[])} class="flag warning">Untrusted</span></p></td><td>{remaining(window)}</td><td>{if is_number(window["percent_used"]),do: "#{window["percent_used"]}%",else: "Unknown"}</td><td>{window["resets_at"] || window["reset_text"] || "Unknown"}</td></tr></tbody></table></div>
-              <div class="scopes"><article :for={scope <- observation["scopes"]} class={if get_in(scope,["runway","status"])=="exhausted_now",do: "scope exhausted",else: "scope"}>
-                <h3>{scope["scope"]}<span class="flag">{if trustworthy?(observation,scope),do: scope["status"],else: "Uncertain"}</span></h3>
-                <dl><dt>Effective remaining</dt><dd>{if trustworthy?(observation,scope) and is_number(scope["effective_percent_remaining"]),do: "#{scope["effective_percent_remaining"]}%",else: "Unknown"}</dd><dt>Runway (reported)</dt><dd>{value(get_in(scope,["runway","status"]))}<span :if={get_in(scope,["runway","usable_runway_seconds"]) != nil}> / {get_in(scope,["runway","usable_runway_seconds"])} seconds</span></dd><dt>Spend priority (advisory)</dt><dd>{value(get_in(scope,["selection","spend_priority"]))}</dd></dl>
-                <p :if={scope["bound_conflict"]} class="notice warning">Producer reports contradictory bounds.</p>
-              </article></div>
-            </section>
+            <p :if={@data["quota"]==[]} class="empty">No quota observations yet. Collect a report with <code>quota-axi --json --max-age 90s | agentboard quota push --json</code>.</p>
+            <div :if={@data["quota"] != []} class="table-scroll quota-summary">
+              <table>
+                <caption>Latest quota by provider and account. Select a row for windows, scope bounds, and collection details.</caption>
+                <thead><tr><th scope="col">Provider / account</th><th scope="col">Effective remaining</th><th scope="col">Runway</th><th scope="col">Evidence</th><th scope="col">Collected</th><th scope="col"><span class="visually-hidden">Details</span></th></tr></thead>
+                <tbody>
+                  <tr :for={observation <- @data["quota"]} phx-click="open_quota" phx-value-id={observation["id"]} class="quota-row">
+                    <td><strong>{observation["provider"]}</strong><p>{observation["account_key"]}</p></td>
+                    <td>
+                      <p :if={observation["scopes"] == []}>Unknown</p>
+                      <div :for={scope <- observation["scopes"]} class="quota-summary-line"><span>{scope["scope"]}</span><strong>{if trustworthy?(observation, scope), do: remaining(%{"percent_remaining" => scope["effective_percent_remaining"]}), else: "Unknown"}</strong></div>
+                    </td>
+                    <td>
+                      <p :if={observation["scopes"] == []}>Unknown</p>
+                      <div :for={scope <- observation["scopes"]} class="quota-summary-line"><span>{scope["scope"]}</span><span class={if trustworthy?(observation,scope) and get_in(scope,["runway","status"]) == "exhausted_now", do: "flag danger", else: "quota-runway"}>{if trustworthy?(observation,scope), do: runway(scope), else: "Unknown"}</span></div>
+                    </td>
+                    <td><span class={if fresh?(observation), do: "flag healthy", else: "flag warning"}>{evidence_status(observation)}</span><p :if={Enum.any?(observation["scopes"], &(!trustworthy?(observation,&1)))}>Uncertain scope bounds</p></td>
+                    <td><time datetime={observation["generated_at"]}>{age(observation["generated_at"])}</time><p>{observation["source_agent_id"]}</p></td>
+                    <td><button id={"quota-details-#{observation["id"]}"} type="button" class="quota-detail-button" aria-haspopup="dialog" aria-label={"View quota details for #{observation["provider"]} / #{observation["account_key"]}"}>Details <span aria-hidden="true">↗</span></button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <.quota_modal :if={@quota_detail} observation={@quota_detail} />
             <a :if={@data["next_cursor"]} href={page_link(:quota,@filters,@data["next_cursor"])}>Next quota accounts</a>
         <% end %>
       <% end %>
     </main>
     """
+  end
+
+  attr(:observation, :map, required: true)
+
+  defp quota_modal(assigns) do
+    ~H"""
+    <dialog id="quota-detail-dialog" phx-hook="QuotaDialog" class="quota-dialog" aria-labelledby="quota-detail-title" data-return-focus={"quota-details-#{@observation["id"]}"}>
+      <header class="quota-dialog-header"><h2 id="quota-detail-title">Quota details</h2><button type="button" phx-click="close_quota" aria-label="Close quota details" autofocus>Close</button></header>
+      <section class="quota-observation">
+              <h2>{@observation["provider"]}<span class="account">{@observation["account_key"]}</span><span class={if @observation["state"]["status"]=="fresh" and !@observation["state"]["stale"] and !@observation["observation_stale"],do: "flag healthy",else: "flag warning"}>{@observation["state"]["status"]}{if @observation["observation_stale"],do: " / observation old",else: ""}</span></h2>
+              <p class="attribution">Collected by {@observation["source_agent_id"]} / {@observation["model"]} / {@observation["harness"]}. Generated {@observation["generated_at"]}.</p>
+              <p :if={@observation["state"]["error"]} class="notice warning">{@observation["state"]["error"]}</p>
+              <p :if={@observation["windows"]==[]} class="empty">No reported windows in this observation.</p>
+              <div class="table-scroll"><table><thead><tr><th>Window</th><th>Reported remaining</th><th>Used</th><th>Reset</th></tr></thead><tbody><tr :for={window <- @observation["windows"]}><td>{window["label"]}<p>{window["id"]} / {window["kind"]}<span :if={window["share_of"]}> / share of {window["share_of"]}</span><span :if={window["id"] in Map.get(@observation["state"],"untrusted_window_ids",[])} class="flag warning">Untrusted</span></p></td><td>{remaining(window)}</td><td>{if is_number(window["percent_used"]),do: "#{window["percent_used"]}%",else: "Unknown"}</td><td>{window["resets_at"] || window["reset_text"] || "Unknown"}</td></tr></tbody></table></div>
+              <div class="scopes"><article :for={scope <- @observation["scopes"]} class={if get_in(scope,["runway","status"])=="exhausted_now",do: "scope exhausted",else: "scope"}>
+                <h3>{scope["scope"]}<span class="flag">{if trustworthy?(@observation,scope),do: scope["status"],else: "Uncertain"}</span></h3>
+                <dl><dt>Effective remaining</dt><dd>{if trustworthy?(@observation,scope) and is_number(scope["effective_percent_remaining"]),do: "#{scope["effective_percent_remaining"]}%",else: "Unknown"}</dd><dt>Runway (reported)</dt><dd>{value(get_in(scope,["runway","status"]))}<span :if={get_in(scope,["runway","usable_runway_seconds"]) != nil}> / {get_in(scope,["runway","usable_runway_seconds"])} seconds</span></dd><dt>Spend priority (advisory)</dt><dd>{value(get_in(scope,["selection","spend_priority"]))}</dd></dl>
+                <p :if={scope["bound_conflict"]} class="notice warning">Producer reports contradictory bounds.</p>
+              </article></div>
+
+      </section>
+    </dialog>
+    """
+  end
+
+  defp fresh?(observation),
+    do:
+      observation["state"]["status"] == "fresh" and observation["state"]["stale"] != true and
+        observation["observation_stale"] != true
+
+  defp evidence_status(observation) do
+    cond do
+      observation["observation_stale"] == true ->
+        "Observation old"
+
+      observation["state"]["stale"] == true and observation["state"]["status"] == "fresh" ->
+        "Stale"
+
+      true ->
+        label(observation["state"]["status"])
+    end
+  end
+
+  defp runway(scope) do
+    case get_in(scope, ["runway", "status"]) do
+      "exhausted_now" ->
+        "Exhausted now"
+
+      "through_reset" ->
+        "Through reset"
+
+      "projected_exhaustion" ->
+        case get_in(scope, ["runway", "usable_runway_seconds"]) do
+          n when is_number(n) -> "~#{round(n / 60)} min"
+          _ -> "Projected exhaustion"
+        end
+
+      _ ->
+        "Unknown"
+    end
   end
 
   attr(:message, :map, required: true)
