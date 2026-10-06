@@ -1,0 +1,89 @@
+# Design
+
+## Context
+
+See proposal.md for the problem and scope. The live v0.1.0 application has no Ash dependencies. `Board`, `Documents` and `Quota` validate input and issue pooled Ecto SQL; database functions own claims, events, handoffs, quota ingest and document inserts. `BoardLive`, API/watch controllers and the document controller call those contexts. SQL triggers protect append-only history and emit compact PostgreSQL notifications. A task stores one `pr_url`; there is no CI resource, provider client or background job runtime. Current terminal tasks are immutable.
+
+`buildbuddy.yaml` declares PR/push acceptance and packaging, while the current GitHub checks observed during rollout reported only GitGuardian. BuildBuddy remote acceptance was separately verified. A green GitHub rollup alone therefore cannot be assumed to prove Agentboard acceptance. The repo has two completed, unarchived OpenSpec changes and no main spec inventory. Preserve their existing contracts; this proposal introduces four new capability contracts.
+
+## Goals / Non-Goals
+
+**Goals:** Share real Ash operations across all application entry points, retain existing data/API semantics, monitor submitted PRs independently of agent attention, explain CI failures and make unfinished delivery visible.
+
+**Non-Goals:** Launching or forcibly waking coding agents, automatic fixes/merges/check reruns, external GitHub comments, automatic lease renewal/reclaim, destructive event replay, NATS or object storage. The UI remains read-only. Provider observations are sampled evidence, not a distributed transaction with GitHub.
+
+## Decisions
+
+### 1. Ash is the application boundary
+
+Use AshPostgres resources over the existing tables and project-owned Ash domain code interfaces. Proposed domains are Board (Agent, Task, TaskEvent, Message), Evidence (Document, QuotaReport/Observation/Window/Scope) and Delivery (PullRequest, CISnapshot, CICheck, FailureEvidence, FollowUp and RepositoryCIPolicy). API controllers remain thin v1 transport adapters, preserving response fields and errors; LiveView calls the same domain read actions using AshPhoenix where useful. Do not replace the API with an incompatible generated JSON:API interface. Document metadata reads explicitly select fields excluding HTML; content is fetched only by the existing sandbox viewer.
+
+Move validation/state transitions into resource actions, changes and policies. Atomic updates retain compare-and-set filters on the caller changeset; implement atomic callbacks instead of turning off `require_atomic?` to hide warnings. Complex multi-record operations acquire scoped locks in a declared order and invoke related Ash actions inside one transaction. During conversion, an existing SQL function can be a narrowly documented manual-action bridge, but final acceptance requires its state changes to participate in Ash attribution/version/event hooks. A cosmetic resource wrapper around all existing SQL is insufficient. Keep migrations and database constraints as defense in depth; retire old mutation entry points only after compatible end-to-end checks pass.
+
+Alternative: add only a raw Oban worker beside Ecto. That would leave the requested application-wide Ash adoption unfinished.
+
+### 2. Distinguish versions, action events and the public timeline
+
+AshPaperTrail supplies per-resource versions for meaningful mutable state (Task, Agent registration, Message acknowledgement, monitored PR/follow-up). Use an atomic-compatible tracking mode such as `changes_only`, action names and actor metadata; exclude noisy timestamps/heartbeat refreshes and secrets. Immutable documents and raw quota evidence remain authoritative original rows, not repeated full HTML/report audit copies.
+
+AshEvents supplies a centralized append-only action audit for meaningful domain mutations. Use action versions and explicit system provenance. Maintain the existing `task_events` timeline projection once per successful operation, in the same transaction, so CLI task history remains compatible. Do not enable public replay actions. Preserve old history as legacy provenance, not fabricated Ash events/versions; establish a documented migration cutoff.
+
+AshEvents' documented non-tenant default advisory key serializes event-tracked writes globally. Provide a custom key generator scoped to the affected task/PR aggregate (stable 64-bit digest or namespaced two-integer key), with ordered acquisition for multi-aggregate actions. Ensure actor attribution does not turn a shared system actor row into a write lock on every mutation. Hash collisions can serialize two keys; they must never weaken integrity. Test independent writes with a deliberately held unrelated lock. See [AshEvents locking and audit distinctions](https://github.com/ash-project/ash_events#readme) and [PaperTrail DSL](https://ash-paper-trail.hexdocs.pm/dsl-ashpapertrail-resource.html).
+
+### 3. Durable bounded PR monitoring through AshOban
+
+Run supervised Oban/AshOban in the existing release/namespace with explicit scheduler and worker module names. No separate singleton query service or broker. A one-minute scheduled discovery action keyset-scans all task PR links, including done tasks, normalizes GitHub owner/repo/number and upserts a unique monitored PR. Linking a PR also schedules an immediate observation transactionally. Reconciliation recovers missed scheduling. Each due PR receives a retry-safe monitoring action; start with per-pod queue concurrency four and configurable repository/provider budgets. Oban basic queue concurrency is per node, so deployment replica changes require recomputing the aggregate budget.
+
+Do not hold a database transaction/row/advisory lock while calling providers. The AshOban monitor trigger uses `lock_for_update? false` and a nontransactional orchestration action. It first reserves an observation generation/short expiry in a scoped transaction, fetches outside transactions, then commits through a transactional Ash action only if its generation and observed revision are still applicable. Expired reservations are retryable; stale replies are retained as superseded history or ignored, never overwrite newer evidence. Database uniqueness/compare-and-set is the correctness boundary, not Oban uniqueness alone. Stable JSON job args contain IDs, not credentials, structs or complete logs. Durable follow-up updates and CI event/notification writes share the commit transaction. [AshOban DSL](https://ash-oban.hexdocs.pm/dsl-ashoban.html) documents trigger locking, cron, pagination and module names.
+
+### 4. CI truth is tied to revision, attempt and repository policy
+
+Persist canonical PR identity, lifecycle, observed head/base, provider-tested commit, policy version, current projection, successful observation time, next due time and provider errors. Append immutable snapshots/check attempts/failure excerpts. One row per PR joins every linked task and a separate responsible agent recorded at link/submission time; do not rely only on a mutable current assignee.
+
+GitHub reads PR metadata, all pages of check runs and commit statuses, applicable required checks/rules where accessible, and failed Actions run/job details. Rank latest attempts by provider/run identity and timestamps; superseded failures do not poison a successful retry. Include checks on a verified PR merge/test ref when workflows use it, and retain the exact head/base association rather than equating its SHA to the branch head. Re-read PR revision after collection to reject pushes/base changes during a poll.
+
+RepositoryCIPolicy specifies expected build/test checks and accepted terminal conclusions. This is required where branch rules are inaccessible or BuildBuddy results are not published to GitHub. Never infer an empty expected set means healthy. GitGuardian-only success cannot satisfy an expected acceptance/test job. For Agentboard, explicitly verify/configure publication of `AgentboardAcceptance` or a correlated completed BuildBuddy CI invocation; do not assume the workflow declaration means it already reports a check.
+
+Aggregate states: **failing** if any applicable latest check has failure/error/timed_out/cancelled/action_required; **pending** while expected checks are queued/in_progress; **unknown** for missing expected checks, unknown policy, partial pagination or inaccessible evidence; **passing** only for complete current-revision success under policy. Neutral/skipped are shown separately and count only when the configured policy explicitly accepts them. Freshness overlays state after five minutes without a successful poll, preserving the last-known state. Keep PR open/merged/closed state separate from CI. Terminal PRs get a final reconciliation; unresolved failure/pending/unknown stays monitored until resolved or explicitly dispositioned on the board, with slower configured polling, rather than silently disappearing.
+
+### 5. Fetch GitHub and BuildBuddy failure evidence safely
+
+A project-owned provider client calls configured HTTPS hosts with verified TLS, bounded timeouts, pagination/response caps, Retry-After and GitHub reset headers. Provider 401/403/429/outage updates monitor health and backs off; no busy loop and no fake green. GitHub log retrieval is read-only and optional; use a narrow authorized download flow for provider-owned signed redirects, without forwarding Authorization cross-origin. Unknown destinations are rejected.
+
+For BuildBuddy use its configured deployment API (`https://carverauto.buildbuddy.io/api/v1/…`), header `x-buildbuddy-api-key`, GetInvocation by invocation ID or commit, and GetLog's pagination. Match returned repo URL, commit/tested-ref association, CI role and invocation completion before attaching. A local/manual invocation with the same SHA does not automatically satisfy CI policy. Child invocations and failed-target/test artifacts can enrich diagnostics through supported API methods; no unbounded bytestream download. Begin with bounded invocation log excerpts and original result links. Missing/not-enabled API support is a visible evidence limitation, not a reason to erase GitHub failure. See [BuildBuddy API](https://www.buildbuddy.io/docs/enterprise-api/).
+
+Store names/conclusions/times/links plus at most 64 KiB of normalized UTF-8 plain text per failure and a 256 KiB total excerpt budget per PR snapshot; cap fetches (1 MiB per response, ten log pages, ten seconds per request) and identify truncation. Strip ANSI, redact configured credential values and common authorization/token patterns, never log request headers or raw provider response bodies on error. Logs may contain confidential data even after redaction; expose only on the existing private-network board and document the access assumption. Do not pass provider logs to an LLM in this phase.
+
+Namespace Secret references supply GITHUB_TOKEN (initial scoped read credential, replaceable with an installation token) and BUILDBUDDY_API_KEY. Set permissions for linked repositories' PRs/checks/statuses/Actions and required-check metadata where available. Missing scopes make affected PRs unknown. BuildBuddy API access must be verified against the actual deployment; no assumption that an RBE-capable key can read every invocation. Runtime manifests contain references only. CLI receives no provider/database credentials.
+
+### 6. Keep a remediation obligation after PR submission
+
+Each newly failing PR creates or updates one active CI follow-up board task, assigned to its recorded submitting agent if registered, otherwise visible unassigned in the captain queue. An internal system actor records monitor provenance; assignment does not claim/renew a lease. Unique active PR linkage and a failure episode/revision identity prevent duplicate tasks/messages on repeated polls. A later failure after a resolved episode creates a new episode without altering terminal history. No GitHub comments, agent process dispatch or automatic expired-claim sweep.
+
+For active source tasks, failure is additionally visible as delivery state, without changing their owner/status behind their back. For already-done source tasks, retain the original immutable record and link the follow-up through Delivery resources. Passing CI resolves the machine failure condition; the assigned follow-up task remains for explicit owner acknowledgement/completion, avoiding silent lifecycle bypass.
+
+Add a completion guard for new transitions of linked-PR tasks: a fresh passing snapshot (at most two minutes old), applicable policy and matching head/base are required. Before the short completion transaction, fetch PR metadata through the provider boundary; compare it with the snapshot in the transaction and record the verified revision. This cannot fence a subsequent remote push; continued monitoring and a new follow-up handle that case. If provider verification is unavailable, return a documented conflict and keep the lease/state; do not allow a generic force-green flag. Cancellation and explicit blocked/handoff actions remain available. API v1 transports remain compatible; the new conflict is an intentional behavior tightening documented in skills/API notes.
+
+### 7. Read-only PR table and delivery skills
+
+Add `/prs` with paginated Ash reads, columns Task(s), PR/repository, Responsible agent, CI, Checks, Follow-up and Updated; include head SHA and provider links in row/detail. Default ordering surfaces failures then pending/unknown/stale; filtering supports state/repo/agent. A `/prs/:id` detail shows current attempts, escaped diagnostic excerpts, older snapshot history and source task/document links. Text labels complement colors. CI unavailable and evidence unavailable are separate. Existing PubSub/NOTIFY and durable reread fallback refresh views; add a compact CI topic rather than shipping logs through notifications. Provide API v1 list/detail and CLI `pr list/show/watch` with existing rate-limit/reconnect semantics.
+
+Canonical and captain skills require waiting for all applicable checks, reading GitHub/BuildBuddy evidence, fixing and rechecking latest commits, and recording a blocker/handoff if work cannot continue. A PR link alone is not delivery. Keep the already implemented Archify and automatic Lavish documentation requirements; this proposal itself includes both artifacts linked from its board task.
+
+## Risks / Trade-offs
+
+- [Framework migration changes action/audit behavior] → Convert resources in bounded stages, keep v1 compatibility fixtures and require real remote API/CLI/LiveView acceptance before rollout.
+- [Default extension locks or long job transactions reduce concurrency] → Scoped key generator, provider I/O outside transactions, deterministic lock order and contention/outage checks.
+- [Polling has latency and consumes provider budget] → One-minute default, conditional requests where supported, bounded due-record batches, provider-aware backoff and visible freshness. Webhooks can be a later optimization.
+- [Incomplete required-check knowledge or BuildBuddy entitlement] → Explicit policy and unknown state; verify actual API access/publication during rollout.
+- [External logs can contain secrets or hostile text] → Bound/redact, escape, no raw HTML/LLM processing; original provider links remain available.
+- [Agents do not actually read skills/board] → Completion gate and durable follow-up expose the gap. This phase cannot guarantee an idle external agent will wake up.
+
+## Migration Plan
+
+1. Resolve/pin Ash/Oban/client dependencies and hermetic Bazel closure remotely; validate extension atomic/audit compatibility with the existing Elixir/PostgreSQL versions.
+2. Add resource mappings and additive audit/Delivery/Oban migrations. Preserve source IDs, constraints and immutable historical rows; snapshot existing schema for generator baselines so migration generation cannot recreate/drop tables.
+3. Route existing API/LiveView operations through tested Ash domains; preserve notification contracts and document cutoff for new audit history. Do not ship duplicate old/new mutation entry points as separate authorities.
+4. Add provider policies/Secrets and disabled-by-default monitoring configuration. Deploy observation-only mode first to validate all linked PRs, expected checks, BuildBuddy correlations and budget behavior.
+5. Enable deduplicated follow-ups and the completion guard after observation-only evidence passes. Publish a new immutable compatible image/CLI release; do not replace v0.1.0 assets.
+6. Roll back only to a schema-compatible image with jobs paused through configuration; retain additive data. Once CI obligations exist, do not return to an image that silently bypasses them without an explicit operator decision. No destructive down migration or automatic audit replay.

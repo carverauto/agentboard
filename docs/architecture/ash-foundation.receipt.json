@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/mfreeman/src/agentboard/docs/architecture/ash-foundation.architecture.json",
+  "output": "/Users/mfreeman/src/agentboard/docs/architecture/ash-foundation.html",
+  "specification": {
+    "sha256": "1305a5a0c4b92116ca0c1fb2fc8f6152f21b2a2735c574073fb2b591f017361d",
+    "bytes": 3454
+  },
+  "artifact": {
+    "sha256": "21fdbfd1880eb77191ede080b54e3c778589bb8e50a790bc6809ce705ca2a7e6",
+    "bytes": 711964
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

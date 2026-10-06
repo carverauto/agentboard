@@ -1,0 +1,50 @@
+{
+  "received_at": "2026-10-06T04:48:13.802769+00:00",
+  "proposal": "adopt-ash-and-monitor-pr-ci",
+  "lavish_session": "http://127.0.0.1:4387/session/1349f910681e9c89",
+  "feedback": "approved",
+  "session_ended": true,
+  "ended_by": "user",
+  "approved_policy": "Require verified current-revision green CI before done",
+  "planning_only": true,
+  "artifact": {
+    "path": "docs/architecture/ash-pr-ci-proposal.html",
+    "sha256": "2af7627dd6fe5792f4a6e3b563a8f4469f1f32af7a98e2d2244d2349670842a0",
+    "bytes": 176326
+  },
+  "export": {
+    "unresolved_local_assets": 0,
+    "remote_dependencies": 0
+  },
+  "browser": {
+    "desktop": {
+      "width": 1440,
+      "height": 900,
+      "scrollWidth": 1440,
+      "images_loaded": true,
+      "review_handler": "function"
+    },
+    "narrow": {
+      "width": 500,
+      "height": 900,
+      "scrollWidth": 500,
+      "filtered_visible_states": [
+        "failing"
+      ]
+    },
+    "themes": [
+      "light",
+      "dark"
+    ]
+  },
+  "perceptual_review": {
+    "reviewer": "image-capable agent",
+    "status": "passed",
+    "notes": "Desktop light/dark and 500px filtered screenshots inspected; CI labels/table text readable, narrow rows contained without horizontal scrolling. Synthetic data is clearly labeled."
+  },
+  "screenshots": [
+    "ash-pr-ci-proposal.desktop-light.png",
+    "ash-pr-ci-proposal.desktop-dark.png",
+    "ash-pr-ci-proposal.mobile-filter.png"
+  ]
+}
