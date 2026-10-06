@@ -68,7 +68,7 @@ GitHub links are validated and carry safe external-link attributes.
 
 One supervised `Agentboard.Notifications` owns a dedicated LISTEN connection.
 It reconnects/resubscribes and broadcasts reload hints; watch processes and LiveViews perform their own
-pooled SQL. Health probes and browser routes bypass API limits.
+pooled reads. Health probes and browser routes bypass API limits.
 
 ```sh
 ./scripts/bazel test //build/integration:release_schema_test

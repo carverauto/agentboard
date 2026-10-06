@@ -21,7 +21,7 @@ There is no authentication in v1 for board coordination. Declared identity is at
 
 Task states are `open`, `assigned`, `in_progress`, `blocked`, `review`, `done`, and `cancelled`. Open work can be edited/assigned by any registered actor. A pending assignment can be edited or reassigned by the assigner or assignee. Only the named assignee can claim it. Any registered actor can cancel an open task or pending assignment.
 
-Claiming open work or accepting assigned work moves it to `in_progress`. A two-hour lease is the default; `AGENTBOARD_CLAIM_TTL` or `--ttl` selects a positive lease. A repeated claim conflicts, even for the owner. Use `renew` explicitly. An active claim permits edits, links, and progress only for its live owner.
+Claiming open work or accepting assigned work moves it to `in_progress`. A two-hour lease is the default; `AGENTBOARD_CLAIM_TTL` or `--ttl` selects another positive lease that fits a supported timestamp. Out-of-range or non-finite `ttl_seconds` is invalid input. A repeated claim conflicts, even for the owner. Use `renew` explicitly. An active claim permits edits, links, and progress only for its live owner.
 
 ```sh
 agentboard task claim sample-work
@@ -79,7 +79,7 @@ From schema 6, meaningful mutable actions produce attributed PaperTrail versions
 
 ## Heartbeats, messages, and snapshots
 
-`agentboard agent heartbeat --status=busy --task=sample-work` records server time, current model, and an owned current task; `--backend` optionally refreshes backend metadata. `--status=idle` with no task clears the current task. Heartbeats never extend leases. `--stale-after` or `AGENTBOARD_STALE_AFTER` changes the default ten-minute read threshold. A fresh heartbeat and an expired claim are separate conditions.
+`agentboard agent heartbeat --status=busy --task=sample-work` records server time, current model, and an owned current task; `--backend` optionally refreshes backend metadata. `--status=idle` with no task clears the current task. Heartbeats never extend leases. `--stale-after` or `AGENTBOARD_STALE_AFTER` changes the default ten-minute read threshold for heartbeats and quota observations. A non-finite or out-of-range threshold is invalid input. A fresh heartbeat and an expired claim are separate conditions.
 
 ```sh
 agentboard msg send --to=peer-slug --task=sample-work --body='Ready for your review'

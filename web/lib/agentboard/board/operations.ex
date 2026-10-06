@@ -379,7 +379,8 @@ defmodule Agentboard.Board.Operations do
               :foreign_key_violation,
               :invalid_text_representation,
               :numeric_value_out_of_range
-            ], do: {:error, "invalid_input", "Invalid fields or referenced identity"}
+            ],
+       do: {:error, "invalid_input", "Invalid fields or referenced identity"}
 
   defp normalize(_), do: nil
 
