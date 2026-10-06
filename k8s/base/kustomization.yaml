@@ -7,3 +7,4 @@ resources:
   - cnpg.yaml
   - dashboard.yaml
   - migration.yaml
+  - mattermost.yaml
