@@ -1,0 +1,210 @@
+# Mattermost Team Edition: chat surface for the captain and the agent fleet.
+# Shares the agentboard-db CNPG Cluster through its own `mattermost` role
+# (cnpg.yaml spec.managed.roles) and database (Database CR below). The role
+# password lives in the out-of-band `mattermost-db-credentials` Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mattermost-config
+  labels:
+    app.kubernetes.io/name: mattermost
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+data:
+  # Hostname and Site URL are set by the overlay.
+  MM_DB_HOST: agentboard-db-rw
+  MM_SERVICESETTINGS_SITEURL: ""
+  MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
+  MM_SQLSETTINGS_DRIVERNAME: postgres
+  # agentboard-db allows 100 connections; the role is capped at 40.
+  MM_SQLSETTINGS_MAXOPENCONNS: "20"
+  MM_SQLSETTINGS_MAXIDLECONNS: "10"
+  MM_FILESETTINGS_DRIVERNAME: local
+  MM_FILESETTINGS_DIRECTORY: /mattermost/data/
+  MM_LOGSETTINGS_CONSOLELEVEL: INFO
+  # mmctl --local socket (image default ENABLELOCALMODE=true) on writable /var/tmp.
+  MM_SERVICESETTINGS_LOCALMODESOCKETLOCATION: /var/tmp/mattermost_local.socket
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: mattermost
+  labels:
+    app.kubernetes.io/name: mattermost
+    app.kubernetes.io/component: database
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  name: mattermost
+  owner: mattermost
+  ensure: present
+  # Deleting this CR must never drop chat history.
+  databaseReclaimPolicy: retain
+  cluster:
+    name: agentboard-db
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mattermost-data
+  labels:
+    app.kubernetes.io/name: mattermost
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  # Storage class is set by the overlay.
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mattermost
+  labels:
+    app.kubernetes.io/name: mattermost
+    app.kubernetes.io/component: server
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  # Team Edition is single-node; RWO volume means no overlapping pods.
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mattermost
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mattermost
+        app.kubernetes.io/component: server
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's `mattermost` user.
+        runAsUser: 2000
+        runAsGroup: 2000
+        fsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mattermost
+          # Team Edition 11.11.1 (multi-arch index digest).
+          image: mattermost/mattermost-team-edition:11.11.1@sha256:6ad5912b45875ef2fafc41886b5a70a3ec1b6c17ec706e0492566e8a2fd8aa85
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: mattermost-config
+          env:
+            - name: MM_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mattermost-db-credentials
+                  key: username
+            - name: MM_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mattermost-db-credentials
+                  key: password
+            # The password is URL-safe (hex); TLS verifies the CNPG CA and hostname.
+            - name: MM_SQLSETTINGS_DATASOURCE
+              value: postgres://$(MM_DB_USER):$(MM_DB_PASSWORD)@$(MM_DB_HOST):5432/mattermost?sslmode=verify-full&sslrootcert=/etc/mattermost/db-ca/ca.crt&connect_timeout=10
+          ports:
+            - name: http
+              containerPort: 8065
+          startupProbe:
+            # First start runs schema migrations.
+            httpGet:
+              path: /api/v4/system/ping
+              port: http
+            periodSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            httpGet:
+              path: /api/v4/system/ping
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/v4/system/ping
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          securityContext:
+            # Mattermost rewrites /mattermost/client/root.html for the Site URL
+            # subpath at startup, so the image root stays writable (non-root).
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /mattermost/data
+              subPath: data
+            - name: data
+              mountPath: /mattermost/config
+              subPath: config
+            - name: data
+              mountPath: /mattermost/plugins
+              subPath: plugins
+            - name: data
+              mountPath: /mattermost/client/plugins
+              subPath: client-plugins
+            - name: logs
+              mountPath: /mattermost/logs
+            - name: tmp
+              mountPath: /tmp
+            - name: var-tmp
+              mountPath: /var/tmp
+            - name: db-ca
+              mountPath: /etc/mattermost/db-ca
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mattermost-data
+        - name: logs
+          emptyDir:
+            sizeLimit: 512Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: var-tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: db-ca
+          secret:
+            secretName: agentboard-db-ca
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mattermost
+  labels:
+    app.kubernetes.io/name: mattermost
+    app.kubernetes.io/component: server
+spec:
+  selector:
+    app.kubernetes.io/name: mattermost
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 8065
+      targetPort: http

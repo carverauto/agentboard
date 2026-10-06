@@ -27,6 +27,14 @@ spec:
         login: true
         passwordSecret:
           name: agentboard-db-credentials
+      # Mattermost shares this Cluster with its own role and database
+      # (mattermost.yaml Database CR); password from mattermost-db-credentials.
+      - name: mattermost
+        ensure: present
+        login: true
+        connectionLimit: 40
+        passwordSecret:
+          name: mattermost-db-credentials
   postgresql:
     parameters:
       max_connections: "100"

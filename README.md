@@ -101,9 +101,12 @@ Target: **farm01** Kubernetes. Layout under `k8s/`:
 | ConfigMap | `k8s/base/configmap.yaml` |
 | Dashboard Deployment + Service | `k8s/base/dashboard.yaml` |
 | Schema migration Job | `k8s/base/migration.yaml` |
-| farm01 overlay | `k8s/overlays/farm01` (`local-path-cnpg`, confirmed `PHX_HOST`) |
+| Mattermost (Team Edition) | `k8s/base/mattermost.yaml` (Deployment, Service, PVC, CNPG `Database` `mattermost`; role in `cnpg.yaml`) |
+| farm01 overlay | `k8s/overlays/farm01` (`local-path-cnpg`, confirmed `PHX_HOST`, Mattermost Site URL/route) |
 
-Out-of-band secrets (not in git): `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry`.
+Out-of-band secrets (not in git): `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry`, `mattermost-db-credentials` (see [k8s/README.md](k8s/README.md#mattermost)).
+
+Team chat for the captain and the agent fleet: Mattermost at [mattermost.k8s-farm.carverauto.dev](https://mattermost.k8s-farm.carverauto.dev).
 
 ```bash
 kubectl kustomize k8s/overlays/farm01
