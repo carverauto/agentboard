@@ -32,19 +32,58 @@ concurrency:
   group: docker-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  compose-smoke:
-    # GitHub-hosted runner: pull requests from forks must not reach
-    # self-hosted runners. Builds the dashboard and CLI images and runs the
-    # Compose stack end to end (including the optional Mattermost profile).
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
+  lint:
+    # Self-hosted ARC scale set (kubernetes mode, same as release.yml).
+    runs-on: arc-runner-set
+    timeout-minutes: 15
+    env:
+      SHELLCHECK_VERSION: v0.11.0
+      SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+      COMPOSE_VERSION: v5.6.0
+      COMPOSE_SHA256: 40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Show runner
+        run: echo "runner=${RUNNER_NAME:-unknown}"
+      # The ARC runner image ships the docker CLI without the Compose plugin
+      # and has no shellcheck; install pinned, checksum-verified binaries.
+      - name: Install shellcheck
+        run: |
+          set -euo pipefail
+          archive="shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/${archive}" -o "${RUNNER_TEMP}/${archive}"
+          echo "${SHELLCHECK_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum -c -
+          tar -xJf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}"
+          mkdir -p "${HOME}/.local/bin"
+          install -m 0755 "${RUNNER_TEMP}/shellcheck-${SHELLCHECK_VERSION}/shellcheck" "${HOME}/.local/bin/shellcheck"
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+          "${HOME}/.local/bin/shellcheck" --version
+      - name: Install Docker Compose plugin
+        run: |
+          set -euo pipefail
+          plugin="${HOME}/.docker/cli-plugins/docker-compose"
+          mkdir -p "$(dirname "${plugin}")"
+          curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-x86_64" -o "${plugin}"
+          echo "${COMPOSE_SHA256}  ${plugin}" | sha256sum -c -
+          chmod 0755 "${plugin}"
+          docker compose version
       - name: Lint shell scripts
         run: shellcheck scripts/compose-smoke scripts/quota-push.sh deploy/compose/gen-db-certs.sh deploy/compose/initdb/*.sh
       - name: Validate Compose file
         run: |
           set -euo pipefail
           POSTGRES_PASSWORD=ci SECRET_KEY_BASE=ci docker compose --profile cli --profile chat config --quiet
+
+  compose-smoke:
+    # Builds the dashboard and CLI images and runs the Compose stack end to
+    # end (including the optional Mattermost profile). This needs a Docker
+    # daemon, which arc-runner-set (kubernetes mode, no docker.sock) does not
+    # provide, so it stays on a GitHub-hosted runner until a dind-mode scale
+    # set exists.
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Build images and run the Compose smoke test
         run: ./scripts/compose-smoke --chat
