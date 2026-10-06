@@ -1,5 +1,25 @@
 # Verification evidence
 
+## Horizontal Kanban correction (2026-10-06)
+
+The captain rejected the initial wrapped layout below. The final board keeps all seven lanes in one horizontal row. Above 1100px, fluid tracks, tighter gaps and card padding fit laptop/desktop widths without board scrolling. At smaller widths the board itself scrolls horizontally with readable 175px lanes; the page stays contained. Task IDs, owner names and long task titles wrap inside cards. No lane is hidden and no typography was reduced.
+
+Remote [image startup 6a3e70f4](https://carverauto.buildbuddy.io/invocation/6a3e70f4-234e-451a-bad6-5ab351590e1b) passed; [packaging 282077f4](https://carverauto.buildbuddy.io/invocation/282077f4-f817-4d36-a885-aea1fe9c0138) produced `sha256:5aa2bcc10cccb6adaa3007887150745012e95aec9a9e997b4f294b17568e853c`, published as `kanban-1d0bc8a4064b`. Server dry-run and deployment-only apply succeeded, rollout completed, and one ready farm01 pod runs that exact digest. No migration was rerun and no v0.1.0 release asset was overwritten.
+
+Chrome inspected the live served CSS without overrides at 11 widths from 320 to 1920px, including both sides of the 1100px breakpoint. All seven lanes share one row; page width equals viewport width throughout, and desktop board widths equal their scroll widths. At 320px, a temporary browser-only 200-character title/ID/owner probe remained contained. [Final geometry and image evidence](verification/farm01-kanban-board.json), [desktop screenshot](verification/farm01-kanban-desktop.png) and [mobile screenshot](verification/farm01-kanban-mobile.png) supersede the older wrapped-layout evidence. Image-capable visual review confirmed horizontal lane order and readable desktop cards, with contained horizontal navigation on mobile.
+
+
+## Initial responsive board attempt — superseded (2026-10-06)
+
+The seven fixed 235px columns previously scrolled 1735px inside a 1380px board at a 1440px viewport. Status lanes now wrap into rows with a 235px preferred minimum; narrow screens retain the existing single-column layout. Long task IDs, task titles, and owner names wrap within their cards (the title rule landed in-tree after the image pinned below and awaits rebuild/repin/redeploy). All seven status lanes remain accessible and repository/owner filters are unchanged.
+
+Remote [acceptance bf87ac6e](https://carverauto.buildbuddy.io/invocation/bf87ac6e-7d57-471d-979c-351e9982d1fb) passed all 10 targets. Remote [packaging 01e620e0](https://carverauto.buildbuddy.io/invocation/01e620e0-7a1f-4412-9975-0a6c3ff4e955) produced dashboard digest `sha256:80e3947c9f7aab154fb7be940c2f3305ea4398d42142b6a6b0b4bf75759543d2`, published under `responsive-b7a1142966e9`; the v0.1.0 tag and CLI assets were not republished. A temporary project-scoped push credential was deleted after publication.
+
+The farm01 overlay pins the new digest. Server dry-run and deployment-only apply succeeded; rollout completed with one ready pod running that exact image ID. No database migrations were needed or rerun. The prior image digest remains available for rollback through the overlay.
+
+Chrome checked the live served application (without injected CSS) at 1920, 1440, 1280, 1024, 768, 700, 500, 390 and 320px. Both page and board fit their measured widths at every size; all seven lanes remained present. A temporary browser-only 200-character task ID and owner probe wrapped at 390px without overflow. [Geometry/runtime evidence](verification/farm01-responsive-board.json), [desktop dark screenshot](verification/farm01-responsive-desktop.png) and [mobile light screenshot](verification/farm01-responsive-mobile.png) record those checks. Visual inspection confirmed readable cards and wrapping header/filters. Remote checks ran through BuildBuddy; no application builds or tests ran locally.
+
+
 All compilation, application tests, dependency compilation, and packaging run through `./scripts/bazel` on BuildBuddy remote execution. No Go/Mix application build or test runs on this Mac. PostgreSQL integration uses a disposable loopback PostgreSQL 18.3 fixture with SCRAM, a generated CA and CA-signed server certificate, verified TLS, temporary data, and process cleanup; it never uses farm01 credentials or data.
 
 ## Completed farm01 rollout (2026-10-06 UTC)

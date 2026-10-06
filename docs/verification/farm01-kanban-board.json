@@ -1,0 +1,505 @@
+{
+  "checked_at": "2026-10-06T06:29:19.316531+00:00",
+  "url": "https://agentboard.farm01.carverauto.dev/",
+  "source_commit": "1d0bc8a4064bb170776810ad7062ea4d9a628ce7",
+  "image_digest": "sha256:5aa2bcc10cccb6adaa3007887150745012e95aec9a9e997b4f294b17568e853c",
+  "live_pod": "agentboard-dashboard-9ff7b7f5f-jmbn2",
+  "ready": true,
+  "supersedes": "farm01-responsive-board.json (wrapped layout rejected by captain)",
+  "layout_contract": "All seven lanes stay in a single horizontal row. Desktop widths >1100px fit without board scrolling; smaller widths preserve readable lanes in a contained horizontal board scroller. Page never overflows.",
+  "startup_invocation": "6a3e70f4-234e-451a-bad6-5ab351590e1b",
+  "package_invocation": "282077f4-f817-4d36-a885-aea1fe9c0138",
+  "live_viewports": [
+    {
+      "viewport": 1920,
+      "page": 1920,
+      "board_width": 1740,
+      "board_scroll": 1740,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 257,
+          "width": 240.203125
+        },
+        {
+          "status": "Assigned",
+          "top": 257,
+          "width": 240.21875
+        },
+        {
+          "status": "In progress",
+          "top": 257,
+          "width": 240.21875
+        },
+        {
+          "status": "Blocked",
+          "top": 257,
+          "width": 240.203125
+        },
+        {
+          "status": "Review",
+          "top": 257,
+          "width": 240.21875
+        },
+        {
+          "status": "Done",
+          "top": 257,
+          "width": 240.21875
+        },
+        {
+          "status": "Cancelled",
+          "top": 257,
+          "width": 240.203125
+        }
+      ],
+      "preview": false
+    },
+    {
+      "viewport": 1440,
+      "page": 1440,
+      "board_width": 1380,
+      "board_scroll": 1380,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 257,
+          "width": 188.78125
+        },
+        {
+          "status": "Assigned",
+          "top": 257,
+          "width": 188.78125
+        },
+        {
+          "status": "In progress",
+          "top": 257,
+          "width": 188.78125
+        },
+        {
+          "status": "Blocked",
+          "top": 257,
+          "width": 188.796875
+        },
+        {
+          "status": "Review",
+          "top": 257,
+          "width": 188.78125
+        },
+        {
+          "status": "Done",
+          "top": 257,
+          "width": 188.78125
+        },
+        {
+          "status": "Cancelled",
+          "top": 257,
+          "width": 188.796875
+        }
+      ],
+      "preview": false
+    },
+    {
+      "viewport": 1280,
+      "page": 1280,
+      "board_width": 1220,
+      "board_scroll": 1220,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 257,
+          "width": 165.921875
+        },
+        {
+          "status": "Assigned",
+          "top": 257,
+          "width": 165.921875
+        },
+        {
+          "status": "In progress",
+          "top": 257,
+          "width": 165.9375
+        },
+        {
+          "status": "Blocked",
+          "top": 257,
+          "width": 165.921875
+        },
+        {
+          "status": "Review",
+          "top": 257,
+          "width": 165.9375
+        },
+        {
+          "status": "Done",
+          "top": 257,
+          "width": 165.921875
+        },
+        {
+          "status": "Cancelled",
+          "top": 257,
+          "width": 165.9375
+        }
+      ],
+      "preview": false
+    },
+    {
+      "viewport": 1101,
+      "page": 1101,
+      "board_width": 1041,
+      "board_scroll": 1041,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 257,
+          "width": 140.34375
+        },
+        {
+          "status": "Assigned",
+          "top": 257,
+          "width": 140.359375
+        },
+        {
+          "status": "In progress",
+          "top": 257,
+          "width": 140.359375
+        },
+        {
+          "status": "Blocked",
+          "top": 257,
+          "width": 140.359375
+        },
+        {
+          "status": "Review",
+          "top": 257,
+          "width": 140.359375
+        },
+        {
+          "status": "Done",
+          "top": 257,
+          "width": 140.359375
+        },
+        {
+          "status": "Cancelled",
+          "top": 257,
+          "width": 140.359375
+        }
+      ],
+      "preview": false
+    },
+    {
+      "viewport": 1100,
+      "page": 1100,
+      "board_width": 1040,
+      "board_scroll": 1284,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Assigned",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "In progress",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Blocked",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Review",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Done",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Cancelled",
+          "top": 257,
+          "width": 175
+        }
+      ],
+      "preview": false
+    },
+    {
+      "viewport": 1024,
+      "page": 1024,
+      "board_width": 964,
+      "board_scroll": 1284,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Assigned",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "In progress",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Blocked",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Review",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Done",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Cancelled",
+          "top": 257,
+          "width": 175
+        }
+      ],
+      "preview": false
+    },
+    {
+      "viewport": 768,
+      "page": 768,
+      "board_width": 708,
+      "board_scroll": 1284,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Assigned",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "In progress",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Blocked",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Review",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Done",
+          "top": 257,
+          "width": 175
+        },
+        {
+          "status": "Cancelled",
+          "top": 257,
+          "width": 175
+        }
+      ],
+      "preview": false
+    },
+    {
+      "viewport": 700,
+      "page": 700,
+      "board_width": 670,
+      "board_scroll": 1284,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 302,
+          "width": 175
+        },
+        {
+          "status": "Assigned",
+          "top": 302,
+          "width": 175
+        },
+        {
+          "status": "In progress",
+          "top": 302,
+          "width": 175
+        },
+        {
+          "status": "Blocked",
+          "top": 302,
+          "width": 175
+        },
+        {
+          "status": "Review",
+          "top": 302,
+          "width": 175
+        },
+        {
+          "status": "Done",
+          "top": 302,
+          "width": 175
+        },
+        {
+          "status": "Cancelled",
+          "top": 302,
+          "width": 175
+        }
+      ],
+      "preview": false
+    },
+    {
+      "viewport": 500,
+      "page": 500,
+      "board_width": 470,
+      "board_scroll": 1284,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 336,
+          "width": 175
+        },
+        {
+          "status": "Assigned",
+          "top": 336,
+          "width": 175
+        },
+        {
+          "status": "In progress",
+          "top": 336,
+          "width": 175
+        },
+        {
+          "status": "Blocked",
+          "top": 336,
+          "width": 175
+        },
+        {
+          "status": "Review",
+          "top": 336,
+          "width": 175
+        },
+        {
+          "status": "Done",
+          "top": 336,
+          "width": 175
+        },
+        {
+          "status": "Cancelled",
+          "top": 336,
+          "width": 175
+        }
+      ],
+      "preview": false
+    },
+    {
+      "viewport": 390,
+      "page": 390,
+      "board_width": 360,
+      "board_scroll": 1284,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 386,
+          "width": 175
+        },
+        {
+          "status": "Assigned",
+          "top": 386,
+          "width": 175
+        },
+        {
+          "status": "In progress",
+          "top": 386,
+          "width": 175
+        },
+        {
+          "status": "Blocked",
+          "top": 386,
+          "width": 175
+        },
+        {
+          "status": "Review",
+          "top": 386,
+          "width": 175
+        },
+        {
+          "status": "Done",
+          "top": 386,
+          "width": 175
+        },
+        {
+          "status": "Cancelled",
+          "top": 386,
+          "width": 175
+        }
+      ],
+      "preview": false
+    },
+    {
+      "viewport": 320,
+      "page": 320,
+      "board_width": 290,
+      "board_scroll": 1284,
+      "lanes": [
+        {
+          "status": "Open",
+          "top": 442,
+          "width": 175
+        },
+        {
+          "status": "Assigned",
+          "top": 442,
+          "width": 175
+        },
+        {
+          "status": "In progress",
+          "top": 442,
+          "width": 175
+        },
+        {
+          "status": "Blocked",
+          "top": 442,
+          "width": 175
+        },
+        {
+          "status": "Review",
+          "top": 442,
+          "width": 175
+        },
+        {
+          "status": "Done",
+          "top": 442,
+          "width": 175
+        },
+        {
+          "status": "Cancelled",
+          "top": 442,
+          "width": 175
+        }
+      ],
+      "preview": false
+    }
+  ],
+  "long_text_320": {
+    "viewport": 320,
+    "page": 320,
+    "board_width": 290,
+    "board_scroll": 1284,
+    "title_height": 175.5
+  }
+}
