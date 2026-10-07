@@ -8,8 +8,9 @@ defmodule Agentboard.Delivery.Polling do
   @lease_seconds 120
   @actor %{"agent" => "delivery-polling", "model" => "system", "harness" => "ash"}
 
-  # Caller holds this canonical PR's lock in the inventory transaction. A
-  # schema-7 image can still add PRs during rollback; catch-up re-enrolls them.
+  # Caller holds this canonical PR's lock in the inventory transaction.
+  # Idempotent for the PR being persisted. A schema-7 writer can add inventory
+  # without PollState; current-link catch-up does not cover cleared task URLs.
   def enroll(id, stamp, actor) do
     if is_nil(Ash.get!(PollState, id, not_found_error?: false)) do
       Operations.create(

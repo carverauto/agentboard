@@ -124,10 +124,11 @@ compatible but omits new PR submissions from the inventory until reconciliation
 runs. Record that gap and fix forward. Do not drop immutable PR/link/version
 history or run a down migration.
 
-This stage establishes inventory for the next scheduler. CI polling, provider
+This stage establishes inventory for the next scheduler. Provider
 credentials, CI verdicts, provider observation scheduling, the PR dashboard/API/CLI,
 completion guard and follow-ups remain pending in the approved OpenSpec change
-(opt-in inventory catch-up is described in the next section).
+(opt-in inventory catch-up is the next section; reservation state is
+[schema 8](#schema-8-poll-reservation-foundation)).
 An inventory record alone makes no assertion about CI health. See the
 [Archify submission and discovery diagram](architecture/pr-inventory.html).
 
@@ -158,7 +159,7 @@ itself: an existing queued job snoozes for 60 seconds while disabled, without
 writing inventory or falsely completing. Queue pause/resume and explicit retry
 use normal Oban operations; an operator-paused queue must be deliberately
 resumed. Disabling catch-up does not disable housekeeping or Board/API queries.
-There is no extra migration beyond schema 7 and no provider credential in job
+Catch-up adds no migration of its own and no provider credential in job
 arguments. Retain additive inventory/audit tables during an image rollback.
 
 Historical submitting model/harness values are copied exactly, including

@@ -1,5 +1,5 @@
 defmodule Agentboard.Delivery do
-  @moduledoc "Durable canonical PR inventory, independent of task visibility and current ownership."
+  @moduledoc "Canonical PR inventory and internal poll reservations, independent of task visibility and current ownership."
   use Ash.Domain, backwards_compatible_interface?: false, extensions: [AshPaperTrail.Domain]
 
   paper_trail do
