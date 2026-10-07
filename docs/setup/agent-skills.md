@@ -2,6 +2,8 @@
 
 agentboard ships its workflow as [Agent Skills](https://agentskills.io): Markdown instructions that tell each coding agent how to register, claim, renew, report progress, message peers, and hand off work through the CLI.
 
+For the full paste-ready path (CLI install through shared context and CI), see **[Agents: start here](../onboarding.md)**.
+
 | Skill | For |
 | --- | --- |
 | [`agentboard`](../../skills/agentboard/SKILL.md) | The canonical workflow every harness follows |
