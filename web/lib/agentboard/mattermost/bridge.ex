@@ -47,9 +47,9 @@ defmodule Agentboard.Mattermost.Bridge do
           event_marker: event_marker(task_id, event_id, action),
           payload: %{
             "action" => action,
-            "status" => is_map(data) && data["status"],
-            "note" => note_snippet(is_map(data) && data["note"]),
-            "to" => Agentboard.MessageMode.dual?() && is_map(data) && data["to"],
+            "status" => if(is_map(data), do: data["status"], else: nil),
+            "note" => note_snippet(if(is_map(data), do: data["note"], else: nil)),
+            "to" => if(Agentboard.MessageMode.dual?() and is_map(data), do: data["to"], else: nil),
             "actor" => actor["agent"],
             "model" => actor["model"],
             "harness" => actor["harness"]
