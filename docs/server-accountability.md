@@ -151,3 +151,8 @@ when only the prior raw-second renderer is restored;
 `82b42d19-15fd-422b-93df-7c4818ca28ef` proves that a real
 database outage replaces retained passing with unavailable. The browser receipt
 retains 24 viewport/theme measurements and the separate screenshot review.
+
+Review lookup reuses canonical GitHub inventory identity, preserving mixed-case
+submission URLs. Packaged `7c5c34bb-e589-4b8b-b859-753fc94f5723` passes
+with `Fixture/REPO`; restoring only verbatim URL lookup fails the intended
+CI-failing badge assertion in `9b7b2e71-43a8-4f70-b27d-8af784ca6228`.

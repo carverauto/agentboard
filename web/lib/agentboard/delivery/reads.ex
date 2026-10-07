@@ -29,11 +29,24 @@ defmodule Agentboard.Delivery.Reads do
 
   def review(urls) when is_list(urls) and length(urls) <= 20 do
     Ops.transaction(fn ->
-      PullRequest
-      |> Ash.Query.filter(url in ^urls)
-      |> Ash.Query.limit(20)
-      |> Ash.read!()
-      |> Map.new(fn pr -> {pr.url, ci_projection(pr)} end)
+      identities =
+        Enum.flat_map(urls, fn url ->
+          case Agentboard.Delivery.Inventory.canonical(url) do
+            {:ok, pr} -> [{url, pr.id}]
+            _ -> []
+          end
+        end)
+
+      ids = Enum.map(identities, &elem(&1, 1))
+
+      states =
+        PullRequest
+        |> Ash.Query.filter(id in ^ids)
+        |> Ash.Query.limit(20)
+        |> Ash.read!()
+        |> Map.new(fn pr -> {pr.id, ci_projection(pr)} end)
+
+      Map.new(identities, fn {url, id} -> {url, states[id]} end)
     end)
   end
 

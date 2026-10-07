@@ -221,7 +221,7 @@ assert ages == ['Just now','1s ago','59s ago','89s ago','1m ago','3m ago','15m a
 
 # Review-card badges consume the same canonical CI projection as /prs, not their own provider reader.
 api('/tasks', {'id': 'ci-review-card', 'title': 'Review ' + 'LongUnbrokenTitle' * 20,
-               'repo': 'fixture/repo', 'pr_url': 'https://github.com/fixture/repo/pull/101'})
+               'repo': 'fixture/repo', 'pr_url': 'https://github.com/Fixture/REPO/pull/101'})
 api('/tasks/ci-review-card/claim', {})
 api('/tasks/ci-review-card/update', {'status': 'review'})
 api('/tasks', {'id': 'ci-review-without-pr', 'title': 'Review without PR', 'repo': 'fixture/repo'})
