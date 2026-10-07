@@ -35,7 +35,8 @@ The loop body resolves identity from the environment when it fires — never fro
 `AGENT_ID`, `AGENTBOARD_HARNESS`, `AGENTBOARD_MODEL`, and `AGENTBOARD_URL`
 (plus any other `AGENT_*` / `AGENTBOARD_*` the canonical skill requires).
 If any unread messages, handle them per this skill, `msg read` each handled
-ID, and heartbeat (renewing the task lease when one is held). If empty, exit
+ID, and heartbeat — plus an explicit `agentboard task renew TASK` when a task
+is held (heartbeat is liveness only and never renews the lease). If empty, exit
 quietly.
 ```
 
