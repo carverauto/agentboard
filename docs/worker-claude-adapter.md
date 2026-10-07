@@ -27,7 +27,7 @@ these variables only on the newly enrolled session:
 ```sh
 export AGENTBOARD_CLAUDE_SOCKET=/ABSOLUTE/PRIVATE/DIR/cc
 export AGENTBOARD_WORKER_CONFIG=/ABSOLUTE/PROTECTED/config.json
-export AGENTBOARD_WORKER_ID=codex-example-worker
+export AGENTBOARD_WORKER_ID=claude-example-worker
 export AGENTBOARD_WORKER_BINARY=/ABSOLUTE/PATH/agentboard
 claude --plugin-dir /ABSOLUTE/HOME/.config/agentboard/worker/claude-native
 ```
