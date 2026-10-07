@@ -40,6 +40,7 @@ class Fixture:
         self.calls = []
         self.posts = []
         self.submissions = []
+        self.adapter_calls = []
         self.outcomes = {}
         self.adapter_states = {}
         self.adapters = []
@@ -146,6 +147,7 @@ class Fixture:
                 def handle(self):
                     request = json.loads(self.rfile.readline())
                     current_name = self.server.name
+                    fixture.adapter_calls.append((current_name, request['action']))
                     current = next(b for b in fixture.bindings if b['agent_id'] == current_name)
                     outcome = 'inspected'
                     if request['action'] == 'submit':
@@ -357,7 +359,7 @@ class WorkerRuntime(unittest.TestCase):
 
     def test_resolved_old_journal_retires_after_rebind_without_adapter_io(self):
         f = self.fixture(); batch = self.old_journal(f)
-        f.historical[batch['attempt_id']] = {'resolved': True, 'replay_allowed': False}
+        f.historical[batch['attempt_id']] = {'batch': batch, 'resolved': True, 'replay_allowed': False}
         process = f.serve()
         until(lambda: (self.root/'journal/worker-a.json').exists() and json.loads((self.root/'journal/worker-a.json').read_text())['phase'] == 'complete')
         output = f.stop(process)
@@ -371,7 +373,7 @@ class WorkerRuntime(unittest.TestCase):
 
     def test_unresolved_old_journal_stays_blocked_without_adapter_io(self):
         f = self.fixture(); batch = self.old_journal(f)
-        f.historical[batch['attempt_id']] = {'resolved': False, 'replay_allowed': False}
+        f.historical[batch['attempt_id']] = {'batch': batch, 'resolved': False, 'replay_allowed': False}
         process = f.serve(); time.sleep(0.7)
         output = f.stop(process)
         self.assertIn('old binding', output)
@@ -379,6 +381,35 @@ class WorkerRuntime(unittest.TestCase):
         self.assertEqual(f.submissions, [])
         self.assertFalse(any(p[1] == 'result' for p in f.posts))
         self.assertFalse(any(p[1] == 'receipts' for p in f.posts))
+
+    def test_historical_positive_answer_requires_original_frozen_generation_and_membership(self):
+        cases = [
+            ('generation', {'dispatch_generation': 2}, True, False),
+            ('membership', {'delivery_ids': ['unrelated-delivery']}, True, False),
+            ('missing', None, True, False),
+            ('replay-generation', {'dispatch_generation': 2}, False, True),
+        ]
+        for name, changed, resolved, replay in cases:
+            with self.subTest(name=name):
+                root = self.root/name
+                root.mkdir(mode=0o700)
+                f = Fixture(root); self.fixtures.append(f)
+                original = self.old_journal(f)
+                returned = None if changed is None else dict(original, **changed)
+                f.historical[original['attempt_id']] = {'batch': returned, 'resolved': resolved, 'replay_allowed': replay}
+                process = f.serve()
+                try:
+                    report = json.loads(process.stdout.readline())
+                finally:
+                    f.stop(process)
+                self.assertEqual(report['connector_state'], 'degraded')
+                journal = json.loads((pathlib.Path(f.config['journal_dir'])/'worker-a.json').read_text())
+                self.assertEqual(journal['phase'], 'awaiting_receipt')
+                self.assertEqual(journal['batch'], original)
+                self.assertEqual(f.adapter_calls, [])
+                self.assertFalse(any(p[1] in ('result', 'receipts') for p in f.posts))
+                requests = [p[2] for p in f.posts if p[1] == 'reconcile']
+                self.assertEqual(requests, [{'binding_epoch': 1, 'dispatch_generation': 1, 'payload_hash': original['payload_hash']}])
 
     def test_install_preview_idempotence_owned_uninstall_and_foreign_preservation(self):
         f=self.fixture()
