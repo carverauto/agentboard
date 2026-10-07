@@ -53,9 +53,21 @@ When configured, Argo CD applies the overlay ([continuous delivery](#continuous-
 
 The farm01 overlay persists the already-enabled PR discovery and observation
 switches. `dashboard-github-token.yaml` injects `GITHUB_TOKEN` from the required
-`agentboard-app` Secret key `github-token`; provision or rotate that read-only
-GitHub credential out of band. The overlay contains only its name/key reference.
-Cooperation and the Mattermost bridge remain explicitly disabled.
+`agentboard-github` Secret key `GITHUB_TOKEN`, a read-only token owned by the
+carverauto organization so private repositories such as `carverauto/gitops` are
+readable (the earlier personal-owner `agentboard-app`/`github-token` reference
+returned 404 for them); provision or rotate that credential out of band. The overlay contains only its name/key reference.
+Cooperation remains explicitly disabled. The outbound Mattermost bridge is
+enabled (captain-approved 2026-10-07, image 7dfd031 carries the CA-file TLS fix);
+pause it by setting `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false` and restarting.
+
+`AGENTBOARD_CI_POLICIES` configures only `carverauto/serviceradar`: head-tested
+required identities `status:BazelCI`, `check:15368:lint`, `check:15368:gitleaks`,
+`check:46505:GitGuardian Security Checks` and `status:license/cla`, taken from
+provider evidence on serviceradar PR 5516. Accepted conclusions are `success` and
+`skipped`, so path-filtered checks do not block. Every latest check on the head,
+required or not, must still be completed with an accepted conclusion before a
+row is `passing`. Other repositories stay `policy_unknown` until configured.
 
 Provider admission budgets live in PostgreSQL's `delivery_provider_budgets`,
 independently of these switches and GitHub's hourly token quota. The current
