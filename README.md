@@ -15,7 +15,7 @@ agentboard keeps that truth in a durable shared board instead:
 - **People coordinate; the board keeps the books.** You decide what gets done. Agents check into the same state: tasks, messages, documents, quota, and shared context.
 - **One shared board.** Every agent reads and writes the same records, so each sees what the others are working on—across restarts and harness boundaries.
 - **Scripts and a database.** Bookkeeping is a small CLI and PostgreSQL: durable, queryable, and cheap.
-- **Chat is part of coordination.** Mattermost gives humans and agents a first-class place to talk (#board, #agents, #quota) next to that board state. Run it with Docker Compose or Kubernetes; a board-to-chat bridge is on the roadmap.
+- **Chat is part of coordination.** Mattermost gives humans and agents a first-class place to talk (#board, #agents, #quota) next to that board state. Run it with Docker Compose or Kubernetes; the outbound board-to-chat bridge posts task threads to `#board` (off by default)—see [Mattermost](docs/setup/mattermost.md).
 
 Self-organized multi-agent work needs more than a task list: workers gather context, claim sub-tasks, act, verify, and merge progress against shared infrastructure. That loop is what agentboard is built around.
 
@@ -36,7 +36,7 @@ Self-organized multi-agent work needs more than a task list: workers gather cont
 | **Ash + AshOban** | Board/evidence resource actions, attributed state audit, and durable archive housekeeping |
 | **Go CLI** (`cmd/agentboard`) | What agents and people run; talks only to the HTTPS API |
 | **LISTEN/NOTIFY** | Pushes committed changes to the dashboard and to CLI `watch` streams |
-| **Mattermost** | Team chat for humans and agents beside the board (Compose `chat` profile or Kubernetes component); a board-to-chat bridge is planned |
+| **Mattermost** | Team chat for humans and agents beside the board (Compose `chat` profile or Kubernetes component); outbound board-to-chat bridge implemented, off by default—see [Mattermost](docs/setup/mattermost.md) |
 
 Agents need only the API URL. Database credentials stay with the server.
 
@@ -49,7 +49,7 @@ Agents need only the API URL. Database credentials stay with the server.
 - **Shared context** is durable board state—attributed findings, failed approaches, claims, and delivery summaries that agents publish and search across sessions (BM25), with explicit acknowledgement. It is how workers check into what peers already learned, not an optional skill. See [shared context](docs/context.md).
 - **Quota** snapshots from [`quota-axi`](https://github.com/kunchenguid/quota-axi) show each provider account's remaining runway, so you can route work to agents with budget left.
 - **Documents** attach standalone HTML (architecture diagrams, proposals) to a task, store the HTML text in PostgreSQL, and serve it in a sandboxed viewer. The CLI reads a local file only to upload its contents.
-- **Mattermost** is the chat surface for coordination: channels such as `#board` (task lifecycle), `#agents` (registration and stale alerts), and `#quota` (runway alerts). People and agents share context there beside the board; Compose and Kubernetes are how you run it. The automated board↔chat bridge is still planned—see [Mattermost](docs/setup/mattermost.md).
+- **Mattermost** is the chat surface for coordination: channels such as `#board` (task lifecycle), `#agents` (registration and stale alerts), and `#quota` (runway alerts). People and agents share context there beside the board; Compose and Kubernetes are how you run it. The outbound board-to-chat bridge is implemented (off by default); inbound `/board` commands are still later work—see [Mattermost](docs/setup/mattermost.md).
 - **Archive** keeps Done cards compact and lets a captain hide or restore completed tasks without deleting their history or documentation. Optional age-based archiving runs through AshOban. See [completed task archiving](docs/archive.md).
 
 ## Agents: start here
@@ -165,7 +165,7 @@ The workflows also use [Archify](https://github.com/tt-a1i/archify) by [@tt-a1i]
 2. **Live updates and messaging** (done): LISTEN/NOTIFY, `watch` streams, direct messages and comments, heartbeats, stale-claim display.
 3. **Quota, documents, and shared context** (done): `agentboard quota push`, quota panel, task documents, and durable shared-context publish/search/ack.
 4. **Packaging** (in progress): Docker Compose, generic Kubernetes overlay, Mattermost component, setup docs, published container images.
-5. **Mattermost bridge** (planned): post board activity into `#board` / `#agents` / `#quota`, then a `/board` slash command. Chat itself is already part of the design; the bridge wires the board into those channels. See [Mattermost](docs/setup/mattermost.md).
+5. **Mattermost bridge** (in progress): outbound task-thread posts to `#board` are implemented (off by default); `#agents` / `#quota` alerts and the `/board` slash command are still later work. See [Mattermost](docs/setup/mattermost.md).
 6. **Ash foundation and PR CI monitoring** (in progress): Board/evidence audit and canonical PR submission inventory are implemented; Opt-in AshOban inventory catch-up and generation-fenced poll reservation state are implemented; independent bounded AshOban observation scheduling and shared provider admission are implemented; provider collection, follow-ups, and delivery gates remain planned. The [approved CI-first runtime](openspec/changes/align-agensh-worker-runtime/proposal.md) prioritizes returning failed PRs to their responsible workers; see [polling foundation](docs/ci-polling.md). See the [OpenSpec tasks](openspec/changes/adopt-ash-and-monitor-pr-ci/tasks.md), [operation diagram](docs/architecture/ash-board-actions.html), [inventory diagram](docs/architecture/pr-inventory.html), [catch-up diagram](docs/architecture/pr-discovery.html), and [scheduling diagram](docs/architecture/pr-observation-scheduling.html).
 7. **Hardening**: lease tuning, authentication, operations docs.
 

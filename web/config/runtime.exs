@@ -12,6 +12,41 @@ config :agentboard,
        :pr_observation_enabled,
        System.get_env("AGENTBOARD_PR_OBSERVATION_ENABLED", "false") in ["true", "1"]
 
+# Outbound Mattermost lifecycle bridge; keep off until bot/channel enablement.
+config :agentboard,
+       :mattermost_bridge_enabled,
+       System.get_env("AGENTBOARD_MATTERMOST_BRIDGE_ENABLED", "false") in ["true", "1"]
+
+# Non-secret bridge destination pins. The bot token is a secret reference and
+# never belongs in config: prefer a token file, fall back to the environment.
+config :agentboard,
+       :mattermost_base_url,
+       System.get_env("AGENTBOARD_MATTERMOST_BASE_URL")
+
+config :agentboard,
+       :mattermost_board_channel_id,
+       System.get_env("AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID")
+
+config :agentboard,
+       :mattermost_bot_token_file,
+       System.get_env("AGENTBOARD_MATTERMOST_BOT_TOKEN_FILE")
+
+config :agentboard,
+       :mattermost_bot_token,
+       System.get_env("AGENTBOARD_MATTERMOST_BOT_TOKEN")
+
+config :agentboard,
+       :mattermost_ca_file,
+       System.get_env("AGENTBOARD_MATTERMOST_CA_FILE")
+
+config :agentboard,
+       :mattermost_request_timeout_ms,
+       String.to_integer(System.get_env("AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS", "10000"))
+
+config :agentboard,
+       :public_board_url,
+       System.get_env("AGENTBOARD_PUBLIC_BOARD_URL")
+
 config :agentboard, :rate_limits,
   ip: String.to_integer(System.get_env("API_RATE_LIMIT_IP", "120")),
   agent: String.to_integer(System.get_env("API_RATE_LIMIT_AGENT", "60")),
