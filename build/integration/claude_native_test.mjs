@@ -61,7 +61,11 @@ const { register } = await import(pathToFileURL(path.join(plugin, 'hooks/registe
 register((name, handler) => handlers.set(name, handler));
 let session = 'invented-claude-new';
 let surfaces = [];
-const engine = { env: { get: async name => env[name] }, session: { id: async () => session, surfaces: async () => surfaces }, http: { fetch } };
+let surfacesError = false;
+const engine = { env: { get: async name => env[name] }, session: { id: async () => session, surfaces: async () => { if (surfacesError) throw new Error('invented surfaces unavailable'); return surfaces; } }, http: { fetch } };
+function hooksCall(route, body) {
+  return fetch('http://agentboard-native' + route, { socketPath: socket + '.hooks', method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+}
 const signal = new AbortController().signal;
 function event(name, value = {}) {
   const next = Object.assign(async e => e, { signal });
@@ -85,6 +89,10 @@ try {
   assert.equal((await native(id, 'inspect')).adapter_version, 'claude-hook-v1');
   assert.equal((await native(id, 'submit', batch('oversized', JSON.stringify({text:'x'.repeat(17000)})))).outcome, 'not_submitted');
   assert.equal((await native({...id,generation:'stale'}, 'submit', batch('stale'))).outcome, 'not_submitted');
+  assert.equal((await native(id, 'submit', batch('prompt'))).outcome, 'submitted');
+  const unadmitted = (await rpc('tools/call', {name:'agentboard_check_in'})).result;
+  assert.equal(unadmitted.content.length, 1);
+  assert.ok(!unadmitted.content[0].text.includes('AGENTBOARD SOURCE FRAME'));
   assert.equal((await native(id, 'submit', batch('prompt'))).outcome, 'submitted');
   const original = { text: 'Human original text', context: ['foreign context'], origin: {kind:'user'}, other: { retained: true } };
   const delivered = await event('prompt.submit', original);
@@ -186,10 +194,16 @@ try {
   await event('session.start', {isInteractive:false});
   id = identity(); state(id);
   assert.equal((await native(id,'submit',batch('attached'))).outcome,'submitted');
+  const callsBeforeAttach = fs.readFileSync(callsFile, 'utf8').trim().split('\n').length;
   surfaces = ['desktop'];
   assert.deepEqual(await event('prompt.submit', original), original, 'attached UI surface refuses automatic delivery');
-  assert.equal((await native(id,'inspect')).state, 'unsupported');
+  assert.equal((await native(id,'inspect')).state, 'boundary');
+  const attachedCheck = (await rpc('tools/call', {name:'agentboard_check_in'})).result;
+  assert.equal(attachedCheck.content.length, 1);
+  assert.ok(!attachedCheck.content[0].text.includes('AGENTBOARD SOURCE FRAME'));
   assert.equal((await native(id,'submit',batch('attached-again'))).outcome,'not_submitted');
+  const attachedCalls = fs.readFileSync(callsFile, 'utf8').trim().split('\n').slice(callsBeforeAttach).map(JSON.parse);
+  assert.ok(attachedCalls.every(args => args[1] === 'check-in'), 'revoked delivery records no receipt');
   surfaces = [];
   session = 'invented-attach-alone';
   await event('session.start', {isInteractive:false});
@@ -198,10 +212,18 @@ try {
   await event('session.attach', {});
   assert.equal((await native(id,'inspect')).state, 'unsupported');
   assert.equal((await native(id,'submit',batch('attachalone-again'))).outcome,'not_submitted');
+  assert.ok(!(await rpc('tools/call', {name:'agentboard_check_in'})).result);
   assert.deepEqual(await event('prompt.submit', original), original);
   await event('session.end', {reason:'resume'});
+  session = 'invented-headless-orphan';
+  await event('session.start', {isInteractive:false});
+  const orphaned = identity(); state(orphaned);
+  assert.equal((await native(orphaned,'submit',batch('orphan'))).outcome,'submitted');
+  await event('prompt.submit', original);
   session = 'invented-interactive-start';
   await event('session.start', {isInteractive:true});
+  assert.equal((await native(orphaned,'inspect')).state, 'unsupported');
+  assert.equal((await native(orphaned,'submit',batch('orphan-again'))).outcome,'not_submitted');
   assert.equal((await native({session_id:'invented-interactive-start', generation:'unbound'},'inspect')).state, 'unsupported');
   assert.ok(!fs.existsSync(socket + '.identity.json'));
   assert.deepEqual(await event('prompt.submit', original), original, 'interactive start leaves no eligibility for later prompts');
@@ -215,7 +237,10 @@ try {
   await new Promise(resolve=>setTimeout(resolve,60));
   surfaces = ['app'];
   assert.deepEqual(await surfacing, original, 'surface attaching in flight refuses delivery');
-  assert.equal((await native(id,'inspect')).state, 'unsupported');
+  assert.equal((await native(id,'inspect')).state, 'boundary');
+  const racingCheck = (await rpc('tools/call', {name:'agentboard_check_in'})).result;
+  assert.equal(racingCheck.content.length, 1);
+  assert.ok(!racingCheck.content[0].text.includes('AGENTBOARD SOURCE FRAME'));
   surfaces = [];
   let releaseBind2, bindArrived2;
   const held2 = new Promise(resolve => { releaseBind2 = resolve; });
@@ -238,6 +263,26 @@ try {
   engine.http.fetch = fetch;
   assert.equal((await native({session_id:'invented-attach-during-bind', generation:'unbound'},'inspect')).state, 'unsupported');
   assert.deepEqual(await event('prompt.submit', original), original, 'surface attaching during bind refuses eligibility');
+  assert.ok(!(await hooksCall('/admit', oldId)).ok, 'stale generation cannot admit');
+  assert.ok(!(await hooksCall('/revoke', oldId)).ok, 'stale generation cannot revoke');
+  surfacesError = true;
+  session = 'invented-unknown-surfaces';
+  await event('session.start', {isInteractive:false});
+  assert.ok(!fs.existsSync(socket + '.identity.json'));
+  assert.deepEqual(await event('prompt.submit', original), original, 'unknown surfaces refuse eligibility');
+  surfacesError = false;
+  session = 'invented-unknown-mid';
+  await event('session.start', {isInteractive:false});
+  id = identity(); state(id);
+  assert.equal((await native(id,'submit',batch('unknownmid'))).outcome,'submitted');
+  assert.equal((await event('prompt.submit', original)).context.length, 2);
+  assert.equal((await native(id,'submit',batch('unknownmid2'))).outcome,'submitted');
+  surfacesError = true;
+  assert.deepEqual(await event('prompt.submit', original), original, 'unknown mid-session surfaces revoke delivery');
+  const unknownCheck = (await rpc('tools/call', {name:'agentboard_check_in'})).result;
+  assert.equal(unknownCheck.content.length, 1);
+  assert.ok(!unknownCheck.content[0].text.includes('AGENTBOARD SOURCE FRAME'));
+  surfacesError = false;
   assert.ok((await rpc('tools/list')).result.tools.some(t=>t.name==='agentboard_ack'));
   console.log('Claude native protocol: generation retirement, pause, preserved prompt/tool result, exact receipts, bounded frames and uncertain recovery passed; invented API and engine fixture.');
 } finally {

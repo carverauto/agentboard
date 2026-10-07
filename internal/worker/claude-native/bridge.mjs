@@ -104,7 +104,7 @@ async function take(current, original) {
     const check = original || await execute(current, 'check-in');
     const state = JSON.parse(check.content[0].text).state;
     const pending = current.pending;
-    if (!live(current) || check.isError || !pending || state?.worker?.enabled !== true || state.worker.paused !== false || state.binding?.session_id !== current.session_id || state.binding?.pane_id !== current.generation || state.binding?.binding_epoch !== pending.batch.binding_epoch) return { original: check };
+    if (!live(current) || current.admitted !== true || check.isError || !pending || state?.worker?.enabled !== true || state.worker.paused !== false || state.binding?.session_id !== current.session_id || state.binding?.pane_id !== current.generation || state.binding?.binding_epoch !== pending.batch.binding_epoch) return { original: check };
     record(current, pending.batch, 'boundary_received');
     current.pending = null;
     return { original: check, body: pending.body };
@@ -122,13 +122,23 @@ async function hook(route, request) {
   if (route === '/bind') {
     if (typeof request.session_id !== 'string' || !request.session_id || request.session_id.length > 128) throw new Error('Native session ID required');
     retire(owner);
-    owner = { session_id: request.session_id, generation: randomUUID(), pending: null, retired: false, taking: false, controller: new AbortController() };
+    owner = { session_id: request.session_id, generation: randomUUID(), pending: null, retired: false, taking: false, admitted: false, controller: new AbortController() };
     save(socket + '.identity.json', identity(owner));
     return identity(owner);
   }
   const current = owner;
   if (!matches(current, request)) throw new Error('Native generation mismatch');
   if (route === '/retire') { retire(current); return { retired: true }; }
+  if (route === '/admit') {
+    if (!matches(current, request)) throw new Error('Native generation mismatch');
+    current.admitted = true;
+    return identity(current);
+  }
+  if (route === '/revoke') {
+    if (!matches(current, request)) throw new Error('Native generation mismatch');
+    current.admitted = false;
+    return { revoked: true };
+  }
   if (route === '/take') return take(current);
   throw new Error('Unknown native event');
 }
