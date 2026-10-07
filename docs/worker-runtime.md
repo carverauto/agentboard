@@ -155,9 +155,11 @@ Unreconciled old-generation journals remain visible and block new dispatch.
 A rebinding host may read the old owned attempt once through the current host
 credential (`POST attempts/:attempt/reconcile` with the frozen epoch, generation
 and hash, no adapter I/O, no result write, no receipt credential). Only an
-explicit resolved or replay_allowed answer retires that journal; anything else,
-a missing route, an identifier mismatch or an empty journal keeps the visible
-block. Server health reports deferred, paused and uncertain adapter states as
+explicit resolved or replay_allowed answer with the original canonical frozen
+batch retires that journal. The attempt, batch ID, epoch, dispatch generation,
+payload bytes/hash and ordered delivery membership must match the protected
+journal. A missing or mismatched batch, missing route or empty journal keeps the
+visible block. Server health reports deferred, paused and uncertain adapter states as
 busy, blocked and unknown while keeping the explicit reason text.
 Captain resolution of orphan uncertainty is an explicit server decision that
 records possible duplicate effects; it is never a host retry heuristic.

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -282,13 +283,14 @@ func reconcileHistorical(ctx context.Context, cfg Config, b Binding, a *API, j *
 	if json.Unmarshal(raw, &e) != nil {
 		return r, errors.New("invalid historical reconciliation")
 	}
-	if e.Batch != nil {
-		if e.Batch.Attempt != j.Batch.Attempt || e.Batch.ID != j.Batch.ID || e.Batch.Hash != j.Batch.Hash {
-			return r, errors.New("historical reconcile identifier mismatch; journal retained")
-		}
-		if err := e.Batch.Validate(j.Binding); err != nil {
-			return r, errors.New("historical reconcile frozen batch mismatch; journal retained")
-		}
+	if e.Batch == nil {
+		return r, errors.New("historical reconcile omitted frozen batch; journal retained")
+	}
+	if err := e.Batch.Validate(j.Binding); err != nil {
+		return r, errors.New("historical reconcile frozen batch mismatch; journal retained")
+	}
+	if e.Batch.Attempt != j.Batch.Attempt || e.Batch.ID != j.Batch.ID || e.Batch.Hash != j.Batch.Hash || e.Batch.Generation != j.Batch.Generation || e.Batch.Payload != j.Batch.Payload || !slices.Equal(e.Batch.IDs, j.Batch.IDs) {
+		return r, errors.New("historical reconcile immutable batch mismatch; journal retained")
 	}
 	if e.Resolved || e.Replay {
 		j.Phase = "complete"
