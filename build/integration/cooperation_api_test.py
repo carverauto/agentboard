@@ -147,7 +147,7 @@ api(path + '/result', dict(fences, status='not_submitted', reason='journal_prove
 assert api(path + '/reconcile', fences, token=host)['replay_allowed']
 
 # Context handling compatibility in both directions, including atomic failure.
-context = {'entry_key': 'runtime-context', 'repo': 'fixture/repo', 'kind': 'FACT', 'summary': 'A fact'}
+context = {'entry_key': 'runtime-context', 'repo': 'Fixture/REPO', 'kind': 'FACT', 'summary': 'A fact'}
 own_entry = api('/context', dict(context, entry_key='own-context'))['entry']
 assert not any(d['context_id'] == own_entry['id'] for d in api('/workers/fixture-agent/pending', token=host)['deliveries'])
 entry = api('/context', context, actor=foreign_actor)['entry']
@@ -264,4 +264,24 @@ api('/workers/provision', dict(provision, idempotency_key='rotate-foreign-scope'
 rotated = api('/workers/provision', dict(provision, idempotency_key='rotate-same-scope'), captain=True)
 assert api('/workers/fixture-agent/state', token=rotated['host_token'])['worker']['repos'] == ['fixture/repo']
 api('/workers/fixture-agent/state', token=receipt_token, status=401)
+# Pre-enrollment mixed-case Context uses the same scope as live capture and exact receipts.
+bootstrap_actor = dict(ACTOR, **{'x-agentboard-agent': 'bootstrap-agent'})
+api('/agents/register', {'name': 'Bootstrap worker'}, actor=bootstrap_actor)
+pre_entry = api('/context', dict(context, repo='Bootstrap/REPO', entry_key='bootstrap-before-enrollment'), actor=foreign_actor)['entry']
+api('/context', dict(context, repo='Bootstrap/REPO', entry_key='bootstrap-own-entry'), actor=bootstrap_actor)
+other_entry = api('/context', dict(context, repo='foreign/repo', entry_key='bootstrap-foreign-entry'), actor=foreign_actor)['entry']
+bootstrap_host = api('/workers/provision', dict(provision, worker_id='bootstrap-agent',
+    host_id='bootstrap-host', repos=['bootstrap/repo'], idempotency_key='bootstrap-provision'), captain=True)['host_token']
+bootstrap_pending = api('/workers/bootstrap-agent/pending', token=bootstrap_host)['deliveries']
+assert [d['context_id'] for d in bootstrap_pending] == [pre_entry['id']], bootstrap_pending
+bootstrap_bound = api('/workers/bootstrap-agent/bind', dict(bind, host_id='bootstrap-host',
+    session_id='bootstrap-session', pane_id='bootstrap-pane', idempotency_key='bootstrap-bind'), token=bootstrap_host)
+bootstrap_batch = api('/workers/bootstrap-agent/reserve', {'binding_epoch': 1,
+    'idempotency_key': 'bootstrap-reserve'}, token=bootstrap_host)['batch']
+bootstrap_ack = {key: bootstrap_batch[key] for key in ('attempt_id', 'binding_epoch', 'dispatch_generation', 'payload_hash')}
+api('/workers/bootstrap-agent/receipts', dict(bootstrap_ack, idempotency_key='bootstrap-handle',
+    kind='handled', delivery_ids=bootstrap_batch['delivery_ids']), token=bootstrap_bound['receipt_token'])
+assert sql("SELECT count(*) FROM context_receipts WHERE source_agent_id='bootstrap-agent' AND entry_id=" + str(pre_entry['id'])) == '1'
+assert sql("SELECT count(*) FROM context_receipts WHERE source_agent_id='bootstrap-agent' AND entry_id=" + str(other_entry['id'])) == '0'
+
 print('Packaged runtime scoped delivery/capture/receipt/uncertainty contracts passed')

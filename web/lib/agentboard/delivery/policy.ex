@@ -11,6 +11,7 @@ defmodule Agentboard.Delivery.Policy do
       is_map(config) and config["tested_ref"] == "head" and
         result.payload["coverage"] == "complete_head" and result.payload["tested_ref"] == "head" and
         is_list(config["required"]) and config["required"] != [] and
+        Enum.all?(config["required"], &(is_binary(&1) and &1 != "")) and
         Enum.all?(config["required"], fn identity ->
           case Enum.filter(latest, &(field(&1, :identity) == identity)) do
             [check] ->
@@ -43,10 +44,11 @@ defmodule Agentboard.Delivery.Policy do
   end
 
   defp accepted_conclusions(config) when is_map(config) do
-    case config["accepted_conclusions"] do
-      nil -> ["success"]
-      list when is_list(list) -> if Enum.all?(list, &is_binary/1), do: list, else: ["success"]
-      _ -> ["success"]
+    case Map.fetch(config, "accepted_conclusions") do
+      :error -> ["success"]
+      {:ok, list} when is_list(list) ->
+        if Enum.all?(list, &(is_binary(&1) and &1 != "")), do: list, else: []
+      _ -> []
     end
   end
 

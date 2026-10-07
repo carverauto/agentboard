@@ -100,6 +100,21 @@ def export_page(path, filename, rendered=None):
     return page
 
 
+# Invalid JSON/root values must not prevent the packaged release runtime from loading.
+loaded_policies = []
+for raw in ('{malformed', '[]', 'null', json.dumps({'fixture/repo': {'tested_ref': 'head',
+        'required': ['check:1:required'], 'accepted_conclusions': 'success'}})):
+    env = dict(os.environ, AGENTBOARD_CI_POLICIES=raw)
+    loaded = subprocess.run([os.environ['AGENTBOARD_BIN'], 'eval',
+        'IO.puts("LOADED_POLICY:" <> Jason.encode!(Application.get_env(:agentboard, :ci_policies)))'],
+        env=env, capture_output=True, text=True, timeout=30)
+    assert loaded.returncode == 0, (raw, loaded.stdout, loaded.stderr)
+    policies = json.loads(loaded.stdout.split('LOADED_POLICY:', 1)[1].splitlines()[0])
+    assert isinstance(policies, dict), (raw, policies)
+    loaded_policies.append(policies)
+    if raw in ('{malformed', '[]', 'null'):
+        assert policies == {}, (raw, policies)
+
 for owner in ('ci-owner', 'ci-peer'):
     api('/agents/register', {'name': owner}, agent=owner)
 rpc('Application.put_env(:agentboard, :cooperation_enabled, true)')
@@ -114,9 +129,11 @@ def reserve():
     return json.loads(output.split('RESERVATION:', 1)[1].strip())
 
 
-def observe(state='failing', expected='ok', policy='unknown', reservation=None, attempts=None, tested_ref='head', draft=None):
+def observe(state='failing', expected='ok', policy='unknown', reservation=None, attempts=None, tested_ref='head', draft=None, config_override=None):
     reservation = reservation or reserve()
     config = '%{"fixture/repo" => %{"tested_ref" => "head", "required" => ["check:1:required"]}}' if policy == 'verified' else '%{}'
+    if config_override is not None:
+        config = 'Jason.decode!(' + json.dumps(json.dumps(config_override)) + ')'
     check = dict(identity='check:1:required', latest=True, status='completed',
                  conclusion='failure' if state == 'failing' else 'success',
                  source_url='https://github.com/fixture/repo/actions/runs/1')
@@ -166,6 +183,21 @@ observe('passing', policy='verified', attempts=[])
 assert sql('SELECT resolved_at IS NULL FROM delivery_obligations') == 't'
 observe('passing', policy='verified', tested_ref='merge')
 assert sql('SELECT resolved_at IS NULL FROM delivery_obligations') == 't'
+# Feed the actual cold-loaded config through the canonical collector transaction.
+for policies in loaded_policies:
+    print('COLD_POLICY_COLLECTOR', policies, flush=True)
+    observe('passing', config_override=policies)
+    assert sql('SELECT ci_state FROM delivery_poll_states') == 'unknown', 'Cold-loaded malformed policy certified green'
+    assert sql('SELECT count(*) FROM delivery_obligations WHERE resolved_at IS NULL') == '1'
+
+# Malformed operator policy must retain the active episode and never certify green.
+for accepted in ('success', None, ['success', 17], []):
+    print('INVALID_POLICY_CASE', repr(accepted), flush=True)
+    observe('passing', config_override={'fixture/repo': {
+        'tested_ref': 'head', 'required': ['check:1:required'],
+        'accepted_conclusions': accepted}})
+    assert sql('SELECT ci_state FROM delivery_poll_states') == 'unknown', 'Invalid policy certified green'
+    assert sql('SELECT count(*) FROM delivery_obligations WHERE resolved_at IS NULL') == '1', 'Invalid policy resolved accountability'
 observe('passing', policy='verified')
 assert sql('SELECT state FROM delivery_obligations') == 'resolved'
 assert api('/tasks/' + repair)['task']['status'] == 'assigned', 'Recovery completed repair silently'
@@ -198,6 +230,13 @@ api('/tasks', {'id': 'ci-conflict', 'title': 'Other submitter', 'repo': 'fixture
 observe('passing', policy='verified')
 observe()
 assert sql('SELECT responsible_id IS NULL FROM delivery_obligations WHERE resolved_at IS NULL') == 't'
+
+# Captain-only responsibility retains accountability without crashing on a missing subscription.
+print('MISSING_SUBSCRIPTION_TICK', flush=True)
+sql("UPDATE delivery_obligations SET next_reminder_at=clock_timestamp()-interval '1 second' WHERE resolved_at IS NULL")
+rpc('{:ok, _} = Agentboard.Delivery.Accountability.tick()')
+assert sql("SELECT count(*) FROM cooperation_events WHERE kind='ci_reminder'") == '0'
+assert sql('SELECT escalated_at IS NOT NULL FROM delivery_obligations WHERE resolved_at IS NULL') == 't'
 
 # Real scheduler decisions, rolling bounds and duplicate-job fences across pods.
 rpc('Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-32-characters")')
