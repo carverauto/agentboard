@@ -315,6 +315,12 @@ sql('DELETE FROM board_schema')
 ab('task','list',code=1)
 assert sql('SELECT count(*) FROM board_schema')=='0'
 sql('INSERT INTO board_schema(id,version) VALUES(1,11)')
+# A marker alone cannot make the new evidence/receipt/accountability schema ready.
+for table in ('delivery_ci_snapshots', 'cooperation_receipts', 'delivery_obligations'):
+    sql('ALTER TABLE ' + table + ' RENAME TO fixture_missing_relation')
+    ab('task','list',code=1)
+    sql('ALTER TABLE fixture_missing_relation RENAME TO ' + table)
+assert ab('task','list')['tasks']
 print('Heartbeats, messages, atomic handoff, commit-only snapshots, listener reconnect and stream cleanup passed')
 
 from datetime import datetime, timedelta, timezone

@@ -9,8 +9,8 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 - [x] 1.1 Extend `Agentboard.Delivery` with due-PR reservation/generation and additive observation state (existing Ash/CI 1.3, 4.2–4.4); verify fresh/repeat/schema-7 upgrade preservation and two concurrent poll reservations remotely, and document the observation cutoff/default-off switch.
 - [x] 1.2 Add independent bounded AshOban due scheduling and immediate PR-link scheduling (existing 4.2); verify restart, archived/terminal links, previously green open PRs, disabled queued jobs and shared per-provider budgets remotely, and document actual poll/backoff bounds.
 - [x] 1.3 Implement current-head GitHub metadata/check/status pagination and latest-attempt observation (existing 5.1–5.3); verify old-head failure, superseded attempts, equal-time ordering, partial pages, auth failure and 429 remotely with controlled provider fixtures, and retain failed-job source links.
-- [ ] 1.4 Add confirmed-failure episode and one canonical responsible-agent repair obligation (existing 7.1, 7.3); verify repeated/concurrent polls, unknown/conflicting attribution, changed current-task pointer, explicit handoff and recurrence remotely, and document notification versus repair resolution.
-- [ ] 1.5 Add compact CI/responsible-agent/obligation reads in planned `/prs` and related task links (existing 8.1–8.2 subset); verify failing/pending/unknown/stale/green fixture rendering and desktop/narrow containment, and document evidence limitations without claiming full dashboard delivery.
+- [x] 1.4 Add confirmed-failure episode and one canonical responsible-agent repair obligation (existing 7.1, 7.3); verify repeated/concurrent polls, unknown/conflicting attribution, changed current-task pointer, explicit handoff and recurrence remotely, and document notification versus repair resolution.
+- [x] 1.5 Add compact CI/responsible-agent/obligation reads in planned `/prs` and related task links (existing 8.1–8.2 subset); verify failing/pending/unknown/stale/green fixture rendering and desktop/narrow containment, and document evidence limitations without claiming full dashboard delivery.
 
 ## 2. Durable CI delivery and one supervised worker
 
@@ -131,8 +131,13 @@ The [pre-fix reminder predicate](https://carverauto.buildbuddy.io/invocation/ef8
 fails specifically on a disabled flag producing a reminder; fixed behavior is
 included in the passing acceptance above.
 
-Tasks 1.4/1.5 remain open until the published collector transaction is integrated
-and immutable snapshot/policy recovery is proved. Task 2.7 is proved by [connected full-render export](https://carverauto.buildbuddy.io/invocation/c54bd1e1-f572-44e9-8823-355a83ff8612)
+Tasks 1.4/1.5 are now implemented through the published collector transaction.
+[Combined 24-target acceptance](https://carverauto.buildbuddy.io/invocation/c8f398e3-cc92-40df-b364-31ae6e5191a5)
+proves fenced concurrent commits, atomic snapshot/projection/episode/task/source rollback,
+configured complete-head recovery without task completion, recurrence, and actual schema-10
+upgrade preserving evidence. Separate Chrome draft checks cover eight desktop/mobile
+light/dark measurements with two inspected screenshots; missing/malformed or foreign-head
+draft is never inferred. Task 2.7 is proved by [connected full-render export](https://carverauto.buildbuddy.io/invocation/c54bd1e1-f572-44e9-8823-355a83ff8612)
 and eight actual Chrome desktop/mobile light/dark checks; stale heartbeat, fresh
 connector reports and live task leases remain separately visible. Architecture and historical portable planning viewers
 are [document 63](https://agentboard.farm01.carverauto.dev/documents/63) and

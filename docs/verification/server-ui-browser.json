@@ -1229,5 +1229,180 @@
       "sha256": "7497ff9cb7134ddeb7ee41929660e9f3742eff88aba48df96d8dc1c762d9cde8",
       "horizontal_scroll_left": 292
     }
-  ]
+  ],
+  "current_head_draft": {
+    "checked_at": "2026-10-07T07:39:07.238611+00:00",
+    "fixture_invocation": "c8f398e3-cc92-40df-b364-31ae6e5191a5",
+    "source_commit": "b2b33ccc1962cc6174cfc05282ba5ed7986e946b",
+    "method": "Actual packaged connected LiveView full join render via pinned Phoenix Diff consumer, invented provider/callback fixture data, actual CSS. Independent Chrome containment; screenshots reviewed separately.",
+    "measurements": [
+      {
+        "width": 1440,
+        "rootWidth": 1440,
+        "cards": [
+          {
+            "width": 187,
+            "scroll": 187
+          },
+          {
+            "width": 187,
+            "scroll": 187,
+            "ci": "\u25f7\nCI pending\n\u25c7\nDraft\nJust now"
+          }
+        ],
+        "text": "Board\n\nUpdated 07:37:57 UTC\n\nRepository\nOwner\nFilter board\nClear filters\nArchived tasks\nReview\n2\nci-review-without-pr\nP3\nReview without PR\n\nfixture/repo\n\nci-owner\nci-review-card\nP3\nReview LongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitle\n\nfixture/repo\n\nci-owner\n\u25f7\nCI pending\n\u25c7\nDraft\nJust now\nPull request",
+        "page": "board-draft-fresh",
+        "viewport": "1440x1000x1",
+        "theme": "light"
+      },
+      {
+        "width": 1440,
+        "rootWidth": 1440,
+        "cards": [
+          {
+            "width": 187,
+            "scroll": 187
+          },
+          {
+            "width": 187,
+            "scroll": 187,
+            "ci": "\u25f7\nCI pending\n\u25c7\nDraft\nJust now"
+          }
+        ],
+        "text": "Board\n\nUpdated 07:37:57 UTC\n\nRepository\nOwner\nFilter board\nClear filters\nArchived tasks\nReview\n2\nci-review-without-pr\nP3\nReview without PR\n\nfixture/repo\n\nci-owner\nci-review-card\nP3\nReview LongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitle\n\nfixture/repo\n\nci-owner\n\u25f7\nCI pending\n\u25c7\nDraft\nJust now\nPull request",
+        "page": "board-draft-fresh",
+        "viewport": "1440x1000x1",
+        "theme": "dark"
+      },
+      {
+        "width": 390,
+        "rootWidth": 390,
+        "cards": [
+          {
+            "width": 173,
+            "scroll": 173
+          },
+          {
+            "width": 173,
+            "scroll": 173,
+            "ci": "\u25f7\nCI pending\n\u25c7\nDraft\nJust now"
+          }
+        ],
+        "text": "Board\n\nUpdated 07:37:57 UTC\n\nRepository\nOwner\nFilter board\nClear filters\nArchived tasks\nReview\n2\nci-review-without-pr\nP3\nReview without PR\n\nfixture/repo\n\nci-owner\nci-review-card\nP3\nReview LongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitle\n\nfixture/repo\n\nci-owner\n\u25f7\nCI pending\n\u25c7\nDraft\nJust now\nPull request",
+        "page": "board-draft-fresh",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light"
+      },
+      {
+        "width": 390,
+        "rootWidth": 390,
+        "cards": [
+          {
+            "width": 173,
+            "scroll": 173
+          },
+          {
+            "width": 173,
+            "scroll": 173,
+            "ci": "\u25f7\nCI pending\n\u25c7\nDraft\nJust now"
+          }
+        ],
+        "text": "Board\n\nUpdated 07:37:57 UTC\n\nRepository\nOwner\nFilter board\nClear filters\nArchived tasks\nReview\n2\nci-review-without-pr\nP3\nReview without PR\n\nfixture/repo\n\nci-owner\nci-review-card\nP3\nReview LongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitle\n\nfixture/repo\n\nci-owner\n\u25f7\nCI pending\n\u25c7\nDraft\nJust now\nPull request",
+        "page": "board-draft-fresh",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark"
+      },
+      {
+        "width": 1440,
+        "rootWidth": 1440,
+        "cards": [
+          {
+            "width": 187,
+            "scroll": 187
+          },
+          {
+            "width": 187,
+            "scroll": 187,
+            "ci": "\u231b\nCI stale\n\u25c7\nDraft (last observed)\n1s ago"
+          }
+        ],
+        "text": "Board\n\nUpdated 07:37:58 UTC\n\nRepository\nOwner\nFilter board\nClear filters\nArchived tasks\nReview\n2\nci-review-without-pr\nP3\nReview without PR\n\nfixture/repo\n\nci-owner\nci-review-card\nP3\nReview LongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitle\n\nfixture/repo\n\nci-owner\n\u231b\nCI stale\n\u25c7\nDraft (last observed)\n1s ago\nPull request",
+        "page": "board-draft-stale",
+        "viewport": "1440x1000x1",
+        "theme": "light"
+      },
+      {
+        "width": 1440,
+        "rootWidth": 1440,
+        "cards": [
+          {
+            "width": 187,
+            "scroll": 187
+          },
+          {
+            "width": 187,
+            "scroll": 187,
+            "ci": "\u231b\nCI stale\n\u25c7\nDraft (last observed)\n1s ago"
+          }
+        ],
+        "text": "Board\n\nUpdated 07:37:58 UTC\n\nRepository\nOwner\nFilter board\nClear filters\nArchived tasks\nReview\n2\nci-review-without-pr\nP3\nReview without PR\n\nfixture/repo\n\nci-owner\nci-review-card\nP3\nReview LongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitle\n\nfixture/repo\n\nci-owner\n\u231b\nCI stale\n\u25c7\nDraft (last observed)\n1s ago\nPull request",
+        "page": "board-draft-stale",
+        "viewport": "1440x1000x1",
+        "theme": "dark"
+      },
+      {
+        "width": 390,
+        "rootWidth": 390,
+        "cards": [
+          {
+            "width": 173,
+            "scroll": 173
+          },
+          {
+            "width": 173,
+            "scroll": 173,
+            "ci": "\u231b\nCI stale\n\u25c7\nDraft (last observed)\n1s ago"
+          }
+        ],
+        "text": "Board\n\nUpdated 07:37:58 UTC\n\nRepository\nOwner\nFilter board\nClear filters\nArchived tasks\nReview\n2\nci-review-without-pr\nP3\nReview without PR\n\nfixture/repo\n\nci-owner\nci-review-card\nP3\nReview LongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitle\n\nfixture/repo\n\nci-owner\n\u231b\nCI stale\n\u25c7\nDraft (last observed)\n1s ago\nPull request",
+        "page": "board-draft-stale",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light"
+      },
+      {
+        "width": 390,
+        "rootWidth": 390,
+        "cards": [
+          {
+            "width": 173,
+            "scroll": 173
+          },
+          {
+            "width": 173,
+            "scroll": 173,
+            "ci": "\u231b\nCI stale\n\u25c7\nDraft (last observed)\n1s ago"
+          }
+        ],
+        "text": "Board\n\nUpdated 07:37:58 UTC\n\nRepository\nOwner\nFilter board\nClear filters\nArchived tasks\nReview\n2\nci-review-without-pr\nP3\nReview without PR\n\nfixture/repo\n\nci-owner\nci-review-card\nP3\nReview LongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitleLongUnbrokenTitle\n\nfixture/repo\n\nci-owner\n\u231b\nCI stale\n\u25c7\nDraft (last observed)\n1s ago\nPull request",
+        "page": "board-draft-stale",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark"
+      }
+    ],
+    "perceptual_review": {
+      "result": "pass",
+      "reviewer": "Codex image-capable inspection",
+      "screenshots": [
+        "server-board-draft-fresh-light.png",
+        "server-board-draft-stale-dark.png"
+      ],
+      "observations": [
+        "Actual pending CI and separate draft symbols/text remain legible inside narrow unchanged Kanban cards.",
+        "Stale CI is labelled independently from Draft (last observed); no clipped badge or horizontal page overflow."
+      ],
+      "limitations": [
+        "Frozen actual packaged render with invented fixture data; does not prove production provider state or native delivery."
+      ]
+    }
+  }
 }

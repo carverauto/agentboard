@@ -119,9 +119,16 @@ must export the full actual WebSocket join render through the pinned
 retaining the same packaged layout/CSS. This is a snapshot of a real connected
 fixture session, not a mocked LiveView callback.
 
-Before PR readiness, integrate the published collector and prove the combined
-snapshot/projection/obligation/source transaction and schema-10 upgrade. Final
-native host-to-packaged-API proof and controlled live failed-PR/restart/recovery
+[Combined 24-target remote acceptance](https://carverauto.buildbuddy.io/invocation/c8f398e3-cc92-40df-b364-31ae6e5191a5)
+passes on public collector `2098e250` plus this server integration. The actual
+reservation callback owns atomic classified snapshot/projection/episode/task/source
+commit, concurrent rejection and rollback. The actual HTTPS collector action proves
+configured head-policy recovery while the repair task remains assigned. Schema 11
+at migration `20261007000500` follows published collector `20261007000400` and
+deployed bridge `20261007000300`; repeated schema-10 upgrade preserves immutable
+snapshot, current projection, inventory, history and provider-budget bytes. The
+passing constraint rejects absent JSON fields as well as unverified/merge-ref evidence.
+Final native host-to-packaged-API proof and controlled live failed-PR/restart/recovery
 remain explicit host/coordinator release gates. Cooperation stays default-off.
 
 ## Review cards and relative ages
@@ -156,3 +163,23 @@ Review lookup reuses canonical GitHub inventory identity, preserving mixed-case
 submission URLs. Packaged `7c5c34bb-e589-4b8b-b859-753fc94f5723` passes
 with `Fixture/REPO`; restoring only verbatim URL lookup fails the intended
 CI-failing badge assertion in `9b7b2e71-43a8-4f70-b27d-8af784ca6228`.
+
+Draft freshness is tied to the current projection's exact immutable snapshot,
+head and observation time. An unavailable provider leaves `Draft (last observed)`
+visible beside stale CI; foreign-head metadata is omitted. Eight actual Chrome
+desktop/390px light/dark measurements and separate two-image inspection passed
+from the combined packaged fixture in the retained browser receipt.
+
+The static range quality scan against public collector `2098e250..b2b33ccc` reports
+eight major rows: six short cloning shapes (separate lock namespaces/digest primitives,
+controller adapters and framework LiveView/HEEx callbacks), the 64-line atomic
+observation orchestration and Application module growth. These preserve distinct
+semantics and declarative persistence/supervision boundaries rather than introducing
+shared authority or moving declarations solely to lower a metric. Macro-registered
+resources/controllers/callbacks are exercised remotely despite lexical dead-code
+reports. This is a recorded tradeoff; it is not a clean static quality verdict.
+
+[Final 24-target verification](https://carverauto.buildbuddy.io/invocation/4cc5e2d5-5937-4696-b246-e9cd2726cb3a)
+includes public CLI refusal while the schema marker is retained but each essential
+new snapshot, receipt or obligation relation is absent, followed by successful
+reads after restoration. This does not migrate or delete retained records.
