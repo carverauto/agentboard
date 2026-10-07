@@ -5035,7 +5035,7 @@
         <!-- Connection paths (before components for correct z-order) -->
         <path data-edge-from="durable-api" data-edge-to="host-loop" data-edge-label="HTTPS reserve" data-edge-key="0" data-composition-points="240,300;420,300" d="M 240 300 L 420 300" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="host-loop" data-edge-to="claude-child" data-edge-label="Stage exact batch" data-edge-key="1" data-composition-points="610,300;790,300" d="M 610 300 L 790 300" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="claude-child" data-edge-to="native-model" data-edge-label="Native boundary" data-edge-key="2" data-composition-points="990,300;1140,300" d="M 990 300 L 1140 300" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="claude-child" data-edge-to="native-model" data-edge-label="Prompt-only auto boundary" data-edge-key="2" data-composition-points="990,300;1140,300" d="M 990 300 L 1140 300" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="native-hook" data-edge-to="claude-child" data-edge-label="Bind / retire" data-edge-key="3" data-composition-points="900,150;900,174;916,174;916,236;890,236;890,260" d="M 900 150 L 900 166 Q 900 174 908 174 L 908 174 Q 916 174 916 182 L 916 228 Q 916 236 908 236 L 898 236 Q 890 236 890 244 L 890 260" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
         <path data-edge-from="claude-child" data-edge-to="receipt-cli" data-edge-label="Recheck / explicit ack" data-edge-key="4" data-composition-points="890,340;890,364;916,364;916,436;900,436;900,460" d="M 890 340 L 890 356 Q 890 364 898 364 L 908 364 Q 916 364 916 372 L 916 428 Q 916 436 908 436 L 908 436 Q 900 436 900 444 L 900 460" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
 
@@ -5076,8 +5076,8 @@
         <text data-detail="context" x="890" y="314" class="t-muted" font-size="9" text-anchor="middle">Protected protocol 1 socket</text>
         </g>
 
-        <g id="node-native-model" data-node-id="native-model" data-node-label="Claude model turn" tabindex="0" role="button" aria-label="Focus Claude model turn, Prompt context / check-in, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="Prompt context / check-in" data-node-context="Architecture component">
-          <title>Claude model turn · Prompt context / check-in · Architecture component</title>
+        <g id="node-native-model" data-node-id="native-model" data-node-label="Claude model turn" tabindex="0" role="button" aria-label="Focus Claude model turn, Auto prompt / explicit check-in, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="Auto prompt / explicit check-in" data-node-context="Architecture component">
+          <title>Claude model turn · Auto prompt / explicit check-in · Architecture component</title>
           <rect x="1140" y="260" width="200" height="80" rx="6" class="c-mask"/>
           <rect x="1140" y="260" width="200" height="80" rx="6" class="c-external" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(1146 266) scale(0.6875)">
@@ -5085,7 +5085,7 @@
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="1240" y="298" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Claude model turn</text>
-        <text data-detail="context" x="1240" y="314" class="t-muted" font-size="9" text-anchor="middle">Prompt context / check-in</text>
+        <text data-detail="context" x="1240" y="314" class="t-muted" font-size="9" text-anchor="middle">Auto prompt / explicit check-in</text>
         </g>
 
         <g id="node-native-hook" data-node-id="native-hook" data-node-label="Native session hook" tabindex="0" role="button" aria-label="Focus Native session hook, Verified ID + fresh generation, Architecture component" aria-pressed="false" data-node-kind="security" data-node-sublabel="Verified ID + fresh generation" data-node-context="Architecture component">
@@ -5121,9 +5121,9 @@
           <rect x="654.2" y="280" width="91.6" height="14" rx="3" class="c-mask"/>
           <text x="700" y="290" class="t-backend" font-size="8" text-anchor="middle">Stage exact batch</text>
         </g>
-        <g data-detail="context" data-edge-from="claude-child" data-edge-to="native-model" data-edge-label="Native boundary" data-edge-key="2">
-          <rect x="1024" y="280" width="82" height="14" rx="3" class="c-mask"/>
-          <text x="1065" y="290" class="t-backend" font-size="8" text-anchor="middle">Native boundary</text>
+        <g data-detail="context" data-edge-from="claude-child" data-edge-to="native-model" data-edge-label="Prompt-only auto boundary" data-edge-key="2">
+          <rect x="1000" y="280" width="130" height="14" rx="3" class="c-mask"/>
+          <text x="1065" y="290" class="t-backend" font-size="8" text-anchor="middle">Prompt-only auto boundary</text>
         </g>
         <g data-detail="context" data-edge-from="native-hook" data-edge-to="claude-child" data-edge-label="Bind / retire" data-edge-key="3">
           <rect x="871.8" y="154" width="72.4" height="14" rx="3" class="c-mask"/>
@@ -5360,7 +5360,7 @@
           <h3>Generation and pause</h3>
         </div>
         <ul>
-          <li>&bull; Resume, fork and clear retire the old generation.</li>
+          <li>&bull; Session end and replacement retire the old generation; clear rebind proof pending.</li>
           <li>&bull; Durable pause and epoch are checked before source delivery.</li>
         </ul>
       </div>

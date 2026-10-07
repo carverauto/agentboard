@@ -6,20 +6,20 @@
     { "id": "durable-api", "type": "backend", "label": "Agentboard API", "sublabel": "Pause, epoch, exact receipts", "pos": [50, 260], "size": [190, 80] },
     { "id": "host-loop", "type": "backend", "label": "Host worker", "sublabel": "Frozen attempt journal", "pos": [420, 260], "size": [190, 80] },
     { "id": "claude-child", "type": "messagebus", "label": "Claude MCP child", "sublabel": "Protected protocol 1 socket", "pos": [790, 260], "size": [200, 80] },
-    { "id": "native-model", "type": "external", "label": "Claude model turn", "sublabel": "Prompt context / check-in", "pos": [1140, 260], "size": [200, 80] },
+    { "id": "native-model", "type": "external", "label": "Claude model turn", "sublabel": "Auto prompt / explicit check-in", "pos": [1140, 260], "size": [200, 80] },
     { "id": "native-hook", "type": "security", "label": "Native session hook", "sublabel": "Verified ID + fresh generation", "pos": [790, 70], "size": [220, 80] },
     { "id": "receipt-cli", "type": "security", "label": "Scoped CLI", "sublabel": "Protected credential references", "pos": [790, 460], "size": [220, 80] }
   ],
   "connections": [
     { "from": "durable-api", "to": "host-loop", "label": "HTTPS reserve", "variant": "emphasis" },
     { "from": "host-loop", "to": "claude-child", "label": "Stage exact batch", "variant": "emphasis" },
-    { "from": "claude-child", "to": "native-model", "label": "Native boundary", "variant": "emphasis" },
+    { "from": "claude-child", "to": "native-model", "label": "Prompt-only auto boundary", "variant": "emphasis" },
     { "from": "native-hook", "to": "claude-child", "label": "Bind / retire", "variant": "security", "fromSide": "bottom", "toSide": "top" },
     { "from": "claude-child", "to": "receipt-cli", "label": "Recheck / explicit ack", "variant": "security", "fromSide": "bottom", "toSide": "top" }
   ],
   "cards": [
     { "dot": "emerald", "title": "Verified boundaries", "items": ["Turn-start preserves the user's prompt and foreign context.", "Dedicated check-in retains its original tool result."] },
-    { "dot": "rose", "title": "Generation and pause", "items": ["Resume, fork and clear retire the old generation.", "Durable pause and epoch are checked before source delivery."] },
+    { "dot": "rose", "title": "Generation and pause", "items": ["Session end and replacement retire the old generation; clear rebind proof pending.", "Durable pause and epoch are checked before source delivery."] },
     { "dot": "amber", "title": "Readiness is per worker", "items": ["Idle wake is unsupported; no competing wake owner is added.", "No implicit receipts. Herdr automation remains disabled."] }
   ]
 }
