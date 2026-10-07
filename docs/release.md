@@ -84,11 +84,15 @@ is documented in [the Archify diagram](architecture/ash-board-actions.html).
 
 This additive stage introduces the `Agentboard.Delivery` domain with canonical
 `PullRequest` and immutable `TaskLink` resources. GitHub owner/repository case
-aliases resolve to one PR identity. PR inputs must be an exact HTTPS GitHub
-URL of at most 2048 bytes, without trailing newlines. Multiple tasks can link the same PR; each
-link retains its first submitting agent, model, harness and source timeline
-event. Handoff, reassignment, terminal status, clearing a URL or replacing it
-cannot erase that submission or rewrite its attribution.
+aliases resolve to one PR identity. The PR number is stored as text so an
+already-valid decimal identifier is not narrowed to a bigint. PR inputs must
+be an exact HTTPS GitHub URL of at most 2048 bytes, with no trailing newline
+or other suffix. Multiple tasks can link the same PR; each link retains its
+first submitting agent, model, harness and source timeline event. A later
+actor who links that same URL does not replace the earliest submitter.
+Handoff, reassignment, terminal status, clearing a URL or replacing it cannot
+erase that submission or rewrite its attribution. Clearing a URL does not
+create a new submission.
 
 Explicit task create/edit/link requests that contain a PR write the task,
 PaperTrail versions, AshEvents, compatible timeline and inventory in one

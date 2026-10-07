@@ -74,11 +74,12 @@ including audit insert failures, one-winner claims, scoped audit contention,
 canonical evidence retries, raw retention, HTML exclusions and sandbox serving.
 Schema-6 fresh, repeat, and schema-4 upgrades passed in
 [BuildBuddy 5d07772f](https://carverauto.buildbuddy.io/invocation/5d07772f-147e-47f2-a049-9fe5a0164b9a).
-The quota latest-observation SQL projection, public audit inspection, Delivery
-schema, PR workers/providers/UI/CLI, completion guard and live rollout remain
-unchecked. Scoped Task audit isolation is demonstrated; PR lock ordering is not
-yet implemented, so 3.3 remains open. Archify documents this stage; it does not
-claim CI-monitor delivery. Database-clock expiry, bounded time input, and
+After the foundation stage, the quota latest-observation SQL projection,
+public audit inspection, complete Delivery snapshot/policy schema, PR
+workers/providers/UI/CLI, completion guard and live rollout were still
+unchecked. Scoped Task audit isolation was demonstrated. Inventory PR-identity
+lock ordering is recorded in the stage below; task 3.3 stays open. Archify
+documents this stage; it does not claim CI-monitor delivery. Database-clock expiry, bounded time input, and
 nonqueued pool checkout then passed packaged board API and schema acceptance in
 [BuildBuddy 4f96f5ff](https://carverauto.buildbuddy.io/invocation/4f96f5ff-8ecf-48aa-a7f2-990e10c76b9c).
 That run did not execute the other acceptance targets or a live rollout.
