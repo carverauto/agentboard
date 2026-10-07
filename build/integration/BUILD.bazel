@@ -164,6 +164,16 @@ sh_test(
 )
 
 sh_test(
+    name = "mattermost_conversations_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "mattermost_conversations_test.py", "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "true", "AGENTBOARD_MATTERMOST_BOT_TOKEN": "fixture-bot-token", "AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID": "fixture-board-channel", "AGENTBOARD_MATTERMOST_TEAM_ID": "fixture-team-id", "AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS": "2000", "AGENTBOARD_CAPTAIN_TOKEN": "fixture-captain-token-0123456789abcdef"},
+    srcs = ["board_api_test.sh"],
+    data = ["mattermost_conversations_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)
+
+sh_test(
     name = "mattermost_bridge_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "mattermost_bridge_test.py", "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "true", "AGENTBOARD_MATTERMOST_BOT_TOKEN": "fixture-bot-token", "AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID": "fixture-board-channel", "AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS": "2000"},
     srcs = ["board_api_test.sh"],

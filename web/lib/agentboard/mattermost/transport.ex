@@ -109,6 +109,33 @@ defmodule Agentboard.Mattermost.Transport do
     end
   end
 
+  # Identity verification: user record plus team membership, both by stable ID.
+  # A renamed handle keeps the same user ID; attribution follows the ID.
+  def fetch_user(cfg, user_id) do
+    case request(cfg, :get, "/api/v4/users/#{user_id}", nil) do
+      {:ok, 200, %{"id" => id, "username" => username}} -> {:ok, %{id: id, username: username}}
+      {:ok, 404, _} -> {:error, :not_found}
+      {:ok, 401, _} -> {:error, :unauthorized}
+      {:ok, 403, _} -> {:error, :unauthorized}
+      {:ok, _status, _} -> {:error, :unreachable}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def team_member?(cfg, team_id, user_id) do
+    case request(cfg, :get, "/api/v4/teams/#{team_id}/members/#{user_id}", nil) do
+      {:ok, 200, _} -> {:ok, true}
+      {:ok, 404, _} -> {:ok, false}
+      {:ok, 401, _} -> {:error, :unauthorized}
+      {:ok, 403, _} -> {:error, :unauthorized}
+      {:ok, _status, _} -> {:error, :unreachable}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # Multi-page reconcile lives in find_by_marker/search_channel above; this
+  # module keeps one history-search implementation.
+
   defp maybe_root(map, nil), do: map
   defp maybe_root(map, root_id), do: Map.put(map, :root_id, root_id)
 

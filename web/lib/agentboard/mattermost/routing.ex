@@ -6,7 +6,7 @@ defmodule Agentboard.Mattermost.Routing do
   routers and restarts converge on the same pending set.
   """
   alias Agentboard.Board.Operations
-  alias Agentboard.Mattermost.{Bridge, Outbox, SendWorker}
+  alias Agentboard.Mattermost.{Bridge, SendWorker}
   alias Agentboard.Repo
 
   @page_size 25

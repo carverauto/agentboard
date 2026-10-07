@@ -340,6 +340,8 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Delivery.CISnapshot,
              Agentboard.Mattermost.Outbox,
              Agentboard.Mattermost.TaskThread,
+             Agentboard.Mattermost.ConversationIdentity,
+             Agentboard.Mattermost.ConversationCoverage,
              Agentboard.Cooperation.Subscription,
              Agentboard.Cooperation.Binding,
              Agentboard.Cooperation.Event,

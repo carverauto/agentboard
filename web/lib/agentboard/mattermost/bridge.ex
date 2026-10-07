@@ -165,7 +165,8 @@ defmodule Agentboard.Mattermost.Bridge do
   defp unique_conflict?(%Ash.Error.Unknown{errors: errors}) do
     Enum.any?(List.wrap(errors), fn
       %Ash.Error.Unknown.UnknownError{error: message} when is_binary(message) ->
-        String.contains?(message, "mattermost_outbox_source_uniq")
+        String.contains?(message, "mattermost_outbox_source_source_key_index") or
+          String.contains?(message, "mattermost_outbox_source_uniq")
 
       _ ->
         false
