@@ -169,7 +169,8 @@ defmodule Agentboard.Delivery.Reads do
 
     draft =
       if snapshot && snapshot.head_sha == s.head_sha && snapshot.observed_at == s.observed_at &&
-           is_boolean(snapshot.payload["draft"]), do: snapshot.payload["draft"]
+           is_boolean(snapshot.payload["draft"]),
+         do: snapshot.payload["draft"]
 
     %{ci_state: state, fresh: !!fresh, observed_at: if(s, do: s.observed_at), draft: draft}
   end

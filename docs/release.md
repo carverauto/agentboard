@@ -226,3 +226,23 @@ jobs, snapshots, budgets and history, and deploys a compatible prior digest.
 Forward/repeat preservation is remotely tested; actually booting a prior binary
 and enabling a live observer are separate first-release rollout gates. No down
 migration or evidence deletion is permitted.
+
+## Schema 11: server accountability and delivery
+
+Migrate and serve the same schema-11 image. Migration `20261007000500` adds
+the Cooperation tables (subscriptions, bindings, credentials, events,
+deliveries, batches, attempts, receipts), delivery obligations and the
+passing-snapshot constraint; readiness now requires schema 11. Existing
+schema-10 snapshots, projections, inventory, history and provider budgets are
+preserved; repeat migration is harmless.
+
+Cooperation dispatch and reminder wakes stay default-off through
+`AGENTBOARD_COOPERATION_ENABLED`; configured head policy comes from server-side
+`AGENTBOARD_CI_POLICIES`. Behavior, bounds and protocol live in
+[server accountability](server-accountability.md) and the
+[worker API](worker-api.md), not here.
+
+Roll back by disabling cooperation/observation as appropriate, retaining
+schema 11, pending/uncertain attempts, exact receipts, obligations and
+history, and deploying a compatible prior digest. No down migration, cursor
+rewind, task auto-reclaim or uncertainty clearing is permitted.

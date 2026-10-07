@@ -41,7 +41,7 @@ openssl rand -hex 32                      # MATTERMOST_DB_PASSWORD (hex: it goes
 | `POSTGRES_USER` | `postgres` | Bootstrap operator; installs extensions before the application role is created |
 | `AGENTBOARD_DATABASE_USER` | `agentboard` | Normal database-owning application role; must differ from the bootstrap operator |
 | `SECRET_KEY_BASE` | (required) | At least 64 characters |
-| `AGENTBOARD_CAPTAIN_TOKEN` | (empty) | Optional 32+ random characters; enables captain archive controls |
+| `AGENTBOARD_CAPTAIN_TOKEN` | (empty) | Optional 32+ random characters for captain administration; see server configuration in the [README](../../README.md#configuration) |
 | `PHX_HOST` | `localhost` | The hostname in your browser's address bar. The dashboard's live connection is refused from other hostnames |
 | `AGENTBOARD_BIND`, `AGENTBOARD_PORT` | `127.0.0.1`, `4000` | Where the dashboard/API is published |
 | `POOL_SIZE` | `10` | Database connections |

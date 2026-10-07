@@ -1,6 +1,6 @@
 # Current-head GitHub observations
 
-This stage implements runtime task 1.3. It collects sampled **head-only** CI evidence through the existing Ash poll action. Observation remains default-off; a live CI repair loop is not deployed. Repository policy, required rules, verified merge/test refs, BuildBuddy correlation, richer Actions diagnostics, repair obligations and worker delivery remain their separate approved gates.
+This stage implements runtime task 1.3. It collects sampled **head-only** CI evidence through the existing Ash poll action. Observation remains default-off; a live CI repair loop is not deployed. Configured head-policy recovery, repair obligations and scoped worker delivery are implemented separately in the opt-in server runtime; see [server accountability](server-accountability.md). Verified merge/test refs, BuildBuddy correlation and richer Actions diagnostics remain their separate approved gates.
 
 ## Collection and interpretation
 

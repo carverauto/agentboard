@@ -139,17 +139,28 @@ ci_policies =
           entry
           |> then(fn e ->
             case e["required"] do
-              nil -> e
-              req when is_list(req) -> if Enum.all?(req, &is_binary/1), do: e, else: Map.delete(e, "required")
-              _ -> Map.delete(e, "required")
+              nil ->
+                e
+
+              req when is_list(req) ->
+                if Enum.all?(req, &is_binary/1), do: e, else: Map.delete(e, "required")
+
+              _ ->
+                Map.delete(e, "required")
             end
           end)
           |> then(fn e ->
             case e["accepted_conclusions"] do
-              nil -> e
+              nil ->
+                e
+
               list when is_list(list) ->
-                if Enum.all?(list, &is_binary/1), do: e, else: Map.delete(e, "accepted_conclusions")
-              _ -> Map.delete(e, "accepted_conclusions")
+                if Enum.all?(list, &is_binary/1),
+                  do: e,
+                  else: Map.delete(e, "accepted_conclusions")
+
+              _ ->
+                Map.delete(e, "accepted_conclusions")
             end
           end)
           |> then(fn e ->
