@@ -104,8 +104,9 @@ measurements and separate light/dark perceptual review receipts.
 Task 1.3 remains unchecked: this preparatory schema does not supply the complete
 Delivery snapshot/policy schema or Ash migration-generator baselines. Tasks
 4.2–4.4 and the provider, follow-up, CI dashboard/API/CLI and monitored rollout
-remain pending. Discovery is an explicit domain operation until the next
-AshOban scheduler stage; inventory existence is not a CI health verdict.
+remain pending. Discovery remains an explicitly callable domain operation
+alongside the catch-up scheduler below until the provider observation stages;
+inventory existence is not a CI health verdict.
 
 ### Inventory catch-up worker stage
 

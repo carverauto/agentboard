@@ -121,8 +121,9 @@ runs. Record that gap and fix forward. Do not drop immutable PR/link/version
 history or run a down migration.
 
 This stage establishes inventory for the next scheduler. CI polling, provider
-credentials, CI verdicts, scheduled reconciliation, the PR dashboard/API/CLI,
-completion guard and follow-ups remain pending in the approved OpenSpec change.
+credentials, CI verdicts, provider observation scheduling, the PR dashboard/API/CLI,
+completion guard and follow-ups remain pending in the approved OpenSpec change
+(opt-in inventory catch-up is described in the next section).
 An inventory record alone makes no assertion about CI health. See the
 [Archify submission and discovery diagram](architecture/pr-inventory.html).
 
