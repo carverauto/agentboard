@@ -72,7 +72,7 @@ func NewRoot() *cobra.Command {
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), Version)
 		return err
 	}})
-	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands())
+	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.chat())
 	return root
 }
 func env(key, fallback string) string {
@@ -111,6 +111,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasPrefix(path, "context") {
 		required = 5
 	}
+	if strings.HasPrefix(path, "conversations") {
+		required = 12
+	}
 	if strings.HasSuffix(path, "/documents") {
 		required = 4
 	}
@@ -133,7 +136,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "entry", "entries"} {
+	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "entry", "entries", "chat"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue

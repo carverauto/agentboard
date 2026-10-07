@@ -1,0 +1,195 @@
+{
+ "activations": [
+  {
+   "participant": "api",
+   "from": 164,
+   "to": 248,
+   "type": "backend"
+  },
+  {
+   "participant": "db",
+   "from": 199,
+   "to": 217,
+   "type": "database"
+  },
+  {
+   "participant": "verify",
+   "from": 234,
+   "to": 248,
+   "type": "backend"
+  },
+  {
+   "participant": "cli",
+   "from": 304,
+   "to": 477,
+   "type": "external"
+  },
+  {
+   "participant": "mm",
+   "from": 304,
+   "to": 357,
+   "type": "cloud"
+  },
+  {
+   "participant": "api",
+   "from": 374,
+   "to": 392,
+   "type": "backend"
+  },
+  {
+   "participant": "mm",
+   "from": 424,
+   "to": 477,
+   "type": "cloud"
+  },
+  {
+   "participant": "verify",
+   "from": 519,
+   "to": 543,
+   "type": "backend"
+  },
+  {
+   "participant": "mm",
+   "from": 519,
+   "to": 537,
+   "type": "cloud"
+  }
+ ],
+ "diagram_type": "sequence",
+ "messages": [
+  {
+   "from": "captain",
+   "to": "api",
+   "y": 170,
+   "label": "POST /conversations/identities (captain token)",
+   "variant": "emphasis"
+  },
+  {
+   "from": "api",
+   "to": "db",
+   "y": 205,
+   "label": "enroll mapping + credential_ref",
+   "variant": "emphasis"
+  },
+  {
+   "from": "api",
+   "to": "verify",
+   "y": 240,
+   "label": "verify job",
+   "variant": "dashed"
+  },
+  {
+   "from": "cli",
+   "to": "mm",
+   "y": 310,
+   "label": "chat send --retry-key K",
+   "variant": "emphasis"
+  },
+  {
+   "from": "cli",
+   "to": "mm",
+   "y": 345,
+   "label": "POST /posts (retry key in props)",
+   "variant": "default"
+  },
+  {
+   "from": "cli",
+   "to": "api",
+   "y": 380,
+   "label": "POST /conversations/coverage (receipt)",
+   "variant": "emphasis"
+  },
+  {
+   "from": "cli",
+   "to": "mm",
+   "y": 430,
+   "label": "chat read --since <cursor>",
+   "variant": "emphasis"
+  },
+  {
+   "from": "mm",
+   "to": "cli",
+   "y": 465,
+   "label": "page posts, suppress own echo",
+   "variant": "return"
+  },
+  {
+   "from": "verify",
+   "to": "mm",
+   "y": 525,
+   "label": "GET /users/:id + team member?",
+   "variant": "default"
+  }
+ ],
+ "meta": {
+  "output": "docs/architecture/mattermost-agent-chat.html",
+  "quality_profile": "showcase",
+  "column_fit": "spread",
+  "title": "Mattermost per-agent chat: provision, send, read, receipts",
+  "viewBox": [
+   1060,
+   680
+  ]
+ },
+ "participants": [
+  {
+   "id": "captain",
+   "label": "Captain",
+   "sublabel": "provisioning",
+   "type": "external"
+  },
+  {
+   "id": "cli",
+   "label": "agentboard chat",
+   "sublabel": "worker CLI + own token",
+   "type": "external"
+  },
+  {
+   "id": "api",
+   "label": "Agentboard API",
+   "sublabel": "maps + verifies",
+   "type": "backend"
+  },
+  {
+   "id": "db",
+   "label": "Board Postgres",
+   "sublabel": "identities + coverage",
+   "type": "database"
+  },
+  {
+   "id": "mm",
+   "label": "Mattermost",
+   "sublabel": "message authority",
+   "type": "cloud"
+  },
+  {
+   "id": "verify",
+   "label": "Verify worker",
+   "sublabel": "Oban queue",
+   "type": "backend"
+  }
+ ],
+ "schema_version": 1,
+ "segments": [
+  {
+   "from": 150,
+   "to": 260,
+   "label": "Provision"
+  },
+  {
+   "from": 290,
+   "to": 395,
+   "label": "Send + receipt"
+  },
+  {
+   "from": 410,
+   "to": 480,
+   "label": "Read + catch-up"
+  },
+  {
+   "from": 505,
+   "to": 540,
+   "label": "Async verify"
+  }
+ ]
+}

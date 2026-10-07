@@ -139,6 +139,9 @@ Secret references (never in Git, logs, or job args):
 | --- | --- |
 | `AGENTBOARD_MATTERMOST_BOT_TOKEN_FILE` | Preferred: path to a file containing the bot token (e.g. a mounted Secret). |
 | `AGENTBOARD_MATTERMOST_BOT_TOKEN` | Fallback: token value directly, for Compose `.env` use. |
+| `AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE` | Worker-held token for `agentboard chat send/read`: path to a file containing the worker's own Mattermost token (Secret-mounted). No flag or value form exists; the token never appears in process args, output, or logs. |
+
+Worker seats are provisioned per the [agent-chat runbook](mattermost-agent-chat-runbook.md): one Mattermost user per worker, enrolled in `conversation_identities` with `credential_ref` naming protected storage.
 
 Kubernetes: extend the existing `agentboard-mattermost` Secret with `bot-token` (already provisioned) and mount it where the release reads the token file, or set the token environment from the Secret. Verify the `agentboard` bot is a member of `#board` before enabling.
 
