@@ -76,7 +76,7 @@ fixture, [fresh/repeat/schema-4/schema-7 migration proof](https://carverauto.bui
 passed. See [stage contracts](../../../docs/ci-polling.md).
 
 The reservation foundation alone has no due scheduler. Task 1.2 now adds scheduling as documented below; GitHub collection, failure obligations, worker connectors and automatic reminders remain pending. Existing Ash/CI tasks 1.3 and
-4.2–4.4 remain open because this implements only their reservation subset.
+4.2–4.4 remain open; 1.2 covers only the scheduling subset of 4.2.
 The first release gate and the remaining 34 runtime tasks remain open.
 
 After remote formatting, [full 17-target acceptance](https://carverauto.buildbuddy.io/invocation/9f599f54-8769-466d-8de4-1e88b8fe7368) passed (12 executed, five unchanged cached targets). Archify foundation: 9/9 showcase checks, zero errors/warnings, all four desktop containment measurements, and separate light/dark image review. No live runtime or provider result is implied.

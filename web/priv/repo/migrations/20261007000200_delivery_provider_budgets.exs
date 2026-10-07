@@ -25,3 +25,4 @@ defmodule Agentboard.Repo.Migrations.DeliveryProviderBudgets do
 
   def down, do: raise("Retain durable observation budgets; roll back a schema-compatible image")
 end
+

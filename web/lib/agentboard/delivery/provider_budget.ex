@@ -22,3 +22,4 @@ defmodule Agentboard.Delivery.ProviderBudget do
     attribute(:reset_at, :utc_datetime_usec, allow_nil?: false)
   end
 end
+

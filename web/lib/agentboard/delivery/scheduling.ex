@@ -107,3 +107,4 @@ defmodule Agentboard.Delivery.Scheduling do
 
   defp snooze, do: {:error, AshOban.Errors.SnoozeJob.exception(snooze_for: 60)}
 end
+

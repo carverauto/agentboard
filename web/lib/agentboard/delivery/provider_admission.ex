@@ -37,3 +37,4 @@ defmodule Agentboard.Delivery.ProviderAdmission do
 
   def acquire(_), do: {:error, "invalid_input", "Unknown provider"}
 end
+

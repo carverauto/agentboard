@@ -15,3 +15,4 @@ defmodule Agentboard.SchemaVersion do
     DBConnection.ConnectionError -> {:error, :unavailable}
   end
 end
+

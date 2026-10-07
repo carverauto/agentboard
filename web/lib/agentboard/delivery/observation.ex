@@ -34,3 +34,4 @@ defmodule Agentboard.Delivery.Observation do
     end
   end
 end
+

@@ -12,7 +12,7 @@ Schema 8 adds `Agentboard.Delivery.PollState` alongside the immutable schema-7 P
 
 ## Cutoff, enablement and rollback
 
-Migrate and serve the same immutable schema-9 image. Schema 8 introduced PollState; schema 9 adds shared operational provider budgets and preserves existing PollState backoff. Existing canonical PRs get one due, unknown state at the migration's PostgreSQL transaction timestamp. Their task, event, document, PR, task-link and audit rows remain unchanged; migration does not invent historical provider observations or replay enrollment audits. Repeating migration is harmless. Existing archives and terminal tasks do not erase canonical PRs.
+Migrate and serve the same immutable schema-9 image. Schema 8 introduced PollState and enrolled each then-existing canonical PR as one due, unknown row at that migration's PostgreSQL transaction timestamp. Schema 9 adds shared operational provider budgets and preserves those PollState rows, including backoff; it does not reset due times or invent observations. Task, event, document, PR, task-link and audit rows remain unchanged across both migrations. Neither migration invents historical provider observations or replays enrollment audits. Repeating migration is harmless. Existing archives and terminal tasks do not erase canonical PRs.
 
 `AGENTBOARD_PR_OBSERVATION_ENABLED` defaults to false, independently of inventory catch-up's `AGENTBOARD_PR_DISCOVERY_ENABLED`. Disabled reservation calls return no work; disabled result calls reject without consuming state. When enabled at boot, it installs the AshOban minute scheduler and per-PR polling queue. It still installs no provider collector and cannot deliver alerts. Keep it off in deployment until the later observation/delivery acceptance gate. A completed poll currently records `unavailable` with a 60-second defer; it does not fetch or certify CI.
 
@@ -30,7 +30,7 @@ Disabled at boot removes observation cron entries and pauses both observation qu
 
 ## Evidence
 
-The packaged-release/TLS PostgreSQL fixtures test two callers reserving the same PR, a held-row skip with an unrelated board write, expired/replaced results, persisted one-hour provider backoff, default-off/runtime fencing and unknown CI without provider evidence. The schema fixture tests fresh/repeated migration plus schema-4 and schema-7 upgrades, preserving source history and immutable HTML bytes. All execution is through BuildBuddy remote configuration, including the real Ash actions and database constraints; fixtures are invented.
+The packaged-release/TLS PostgreSQL fixtures test two callers reserving the same PR, a held-row skip with an unrelated board write, expired/replaced results, persisted one-hour provider backoff, default-off/runtime fencing and unknown CI without provider evidence. The schema fixture tests fresh/repeated migration plus schema-4 and schema-7 upgrades, schema-8 unknown enrollment, and schema-9 retention of poll backoff, preserving source history and immutable HTML bytes. All execution is through BuildBuddy remote configuration, including the real Ash actions and database constraints; fixtures are invented.
 
 See [the foundation diagram](architecture/pr-polling-foundation.html) for this implemented boundary and [the approved whole-runtime diagram](architecture/agensh-worker-runtime.html) for later delivery, Herdr/native adapters and Mattermost work. The original proposal's exported HTML is its approved planning snapshot; current implementation progress is the Markdown checklist.
 

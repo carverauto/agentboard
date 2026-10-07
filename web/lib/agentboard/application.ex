@@ -59,3 +59,4 @@ defmodule Agentboard.Application do
     :ok
   end
 end
+
