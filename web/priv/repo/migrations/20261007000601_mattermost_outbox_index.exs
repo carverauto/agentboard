@@ -10,8 +10,6 @@ defmodule Agentboard.Repo.Migrations.MattermostOutboxIndex do
         name: :mattermost_outbox_source_source_key_index
       )
     )
-
-    execute("UPDATE board_schema SET version=12 WHERE id=1")
   end
 
   def down, do: raise("Retain bridge outbox evidence; roll back a schema-compatible image")

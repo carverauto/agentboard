@@ -1,5 +1,5 @@
 defmodule Agentboard.Repo.Migrations.MattermostConversations do
-  @moduledoc "Additive worker identity registry and per-channel coverage ledger. Version is bumped by 00601 once both land."
+  @moduledoc "Additive worker identity registry and per-channel coverage ledger. Board schema stays at 9."
   use Ecto.Migration
 
   def up do

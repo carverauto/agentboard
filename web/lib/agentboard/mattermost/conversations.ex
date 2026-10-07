@@ -52,6 +52,7 @@ defmodule Agentboard.Mattermost.Conversations do
       )
       |> Operations.public()
     end)
+    |> unwrap()
   end
 
   # Server-side attribution: resolve the authenticated worker to its
@@ -87,7 +88,6 @@ defmodule Agentboard.Mattermost.Conversations do
   defp fetch_enrolled(agent_id) do
     case Ash.get!(ConversationIdentity, agent_id, not_found_error?: false) do
       nil -> Operations.reject("not_found", "Conversation identity not found")
-      %ConversationIdentity{status: "revoked"} -> Operations.reject("invalid_context", "Conversation identity revoked")
       identity -> identity
     end
   end
@@ -116,8 +116,6 @@ defmodule Agentboard.Mattermost.Conversations do
 
       current = Operations.fetch!(ConversationIdentity, identity.agent_id, "Conversation identity not found")
 
-      if current.status == "revoked", do: Operations.reject("invalid_context", "Conversation identity revoked")
-
       Operations.update(current, :note_verified, attrs, @actor)
       |> Operations.public()
       |> Map.put("renamed", username != identity.mm_username)
@@ -128,8 +126,6 @@ defmodule Agentboard.Mattermost.Conversations do
   defp suspend(identity, reason) do
     Operations.transaction(fn ->
       current = Operations.fetch!(ConversationIdentity, identity.agent_id, "Conversation identity not found")
-
-      if current.status == "revoked", do: Operations.reject("invalid_context", "Conversation identity revoked")
 
       Operations.update(
         current,
@@ -145,46 +141,31 @@ defmodule Agentboard.Mattermost.Conversations do
   # Coverage receipts: exact post/version progress per worker per channel.
   # Reads never acknowledge; incomplete catch-up stays explicit with a reason.
   def report_coverage(agent_id, channel_id, last_post_id, last_version, opts \\ []) do
-    with :ok <- validate_coverage_input(last_post_id, last_version),
-         {:ok, version} <- normalize_coverage_version(last_version),
-         {:ok, _} <- sender_for(agent_id) do
-      case store_coverage(agent_id, channel_id, last_post_id, version, opts) do
-        {:error, "conflict", _} -> store_coverage(agent_id, channel_id, last_post_id, version, opts)
-        other -> other
-      end
-    end
-  end
+    with {:ok, _} <- sender_for(agent_id) do
+      Operations.transaction(fn ->
+        stamp = Operations.now()
+        caught_up = Keyword.get(opts, :caught_up, false)
+        reason = Keyword.get(opts, :incomplete_reason)
 
-  defp store_coverage(agent_id, channel_id, last_post_id, last_version, opts) do
-    Operations.transaction(fn ->
-      case Ash.get!(ConversationIdentity, agent_id, not_found_error?: false) do
-        %ConversationIdentity{status: "enrolled"} -> :ok
-        _ -> Operations.reject("invalid_context", "Conversation identity not enrolled")
-      end
+        coverage =
+          case fetch_coverage(agent_id, channel_id) do
+            nil ->
+              Operations.create(
+                ConversationCoverage,
+                :open,
+                %{
+                  id: Ash.UUID.generate(),
+                  agent_id: agent_id,
+                  channel_id: channel_id,
+                  created_at: stamp,
+                  updated_at: stamp
+                },
+                @actor
+              )
 
-      stamp = Operations.now()
-      caught_up = Keyword.get(opts, :caught_up, false)
-      reason = Keyword.get(opts, :incomplete_reason)
-
-      coverage =
-        case fetch_coverage(agent_id, channel_id) do
-          nil ->
-            Operations.create(
-              ConversationCoverage,
-              :open,
-              %{
-                id: Ash.UUID.generate(),
-                agent_id: agent_id,
-                channel_id: channel_id,
-                created_at: stamp,
-                updated_at: stamp
-              },
-              @actor
-            )
-
-          row ->
-            row
-        end
+            row ->
+              row
+          end
 
         Operations.update(
           coverage,
@@ -201,35 +182,7 @@ defmodule Agentboard.Mattermost.Conversations do
         )
         |> Operations.public()
       end)
-  end
-
-  defp validate_coverage_input(last_post_id, last_version) do
-    cond do
-      not is_binary(last_post_id) or String.trim(last_post_id) == "" ->
-        {:error, "invalid_input", "last_post_id is required"}
-      not valid_coverage_version?(last_version) ->
-        {:error, "invalid_input", "last_version must be a non-negative integer"}
-      true ->
-        :ok
-    end
-  end
-
-  defp valid_coverage_version?(nil), do: true
-  defp valid_coverage_version?(v) when is_integer(v) and v >= 0, do: true
-  defp valid_coverage_version?(v) when is_binary(v) do
-    case Integer.parse(String.trim(v)) do
-      {n, ""} when n >= 0 -> true
-      _ -> false
-    end
-  end
-  defp valid_coverage_version?(_), do: false
-
-  defp normalize_coverage_version(nil), do: {:ok, 0}
-  defp normalize_coverage_version(v) when is_integer(v) and v >= 0, do: {:ok, v}
-  defp normalize_coverage_version(v) when is_binary(v) do
-    case Integer.parse(String.trim(v)) do
-      {n, ""} when n >= 0 -> {:ok, n}
-      _ -> {:error, "invalid_input", "last_version must be a non-negative integer"}
+      |> unwrap()
     end
   end
 
