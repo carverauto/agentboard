@@ -13,7 +13,7 @@ export PHX_SERVER=false
 
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 8 ]]
+[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 9 ]]
 
 fixture_psql "INSERT INTO agents (id, name, model, harness) VALUES ('worker','Worker','model-1','codex')" >/dev/null
 fixture_psql "INSERT INTO tasks (id, title) VALUES ('sample','Sample')" >/dev/null
@@ -55,7 +55,7 @@ INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html
 CREATE EXTENSION pg_textsearch VERSION '1.5.1';" >/dev/null
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 8 ]]
+[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 9 ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM task_events WHERE task_id='retained-task'")" == 1 ]]
 [[ "$(upgrade_psql "SELECT html FROM task_documents WHERE task_id='retained-task'")" == '<!doctype html><p>Retained</p>' ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM pg_indexes WHERE indexname='context_entries_bm25'")" == 1 ]]
@@ -79,10 +79,17 @@ INSERT INTO delivery_task_links(task_id,pull_request_id,submitted_by_id,model,ha
 INSERT INTO delivery_pull_requests_versions(id,version_source_id,version_action_type,version_action_name,changes,provenance,version_inserted_at,version_updated_at) VALUES (gen_random_uuid(),repeat('d',64),'create','record','{}','{}',clock_timestamp(),clock_timestamp());" >/dev/null
 history_query="SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM task_events t),'documents',(SELECT jsonb_agg(t ORDER BY id) FROM task_documents t),'prs',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests t),'links',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_task_links t),'versions',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests_versions t),'audit',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t))"
 before_inventory="$(inventory_psql "$history_query")"
-"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+"$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261007000100) end)'
 [[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 8 ]]
-[[ "$(inventory_psql "$history_query")" == "$before_inventory" ]]
 [[ "$(inventory_psql "SELECT ci_state||','||generation||','||(head_sha IS NULL)||','||(observed_at IS NULL)||','||(attempt_id IS NULL)||','||(next_poll_at <= clock_timestamp()) FROM delivery_poll_states")" == 'unknown,0,true,true,true,true' ]]
 [[ "$(inventory_psql 'SELECT count(*) FROM delivery_poll_states_versions')" == 0 ]]
-echo 'Schema-7 upgrade/repeat retains inventory/history bytes and initializes one due, unknown poll state.'
+inventory_psql "UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()+interval '1 hour',last_error='rate_limited'" >/dev/null
+before_poll="$(inventory_psql 'SELECT row_to_json(s) FROM delivery_poll_states s')"
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 9 ]]
+[[ "$(inventory_psql "$history_query")" == "$before_inventory" ]]
+[[ "$(inventory_psql 'SELECT row_to_json(s) FROM delivery_poll_states s')" == "$before_poll" ]]
+[[ "$(inventory_psql 'SELECT count(*) FROM delivery_poll_states_versions')" == 0 ]]
+[[ "$(inventory_psql 'SELECT count(*) FROM delivery_provider_budgets WHERE remaining=capacity')" == 2 ]]
+echo 'Schema-7 to 8 seeds unknown state; schema-8 to 9 and repeat retain inventory, history and poll backoff bytes.'

@@ -7,7 +7,7 @@ config :agentboard,
        :pr_discovery_enabled,
        System.get_env("AGENTBOARD_PR_DISCOVERY_ENABLED", "false") in ["true", "1"]
 
-# Separate from inventory catch-up. No provider scheduler is installed yet.
+# Independent scheduler/poll queues; keep off until provider/delivery acceptance.
 config :agentboard,
        :pr_observation_enabled,
        System.get_env("AGENTBOARD_PR_OBSERVATION_ENABLED", "false") in ["true", "1"]
@@ -83,4 +83,3 @@ if config_env() == :prod do
     http: [ip: {0, 0, 0, 0}, port: String.to_integer(System.get_env("PORT", "4000"))],
     secret_key_base: System.fetch_env!("SECRET_KEY_BASE")
 end
-

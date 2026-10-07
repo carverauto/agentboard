@@ -42,6 +42,22 @@ defmodule Agentboard.Delivery.Polling do
 
   def reserve_due(_), do: {:error, "invalid_input", "Poll batch limit must be from 1 to 100"}
 
+  def reserve_pr(id) when is_binary(id) do
+    if enabled?() do
+      Operations.transaction(fn ->
+        %{rows: rows} =
+          Repo.statement!(
+            "SELECT id FROM delivery_poll_states WHERE id=$1 AND enabled AND next_poll_at<=clock_timestamp() AND (lease_expires_at IS NULL OR lease_expires_at<=clock_timestamp()) FOR UPDATE SKIP LOCKED",
+            [id]
+          )
+
+        Enum.map(rows, fn [id] -> reserve(id) end)
+      end)
+    else
+      {:ok, []}
+    end
+  end
+
   # A failed/incomplete fetch must not change provider evidence into success.
   # Delay is explicit so subsequent workers can honor provider Retry-After.
   def defer_poll(id, attempt_id, generation, delay_seconds, reason)

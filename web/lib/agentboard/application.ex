@@ -11,11 +11,13 @@ defmodule Agentboard.Application do
       Agentboard.RateLimits.Owner,
       Agentboard.Notifications,
       {Oban,
-       AshOban.config(worker_domains(),
+       worker_config(
          repo: Agentboard.Repo,
          queues: [
            housekeeping: 1,
-           delivery_discovery: [limit: 1, paused: not discovery_enabled?()]
+           delivery_discovery: [limit: 1, paused: not discovery_enabled?()],
+           delivery_scheduler: [limit: 1, paused: not observation_enabled?()],
+           delivery_polling: [limit: 4, paused: not observation_enabled?()]
          ],
          plugins: [Oban.Plugins.Cron, Oban.Plugins.Pruner]
        )},
@@ -27,10 +29,28 @@ defmodule Agentboard.Application do
 
   defp discovery_enabled?, do: Application.get_env(:agentboard, :pr_discovery_enabled, false)
 
-  defp worker_domains do
-    if discovery_enabled?(),
-      do: [Agentboard.Housekeeping, Agentboard.Delivery],
-      else: [Agentboard.Housekeeping]
+  defp observation_enabled?, do: Agentboard.Delivery.Scheduling.enabled?()
+
+  defp worker_config(options) do
+    config = AshOban.config([Agentboard.Housekeeping, Agentboard.Delivery], options)
+
+    plugins =
+      Enum.map(config[:plugins], fn
+        {Oban.Plugins.Cron, opts} ->
+          entries =
+            Enum.reject(opts[:crontab] || [], fn
+              {_, Agentboard.Delivery.ReconcileLinks, _} -> not discovery_enabled?()
+              {_, Agentboard.Delivery.ScheduleDue, _} -> not observation_enabled?()
+              _ -> false
+            end)
+
+          {Oban.Plugins.Cron, Keyword.put(opts, :crontab, entries)}
+
+        plugin ->
+          plugin
+      end)
+
+    Keyword.put(config, :plugins, plugins)
   end
 
   @impl true
@@ -39,4 +59,3 @@ defmodule Agentboard.Application do
     :ok
   end
 end
-
