@@ -99,6 +99,16 @@ defmodule Agentboard.Mattermost.Transport do
     end
   end
 
+  # Read-only liveness probe used at enablement: proves the full TLS stack
+  # (trust chain plus hostname match) before any board event posts.
+  def ping(cfg) do
+    case request(cfg, :get, "/api/v4/system/ping", nil) do
+      {:ok, 200, body} -> {:ok, body}
+      {:ok, status, _} -> {:error, {:unexpected_status, status}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   defp maybe_root(map, nil), do: map
   defp maybe_root(map, root_id), do: Map.put(map, :root_id, root_id)
 
@@ -173,12 +183,39 @@ defmodule Agentboard.Mattermost.Transport do
     end
   end
 
+  # Live farm01 proved the packaged default insufficient two ways: no CA
+  # source verifies nothing, and the default hostname check rejects the
+  # cluster wildcard. verify_peer stays on; trust falls back from explicit
+  # config to the image bundle to OTP built-ins, and hostname matching uses
+  # the HTTPS match fun explicitly.
   defp https_opts do
-    base = [{:verify, :verify_peer}, {:depth, 4}]
+    base = [
+      {:verify, :verify_peer},
+      {:depth, 4},
+      {:customize_hostname_check,
+       [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]}
+    ]
 
+    case ca_source() do
+      {:file, file} -> [{:cacertfile, String.to_charlist(file)} | base]
+      {:cacerts, certs} -> [{:cacerts, certs} | base]
+      :none -> base
+    end
+  end
+
+  defp ca_source do
     case Application.get_env(:agentboard, :mattermost_ca_file) do
-      nil -> base
-      file when is_binary(file) -> [{:cacertfile, String.to_charlist(file)} | base]
+      file when is_binary(file) and file != "" ->
+        {:file, file}
+
+      _ ->
+        bundle = "/etc/ssl/certs/ca-certificates.crt"
+
+        cond do
+          File.exists?(bundle) -> {:file, bundle}
+          function_exported?(:public_key, :cacerts_get, 0) -> {:cacerts, :public_key.cacerts_get()}
+          true -> :none
+        end
     end
   end
 
