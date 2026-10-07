@@ -189,7 +189,10 @@ defmodule Agentboard.Delivery.Github do
   defp same_endpoint?(link_path, "/repos/" <> rest = request_path) when is_binary(link_path) do
     case String.split(rest, "/", parts: 3) do
       [owner, repo, tail] when owner != "" and repo != "" and tail != "" ->
-        link_path == request_path or canonical_repository?(link_path, "/" <> tail)
+        suffix = "/" <> tail
+
+        link_path == request_path or canonical_repository?(link_path, suffix) or
+          status_alias?(link_path, suffix)
 
       _ ->
         false
@@ -197,6 +200,18 @@ defmodule Agentboard.Delivery.Github do
   end
 
   defp same_endpoint?(_, _), do: false
+
+  defp status_alias?("/repositories/" <> rest, "/commits/" <> commit_tail) do
+    case String.split(rest, "/", parts: 2) do
+      [id, "statuses/" <> sha] ->
+        decimal_id?(id) and commit_tail == sha <> "/statuses"
+
+      _ ->
+        false
+    end
+  end
+
+  defp status_alias?(_, _), do: false
 
   defp canonical_repository?("/repositories/" <> rest, suffix) do
     case String.split(rest, "/", parts: 2) do

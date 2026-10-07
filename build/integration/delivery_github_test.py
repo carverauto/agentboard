@@ -60,11 +60,21 @@ def run(i, name, conclusion, head=HEAD, state='completed', completed=NOW):
 REPO_ID = '424242'
 
 
+def live_status(path):
+    prefix = '/repos/fixture/repo/commits/'
+    if path.startswith(prefix) and path.endswith('/statuses'):
+        sha = path[len(prefix):-len('/statuses')]
+        if sha:
+            return f'/repositories/{REPO_ID}/statuses/{sha}', sha
+    return None, None
+
+
 def next_link(path, page, filter_all):
     prefix = '/repos/fixture/repo'
     suffix = path[len(prefix):] if path.startswith(prefix) else ''
     canonical = f'/repositories/{REPO_ID}{suffix}'
     paging = f'per_page=100&page={page}' + ('&filter=all' if filter_all else '')
+    live, sha = live_status(path)
     if mode == 'hostile-link':
         return f'<https://evil.invalid{path}?{paging}>; rel="next"'
     if mode == 'malformed-link':
@@ -81,6 +91,21 @@ def next_link(path, page, filter_all):
     if mode == 'page-link':
         bad = 'per_page=100&page=9' + ('&filter=all' if filter_all else '')
         return f'<{api_url}{path}?{bad}>; rel="next"'
+    if mode == 'status-on-runs' and path.endswith('/check-runs'):
+        return f'<{api_url}/repositories/{REPO_ID}/statuses/{HEAD}?per_page=100&page={page}&filter=all>; rel="next"'
+    if live and mode == 'fail':
+        advertised = f'{api_url}{live}?page={page}&per_page=100'
+        return f'<{advertised}>; rel="next", <{advertised}>; rel="last"'
+    if live and mode == 'status-sha':
+        return f'<{api_url}/repositories/{REPO_ID}/statuses/{"d" * 40}?per_page=100&page={page}>; rel="next"'
+    if live and mode == 'status-suffix':
+        return f'<{api_url}/repositories/{REPO_ID}/commits/{sha}/check-suites?per_page=100&page={page}>; rel="next"'
+    if live and mode == 'status-origin':
+        return f'<https://evil.invalid/repositories/{REPO_ID}/statuses/{sha}?per_page=100&page={page}>; rel="next"'
+    if live and mode == 'status-query':
+        return f'<{api_url}{live}?per_page=100&page={page}&filter=all>; rel="next"'
+    if live and mode == 'status-page':
+        return f'<{api_url}{live}?per_page=100&page=9>; rel="next"'
     if mode in ('fail', 'partial') or (mode == 'canonical-suites' and path.endswith('/check-suites')):
         advertised = f'{api_url}{canonical}?page={page}&per_page=100' + ('&filter=all' if filter_all else '')
         return f'<{advertised}>; rel="next", <{advertised}>; rel="last"'
@@ -170,6 +195,10 @@ class Provider(http.server.BaseHTTPRequestHandler):
                          target_url=f'https://github.com/fixture/repo/actions/runs/{i}') for i in range(1, 101)]
             body += [dict(id=101, context='status-rerun', state='failure', created_at=NOW),
                      dict(id=102, context='status-rerun', state='success', created_at=NOW)]
+            if mode == 'fail':
+                body[0]['context'] = 'paged-status'
+                body[0]['state'] = 'failure'
+                body[0]['target_url'] = 'https://github.com/fixture/repo/actions/runs/paged-status'
             body = sorted(body, key=lambda x: -x['id'])[(page-1)*100:page*100]
             if page == 1:
                 headers['Link'] = next_link(u.path, 2, False)
@@ -245,15 +274,23 @@ with tempfile.TemporaryDirectory() as temp:
     failed = json.loads(sql("SELECT payload FROM delivery_ci_snapshots ORDER BY generation DESC LIMIT 1"))
     failure = next(a for a in failed['attempts'] if a['name'] == 'failed-build')
     assert failure['source_url'].endswith('/job/106') and failure['latest']
+    paged = next(a for a in failed['attempts'] if a['name'] == 'paged-status')
+    assert paged['latest'] and paged['conclusion'] == 'failure' and paged['source_url'].endswith('/paged-status')
+    assert next(a for a in failed['attempts'] if a['name'] == 'status-rerun' and a['latest'])['conclusion'] == 'success'
     assert f'/repos/fixture/repo/check-suites/1/check-runs?per_page=100&page=2&filter=all' in seen
     assert f'/repos/fixture/repo/commits/{HEAD}/statuses?per_page=100&page=2' in seen
-    assert not any('/repositories/' in url for url in seen)
-    link_rejections = {'hostile-link', 'malformed-link', 'suffix-link', 'query-link', 'page-link', 'id-link'}
+    assert not any('/repositories/' in url or f'/statuses/{HEAD}' in url for url in seen)
+    link_rejections = {'hostile-link', 'malformed-link', 'suffix-link', 'query-link', 'page-link', 'id-link', 'status-on-runs'}
+    status_rejections = {'status-sha', 'status-suffix', 'status-origin', 'status-query', 'status-page'}
     for scenario, reason in [('old-head','incomplete'), ('changed-head','incomplete'),
                              ('changed-base','incomplete'), ('partial','unavailable'),
                              ('hostile-link','incomplete'), ('malformed-link','incomplete'),
                              ('suffix-link','incomplete'), ('query-link','incomplete'),
                              ('page-link','incomplete'), ('id-link','incomplete'),
+                             ('status-on-runs','incomplete'),
+                             ('status-sha','incomplete'), ('status-suffix','incomplete'),
+                             ('status-origin','incomplete'), ('status-query','incomplete'),
+                             ('status-page','incomplete'),
                              ('duplicate','incomplete'), ('request-cap','incomplete'), ('401','unauthorized'),
                              ('403','unauthorized'), ('redirect','incomplete'),
                              ('oversize','incomplete'), ('chunked','incomplete')]:
@@ -267,6 +304,10 @@ with tempfile.TemporaryDirectory() as temp:
         if scenario in link_rejections:
             assert not any('/repositories/' in url or 'page=9' in url for url in seen), (scenario, seen)
             assert not any('check-runs' in url and 'page=2' in url for url in seen), (scenario, seen)
+        if scenario in status_rejections:
+            assert any('check-runs' in url and 'page=2' in url for url in seen), (scenario, seen)
+            assert not any('/repositories/' in url or 'page=9' in url or f'/statuses/{HEAD}' in url for url in seen), (scenario, seen)
+            assert not any(url.endswith(f'/commits/{HEAD}/statuses?per_page=100&page=2') for url in seen), (scenario, seen)
     for scenario, present in (('canonical-suites', True), ('suite-suffix', False)):
         before = sql('SELECT count(*) FROM delivery_ci_snapshots')
         projection = sql('SELECT head_sha||base_sha||snapshot_id::text||observed_at::text||ci_state FROM delivery_poll_states')
