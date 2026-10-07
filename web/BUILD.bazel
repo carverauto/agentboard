@@ -33,6 +33,8 @@ mix_app(
         "@hexpm//:castore",
         "@hexpm//:ecto_sql",
         "@hexpm//:jason",
+        "@hexpm//:mint",
+        "@hexpm//:hpax",
         "@hexpm//:oban",
         "@hexpm//:phoenix",
         "@hexpm//:phoenix_ecto",

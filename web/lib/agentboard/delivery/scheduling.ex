@@ -1,7 +1,7 @@
 defmodule Agentboard.Delivery.Scheduling do
   @moduledoc "Durable per-PR jobs; server time and state, never an agent's current task, determine eligibility."
   alias Agentboard.Board.Operations
-  alias Agentboard.Delivery.{PollWorker, Polling, ProviderAdmission}
+  alias Agentboard.Delivery.{Github, PollWorker, Polling}
   alias Agentboard.Repo
 
   @actor %{"agent" => "delivery-observation", "model" => "system", "harness" => "ash"}
@@ -42,20 +42,20 @@ defmodule Agentboard.Delivery.Scheduling do
   end
 
   defp admitted_poll(reservation) do
-    case ProviderAdmission.acquire("github") do
-      {:ok, %{allowed: false, retry_after: seconds}} ->
-        defer(reservation, seconds, "rate_limited")
-
-      {:ok, %{allowed: true}} ->
-        # Task 1.3 supplies current-head provider collection at this boundary.
-        # Until then, missing collection is explicit and never certifies CI.
-        defer(reservation, 60, "unavailable")
+    case Github.collect(reservation) do
+      {:ok, observation} ->
+        case Polling.commit_observation(reservation, observation) do
+          {:ok, _} -> {:ok, %{observed: observation.ci_state}}
+          {:error, "disabled", _} -> snooze()
+          {:error, "conflict", _} -> {:ok, %{superseded: true}}
+          {:error, _code, message} -> {:error, message}
+        end
 
       {:error, "disabled", _} ->
         snooze()
 
-      {:error, _code, message} ->
-        {:error, message}
+      {:error, reason, seconds} ->
+        defer(reservation, seconds, reason)
     end
   end
 

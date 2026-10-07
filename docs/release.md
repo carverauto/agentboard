@@ -205,3 +205,24 @@ jobs, evidence and budgets. Do not drop the additive table or run a down
 migration. Scheduling, pacing, disabled queued jobs and reconciliation are
 in [PR polling foundation](ci-polling.md), with
 [the implemented architecture](architecture/pr-observation-scheduling.html).
+
+## Schema 10: current-head CI observations
+
+Migrate and serve the same schema-10 image. Readiness now requires schema 10 and
+`delivery_ci_snapshots`. The additive immutable snapshot table, nullable
+PollState base/head snapshot/lifecycle pointers and nullable provider-wide
+cooldown preserve existing source history, operational budgets and backoff.
+Migration creates no historical snapshots or passing projection; repeat is
+harmless. Meaningful observation changes use Ash audit hooks.
+
+Observation remains default-off. The collector delivers head-only sampled
+failure/pending/unknown evidence; clean checks are not passing until the later
+repository-policy gate. No public PR route, completion guard, repair task or
+worker wake is added. Credentials/configuration and exact bounds are in
+[current-head observations](github-ci-observation.md).
+
+Rollback disables both observation/discovery as appropriate, retains schema 10,
+jobs, snapshots, budgets and history, and deploys a compatible prior digest.
+Forward/repeat preservation is remotely tested; actually booting a prior binary
+and enabling a live observer are separate first-release rollout gates. No down
+migration or evidence deletion is permitted.

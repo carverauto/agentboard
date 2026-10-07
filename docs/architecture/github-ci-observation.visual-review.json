@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "perceptual-visual-review",
+  "status": "pass",
+  "reviewer": "codex image-capable reviewer",
+  "reviewedAt": "2026-10-07T05:02:43.684851+00:00",
+  "artifact": {
+    "sha256": "73e0b643bae26186bbe17ab5f5e34d817b3fa76512bae515363a772fd72558a7",
+    "bytes": 710953
+  },
+  "screenshots": [
+    "github-ci-observation.visual-check.1440x900.light.png",
+    "github-ci-observation.visual-check.2048x1320.dark.png"
+  ],
+  "observations": [
+    "Both reviewed themes keep labels and source badges within nodes, with distinguishable semantic colors.",
+    "Main reservation/collection/commit path and separate provider budget have clear arrows without unrelated crossings.",
+    "Large desktop composition keeps the diagram and two meaningful evidence-limit cards visible together."
+  ],
+  "correctionRounds": 1,
+  "limitations": [
+    "Only the listed screenshots were perceptually reviewed; four desktop containment checks are separate automated evidence.",
+    "Focus/search/presentation/export interactions were not driven by this image review."
+  ]
+}

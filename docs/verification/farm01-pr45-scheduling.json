@@ -1,0 +1,184 @@
+{
+  "verified_at": "2026-10-07T04:58:11.036856+00:00",
+  "release_commit": "9f1e712ffc98311d267bae907738114070e224e4",
+  "release_pr": "https://github.com/carverauto/agentboard/pull/45",
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:0c9dbedfdaf57c87a1b2f90d1f655837d5e350df8b410cdbacb676de1ae6d334",
+  "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:eb5c074b40cfea5b59cac49a689390d66d778ef18e99b606896cb809a0255fa4",
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37570672161",
+  "remote_acceptance": "https://carverauto.buildbuddy.io/invocation/63421f99-6474-4051-bd9b-feeb8f19b239",
+  "acceptance_targets": 18,
+  "remote_packaging": "https://carverauto.buildbuddy.io/invocation/1de87586-41aa-4da5-a11a-e4e40e3314d3",
+  "schema_before": 7,
+  "schema_version": 9,
+  "api_version": 1,
+  "migration": {
+    "job": "agentboard-migrate-9f1e712",
+    "succeeded": true,
+    "image": "registry.carverauto.dev/agentboard/dashboard@sha256:0c9dbedfdaf57c87a1b2f90d1f655837d5e350df8b410cdbacb676de1ae6d334"
+  },
+  "dashboard": {
+    "pod": "agentboard-dashboard-5c4b84498b-z2szx",
+    "ready": true,
+    "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:0c9dbedfdaf57c87a1b2f90d1f655837d5e350df8b410cdbacb676de1ae6d334",
+    "restarts": 0
+  },
+  "cnpg": {
+    "phase": "Cluster in healthy state",
+    "ready_instances": 2,
+    "primary": "agentboard-db-2",
+    "pg_textsearch": "1.5.1",
+    "superuser_roles": 0
+  },
+  "preserved_immutable_prefixes": {
+    "task_events": {
+      "max_id": 246,
+      "count": 230,
+      "digest": "c44d7b09bac60b03e4e32bb9d35246a2"
+    },
+    "task_documents": {
+      "max_id": 60,
+      "count": 28,
+      "digest": "59f4890faf571ac9f9ba234afb60727a"
+    },
+    "context_entries": {
+      "max_id": 4,
+      "count": 3,
+      "digest": "3cacf1e91be72779b87b5ebc0469edb9"
+    }
+  },
+  "delivery_foundation": {
+    "canonical_prs": 4,
+    "poll_rows": 4,
+    "github_budget": 60,
+    "buildbuddy_budget": 30,
+    "unobserved": 4,
+    "observation_jobs": 0
+  },
+  "live_http": {
+    "/health/live": {
+      "status": 200,
+      "bytes": 17,
+      "body": {
+        "status": "live"
+      }
+    },
+    "/health/ready": {
+      "status": 200,
+      "bytes": 37,
+      "body": {
+        "status": "ready",
+        "schema_version": 9
+      }
+    },
+    "/api/v1/meta": {
+      "status": 200,
+      "bytes": 64,
+      "body": {
+        "schema_version": 9,
+        "api_version": 1,
+        "required_schema_version": 9
+      }
+    },
+    "/": {
+      "status": 200,
+      "bytes": 1840
+    },
+    "/agents": {
+      "status": 200,
+      "bytes": 1841
+    },
+    "/messages": {
+      "status": 200,
+      "bytes": 1843
+    },
+    "/quota": {
+      "status": 200,
+      "bytes": 1840
+    },
+    "/context": {
+      "status": 200,
+      "bytes": 2504
+    },
+    "/archive": {
+      "status": 200,
+      "bytes": 1842
+    },
+    "/settings": {
+      "status": 200,
+      "bytes": 1871
+    },
+    "/tasks/agentboard-ash-pr-ci-monitor": {
+      "status": 200,
+      "bytes": 1846
+    },
+    "/documents/59": {
+      "status": 200,
+      "bytes": 959
+    },
+    "/documents/60": {
+      "status": 200,
+      "bytes": 1010
+    },
+    "document_59": {
+      "byte_exact_to_source": true,
+      "html_sha256": "4cb2d32baf447ab123071f65d967af143bcef6afd2755e82a3bbeeff5642cca3"
+    },
+    "document_60": {
+      "byte_exact_to_source": true,
+      "html_sha256": "aa6e42e4bb67dcb7e654fe57ba65288774562562defcb9b0f4a771e4d2f4cdc0"
+    },
+    "mattermost": {
+      "status": 200,
+      "body": {
+        "ActiveSearchBackend": "database",
+        "AndroidLatestVersion": "",
+        "AndroidMinVersion": "",
+        "IosLatestVersion": "",
+        "IosMinVersion": "",
+        "database_status": "OK",
+        "filestore_status": "OK",
+        "status": "OK"
+      }
+    }
+  },
+  "watch": {
+    "duration_seconds": 25,
+    "snapshots": 5,
+    "stderr": "",
+    "returncode": 0,
+    "ndjson_valid": true
+  },
+  "automatic_pr_discovery_enabled": false,
+  "automatic_pr_observation_enabled": false,
+  "mattermost_setup": {
+    "bot_username": "agentboard",
+    "bot_enabled": true,
+    "is_bot": true,
+    "teams": [
+      {
+        "name": "carver-automation-corporation",
+        "channels": [
+          {
+            "name": "agents",
+            "total_posts": 0
+          },
+          {
+            "name": "board",
+            "total_posts": 0
+          },
+          {
+            "name": "quota",
+            "total_posts": 0
+          }
+        ]
+      }
+    ]
+  },
+  "rollback": {
+    "previous_image_retained": true,
+    "down_migration": false,
+    "live_rollback_exercised": false
+  },
+  "local_application_builds": false,
+  "scope": "Merged PR36/44/45 attribution/catch-up/reservation/scheduling foundation. No provider collector, repair obligations, wake connector or Mattermost sender deployed."
+}

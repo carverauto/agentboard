@@ -335,6 +335,7 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Delivery.PullRequest,
              Agentboard.Delivery.TaskLink,
              Agentboard.Delivery.PollState,
+             Agentboard.Delivery.CISnapshot,
              Agentboard.Mattermost.Outbox,
              Agentboard.Mattermost.TaskThread
            ],

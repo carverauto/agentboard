@@ -58,7 +58,7 @@ openssl rand -hex 32                      # MATTERMOST_DB_PASSWORD (hex: it goes
 docker compose up -d --build --wait # build, start Postgres, migrate, start the dashboard; waits until healthy
 docker compose ps                   # dashboard should be "healthy"; db-certs and migrate "exited (0)"
 curl -fsS http://localhost:4000/health/ready
-# {"status":"ready","schema_version":9}
+# {"status":"ready","schema_version":10}
 ```
 
 Open <http://localhost:4000>. The board, agents, messages, and quota pages refresh live.

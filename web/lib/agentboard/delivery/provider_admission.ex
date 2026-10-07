@@ -17,17 +17,27 @@ defmodule Agentboard.Delivery.ProviderAdmission do
         remaining = if expired?, do: budget.capacity, else: budget.remaining
         reset_at = if expired?, do: DateTime.add(stamp, 60), else: budget.reset_at
 
-        if remaining > 0 do
-          budget
-          |> Ash.Changeset.for_update(:consume, %{remaining: remaining - 1, reset_at: reset_at})
-          |> Ash.update!()
+        blocked? = budget.blocked_until && DateTime.compare(budget.blocked_until, stamp) == :gt
 
-          %{allowed: true, retry_after: 0}
-        else
+        if blocked? do
           %{
             allowed: false,
-            retry_after: max(1, div(DateTime.diff(reset_at, stamp, :millisecond) + 999, 1000))
+            retry_after:
+              min(604_800, max(1, DateTime.diff(budget.blocked_until, stamp, :second) + 1))
           }
+        else
+          if remaining > 0 do
+            budget
+            |> Ash.Changeset.for_update(:consume, %{remaining: remaining - 1, reset_at: reset_at})
+            |> Ash.update!()
+
+            %{allowed: true, retry_after: 0}
+          else
+            %{
+              allowed: false,
+              retry_after: max(1, div(DateTime.diff(reset_at, stamp, :millisecond) + 999, 1000))
+            }
+          end
         end
       end)
     else
@@ -36,5 +46,27 @@ defmodule Agentboard.Delivery.ProviderAdmission do
   end
 
   def acquire(_), do: {:error, "invalid_input", "Unknown provider"}
+
+  # Serialize only this provider's deadline; a later response cannot shorten it.
+  def block(provider, seconds)
+      when provider in ["github", "buildbuddy"] and
+             is_integer(seconds) and seconds > 0 and seconds <= 2_147_483_647 do
+    Operations.transaction(fn ->
+      Repo.statement!("SELECT id FROM delivery_provider_budgets WHERE id=$1 FOR UPDATE", [
+        provider
+      ])
+
+      budget = Operations.fetch!(ProviderBudget, provider, "Provider budget unavailable")
+      deadline = DateTime.add(Operations.now(), seconds)
+
+      deadline =
+        if budget.blocked_until && DateTime.compare(budget.blocked_until, deadline) == :gt,
+          do: budget.blocked_until,
+          else: deadline
+
+      budget |> Ash.Changeset.for_update(:consume, %{blocked_until: deadline}) |> Ash.update!()
+      :ok
+    end)
+  end
 end
 

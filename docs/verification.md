@@ -250,3 +250,45 @@ all **16 acceptance targets passed** in
 [BuildBuddy ba7ad036](https://carverauto.buildbuddy.io/invocation/ba7ad036-08c6-4ca9-b57e-29d89e5adde9).
 This includes the existing board/CAS/lease/watch, quota/document/context, archive,
 TLS/migration, CLI/image and connected LiveView compatibility targets.
+
+
+## Observation scheduling rollout (PR45, 2026-10-07 UTC)
+
+Rolled merged PR45 (`9f1e712ffc98311d267bae907738114070e224e4`) after its
+[container workflow](https://github.com/carverauto/agentboard/actions/runs/37570672161)
+passed [18-target remote acceptance](https://carverauto.buildbuddy.io/invocation/63421f99-6474-4051-bd9b-feeb8f19b239)
+and [remote packaging](https://carverauto.buildbuddy.io/invocation/1de87586-41aa-4da5-a11a-e4e40e3314d3).
+The published commit tag was independently resolved with the existing
+pull-only registry credential, without exposing it. The matching immutable
+digest is pinned in the farm01 overlay and used by migration and dashboard.
+
+Server-side dry-run passed for the scoped ConfigMap, unique migration Job
+and Deployment. Only those release resources were applied; CNPG, Mattermost,
+storage and edge resources were preserved. `agentboard-migrate-9f1e712`
+completed before Deployment rollout. Schema 9/API 1 and a Ready zero-restart
+pod on the exact image ID are confirmed. Discovery and observation are false
+in both configuration and the new pod environment. Four retained canonical
+PRs have four unobserved poll rows; provider remaining budgets are GitHub 60
+and BuildBuddy 30, with zero runnable observation jobs.
+
+Pre-roll immutable cutoffs were task events 246 (230 retained rows),
+documents 60 (28 rows) and Context 4 (three rows). Post-roll counts and hashes
+match at each cutoff. Actual HTML bytes for documents 59/60 match the retained
+source files; document metadata digests include metadata and are not HTML-only
+SHA256 values. All existing dashboard routes, live/ready/meta and both sandbox
+viewer routes returned HTTPS 200. This HTTP check alone does not prove browser
+interactions. The existing CLI BM25 search reports `pg_textsearch-1.5.1`.
+A task watch stayed connected through the Gateway for 25 seconds, produced five
+valid NDJSON snapshots, no stderr and clean cancellation.
+
+CNPG has two Ready instances, pg_textsearch 1.5.1, and neither application role
+is superuser. Mattermost ping/database/filestore are OK. Its enabled existing
+agentboard bot token authenticates and its memberships include board/agents/quota
+in `carver-automation-corporation`; all three had zero posts. This release
+contains no Mattermost bridge or worker conversation client.
+
+No application code compiled on the Mac. The prior digest is retained for
+additive rollback, which was not exercised live. Full normalized results are
+in [farm01-pr45-scheduling.json](verification/farm01-pr45-scheduling.json).
+Provider collection, confirmed CI truth, repair obligations, worker delivery
+and chat traffic are not implied by this rollout.
