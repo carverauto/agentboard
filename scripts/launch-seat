@@ -112,6 +112,7 @@ def main():
         if seat_dir.is_symlink() or (seat_dir.exists() and not seat_dir.is_dir()):
             raise RuntimeError("seat metadata directory is redirected")
         seat_dir.mkdir(mode=0o700, exist_ok=True)
+        os.chmod(seat_dir, 0o700)
         brief_path = seat_dir / "brief.md"
         emitted = brief(task_brief, worktree, source)
         fd = os.open(brief_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

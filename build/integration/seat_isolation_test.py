@@ -48,6 +48,7 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
         assert data["brief"].endswith(task.read_text()) and "STOP" in data["brief"]
         assert "AGENTBOARD_SEAT_WORKTREE" in data["brief"]
         assert (seat / ".agentboard-seat/brief.md").stat().st_mode & 0o777 == 0o600
+        assert (seat / ".agentboard-seat").stat().st_mode & 0o777 == 0o700
         assert command(["git", "status", "--porcelain"], repo).stdout == ""
         assert command(["git", "rev-parse", "HEAD"], repo).stdout.strip() == original
         check_env = dict(env, AGENTBOARD_SEAT_WORKTREE=str(seat))
@@ -92,6 +93,18 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
     result = command(argv, repo, bad_env, ok=False)
     assert result.returncode == 2 and "primary" in result.stderr, result.stderr
     assert not output.exists() and not (repo / ".agentboard-seat").exists()
+    # A recycled seat directory left group/world-readable must be locked back down.
+    reused = seats[0] / ".agentboard-seat"
+    (reused / "brief.md").unlink()
+    os.chmod(reused, 0o755)
+    reuse_treehouse = root / "reuse-treehouse"
+    reuse_treehouse.write_text(f'#!/bin/sh\nif [ "$1" = --version ]; then echo v2.0.1; else echo "{seats[0]}"; fi\n')
+    reuse_treehouse.chmod(0o755)
+    reuse_output = root / "reuse.json"
+    reuse_env = dict(env, AGENTBOARD_TREEHOUSE_BIN=str(reuse_treehouse))
+    command([sys.executable, launcher, "--repo", repo, "--brief", task, "--", sys.executable, recorder, reuse_output, "{brief}", "file"], repo, reuse_env)
+    assert reused.stat().st_mode & 0o777 == 0o700
+    assert (reused / "brief.md").stat().st_mode & 0o777 == 0o600
     fake.write_text('#!/bin/sh\necho v3.1.2\n')
     result = command(argv, repo, bad_env, ok=False)
     assert result.returncode == 2 and "expected Treehouse 2.0.1" in result.stderr
