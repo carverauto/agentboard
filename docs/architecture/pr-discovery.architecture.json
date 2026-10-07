@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Agentboard \u00b7 Durable PR Catch-up",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1370,
+      760
+    ]
+  },
+  "components": [
+    {
+      "id": "minuteTick",
+      "type": "backend",
+      "label": "Oban Cron",
+      "sublabel": "One-minute inventory sweep",
+      "pos": [
+        40,
+        320
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "persistedPages",
+      "type": "database",
+      "label": "Durable page jobs",
+      "sublabel": "PostgreSQL \u00b7 cursor-only args",
+      "pos": [
+        380,
+        320
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "pageAction",
+      "type": "backend",
+      "label": "AshOban action",
+      "sublabel": "100 tasks \u00b7 one worker per pod",
+      "pos": [
+        720,
+        320
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "canonicalLinks",
+      "type": "database",
+      "label": "Canonical PR links",
+      "sublabel": "Scoped writes \u00b7 exact attribution",
+      "pos": [
+        1060,
+        320
+      ],
+      "size": [
+        260,
+        100
+      ]
+    },
+    {
+      "id": "supervision",
+      "type": "backend",
+      "label": "Release supervision",
+      "sublabel": "Queued pages survive restarts",
+      "pos": [
+        720,
+        70
+      ],
+      "size": [
+        240,
+        100
+      ]
+    },
+    {
+      "id": "legacyTimeline",
+      "type": "backend",
+      "label": "Legacy timeline",
+      "sublabel": "Done / Cancelled / archived too",
+      "pos": [
+        720,
+        570
+      ],
+      "size": [
+        240,
+        100
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "cronEnqueue",
+      "from": "minuteTick",
+      "to": "persistedPages",
+      "label": "Persist job",
+      "variant": "emphasis"
+    },
+    {
+      "id": "claimPage",
+      "from": "persistedPages",
+      "to": "pageAction",
+      "label": "Claim page",
+      "variant": "emphasis"
+    },
+    {
+      "id": "reconcilePage",
+      "from": "pageAction",
+      "to": "canonicalLinks",
+      "label": "Idempotent links",
+      "variant": "emphasis"
+    },
+    {
+      "id": "restartWorker",
+      "from": "supervision",
+      "to": "pageAction",
+      "label": "Resume / retry",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "preserveEvidence",
+      "from": "legacyTimeline",
+      "to": "pageAction",
+      "label": "Source evidence",
+      "fromSide": "top",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Recovery",
+      "items": [
+        "Enqueue the next cursor before completing a page",
+        "Retries and repeat sweeps retain one task\u2013PR link"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Isolation",
+      "items": [
+        "Short transactions lock only a task and its PR",
+        "API and board reads use the independent Repo pool"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Remaining CI work",
+      "items": [
+        "Catch-up is opt-in; provider monitoring is pending",
+        "No CI verdicts, follow-ups or completion gate yet"
+      ]
+    }
+  ]
+}

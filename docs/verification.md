@@ -175,3 +175,43 @@ completion guard, PR dashboard/API/CLI and live monitoring rollout remain
 unchecked. This is pre-merge acceptance, not production deployment evidence.
 
 Actual [release image and CLI packaging](https://carverauto.buildbuddy.io/invocation/b3808aa8-76df-4701-bc94-744ff98c97b9) passed remotely.
+
+## Inventory catch-up and historical attribution (2026-10-07 UTC)
+
+A whitespace-bearing invented legacy event reproduced the initial TaskLink
+model/harness trimming regression through the packaged release's public
+Delivery discovery operation. It failed before the fix in
+[BuildBuddy dd524092](https://carverauto.buildbuddy.io/invocation/dd524092-3e72-425d-9a3e-e1e10d9b8e85)
+and passed after explicit source-preserving constraints in
+[BuildBuddy cf4bde5a](https://carverauto.buildbuddy.io/invocation/cf4bde5a-5253-4b1e-8a10-69a866acd891).
+No already-persisted immutable attribution is rewritten.
+
+The [two-target focused run](https://carverauto.buildbuddy.io/invocation/6d512b3d-af38-4767-b0cb-3d758ed78c93)
+passed inventory and actual asynchronous catch-up. The latter waits for the
+configured Cron consumer to persist work while the queue is paused, restarts
+the supervised Oban child, then observes 125 invented terminal/archived task
+links across durable cursor pages. An injected database insert error enters
+Oban's retry path without a partial PR; normal explicit retry recovers. Repeated
+sweeps preserve task/timeline bytes and do not add duplicate links/versions/events.
+An already-queued job snoozes when the runtime feature switch is disabled and
+recovers after re-enable. No private application/test-only mutation API is used.
+An earlier run found a missing optional cursor key in the newly authored worker;
+the fix handles an argument-free Cron root correctly, as this passing run proves.
+
+This is remote packaged-release/PostgreSQL proof of inventory catch-up, not
+GitHub/BuildBuddy observation, CI classification, follow-up or a live rollout.
+The new Archify source and standalone HTML have nine showcase checks with no
+errors/warnings, four desktop containment measurements and separate actual
+light/dark perceptual review receipts under `docs/architecture/pr-discovery.*`.
+
+Rendered Docker Compose dashboard/migration configuration defaults discovery off
+through the real Compose consumer. The rendered farm01 ConfigMap passed a scoped
+server dry-run with the same default. A full-overlay dry-run encountered the
+pre-existing immutable migration Job template; that is not a catch-up rollout
+and no live resource was changed.
+
+After applying touched Elixir formatting from the remote formatter artifact,
+all **16 acceptance targets passed** in
+[BuildBuddy ba7ad036](https://carverauto.buildbuddy.io/invocation/ba7ad036-08c6-4ca9-b57e-29d89e5adde9).
+This includes the existing board/CAS/lease/watch, quota/document/context, archive,
+TLS/migration, CLI/image and connected LiveView compatibility targets.

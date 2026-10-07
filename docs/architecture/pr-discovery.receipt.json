@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Volumes/Build/agentboard-ash-pr-worker-runtime/docs/architecture/pr-discovery.architecture.json",
+  "output": "/Volumes/Build/agentboard-ash-pr-worker-runtime/docs/architecture/pr-discovery.html",
+  "specification": {
+    "sha256": "824cb8f7d0acb9802289a0338dde1b77be31dfb9eb65fedd8a7b0db4dc6a6672",
+    "bytes": 3309
+  },
+  "artifact": {
+    "sha256": "c24a2b3b3ba4ec62a3f3f2de343374d12164c0815b1cbdfb7925f9cf0dbd833c",
+    "bytes": 706292
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

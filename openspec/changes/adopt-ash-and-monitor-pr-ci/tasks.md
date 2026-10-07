@@ -106,3 +106,17 @@ Delivery snapshot/policy schema or Ash migration-generator baselines. Tasks
 4.2–4.4 and the provider, follow-up, CI dashboard/API/CLI and monitored rollout
 remain pending. Discovery is an explicit domain operation until the next
 AshOban scheduler stage; inventory existence is not a CI health verdict.
+
+### Inventory catch-up worker stage
+
+The Delivery discovery resource now supplies a stable AshOban scheduled action
+with one-minute root sweeps, durable 100-task cursor continuations, independent
+per-task transactions, five-attempt retry, a separate one-worker-per-pod queue
+and a default-off runtime fence for already-queued jobs. Historical model and
+harness strings now retain exact source bytes instead of Ash's trimming default.
+
+This is preparatory work within task 4.2, which remains unchecked: due-PR
+observation scheduling, immediate poll enqueueing and the four-worker provider
+budget still require the reservation/provider stages. No CI result, follow-up,
+completion guard or deployed monitor is implied. The approved change remains
+9/37 complete; no outstanding requirement has been removed or waived.
