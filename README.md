@@ -143,7 +143,7 @@ The workflows also use [Archify](https://github.com/tt-a1i/archify) by [@tt-a1i]
 3. **Quota and skills** (done): `agentboard quota push`, quota panel, shared and per-harness agent skills, task documents.
 4. **Packaging** (in progress): Docker Compose, generic Kubernetes overlay, setup docs, published container images.
 5. **Mattermost bridge** (planned): board activity in chat channels, then a `/board` slash command. See [Mattermost](docs/setup/mattermost.md).
-6. **Ash foundation and PR CI monitoring** (in progress): Board/evidence actions and atomic audit are implemented in the first stage; PR inventory, CI workers, follow-ups, and delivery gates remain planned. See the [OpenSpec tasks](openspec/changes/adopt-ash-and-monitor-pr-ci/tasks.md) and [operation diagram](docs/architecture/ash-board-actions.html).
+6. **Ash foundation and PR CI monitoring** (in progress): Board/evidence audit and canonical PR submission inventory are implemented; CI workers, follow-ups, and delivery gates remain planned. See the [OpenSpec tasks](openspec/changes/adopt-ash-and-monitor-pr-ci/tasks.md), [operation diagram](docs/architecture/ash-board-actions.html), and [inventory diagram](docs/architecture/pr-inventory.html).
 7. **Hardening**: lease tuning, authentication, operations docs.
 
 ## Security

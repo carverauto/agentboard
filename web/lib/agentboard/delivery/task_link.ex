@@ -55,3 +55,4 @@ defmodule Agentboard.Delivery.TaskLink do
     attribute(:recorded_at, :utc_datetime_usec, allow_nil?: false, public?: true)
   end
 end
+

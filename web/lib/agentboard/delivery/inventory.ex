@@ -151,3 +151,4 @@ defmodule Agentboard.Delivery.Inventory do
     end
   end
 end
+

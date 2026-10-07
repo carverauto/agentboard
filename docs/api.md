@@ -111,5 +111,6 @@ atomically retain a canonical Delivery PR and its first task submission.
 The task response and watch payloads are unchanged. Submitted agent/model/
 harness attribution survives later handoff or URL replacement. Historical
 links without an introducing timeline event remain unknown; current task
-ownership is not evidence of PR submission. This inventory stage does not yet
-expose PR list/show/watch endpoints or a CI verdict.
+ownership is not evidence of PR submission. Exact URL admission, discovery,
+and image rollback are in [schema 7 compatibility](release.md#schema-7-durable-pr-submission-inventory).
+This inventory stage does not yet expose PR list/show/watch endpoints or a CI verdict.

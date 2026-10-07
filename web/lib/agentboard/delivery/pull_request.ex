@@ -49,3 +49,4 @@ defmodule Agentboard.Delivery.PullRequest do
     attribute(:created_at, :utc_datetime_usec, allow_nil?: false, public?: true)
   end
 end
+

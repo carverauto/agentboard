@@ -29,7 +29,9 @@ defmodule Agentboard.Repo.Migrations.DeliveryInventory do
 
       add(
         :pull_request_id,
-        references(:delivery_pull_requests, type: :text, on_delete: :restrict), null: false)
+        references(:delivery_pull_requests, type: :text, on_delete: :restrict),
+        null: false
+      )
 
       add(:submitted_by_id, references(:agents, type: :text, on_delete: :restrict))
       add(:model, :text)
@@ -60,7 +62,9 @@ defmodule Agentboard.Repo.Migrations.DeliveryInventory do
 
       add(
         :version_source_id,
-        references(:delivery_pull_requests, type: :text, on_delete: :restrict), null: false)
+        references(:delivery_pull_requests, type: :text, on_delete: :restrict),
+        null: false
+      )
 
       add(:version_action_type, :text, null: false)
       add(:version_action_name, :text, null: false)
@@ -88,3 +92,4 @@ defmodule Agentboard.Repo.Migrations.DeliveryInventory do
   def down,
     do: raise("Preserve PR attribution and audit history; roll back a schema-compatible image")
 end
+

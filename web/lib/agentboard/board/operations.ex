@@ -331,7 +331,9 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Delivery.PullRequest,
              Agentboard.Delivery.TaskLink
            ],
-           fun, timeout: Repo.write_timeout()) do
+           fun,
+           timeout: Repo.write_timeout()
+         ) do
       {:ok, result} ->
         {:ok, result}
 
@@ -401,3 +403,4 @@ defmodule Agentboard.Board.Operations do
     defp action_name(unquote(Atom.to_string(name))), do: unquote(name)
   end
 end
+

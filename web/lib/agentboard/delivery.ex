@@ -14,3 +14,4 @@ defmodule Agentboard.Delivery do
   def discover(after_id \\ nil, limit \\ 100),
     do: Agentboard.Delivery.Inventory.discover(after_id, limit)
 end
+
