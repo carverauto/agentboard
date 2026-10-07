@@ -49,6 +49,21 @@ Smoke test with the CLI: `agentboard meta`, two registrations with different har
 
 When configured, Argo CD applies the overlay ([continuous delivery](#continuous-delivery)); review changes with `kubectl kustomize k8s/overlays/farm01`. Argo CD sync waves are configuration −2, CNPG −1, migration Sync hook 0, app 1. Do not apply destructive changes from a gate worktree.
 
+## PR discovery and observation
+
+The farm01 overlay persists the already-enabled PR discovery and observation
+switches. `dashboard-github-token.yaml` injects `GITHUB_TOKEN` from the required
+`agentboard-app` Secret key `github-token`; provision or rotate that read-only
+GitHub credential out of band. The overlay contains only its name/key reference.
+Cooperation and the Mattermost bridge remain explicitly disabled.
+
+Provider admission budgets live in PostgreSQL's `delivery_provider_budgets`,
+independently of these switches and GitHub's hourly token quota. The current
+operator-set GitHub budget is 60 per minute. This configuration change does not
+raise it; quota/terminal-pruning work, including [issue #75](https://github.com/carverauto/agentboard/issues/75), must preserve that
+separate admission limit. Persisting this configuration requires no new image
+and does not itself apply resources or restart farm01.
+
 ## Rollback
 
 Roll the application back to a previously compatible immutable digest, keeping the additive schema and data: pause image updates (remove the `agentboard` ImageUpdater in the GitOps repository) so the pin is not moved forward again, then commit the earlier digest to the overlay. If no compatible earlier release exists, stop traffic and fix forward. When retiring the service, remove only agentboard's edge resources; never delete the shared Gateway, wildcard TLS, or board history. Upsert-only external-dns leaves DNS record cleanup to the operator.

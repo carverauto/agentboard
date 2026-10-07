@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentboard-dashboard
+spec:
+  template:
+    spec:
+      containers:
+        - name: dashboard
+          env:
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agentboard-app
+                  key: github-token

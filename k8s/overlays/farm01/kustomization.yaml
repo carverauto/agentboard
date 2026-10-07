@@ -9,6 +9,7 @@ components:
   - ../../components/mattermost
 patches:
   - path: dashboard-mattermost.yaml
+  - path: dashboard-github-token.yaml
   - target:
       kind: Cluster
       name: agentboard-db
@@ -39,8 +40,8 @@ configMapGenerator:
     behavior: merge
     literals:
       # Captain-confirmed hostname (2026-10-05).
-      - AGENTBOARD_PR_DISCOVERY_ENABLED=false
-      - AGENTBOARD_PR_OBSERVATION_ENABLED=false
+      - AGENTBOARD_PR_DISCOVERY_ENABLED=true
+      - AGENTBOARD_PR_OBSERVATION_ENABLED=true
       - AGENTBOARD_COOPERATION_ENABLED=false
       - AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false
       - AGENTBOARD_MATTERMOST_BASE_URL=https://mattermost.k8s-farm.carverauto.dev
