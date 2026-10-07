@@ -184,6 +184,26 @@ sh_test(
 )
 
 sh_test(
+    name = "message_mode_dual_config_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "message_mode_config_test.py", "AGENTBOARD_MESSAGE_MODE": "dual"},
+    srcs = ["board_api_test.sh"],
+    data = ["message_mode_config_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)
+
+sh_test(
+    name = "message_mode_mattermost_config_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "message_mode_config_test.py", "AGENTBOARD_MESSAGE_MODE": "mattermost"},
+    srcs = ["board_api_test.sh"],
+    data = ["message_mode_config_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)
+
+sh_test(
     name = "mattermost_tls_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "mattermost_tls_test.py", "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "true"},
     srcs = ["board_api_test.sh"],

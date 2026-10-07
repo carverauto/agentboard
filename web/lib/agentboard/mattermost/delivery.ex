@@ -14,11 +14,13 @@ defmodule Agentboard.Mattermost.Delivery do
   def send_intent(id) when is_binary(id) do
     if Bridge.enabled?() do
       with {:ok, cfg} <- config(),
-           %Outbox{state: "claimed"} = intent <- fetch_intent(id) do
+           %Outbox{state: "claimed"} = intent <- fetch_intent(id),
+           true <- Bridge.thread_destination?(intent.destination, intent.task_id) do
         thread = Operations.fetch!(TaskThread, intent.task_id, "Task thread not found")
         deliver(cfg, intent, thread)
       else
         %Outbox{} -> {:ok, %{skipped: true}}
+        false -> {:ok, %{skipped: true, reason: "recipient_route_unavailable"}}
         {:error, code, message} -> {:error, "#{code}: #{message}"}
         {:error, code} -> {:error, code}
       end
@@ -68,7 +70,13 @@ defmodule Agentboard.Mattermost.Delivery do
     action = payload["action"] || "update"
 
     text =
-      Bridge.message(action, intent.task_id, actor_of(payload), payload["note"], payload["status"])
+      Bridge.message(
+        action,
+        intent.task_id,
+        actor_of(payload),
+        notice_note(payload),
+        payload["status"]
+      )
 
     if thread.state == "rooted" and is_binary(thread.root_post_id) do
       deliver_reply(cfg, intent, thread, text)
@@ -76,6 +84,13 @@ defmodule Agentboard.Mattermost.Delivery do
       deliver_root(cfg, intent, thread, text)
     end
   end
+
+  defp notice_note(%{"action" => "handoff", "to" => recipient} = payload)
+       when is_binary(recipient) do
+    "Handoff to #{recipient} (explicit claim required)\n" <> (payload["note"] || "")
+  end
+
+  defp notice_note(payload), do: payload["note"]
 
   defp actor_of(payload) do
     %{
@@ -161,7 +176,12 @@ defmodule Agentboard.Mattermost.Delivery do
   end
 
   defp reconcile_reply(cfg, intent, thread) do
-    case Transport.find_reply_by_marker(cfg, cfg.channel_id, thread.root_post_id, intent.event_marker) do
+    case Transport.find_reply_by_marker(
+           cfg,
+           cfg.channel_id,
+           thread.root_post_id,
+           intent.event_marker
+         ) do
       {:ok, %{"id" => post_id}} ->
         commit_sent(intent, post_id, thread.root_post_id)
 

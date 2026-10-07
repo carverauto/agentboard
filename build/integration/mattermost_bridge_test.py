@@ -11,6 +11,7 @@ import os
 import subprocess
 import threading
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 CHANNEL = 'fixture-board-channel'
@@ -139,8 +140,8 @@ cli_env = {k: v for k, v in os.environ.items() if not k.startswith(('DATABASE_',
 cli_env.update(AGENT_ID='bridge-owner', AGENTBOARD_MODEL='fixture-model', AGENTBOARD_HARNESS='codex')
 
 
-def ab(*args, success=True):
-    result = subprocess.run([os.environ['AB_BINARY'], '--json', *args], env=cli_env,
+def ab(*args, success=True, actor="bridge-owner"):
+    result = subprocess.run([os.environ['AB_BINARY'], '--json', *args], env=dict(cli_env, AGENT_ID=actor),
                             capture_output=True, text=True, timeout=25)
     if success:
         assert result.returncode == 0, (args, result.stdout, result.stderr)
@@ -258,9 +259,121 @@ time.sleep(5)
 route_claimed(1)
 wait_for("SELECT state FROM mattermost_outbox WHERE task_id='retry-task'", 'sent', 90)
 
-# Bridge outage never blocks board writes.
+# Default board mode retains message/read contracts without message intents,
+# independently of an enabled lifecycle bridge.
+def mode_status():
+    with urllib.request.urlopen(os.environ['AGENTBOARD_URL'] + '/api/v1/meta') as response:
+        return json.load(response)['message_transport']
+
+assert mode_status()['requested'] == 'board'
+assert mode_status()['effective'] == 'board'
+ab('agent', 'register', actor='bridge-peer')
+board_dm = ab('msg', 'send', '--to', 'bridge-peer', '--body', 'Board-only private fixture')['message']
+assert sql("SELECT count(*) FROM mattermost_outbox WHERE source='board_message'") == '0'
+assert board_dm['id'] in [m['id'] for m in ab('msg', 'list', '--unread', actor='bridge-peer')['messages']]
+ab('msg', 'read', str(board_dm['id']), success=False)
+read = ab('msg', 'read', str(board_dm['id']), actor='bridge-peer')['message']
+assert read['read_at'] and read['read_model'] == 'fixture-model'
+
+# Selecting dual is independent of the jobs fence. Even with jobs disabled,
+# every send has a durable intent and handoff remains explicitly assigned.
+rpc('Application.put_env(:agentboard, :message_mode, "dual"); Application.put_env(:agentboard, :mattermost_bridge_enabled, false); :ok = Oban.pause_queue(queue: :mattermost_sender)')
+assert mode_status()['effective'] == 'dual'
+ab('task', 'create', '--id', 'dual-thread', '--title', 'Dual comments')
+ab('task', 'create', '--id', 'dual-handoff', '--title', 'Dual ownership')
+ab('task', 'claim', 'dual-handoff')
+public = ab('msg', 'send', '--task', 'dual-thread', '--body', 'Public dual comment')['message']
+private = ab('msg', 'send', '--to', 'bridge-peer', '--body', 'Never echo this private body')['message']
+scoped = ab('msg', 'send', '--to', 'bridge-peer', '--task', 'dual-thread', '--body', 'Private task context')['message']
+for message in (public, private, scoped):
+    assert sql(f"SELECT count(*) FROM mattermost_outbox WHERE source='board_message' AND source_key='message:{message['id']}' AND state='pending'") == '1'
+for message in (private, scoped):
+    assert sql(f"SELECT destination||','||last_error FROM mattermost_outbox WHERE source_key='message:{message['id']}'") == 'mattermost:agent_inbox:bridge-peer,recipient_route_unavailable'
+assert sql("SELECT count(*) FROM mattermost_task_threads WHERE task_id='dual-thread'") == '1'
+
+handoff = ab('task', 'handoff', 'dual-handoff', '--to', 'bridge-peer', '--body', 'One handoff notice')
+assert handoff['task']['status'] == 'assigned' and handoff['task']['claim_expires_at'] is None
+assert sql("SELECT count(*) FROM mattermost_outbox WHERE task_id='dual-handoff' AND payload->>'action'='handoff' AND state='pending'") == '1'
+assert sql(f"SELECT count(*) FROM mattermost_outbox WHERE source_key='message:{handoff['message_id']}'") == '0'
+assert handoff['message_id'] in [m['id'] for m in ab('msg', 'list', '--unread', actor='bridge-peer')['messages']]
+assert sql("SELECT count(*) FROM oban_jobs WHERE worker='%s' AND args->>'id' IN (SELECT id::text FROM mattermost_outbox WHERE task_id IN ('dual-thread','dual-handoff'))" % sender) == '0'
+# A disabled queued action cannot send; recipient still claims explicitly.
+route_claimed_out = rpc('input = Ash.ActionInput.for_action(Agentboard.Mattermost.Router, :route_pending, %{}, actor: %{role: :system}); IO.inspect(Ash.run_action(input))')
+assert 'Snooze' in route_claimed_out, route_claimed_out
+disabled_id = sql(f"SELECT id FROM mattermost_outbox WHERE source_key='message:{public['id']}'")
+disabled_send = rpc(f'input = Ash.ActionInput.for_action(Agentboard.Mattermost.Router, :send_intent, %{{id: "{disabled_id}"}}, actor: %{{role: :system}}); IO.inspect(Ash.run_action(input))')
+assert 'Snooze' in disabled_send, disabled_send
+claimed = ab('task', 'claim', 'dual-handoff', actor='bridge-peer')['task']
+assert claimed['status'] == 'in_progress' and claimed['claim_expires_at']
+
+# Outbox insertion failure rolls back a send and every part of a handoff.
+ab('task', 'create', '--id', 'dual-rollback', '--title', 'No partial assignment')
+ab('task', 'claim', 'dual-rollback')
+before_task = ab('task', 'show', 'dual-rollback')['task']
+before_events = sql("SELECT count(*) FROM task_events WHERE task_id='dual-rollback'")
+before_messages = sql("SELECT count(*) FROM messages")
+sql("CREATE FUNCTION reject_dual_outbox_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Synthetic dual capture failure'; END $$; CREATE TRIGGER reject_dual_outbox_fixture BEFORE INSERT ON mattermost_outbox FOR EACH ROW EXECUTE FUNCTION reject_dual_outbox_fixture()")
+ab('msg', 'send', '--to', 'bridge-peer', '--body', 'Rollback direct message', success=False)
+ab('task', 'handoff', 'dual-rollback', '--to', 'bridge-peer', '--body', 'Rollback ownership', success=False)
+assert ab('task', 'show', 'dual-rollback')['task'] == before_task
+assert sql("SELECT count(*) FROM task_events WHERE task_id='dual-rollback'") == before_events
+assert sql("SELECT count(*) FROM messages") == before_messages
+assert sql("SELECT count(*) FROM mattermost_outbox WHERE task_id='dual-rollback'") == '0'
+sql('DROP TRIGGER reject_dual_outbox_fixture ON mattermost_outbox; DROP FUNCTION reject_dual_outbox_fixture()')
+# Failure in the internal board message also rolls back the already-captured
+# event notice; commit order must not produce a partial notification.
+sql("CREATE FUNCTION reject_dual_message_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.body='Rollback internal message' THEN RAISE EXCEPTION 'Synthetic internal message failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER reject_dual_message_fixture BEFORE INSERT ON messages FOR EACH ROW EXECUTE FUNCTION reject_dual_message_fixture()")
+ab('task', 'handoff', 'dual-rollback', '--to', 'bridge-peer', '--body', 'Rollback internal message', success=False)
+assert ab('task', 'show', 'dual-rollback')['task'] == before_task
+assert sql("SELECT count(*) FROM task_events WHERE task_id='dual-rollback'") == before_events
+assert sql("SELECT count(*) FROM mattermost_outbox WHERE task_id='dual-rollback'") == '0'
+sql('DROP TRIGGER reject_dual_message_fixture ON messages; DROP FUNCTION reject_dual_message_fixture()')
+
+# Re-enabling dispatch recovers pending public routes. Scoped/private intents
+# remain pending, without fallback to the service bot's public channel.
+with state['lock']:
+    posts_before_dual = len(state['received'])
+rpc('Application.put_env(:agentboard, :mattermost_bridge_enabled, true); :ok = Oban.resume_queue(queue: :mattermost_sender)')
+route_claimed(2)
+wait_for("SELECT count(*) FROM mattermost_outbox WHERE task_id IN ('dual-thread','dual-handoff') AND state='sent'", '2')
+with state['lock']:
+    dual_posts = list(state['received'][posts_before_dual:])
+assert len(dual_posts) == 2, dual_posts
+assert any('Public dual comment' in post['message'] for post in dual_posts), dual_posts
+assert any('handoff' in post['message'] and 'bridge-peer' in post['message'] and 'explicit claim required' in post['message'] for post in dual_posts), dual_posts
+assert all('Never echo' not in post['message'] and 'Private task context' not in post['message'] for post in dual_posts)
+route_claimed(0)
+assert sql("SELECT count(*) FROM mattermost_outbox WHERE destination='mattermost:agent_inbox:bridge-peer' AND state='pending'") == '2'
+# Acknowledgement is still explicit and does not generate a chat echo.
+private_read = ab('msg', 'read', str(private['id']), actor='bridge-peer')['message']
+assert private_read['read_at']
+assert ab('msg', 'read', str(private['id']), actor='bridge-peer')['message'] == private_read
+
+# A working service bot is insufficient for sole-Mattermost activation. The
+# actual operator configuration refuses both missing capabilities and #80,
+# retaining board writes and actionable legacy unread messages.
+rpc('Application.put_env(:agentboard, :message_mode, "mattermost")')
+status = mode_status()
+assert status['activation_refused'] and not status['cutover_ready'] and status['effective'] == 'board', status
+assert {'peer_identities_unavailable_5_1', 'headless_send_read_unavailable_5_2', 'inbox_catch_up_unavailable_5_3', 'coordinator_decision_path_unavailable_80', 'legacy_unread_disposition_unverified_80', 'delivery_adapter_readiness_unverified'} <= set(status['blockers']), status
+fallback = ab('msg', 'send', '--to', 'bridge-peer', '--body', 'Refused cutover preserves inbox')['message']
+assert fallback['id'] in [m['id'] for m in ab('msg', 'list', '--unread', actor='bridge-peer')['messages']]
+assert sql(f"SELECT count(*) FROM mattermost_outbox WHERE source_key='message:{fallback['id']}'") == '0'
+rpc('Application.put_env(:agentboard, :message_mode, "invalid")')
+assert 'invalid_message_mode' in mode_status()['blockers']
+assert mode_status()['effective'] == 'board'
+rpc('Application.put_env(:agentboard, :message_mode, "dual")')
+
+# Bridge outage never blocks board writes or a dual handoff.
 server.shutdown()
+rpc(':ok = Oban.pause_queue(queue: :mattermost_sender)')
 ab('task', 'create', '--id', 'offline-task', '--title', 'Board survives outage')
-wait_for("SELECT last_error FROM mattermost_outbox WHERE task_id='offline-task'", 'timeout', 90)
-wait_for("SELECT state FROM mattermost_outbox WHERE task_id='offline-task'", 'pending', 90)
-print('Outbound bridge: cutoff, rollback, single root, late commit, lost-response adoption, uncertainty, duplicate roots, auth, 429 and outage isolation passed')
+ab('task', 'claim', 'offline-task')
+offline = ab('task', 'handoff', 'offline-task', '--to', 'bridge-peer', '--body', 'Handoff while chat is offline')
+assert offline['task']['status'] == 'assigned' and offline['task']['claim_expires_at'] is None
+assert sql("SELECT count(*) FROM mattermost_outbox WHERE task_id='offline-task' AND payload->>'action'='handoff'") == '1'
+assert offline['message_id'] in [m['id'] for m in ab('msg', 'list', '--unread', actor='bridge-peer')['messages']]
+rpc(':ok = Oban.resume_queue(queue: :mattermost_sender)')
+wait_for("SELECT count(*) FROM mattermost_outbox WHERE task_id='offline-task' AND state='pending' AND last_error='timeout'", '3', 90)
+assert ab('task', 'claim', 'offline-task', actor='bridge-peer')['task']['status'] == 'in_progress'
+print('Bridge and message modes: board compatibility, dual atomic send/handoff, private route fence, disabled-job recovery, explicit claim, rollback and refused cutover incl. #80 passed')
