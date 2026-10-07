@@ -1,0 +1,34 @@
+{
+  "pi_version": "0.99.2",
+  "provider": "zai",
+  "model": "glm-5.3-flash",
+  "named_session": "agentboard-native-conformance",
+  "session_id": "01a114cc-cafe-7222-952c-497429f6e420",
+  "generation": "40403273-9c13-4ac0-9ed6-37602d30d4e3",
+  "remote_binary_invocation": "https://carverauto.buildbuddy.io/invocation/5433870a-2728-41e9-8db0-846c059ba6f6",
+  "adapter": "pi-native-v1",
+  "surface": "actual Pi RPC with scoped invented HTTP API; packaged Phoenix proof remains separate",
+  "session_replacement_and_stale_identity": "passed",
+  "explicit_rebind_epoch": 2,
+  "original_generation": "487e2578-28e0-44aa-9ed4-5bc11c634ded",
+  "original_session": "5ecea4e0-9903-4b17-987e-f1ae45e1306e",
+  "profile": "exclusive-rpc",
+  "idle_probe": "passed",
+  "native_wake": "passed",
+  "exact_handling_receipt": {
+    "attempt_id": "attempt-1",
+    "binding_epoch": 1,
+    "delivery_ids": [
+      "delivery-1",
+      "delivery-2"
+    ],
+    "dispatch_generation": 1,
+    "idempotency_key": "live-proof-1",
+    "kind": "handled",
+    "payload_hash": "7272578f9ac15e5d705b61cf916e3d2ae37dfb26ae975b651fa610376e687c0b"
+  },
+  "turn_end_does_not_ack": true,
+  "submissions": 0,
+  "protocol": 1,
+  "global_services_changed": false
+}

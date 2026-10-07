@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Volumes/Build/.treehouse/agentboard-115218/rollout-27a4f40/agentboard/docs/architecture/supervised-worker.architecture.json",
+  "output": "/Volumes/Build/.treehouse/agentboard-115218/rollout-27a4f40/agentboard/docs/architecture/supervised-worker.html",
+  "specification": {
+    "sha256": "a65cf5353ca7a0e1eb648cf7f505e1389d524031d8093c3cc3484f0bb9a4581a",
+    "bytes": 2785
+  },
+  "artifact": {
+    "sha256": "22cd8139be65d2f9a8305b443b7ab988887eecb25245a09082e923792a8e5314",
+    "bytes": 704957
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

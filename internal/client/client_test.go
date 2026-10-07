@@ -84,7 +84,7 @@ func TestRateLimitedWriteWaitsAndReplaysSameBody(t *testing.T) {
 }
 
 func TestRateLimitBudgetStopsFurtherRequests(t *testing.T) {
-	for _, header := range []string{"0", "121", "999999999999999999999999999999"} {
+	for _, header := range []string{"0", "121", "3600", "999999999999999999999999999999"} {
 		t.Run(header, func(t *testing.T) {
 			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -104,6 +104,9 @@ func TestRateLimitBudgetStopsFurtherRequests(t *testing.T) {
 			}
 			if calls.Load() != want {
 				t.Fatalf("calls %d, want %d", calls.Load(), want)
+			}
+			if header == "3600" && failure.RetryAfter < time.Hour {
+				t.Fatalf("lost server retry floor: %s", failure.RetryAfter)
 			}
 		})
 	}

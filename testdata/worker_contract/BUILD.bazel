@@ -1,0 +1,5 @@
+filegroup(
+    name = "fixtures",
+    srcs = glob(["worker-*.json"]),
+    visibility = ["//visibility:public"],
+)

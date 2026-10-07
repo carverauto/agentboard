@@ -48,9 +48,25 @@ func (e *Error) ExitCode() int {
 }
 
 type Client struct {
-	base  *url.URL
-	http  *http.Client
-	actor config.Actor
+	base           *url.URL
+	http           *http.Client
+	actor          config.Actor
+	token          string
+	workerProtocol string
+}
+
+// NewRuntime uses the existing HTTPS/redirect/retry transport with scoped auth.
+// The caller must load the capability from protected storage; it is never an argument.
+func NewRuntime(cfg config.Config, token string) (*Client, error) {
+	if token == "" || strings.ContainsAny(token, "\r\n\t ") {
+		return nil, errors.New("invalid runtime capability")
+	}
+	c, err := New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	c.token, c.workerProtocol = token, "1"
+	return c, nil
 }
 
 func New(cfg config.Config) (*Client, error) {
@@ -158,6 +174,10 @@ func (c *Client) open(ctx context.Context, method, path string, query url.Values
 		}
 		req.Header.Set("Accept", accept)
 		req.Header.Set("User-Agent", "agentboard-cli/0.1")
+		if c.token != "" {
+			req.Header.Set("Authorization", "Bearer "+c.token)
+			req.Header.Set("X-Agentboard-Worker-Protocol", c.workerProtocol)
+		}
 		if body != nil {
 			req.Header.Set("Content-Type", "application/json")
 		}
@@ -204,12 +224,12 @@ func retryDelay(value string, attempt int, now time.Time) time.Duration {
 	delay := time.Duration(1<<attempt) * time.Second
 	if seconds, err := strconv.ParseUint(value, 10, 64); err == nil {
 		// Avoid overflow and never cap a valid server delay below its advertised floor.
-		if seconds > uint64(requestBudget/time.Second) {
-			return requestBudget + time.Second
+		if seconds > uint64((time.Duration(1<<63-1)-time.Second)/time.Second) {
+			return time.Duration(1<<63 - 1)
 		}
 		delay = time.Duration(seconds) * time.Second
 	} else if errors.Is(err, strconv.ErrRange) {
-		return requestBudget + time.Second
+		return time.Duration(1<<63 - 1)
 	} else if when, err := http.ParseTime(value); err == nil {
 		delay = when.Sub(now)
 		if delay < 0 {

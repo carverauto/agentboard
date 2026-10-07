@@ -1,0 +1,1 @@
+Protocol 1 wire fixtures supplied by Agent A from `docs/fixtures/worker-*.json` on 2026-10-07. These invented envelopes are exercised through the public remote-built worker CLI and HTTP transport. They are an implementation snapshot for parallel development; packaged Phoenix acceptance remains a separate gate.
