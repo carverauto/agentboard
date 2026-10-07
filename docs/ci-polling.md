@@ -30,7 +30,7 @@ Disabled at boot removes observation cron entries and pauses both observation qu
 
 ## Evidence
 
-The packaged-release/TLS PostgreSQL fixtures test two callers reserving the same PR, a held-row skip with an unrelated board write, expired/replaced results, persisted one-hour provider backoff, default-off/runtime fencing and unknown CI without provider evidence. The schema fixture tests fresh/repeated migration plus schema-4 and schema-7 upgrades, schema-8 unknown enrollment, and schema-9 retention of poll backoff, preserving source history and immutable HTML bytes. All execution is through BuildBuddy remote configuration, including the real Ash actions and database constraints; fixtures are invented.
+The packaged-release/TLS PostgreSQL fixtures test two callers reserving the same PR, a held-row skip with an unrelated board write, expired/replaced results, persisted one-hour provider backoff, default-off/runtime fencing and unknown CI without provider evidence. The schema fixture tests fresh/repeated migration plus schema-4 and schema-7 upgrades, schema-8 unknown enrollment, and schema-9 to schema-10 retention of poll backoff, provider budgets and empty snapshot state, preserving source history and immutable HTML bytes. All execution is through BuildBuddy remote configuration, including the real Ash actions and database constraints; fixtures are invented.
 
 See [the foundation diagram](architecture/pr-polling-foundation.html) for this implemented boundary and [the approved whole-runtime diagram](architecture/agensh-worker-runtime.html) for later delivery, Herdr/native adapters and Mattermost work. The original proposal's exported HTML is its approved planning snapshot; current implementation progress is the Markdown checklist.
 

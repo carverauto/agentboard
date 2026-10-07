@@ -122,7 +122,7 @@ Both `AGENTBOARD_PR_DISCOVERY_ENABLED` and
 includes merged PR36 attribution/catch-up and PR44/45 reservation/scheduling
 foundations; it does not deploy the current-head collector, repair obligations,
 worker wake adapter or Mattermost bridge. Existing Agentboard tools remain
-available through API1.
+available through API 1.
 
 Four canonical PRs retained four unknown/unobserved poll rows, untouched
 provider budgets and no runnable observation jobs. All captured task-history,
@@ -132,8 +132,8 @@ Gateway task watch, two-instance CNPG and Mattermost health passed. See
 [rollout acceptance](../verification.md#observation-scheduling-rollout-pr45-2026-10-07-utc)
 and the [normalized receipt](../verification/farm01-pr45-scheduling.json).
 
-Rollback retains additive schema9 and evidence, keeps both flags false and
-restores the prior schema7-compatible image digest
+Rollback retains additive schema 9 and evidence, keeps both flags false and
+restores the prior schema-7-compatible image digest
 `sha256:eb5c074b40cfea5b59cac49a689390d66d778ef18e99b606896cb809a0255fa4`.
 No live rollback was performed during this successful rollout.
 

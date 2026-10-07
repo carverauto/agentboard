@@ -127,4 +127,4 @@ See [polling contracts](ci-polling.md) and
 Schema 10 adds internal immutable current-head CI observations and provider
 cooldown. Existing task/watch payloads and public routes remain unchanged;
 there is no PR read API yet. See [collector limits](github-ci-observation.md)
-and [schema10 compatibility](release.md#schema-10-current-head-ci-observations).
+and [schema 10 compatibility](release.md#schema-10-current-head-ci-observations).

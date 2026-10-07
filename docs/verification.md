@@ -265,23 +265,23 @@ digest is pinned in the farm01 overlay and used by migration and dashboard.
 Server-side dry-run passed for the scoped ConfigMap, unique migration Job
 and Deployment. Only those release resources were applied; CNPG, Mattermost,
 storage and edge resources were preserved. `agentboard-migrate-9f1e712`
-completed before Deployment rollout. Schema9/API1 and a Ready zero-restart
+completed before Deployment rollout. Schema 9/API 1 and a Ready zero-restart
 pod on the exact image ID are confirmed. Discovery and observation are false
 in both configuration and the new pod environment. Four retained canonical
-PRs have four unobserved poll rows; provider remaining budgets are GitHub60
-and BuildBuddy30, with zero runnable observation jobs.
+PRs have four unobserved poll rows; provider remaining budgets are GitHub 60
+and BuildBuddy 30, with zero runnable observation jobs.
 
-Pre-roll immutable cutoffs were task events246 (230 retained rows),
-documents60 (28 rows) and Context4 (three rows). Post-roll counts and hashes
-match at each cutoff. Actual HTML bytes for documents59/60 match the retained
+Pre-roll immutable cutoffs were task events 246 (230 retained rows),
+documents 60 (28 rows) and Context 4 (three rows). Post-roll counts and hashes
+match at each cutoff. Actual HTML bytes for documents 59/60 match the retained
 source files; document metadata digests include metadata and are not HTML-only
 SHA256 values. All existing dashboard routes, live/ready/meta and both sandbox
-viewer routes returned HTTPS200. This HTTP check alone does not prove browser
+viewer routes returned HTTPS 200. This HTTP check alone does not prove browser
 interactions. The existing CLI BM25 search reports `pg_textsearch-1.5.1`.
-A task watch stayed connected through the Gateway for25seconds, produced five
+A task watch stayed connected through the Gateway for 25 seconds, produced five
 valid NDJSON snapshots, no stderr and clean cancellation.
 
-CNPG has two Ready instances, pg_textsearch1.5.1, and neither application role
+CNPG has two Ready instances, pg_textsearch 1.5.1, and neither application role
 is superuser. Mattermost ping/database/filestore are OK. Its enabled existing
 agentboard bot token authenticates and its memberships include board/agents/quota
 in `carver-automation-corporation`; all three had zero posts. This release

@@ -94,7 +94,7 @@ After remote formatting, [full 18-target acceptance](https://carverauto.buildbud
 
 Task 1.3 now samples bounded current-head GitHub metadata, all check-suite/run
 and status pages, latest numeric attempt IDs, failed-job source links and
-head/base/lifecycle rechecks. Schema10 retains immutable fenced snapshots and
+head/base/lifecycle rechecks. Schema 10 retains immutable fenced snapshots and
 provider-wide cooldown. [Full 19-target remote acceptance](https://carverauto.buildbuddy.io/invocation/ba9ffc78-3106-4bc0-bbdd-44b101eecadb)
 passed (14 executed, five unchanged cached targets). The TLS fixture drives the
 packaged Ash poll action against invented provider responses and PostgreSQL;
@@ -104,15 +104,15 @@ A complete head failure can be failing, a nonterminal latest attempt pending,
 and every clean/empty/security-only observation remains unknown without policy.
 Required repository rules, workflow/test-ref identity, passing certification,
 Actions job details and BuildBuddy correlation remain unchecked in the broader
-Ash/CI change, which remains9/37. Obligations, receipts, adapters, reminders and
-the controlled first-release proof remain open. The runtime is3/36 complete.
+Ash/CI change, which remains 9/37. Obligations, receipts, adapters, reminders and
+the controlled first-release proof remain open. The runtime is 3/36 complete.
 
-Merged PR45 is separately rolled to farm01 at schema9/API1 with discovery and
+Merged PR45 is separately rolled to farm01 at schema 9/API 1 with discovery and
 observation explicitly false; its operator pin and retained-data receipt ship
 with this collector PR to avoid an extra maintenance-only PR. The collector
-schema10 and provider calls are not deployed or enabled by that record.
+schema 10 and provider calls are not deployed or enabled by that record.
 
 
-Collector Archify: source-linked implementation evidence,9/9 showcase checks,
+Collector Archify: source-linked implementation evidence, 9/9 showcase checks,
 zero errors/warnings, four desktop containment measurements and separate actual
 light/dark screenshot review. Viewer interactions are not implied.

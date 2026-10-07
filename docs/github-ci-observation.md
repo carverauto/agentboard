@@ -38,19 +38,19 @@ See [the collector architecture](architecture/github-ci-observation.html), [rese
 
 
 The [full 19-target remote acceptance](https://carverauto.buildbuddy.io/invocation/ba9ffc78-3106-4bc0-bbdd-44b101eecadb)
-passed with14 executed targets and five unchanged cached targets. The final
-collector fixture passed in26.2seconds, covering wire/TLS bounds, pagination,
+passed with 14 executed targets and five unchanged cached targets. The final
+collector fixture passed in 26.2 seconds, covering wire/TLS bounds, pagination,
 latest attempts, complete-head failure/unknown evidence, shared cooldown,
 audit rollback and replacement-generation rejection. Earlier remote failures
-exposed unsupported OTP28.1 httpc bounds, a fixture CA-chain error, schema SQL
+exposed unsupported OTP 28.1 httpc bounds, a fixture CA-chain error, schema SQL
 quoting and a scheduler/quiescence race; these were corrected before this pass.
 The final transport uses the pinned passive Mint client rather than unsupported
 httpc cap options. No real provider or active worker delivery is claimed.
 
 
-The source-bound Archify delivery passed9/9 showcase checks with zero errors
-and warnings. Automated browser containment passed at1440x900,1600x1000,
-1920x1080 and2048x1320; separate perceptual image review covered1440light and
-2048dark. One diagnosed relationship-label placement correction was needed.
+The source-bound Archify delivery passed 9/9 showcase checks with zero errors
+and warnings. Automated browser containment passed at 1440x900, 1600x1000,
+1920x1080 and 2048x1320; separate perceptual image review covered 1440 light and
+2048 dark. One diagnosed relationship-label placement correction was needed.
 Viewer interactions are not covered by that image review. Retained receipts
 are beside the HTML in `docs/architecture/`.
