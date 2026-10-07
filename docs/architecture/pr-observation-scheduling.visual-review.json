@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "evidenceKind": "perceptual-image-review",
+  "artifact": {
+    "sha256": "4cb2d32baf447ab123071f65d967af143bcef6afd2755e82a3bbeeff5642cca3",
+    "bytes": 712374
+  },
+  "inspected": [
+    "pr-observation-scheduling.visual-check.1440x900.light.png",
+    "pr-observation-scheduling.visual-check.2048x1320.dark.png"
+  ],
+  "observations": [
+    "Both themes have contained nodes, clear labels and no ambiguous route crossings.",
+    "The largest desktop composition is vertically balanced; pending collection is clearly separated by a dashed future connection.",
+    "Conclusion cards fit and remain readable."
+  ],
+  "notCovered": [
+    "focus/search/passport/export interaction"
+  ],
+  "correction_rounds": 2
+}

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Volumes/Build/agentboard-pr-observation-scheduling/docs/architecture/pr-observation-scheduling.architecture.json",
+  "output": "/Volumes/Build/agentboard-pr-observation-scheduling/docs/architecture/pr-observation-scheduling.html",
+  "specification": {
+    "sha256": "de9520f582373af1f52ee19aa68567fc4967081a2e7c88c7ce453222b70a2745",
+    "bytes": 4942
+  },
+  "artifact": {
+    "sha256": "4cb2d32baf447ab123071f65d967af143bcef6afd2755e82a3bbeeff5642cca3",
+    "bytes": 712374
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  },
+  "evidence": {
+    "verified": true,
+    "repository": "https://github.com/carverauto/agentboard",
+    "revision": "c67084e390e01e8c61102890e71970b96b45301f",
+    "references": 7
+  }
+}
