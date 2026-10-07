@@ -46,14 +46,6 @@ async function refuse($, current) {
   try { if (current) await request($, 'retire', current); } catch { /* inert */ }
 }
 
-async function revoke($, current) {
-  lifecycle += 1;
-  owner = undefined;
-  eligible = false;
-  eligibleSession = undefined;
-  try { if (current) await request($, 'revoke', current); } catch { /* inert */ }
-}
-
 export function register(on) {
   on('session.start', async ($, event, next) => {
     const retired = owner;
@@ -62,13 +54,11 @@ export function register(on) {
     owner = undefined;
     eligible = false;
     eligibleSession = undefined;
+    try { if (retired) await request($, 'retire', retired); } catch { /* inert */ }
     try {
       const session = await $.session.id();
       if (revision !== lifecycle) return next(event);
-      if (event?.isInteractive !== false || !(await headless($, revision))) {
-        try { if (retired) await request($, 'retire', retired); } catch { /* inert */ }
-        return next(event);
-      }
+      if (event?.isInteractive !== false || !(await headless($, revision))) return next(event);
       if (revision !== lifecycle) return next(event);
       const fresh = await bind($);
       if (revision !== lifecycle) return next(event);
@@ -77,7 +67,7 @@ export function register(on) {
       if (fresh && fresh.session_id === session) { eligible = true; eligibleSession = session; }
       else { await refuse($, fresh ?? owner); }
     } catch {
-      if (revision === lifecycle) await refuse($, owner).catch(() => undefined);
+      if (revision === lifecycle) await refuse($, owner ?? retired).catch(() => undefined);
     }
     return next(event);
   });
@@ -104,26 +94,21 @@ export function register(on) {
     if (!eligible) { if (owner) await refuse($, owner); return next(event); }
     let current;
     try {
-      if (!(await headless($, revision))) { await revoke($, owner); return next(event); }
+      if (!(await headless($, revision))) { await refuse($, owner); return next(event); }
       if (revision !== lifecycle || !eligible) return next(event);
       current = await bind($).catch(() => undefined);
       if (!current || revision !== lifecycle || !eligible || current.session_id !== eligibleSession) {
         if (current && current.session_id !== eligibleSession) await refuse($, current).catch(() => undefined);
         return next(event);
       }
-      if (!(await headless($, revision))) { await revoke($, current); return next(event); }
+      if (!(await headless($, revision))) { await refuse($, current); return next(event); }
       if (revision !== lifecycle || !eligible || owner !== current) return next(event);
-      const admission = await request($, 'admit', current).catch(() => undefined);
-      if (revision !== lifecycle || !eligible || owner !== current || !admission || admission.generation !== current.generation) {
-        await refuse($, current).catch(() => undefined);
-        return next(event);
-      }
     } catch { return next(event); }
     try {
       const result = await request($, 'take', current);
       if (owner !== current || next.signal.aborted || await $.session.id() !== current.session_id) return next(event);
       if (revision !== lifecycle || !eligible) return next(event);
-      if (!(await headless($, revision))) { await revoke($, current); return next(event); }
+      if (!(await headless($, revision))) { await refuse($, current); return next(event); }
       if (revision !== lifecycle || !eligible || owner !== current) return next(event);
       if (result?.body) return next({ ...event, context: [...(event.context ?? []), result.body] });
     } catch { /* Delivery failure must never block or rewrite the user's prompt. */ }

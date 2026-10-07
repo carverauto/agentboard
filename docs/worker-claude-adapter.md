@@ -4,12 +4,12 @@
 worker runtime. The plugin preserves existing settings hooks and does not add an
 idle wake owner. Its native `prompt.submit` hook appends a frozen source frame to
 context while preserving the user's prompt and existing context. Its dedicated
-MCP check-in tool retains the original result and appends an eligible pending
-frame only while the bridge holds fresh headless admission for the live
-generation. Admission is earned solely by hook-observed prompt proof against
-the native surface API, never by session start alone; without it, check-in
-returns only its explicit original result, the staged frame stays pending,
-and nothing is consumed, stamped, or acknowledged. Other tools are unchanged.
+MCP check-in tool always returns exactly its explicit protected result and
+never appends, consumes, or stamps a staged frame: the MCP path carries no
+fresh native surface proof at invocation. Only a native prompt under fresh
+headless proof takes a staged frame. A staged batch therefore waits for a
+prompt; check-in reports the waiting batch through durable state without
+moving it. Other tools are unchanged.
 
 The first supported profile is a deliberately enrolled headless Claude session
 with native mods available. Claude 2.1.289 is the installed version used for
@@ -51,13 +51,13 @@ follow [worker-runtime.md](worker-runtime.md). Run the existing explicit
 enabling host dispatch. Binding does not silently enable the worker.
 
 The descriptor is local native identity evidence, not server authorization.
-Each source delivery rechecks durable enabled/paused state, epoch, session and
-generation through the scoped API, plus fresh headless admission. An
-interactive, surface-attached, or otherwise unproven session retires or
-revokes automatic delivery on observation: a replacement start retires the
-previous generation, an attach event retires immediately, and an attach
-observed at a prompt revokes the frame append while keeping explicit
-check-in available. Missing or unreadable surface evidence fails closed. A successful native submission or a model
+Each prompt delivery rechecks durable enabled/paused state, epoch, session,
+generation, and fresh headless proof through the scoped API. An interactive,
+surface-attached, or otherwise unproven session retires automatic delivery
+on observation: a replacement start retires the previous generation before
+any fallible inspection, an attach event retires immediately, and an attach
+observed at a prompt retires the generation. Missing or unreadable surface
+evidence fails closed. Explicit check-in stays available in every profile. A successful native submission or a model
 turn ending never records received/handled. Those receipts require exact IDs
 and a stable key through the dedicated ack tool or explicit CLI.
 
@@ -74,7 +74,7 @@ the plugin refuses takeover.
 | Capability | Readiness |
 | --- | --- |
 | Turn start | Native prompt context, preserving the original prompt and foreign context |
-| Tool return | Dedicated Agentboard MCP check-in only; frame appended only with fresh headless admission, otherwise explicit result only |
+| Tool return | Explicit-only Agentboard MCP check-in; automatic frame return disabled until a proven native boundary exists |
 | Receipt | Explicit received/handled with exact IDs and protected epoch capability |
 | Recovery | Protected attempt evidence and generation retirement; uncertain replay refused |
 | Idle wake | Unsupported: atomic composer and competing wake-owner guards are unproven |
@@ -96,11 +96,12 @@ invented API, so it does not satisfy the separate published-server gate.
 
 Remote conformance executes the real MCP child and Unix socket protocol, native
 callback entry points, protected evidence, pause checks, exact receipt calls,
-retirement during an in-flight guard, admission-gated MCP appends, revoked
-and retired generations, and stale admit/revoke rejection. The installed
-headless proof covers the headless profile only; UI-attached, unknown, and
-unsupported sessions are proven by remote conformance to receive explicit
-results without automatic frames or implicit receipts. The invented engine/API fixture is distinct
+retirement during an in-flight guard, explicit-only MCP results, silent
+surface attachment with pending preserved, and stale generation rejection.
+The installed headless proof is historical: it predates the explicit-only MCP
+policy and proves prompt delivery in the headless profile only. UI-attached,
+unknown, and unsupported sessions receive explicit results without automatic
+frames or implicit receipts. The invented engine/API fixture is distinct
 from installed-Claude proof and published-server interoperability.
 
 - [Remote adapter and worker tests](https://carverauto.buildbuddy.io/invocation/a05541bd-476c-4610-8ae2-ff9c80c020e3)
