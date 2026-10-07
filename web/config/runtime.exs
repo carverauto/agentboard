@@ -43,10 +43,6 @@ config :agentboard,
        System.get_env("AGENTBOARD_MATTERMOST_CA_FILE")
 
 config :agentboard,
-       :mattermost_team_id,
-       System.get_env("AGENTBOARD_MATTERMOST_TEAM_ID")
-
-config :agentboard,
        :mattermost_request_timeout_ms,
        String.to_integer(System.get_env("AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS", "10000"))
 

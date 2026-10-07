@@ -58,6 +58,24 @@ defmodule Agentboard.Mattermost.Delivery do
     end
   end
 
+  # Shared-bot posting config for agent chat: token plus base URL only, no
+  # pinned destination channel. The value never enters logs or job args.
+  def bot_config do
+    token =
+      case Application.get_env(:agentboard, :mattermost_bot_token_file) do
+        nil -> Application.get_env(:agentboard, :mattermost_bot_token)
+        file when is_binary(file) -> read_token_file(file)
+      end
+
+    base_url = Bridge.base_url()
+
+    cond do
+      !is_binary(token) or String.trim(token) == "" -> {:error, "unavailable", "bridge unauthorized; rotate the bridge token"}
+      !is_binary(base_url) or base_url == "" -> {:error, "unavailable", "Mattermost base URL is not configured"}
+      true -> {:ok, %{token: String.trim(token), base_url: base_url}}
+    end
+  end
+
   defp fetch_intent(id) do
     case Ash.get!(Outbox, id, not_found_error?: false) do
       nil -> Operations.reject("not_found", "Outbox intent not found")

@@ -23,6 +23,74 @@ defmodule Agentboard.Mattermost.Transport do
     request(cfg, :post, "/api/v4/posts", body)
   end
 
+  # Phase 1 shared-bot agent post. Props are the source of truth for
+  # attribution; override fields render only when the server enables the
+  # Mattermost override settings, and the header line plus props carry
+  # identity either way.
+  def post_agent(cfg, channel_id, message, props, opts \\ []) do
+    body =
+      %{channel_id: channel_id, message: message, props: props}
+      |> maybe_root(Keyword.get(opts, :root_id))
+      |> maybe_override("override_username", Keyword.get(opts, :override_username))
+      |> maybe_override("override_icon_url", Keyword.get(opts, :override_icon_url))
+      |> Jason.encode!()
+
+    request(cfg, :post, "/api/v4/posts", body)
+  end
+
+  defp maybe_override(map, _key, nil), do: map
+  defp maybe_override(map, _key, ""), do: map
+  defp maybe_override(map, key, value), do: Map.put(map, key, value)
+
+  # Retry-key adoption scoped to the posting agent: a matching key from a
+  # different agent_id is a different message, never a duplicate.
+  def find_by_retry_key(cfg, channel_id, retry_key, agent_id) do
+    search_retry_key(cfg, channel_id, retry_key, agent_id, 0)
+  end
+
+  defp search_retry_key(_cfg, _channel_id, _retry_key, _agent_id, page) when page >= @history_max_pages,
+    do: {:ok, nil}
+
+  defp search_retry_key(cfg, channel_id, retry_key, agent_id, page) do
+    case request(cfg, :get, "/api/v4/channels/#{channel_id}/posts?page=#{page}&per_page=#{@history_per_page}", nil) do
+      {:ok, 200, posts} ->
+        case find_in_retry(posts, retry_key, agent_id) do
+          nil ->
+            if has_more?(posts),
+              do: search_retry_key(cfg, channel_id, retry_key, agent_id, page + 1),
+              else: {:ok, nil}
+
+          match ->
+            {:ok, match}
+        end
+
+      {:ok, status, _} when status in [401, 403] ->
+        {:error, :unauthorized}
+
+      {:ok, 404, _} ->
+        {:error, :not_found}
+
+      {:ok, _status, _} ->
+        {:error, :unconfirmed}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp find_in_retry(posts, retry_key, agent_id) do
+    (posts["posts"] || %{})
+    |> Map.values()
+    |> Enum.find(fn post ->
+      get_in(post, ["props", "agentboard_retry_key"]) == retry_key and
+        get_in(post, ["props", "agent_id"]) == agent_id
+    end)
+  end
+
+  def channel_page(cfg, channel_id, page, per_page) do
+    request(cfg, :get, "/api/v4/channels/#{channel_id}/posts?page=#{page}&per_page=#{per_page}", nil)
+  end
+
   # Reconciliation: find a post we may have created before losing the
   # response. Channel history is authoritative; a client-sent idempotency
   # key alone never proves the remote accepted anything.
@@ -105,30 +173,6 @@ defmodule Agentboard.Mattermost.Transport do
     case request(cfg, :get, "/api/v4/system/ping", nil) do
       {:ok, 200, body} -> {:ok, body}
       {:ok, status, _} -> {:error, {:unexpected_status, status}}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  # Identity verification: user record plus team membership, both by stable ID.
-  # A renamed handle keeps the same user ID; attribution follows the ID.
-  def fetch_user(cfg, user_id) do
-    case request(cfg, :get, "/api/v4/users/#{user_id}", nil) do
-      {:ok, 200, %{"id" => id, "username" => username}} -> {:ok, %{id: id, username: username}}
-      {:ok, 404, _} -> {:error, :not_found}
-      {:ok, 401, _} -> {:error, :unauthorized}
-      {:ok, 403, _} -> {:error, :unauthorized}
-      {:ok, _status, _} -> {:error, :unreachable}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  def team_member?(cfg, team_id, user_id) do
-    case request(cfg, :get, "/api/v4/teams/#{team_id}/members/#{user_id}", nil) do
-      {:ok, 200, _} -> {:ok, true}
-      {:ok, 404, _} -> {:ok, false}
-      {:ok, 401, _} -> {:error, :unauthorized}
-      {:ok, 403, _} -> {:error, :unauthorized}
-      {:ok, _status, _} -> {:error, :unreachable}
       {:error, reason} -> {:error, reason}
     end
   end

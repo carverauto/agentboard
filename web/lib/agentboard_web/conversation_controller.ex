@@ -1,103 +1,40 @@
 defmodule AgentboardWeb.ConversationController do
-  @moduledoc "Worker identity enrollment (captain-provisioned) and coverage receipts (worker-attributed)."
+  @moduledoc "Phase 1 shared-bot agent chat: API-backed send/reads plus coverage receipts. Agents never hold Mattermost credentials."
   use Phoenix.Controller, formats: [:json]
   import Plug.Conn
   alias Agentboard.Mattermost.Conversations
 
-  # Provisioning requires the captain token: identities are explicit
-  # provisioning, never self-signup.
-  def enroll(conn, params) do
-    case captain_token(conn) do
-      nil ->
-        conn |> put_status(422) |> json(%{error: %{code: "invalid_context", message: "Enrollment requires a captain token"}})
-
-      _proof ->
-        case params do
-          %{"agent_id" => agent_id, "mm_user_id" => user_id}
-          when is_binary(agent_id) and is_binary(user_id) ->
-            if String.trim(agent_id) == "" or String.trim(user_id) == "" do
-              conn |> put_status(422) |> json(%{error: %{code: "invalid_input", message: "agent_id and mm_user_id must be non-blank"}})
-            else
-              case Conversations.enroll(agent_id, user_id, params["mm_username"], params["credential_ref"]) do
-                {:ok, identity} -> json(conn, identity)
-                {:error, "conflict", message} -> conn |> put_status(409) |> json(%{error: %{code: "conflict", message: message}})
-                {:error, code, message} when code in ~w(invalid_input invalid_context) -> conn |> put_status(422) |> json(%{error: %{code: code, message: message}})
-                {:error, _code, message} -> conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
-              end
-            end
-
-          _ ->
-            conn |> put_status(422) |> json(%{error: %{code: "invalid_input", message: "agent_id and mm_user_id are required"}})
-        end
-    end
+  # POST /conversations/send — Agentboard-authenticated agents only. The
+  # server posts with the shared bot; attribution comes from props.
+  def send(conn, params) do
+    reply(conn, Conversations.send_as(actor(conn), params))
   end
 
-  def revoke(conn, %{"agent_id" => agent_id} = params) do
-    case captain_token(conn) do
-      nil ->
-        conn |> put_status(422) |> json(%{error: %{code: "invalid_context", message: "Agent revocation requires a captain token"}})
-
-      _proof ->
-        case Conversations.revoke(agent_id, params["reason"] || "revoked") do
-          {:ok, value} -> json(conn, value)
-          {:error, "not_found", message} -> conn |> put_status(404) |> json(%{error: %{code: "not_found", message: message}})
-          {:error, code, message} when code in ~w(invalid_input invalid_context) -> conn |> put_status(422) |> json(%{error: %{code: code, message: message}})
-          {:error, "conflict", message} -> conn |> put_status(409) |> json(%{error: %{code: "conflict", message: message}})
-          {:error, _code, message} -> conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
-        end
-    end
+  # GET /conversations/reads?channel_id=&since=&limit= — own-echo
+  # suppression by props.agent_id; coverage recorded with the read.
+  def reads(conn, params) do
+    reply(conn, Conversations.reads(actor(conn), params["channel_id"], params["since"], params["limit"]))
   end
 
-  def identity(conn, %{"agent_id" => agent_id}) do
-    case Conversations.sender_for(agent_id) do
-      {:ok, user_id} -> json(conn, %{agent_id: agent_id, mm_user_id: user_id, status: "enrolled"})
-      {:error, status} -> conn |> put_status(404) |> json(%{error: %{code: "not_found", message: "No active identity: #{status}"}})
-    end
-  end
-
-  # Coverage receipts are worker-attributed like board reads, but the mapping
-  # decides: a worker reports only its own coverage.
+  # Explicit coverage receipts; the reporter must be the registered agent
+  # in the path, verified against the request identity.
   def report_coverage(conn, %{"agent_id" => agent_id, "channel_id" => channel_id} = params) do
-    with :ok <- authorize_coverage_caller(actor(conn), agent_id) do
-      case Conversations.report_coverage(agent_id, channel_id, params["last_post_id"], params["last_version"] || 0,
-             caught_up: params["caught_up"] == true,
-             incomplete_reason: params["incomplete_reason"]
-           ) do
-        {:ok, value} ->
-          json(conn, value)
+    caller = actor(conn)
 
-        {:error, code, message} when code in ~w(invalid_input invalid_context) ->
-          conn |> put_status(422) |> json(%{error: %{code: code, message: message}})
-
-        {:error, "conflict", message} ->
-          conn |> put_status(409) |> json(%{error: %{code: "conflict", message: message}})
-
-        {:error, "not_found", message} ->
-          conn |> put_status(404) |> json(%{error: %{code: "not_found", message: message}})
-
-        {:error, message} ->
-          conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
-
-        {:error, _code, message} ->
-          conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
-      end
+    if agent_id == caller["agent"] do
+      reply(conn, Conversations.report_coverage(caller, channel_id, params["last_post_id"], params["last_version"] || 0,
+        caught_up: params["caught_up"] == true,
+        incomplete_reason: params["incomplete_reason"]
+      ))
     else
-      {:error, message} ->
-        conn |> put_status(422) |> json(%{error: %{code: "invalid_context", message: message}})
+      conn |> put_status(422) |> json(%{error: %{code: "invalid_context", message: "Workers report only their own coverage"}})
     end
   end
 
   def coverage(conn, %{"agent_id" => agent_id, "channel_id" => channel_id}) do
     case Conversations.coverage(agent_id, channel_id) do
       {:ok, row} -> json(conn, row)
-      {:error, _} -> conn |> put_status(404) |> json(%{error: %{code: "not_found", message: "No coverage reported"}})
-    end
-  end
-
-  defp captain_token(conn) do
-    case get_req_header(conn, "authorization") do
-      ["Bearer " <> token] -> Agentboard.Captain.authenticate(token)
-      _ -> nil
+      {:error, code, message} -> conn |> put_status(status_for(code)) |> json(%{error: %{code: code, message: message}})
     end
   end
 
@@ -105,16 +42,14 @@ defmodule AgentboardWeb.ConversationController do
     Map.new(~w(agent model harness), fn key -> {key, List.first(get_req_header(conn, "x-agentboard-" <> key))} end)
   end
 
-  defp authorize_coverage_caller(caller, agent_id) do
-    try do
-      agent = Agentboard.Board.Operations.identity!(caller)
+  defp reply(conn, {:ok, value}), do: json(conn, value)
 
-      if agent.id == agent_id,
-        do: :ok,
-        else: {:error, "Workers report only their own coverage"}
-    rescue
-      _ in Agentboard.Board.OperationError -> {:error, "Register a matching agent identity first"}
-    end
+  defp reply(conn, {:error, code, message}) do
+    conn |> put_status(status_for(code)) |> json(%{error: %{code: code, message: message}})
   end
 
+  defp status_for(code) when code in ~w(invalid_input invalid_context), do: 422
+  defp status_for("not_found"), do: 404
+  defp status_for("conflict"), do: 409
+  defp status_for(_), do: 503
 end

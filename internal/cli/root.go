@@ -136,7 +136,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "entry", "entries", "chat"} {
+	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "entry", "entries", "chat", "post", "posts"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue
@@ -158,6 +158,12 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 	}
 	if acknowledged := envelope["acknowledged"]; acknowledged != nil {
 		fmt.Fprintf(table, "acknowledged\t%v\n", acknowledged)
+	}
+	if dupe, ok := envelope["duplicate"]; ok {
+		fmt.Fprintf(table, "duplicate\t%v\n", dupe)
+	}
+	if caughtUp, ok := envelope["caught_up"]; ok {
+		fmt.Fprintf(table, "caught_up\t%v\n", caughtUp)
 	}
 	if more, ok := envelope["more"]; ok {
 		fmt.Fprintf(table, "more\t%v\n", more)
