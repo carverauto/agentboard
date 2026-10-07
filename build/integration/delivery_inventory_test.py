@@ -100,7 +100,7 @@ for task, status in [('legacy-done', 'done'), ('legacy-cancelled', 'cancelled'),
     if task != 'legacy-unknown':
         intro = json.dumps({'before': None, 'after': {'pr_url': 'https://github.com/CARVERAUTO/AGENTBOARD/pull/77'}})
         unchanged = json.dumps({'before': {'pr_url': 'https://github.com/CARVERAUTO/AGENTBOARD/pull/77'}, 'after': {'pr_url': 'https://github.com/CARVERAUTO/AGENTBOARD/pull/77'}})
-        sql(f"INSERT INTO task_events(task_id,actor_id,model,harness,kind,new_revision,data) VALUES ('{task}','alpha','legacy-model','codex','create',1,'{intro}'),('{task}','beta','later-model','codex','update',2,'{unchanged}')")
+        sql(f"INSERT INTO task_events(task_id,actor_id,model,harness,kind,new_revision,data) VALUES ('{task}','alpha',' legacy-model ',E'\\tcodex\\t','create',1,'{intro}'),('{task}','beta','later-model','codex','update',2,'{unchanged}')")
 # A pre-cutoff link repeated by another agent must use the earlier submission
 # even before a reconciliation sweep has created its durable link.
 sql("INSERT INTO tasks(id,title,pr_url) VALUES ('legacy-active','Active legacy','https://github.com/CARVERAUTO/AGENTBOARD/pull/77')")
@@ -123,7 +123,10 @@ while True:
 assert scanned == int(sql('SELECT count(*) FROM tasks WHERE pr_url IS NOT NULL'))
 assert sql("SELECT count(*) FROM delivery_pull_requests WHERE number='77'") == '1'
 assert sql("SELECT count(*) FROM delivery_task_links WHERE task_id LIKE 'legacy-%'") == '4'
-assert sql("SELECT submitted_by_id||','||model||','||attribution FROM delivery_task_links WHERE task_id='legacy-done'") == 'alpha,legacy-model,timeline'
+# Historical source bytes are evidence, including surrounding whitespace.
+assert json.loads(sql("SELECT json_build_object('actor',submitted_by_id,'model',model,'harness',harness,'attribution',attribution) FROM delivery_task_links WHERE task_id='legacy-done'")) == {
+    'actor': 'alpha', 'model': ' legacy-model ', 'harness': '\tcodex\t', 'attribution': 'timeline'
+}
 assert sql("SELECT submitted_by_id IS NULL AND source_event_id IS NULL AND linked_at IS NULL AND attribution='unknown' FROM delivery_task_links WHERE task_id='legacy-unknown'") == 't'
 assert sql("SELECT md5(string_agg(row_to_json(t)::text,'|' ORDER BY id)) FROM tasks t WHERE id LIKE 'legacy-%'") == legacy_before
 counts = sql("SELECT (SELECT count(*) FROM delivery_task_links)||','||(SELECT count(*) FROM delivery_pull_requests_versions)||','||(SELECT count(*) FROM board_action_events WHERE resource LIKE 'Elixir.Agentboard.Delivery.%')")

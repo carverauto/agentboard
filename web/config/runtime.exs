@@ -2,6 +2,11 @@ import Config
 
 config :agentboard, :captain_token, System.get_env("AGENTBOARD_CAPTAIN_TOKEN")
 
+# Inventory catch-up only. Provider observation and CI gates are separate stages.
+config :agentboard,
+       :pr_discovery_enabled,
+       System.get_env("AGENTBOARD_PR_DISCOVERY_ENABLED", "false") in ["true", "1"]
+
 config :agentboard, :rate_limits,
   ip: String.to_integer(System.get_env("API_RATE_LIMIT_IP", "120")),
   agent: String.to_integer(System.get_env("API_RATE_LIMIT_AGENT", "60")),

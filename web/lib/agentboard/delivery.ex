@@ -9,6 +9,7 @@ defmodule Agentboard.Delivery do
   resources do
     resource(Agentboard.Delivery.PullRequest)
     resource(Agentboard.Delivery.TaskLink)
+    resource(Agentboard.Delivery.Discovery)
   end
 
   def discover(after_id \\ nil, limit \\ 100),
