@@ -166,9 +166,13 @@ func (m *mmTarget) me() (string, error) {
 }
 
 func (m *mmTarget) channelPosts(channelID string, limit int) ([]string, map[string]mmPost, error) {
+	return m.channelPostsPage(channelID, 0, limit)
+}
+
+func (m *mmTarget) channelPostsPage(channelID string, page, perPage int) ([]string, map[string]mmPost, error) {
 	q := url.Values{}
-	q.Set("page", "0")
-	q.Set("per_page", fmt.Sprint(limit))
+	q.Set("page", fmt.Sprint(page))
+	q.Set("per_page", fmt.Sprint(perPage))
 	_, raw, err := m.call(http.MethodGet, "channels/"+channelID+"/posts", q, nil)
 	if err != nil {
 		return nil, nil, err
@@ -265,16 +269,21 @@ func (c *commands) chatSend() *cobra.Command {
 }
 
 func (m *mmTarget) findRetryKey(channelID, retryKey string) *mmPost {
-	order, posts, err := m.channelPosts(channelID, 60)
-	if err != nil {
-		return nil
-	}
-	for _, id := range order {
-		if post, ok := posts[id]; ok && post.ID != "" {
-			if value, _ := post.Props[mmRetryKeyProp].(string); value == retryKey {
-				dupe := post
-				return &dupe
+	for page := 0; page < 5; page++ {
+		order, posts, err := m.channelPostsPage(channelID, page, 60)
+		if err != nil {
+			return nil
+		}
+		for _, id := range order {
+			if post, ok := posts[id]; ok && post.ID != "" {
+				if value, _ := post.Props[mmRetryKeyProp].(string); value == retryKey {
+					dupe := post
+					return &dupe
+				}
 			}
+		}
+		if len(order) < 60 {
+			return nil
 		}
 	}
 	return nil

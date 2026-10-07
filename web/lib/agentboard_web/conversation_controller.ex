@@ -46,13 +46,32 @@ defmodule AgentboardWeb.ConversationController do
   # Coverage receipts are worker-attributed like board reads, but the mapping
   # decides: a worker reports only its own coverage.
   def report_coverage(conn, %{"agent_id" => agent_id, "channel_id" => channel_id} = params) do
-    if agent_id == actor(conn)["agent"] do
-      reply(conn, Conversations.report_coverage(agent_id, channel_id, params["last_post_id"], params["last_version"] || 0,
-        caught_up: params["caught_up"] == true,
-        incomplete_reason: params["incomplete_reason"]
-      ))
+    with :ok <- authorize_coverage_caller(actor(conn), agent_id) do
+      case Conversations.report_coverage(agent_id, channel_id, params["last_post_id"], params["last_version"] || 0,
+             caught_up: params["caught_up"] == true,
+             incomplete_reason: params["incomplete_reason"]
+           ) do
+        {:ok, value} ->
+          json(conn, value)
+
+        {:error, code, message} when code in ~w(invalid_input invalid_context) ->
+          conn |> put_status(422) |> json(%{error: %{code: code, message: message}})
+
+        {:error, "conflict", message} ->
+          conn |> put_status(409) |> json(%{error: %{code: "conflict", message: message}})
+
+        {:error, "not_found", message} ->
+          conn |> put_status(404) |> json(%{error: %{code: "not_found", message: message}})
+
+        {:error, _message} ->
+          conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: "Board database is unavailable"}})
+
+        {:error, _code, message} ->
+          conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
+      end
     else
-      conn |> put_status(422) |> json(%{error: %{code: "invalid_context", message: "Workers report only their own coverage"}})
+      {:error, message} ->
+        conn |> put_status(422) |> json(%{error: %{code: "invalid_context", message: message}})
     end
   end
 
@@ -72,6 +91,18 @@ defmodule AgentboardWeb.ConversationController do
 
   defp actor(conn) do
     Map.new(~w(agent model harness), fn key -> {key, List.first(get_req_header(conn, "x-agentboard-" <> key))} end)
+  end
+
+  defp authorize_coverage_caller(caller, agent_id) do
+    try do
+      agent = Agentboard.Board.Operations.identity!(caller)
+
+      if agent.id == agent_id,
+        do: :ok,
+        else: {:error, "Workers report only their own coverage"}
+    rescue
+      _ in Agentboard.Board.OperationError -> {:error, "Register a matching agent identity first"}
+    end
   end
 
   defp reply(conn, {:ok, value}), do: json(conn, value)

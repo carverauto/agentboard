@@ -107,6 +107,9 @@ CAPTAIN_H = {'Authorization': f'Bearer {CAPTAIN}'}
 rpc(f'Application.put_env(:agentboard, :mattermost_base_url, "http://127.0.0.1:{port}")')
 rpc(f'Application.put_env(:agentboard, :mattermost_team_id, "{TEAM}")')
 rpc(':ok = Oban.pause_queue(queue: :mattermost_verify)')
+for headers in (AGENT, WA, WB):
+    status, body = api('POST', '/api/v1/agents/register', {'name': headers['X-Agentboard-Agent']}, headers)
+    assert status == 200, (status, body)
 
 # Enrollment is provisioning: no captain token, no identity.
 status, _ = api('POST', '/api/v1/conversations/identities',
@@ -155,7 +158,7 @@ assert status == 503, status
 status, _ = api('POST', '/api/v1/conversations/coverage/ghost/fixture-channel',
                 {'last_post_id': 'post-1', 'last_version': 1},
                 {'X-Agentboard-Agent': 'ghost', 'X-Agentboard-Model': 'f', 'X-Agentboard-Harness': 'c'})
-assert status == 503, status
+assert status == 422, status
 
 # Restore membership, re-enroll a second worker, and prove peer parity:
 # two mapped workers, distinct stable IDs, explicit coverage each.

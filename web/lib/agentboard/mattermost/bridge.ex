@@ -177,8 +177,9 @@ defmodule Agentboard.Mattermost.Bridge do
     constraint = Map.get(pg, :constraint) || Map.get(pg, "constraint")
 
     cond do
-      constraint == "mattermost_outbox_source_uniq" -> true
+      constraint in ["mattermost_outbox_source_uniq", "mattermost_outbox_source_source_key_index"] -> true
       is_binary(err.message) and String.contains?(err.message, "mattermost_outbox_source_uniq") -> true
+      is_binary(err.message) and String.contains?(err.message, "mattermost_outbox_source_source_key_index") -> true
       true -> false
     end
   end
