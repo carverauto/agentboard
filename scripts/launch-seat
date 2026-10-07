@@ -82,6 +82,9 @@ def main():
     parser.add_argument("--check", action="store_true", help="check current cwd against seat environment; no acquisition or launch")
     parser.add_argument("command", nargs=argparse.REMAINDER, help="native argv after --; use {brief_text} or {brief} as a whole argument")
     args = parser.parse_args()
+    tainted = sorted(name for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE") if os.environ.get(name) is not None)
+    if tainted:
+        raise RuntimeError(f"inherited {'/'.join(tainted)} is forbidden; unset GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR, GIT_INDEX_FILE and retry")
     source, common = repository(args.repo)
     if args.check:
         expected = os.environ.get("AGENTBOARD_SEAT_WORKTREE")

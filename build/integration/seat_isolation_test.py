@@ -83,6 +83,12 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
         result = command([sys.executable, launcher, "--repo", source, "--check"], cwd, check_env, ok=False)
         assert result.returncode == 2 and "STOP" in result.stderr and expected_reason in result.stderr, result.stderr
 
+    linked_gitdir = command(["git", "rev-parse", "--absolute-git-dir"], seats[0]).stdout.strip()
+    tainted = dict(env, AGENTBOARD_SEAT_WORKTREE=str(repo), GIT_DIR=linked_gitdir, GIT_WORK_TREE=".")
+    result = command([sys.executable, launcher, "--repo", seats[0], "--check"], repo, tainted, ok=False)
+    assert result.returncode == 2 and "STOP" in result.stderr and "GIT_DIR" in result.stderr, result.stderr
+    assert not (repo / ".agentboard-seat").exists()
+
     stale = root / "stale-sibling"
     command(["git", "worktree", "add", "--detach", stale], repo)
     command(["rm", "-rf", stale], repo)
