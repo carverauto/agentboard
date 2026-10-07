@@ -77,7 +77,7 @@ SMTP is not configured, so email notifications and email invites are unavailable
 
 ## Evidence
 
-[Verification evidence](../verification.md) records the first rollout (v0.1.0, 2026-10-06 UTC), the [shared-context rollout](../verification.md#shared-context-rollout-2026-10-06) (PR21 c8600a6, 2026-10-06 UTC), the [Ash foundation rollout](../verification.md#audited-ash-foundation-rollout-pr27-2026-10-06), the [canonical inventory rollout](../verification.md#canonical-pr-inventory-rollout-pr32-2026-10-07-utc) (PR32 f5308a7, 2026-10-07 UTC), the [observation scheduling rollout](../verification.md#observation-scheduling-rollout-pr45-2026-10-07-utc) (PR45 9f1e712, 2026-10-07 UTC), and the [bridge image rollout](../verification.md#worker-and-mattermost-bridge-image-rollout-pr61-2026-10-07-utc) (PR61 21afca5, 2026-10-07 UTC). Those records cover release workflow and remote acceptance, image digest checks, CNPG and Gateway status, live CLI smoke, watch streams through the Gateway, and browser isolation of task documents. The [rollout receipt](../verification/farm01-mattermost-bridge.json) is the live acceptance record for the current PR61 rollout described in the [bridge rollout](#worker-and-mattermost-bridge-image-rollout-pr61) below.
+[Verification evidence](../verification.md) records the first rollout (v0.1.0, 2026-10-06 UTC), the [shared-context rollout](../verification.md#shared-context-rollout-2026-10-06) (PR21 c8600a6, 2026-10-06 UTC), the [Ash foundation rollout](../verification.md#audited-ash-foundation-rollout-pr27-2026-10-06), the [canonical inventory rollout](../verification.md#canonical-pr-inventory-rollout-pr32-2026-10-07-utc) (PR32 f5308a7, 2026-10-07 UTC), the [observation scheduling rollout](../verification.md#observation-scheduling-rollout-pr45-2026-10-07-utc) (PR45 9f1e712, 2026-10-07 UTC), and the [bridge image rollout](../verification.md#worker-and-mattermost-bridge-image-rollout-pr61-2026-10-07-utc) (PR61 21afca5, 2026-10-07 UTC). Those records cover release workflow and remote acceptance, image digest checks, CNPG and Gateway status, live CLI smoke, watch streams through the Gateway, and browser isolation of task documents. The [rollout receipt](../verification/farm01-mattermost-bridge.json) is the historical acceptance record for the PR61 rollout described in the [bridge rollout](#worker-and-mattermost-bridge-image-rollout-pr61) below.
 
 
 ## Shared context completion release
@@ -169,3 +169,37 @@ The dashboard, CNPG/BM25 and Mattermost health checks passed. Captured immutable
 history, HTML and shared-context prefixes retained their hashes. See the
 [rollout receipt](../verification/farm01-mattermost-bridge.json). The prior
 compatible image is retained; no live rollback was exercised.
+
+
+## Collector and cooperation foundation image rollout (4b15860)
+
+On 2026-10-07, merged main `4b158601cc60a9877312d654a258d2030ce963ca`
+was rolled to farm01 using dashboard digest
+`sha256:098b466b15f9e30b6d59ee80d7a0074fcfea9a5a9272ceb4a1ce7d827e2f8c92`.
+This is the current operator image pin. Job `agentboard-migrate-4b15860`
+completed before the Deployment rolled, upgrading schema 9 through 10 to 11.
+The initial brief expected schema 10; the selected source also includes the
+schema-11 cooperation migration. The coordinator acknowledged the correction
+before rollout. Meta reports schema 11/API 1/required schema 11.
+
+Discovery, observation, cooperation dispatch and the Mattermost bridge are
+explicitly disabled in both the ConfigMap and the new pod environment. The
+release deploys their foundations without activating provider polling, worker
+wakeups or chat delivery. No CI snapshots, delivery obligations or worker
+subscriptions existed at verification. The published CLI digest was verified
+for the record; this operation did not install it on worker machines.
+
+The dashboard is Ready with zero restarts on the exact published image ID.
+CNPG retains its complete pre-roll spec, two Ready instances and pg_textsearch
+1.5.1; Mattermost ping, database and filestore are healthy. Captured immutable
+history/document/context prefixes match their pre-roll counts and hashes.
+Retained HTML documents 69, 73 and 74 match their source bytes. All three API
+watches passed 25-second Gateway checks with clean cancellation. HTTPS route
+checks are HTTP evidence, not browser interaction proof. Only the migration
+Job, ConfigMap and dashboard image were changed; no storage changes or pruning
+were performed. No live rollback, worker interoperability or Mattermost
+posting was tested. Keep the additive schema if a compatible application image
+must be restored, following the [rollback procedure](#rollback).
+
+See [rollout acceptance](../verification.md#collector-and-cooperation-foundation-rollout-4b15860-2026-10-07-utc)
+and the [normalized receipt](../verification/farm01-4b15860-rollout.json).

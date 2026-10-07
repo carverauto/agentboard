@@ -302,6 +302,38 @@ Job `agentboard-migrate-21afca5` completed; schema 9/API 1 with a Ready
 zero-restart pod. CI discovery and observation stay disabled and the bridge
 stays disabled with four retained intents. Full results are in the [rollout
 receipt](verification/farm01-mattermost-bridge.json); the operator runbook
-retains the [current rollout
+retains the [historical rollout
 record](deploy/reference-farm01.md#worker-and-mattermost-bridge-image-rollout-pr61).
 This pointer claims no bot-post or worker interoperability proof.
+
+
+## Collector and cooperation foundation rollout (4b15860, 2026-10-07 UTC)
+
+Published main `4b158601cc60a9877312d654a258d2030ce963ca` passed 24 remote
+acceptance targets and image publication in the
+[container workflow](https://github.com/carverauto/agentboard/actions/runs/37643460359).
+Both dashboard and CLI commit tags independently resolved to the supplied
+immutable digests. Farm01 now runs dashboard
+`sha256:098b466b15f9e30b6d59ee80d7a0074fcfea9a5a9272ceb4a1ce7d827e2f8c92`.
+The migration Job completed before the Ready, zero-restart dashboard rolled.
+Schema 9 advanced through 10 to 11, matching the selected release's required
+schema 11/API 1; the coordinator acknowledged this correction to the original
+schema-10 brief before rollout.
+
+Scoped server-side dry-runs and writes covered only the migration Job,
+ConfigMap and Deployment. Discovery, observation, cooperation dispatch and
+Mattermost bridge flags are all false in configuration and the running pod.
+CNPG's spec/image are unchanged, both instances are Ready and BM25 remains
+pg_textsearch 1.5.1. Mattermost ping/database/filestore are OK. Captured prefixes
+retain 670 task events through ID 686, 42 documents through ID 74 and 93 Context
+entries through ID 95 with identical hashes. HTML downloads 69/73/74 are
+byte-identical to source. Task, message and quota Gateway watches each stayed
+connected for 25 seconds, produced five valid snapshots, no stderr and exited
+cleanly after SIGINT. Health, meta, dashboard and document routes returned 200;
+this does not prove browser interactions.
+
+Full results, cutoffs, digests and limits are in the
+[normalized receipt](verification/farm01-4b15860-rollout.json) and the
+[current operator record](deploy/reference-farm01.md#collector-and-cooperation-foundation-image-rollout-4b15860).
+No local compilation, CLI installation, worker activation, chat delivery,
+storage modification, pruning or live rollback occurred in this rollout.

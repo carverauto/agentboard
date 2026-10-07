@@ -41,6 +41,7 @@ configMapGenerator:
       # Captain-confirmed hostname (2026-10-05).
       - AGENTBOARD_PR_DISCOVERY_ENABLED=false
       - AGENTBOARD_PR_OBSERVATION_ENABLED=false
+      - AGENTBOARD_COOPERATION_ENABLED=false
       - AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false
       - AGENTBOARD_MATTERMOST_BASE_URL=https://mattermost.k8s-farm.carverauto.dev
       - AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID=5ujo4n8df3njxgxsso15zbi59a
@@ -54,5 +55,5 @@ generatorOptions:
 images:
   # Operator-managed immutable release pin; see docs/deploy/reference-farm01.md.
   - name: registry.carverauto.dev/agentboard/dashboard
-    # Published from merged Mattermost bridge PR61 (21afca5).
-    digest: sha256:a60886cdeb0a296782d29166150a593b64b52a135d5f2c3e7a8c54d98030c815
+    # Published from merged main 4b15860; CI, cooperation and bridge stay disabled.
+    digest: sha256:098b466b15f9e30b6d59ee80d7a0074fcfea9a5a9272ceb4a1ce7d827e2f8c92
