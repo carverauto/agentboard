@@ -1,0 +1,187 @@
+{
+  "verified_at": "2026-10-07T17:53:55.748729+00:00",
+  "commit": "7dfd031f3f0c6352f659d7ee3a45a8925e0152a4",
+  "source_pr": "https://github.com/carverauto/agentboard/pull/73",
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37658975867",
+  "docker_workflow": "https://github.com/carverauto/agentboard/actions/runs/37658975830",
+  "rollout_operator": "grok-bot-captain",
+  "verification_agent": "codex-agentboard-rollout",
+  "operator_confirmation_message_id": 334,
+  "verification_only": true,
+  "live_writes_by_verification_agent": false,
+  "registry_proof": {
+    "ref": "registry.carverauto.dev/agentboard/dashboard:sha-7dfd031f3f0c6352f659d7ee3a45a8925e0152a4",
+    "digest": "sha256:2285d2159d2b78f3e1357220fcf5d1e962daca78e3967b043b8ad114b598b01a",
+    "verified": true,
+    "verified_at": "2026-10-07T17:41:38.196507+00:00"
+  },
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:2285d2159d2b78f3e1357220fcf5d1e962daca78e3967b043b8ad114b598b01a",
+  "migration": {
+    "job": "agentboard-migrate-7dfd031",
+    "started_at": "2026-10-07T17:37:29Z",
+    "completed_at": "2026-10-07T17:37:36Z",
+    "succeeded": true,
+    "image": "registry.carverauto.dev/agentboard/dashboard@sha256:2285d2159d2b78f3e1357220fcf5d1e962daca78e3967b043b8ad114b598b01a",
+    "literal_env_overrides": {
+      "PHX_SERVER": "false",
+      "AGENTBOARD_PR_DISCOVERY_ENABLED": "false",
+      "AGENTBOARD_PR_OBSERVATION_ENABLED": "false",
+      "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "false",
+      "AGENTBOARD_COOPERATION_ENABLED": "false"
+    },
+    "completed_before_dashboard_started": true
+  },
+  "dashboard": {
+    "pod": "agentboard-dashboard-6c69d98577-nxpr2",
+    "started_at": "2026-10-07T17:37:38Z",
+    "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:2285d2159d2b78f3e1357220fcf5d1e962daca78e3967b043b8ad114b598b01a",
+    "ready_replicas": 1,
+    "ready": true,
+    "restarts": 0
+  },
+  "flags": {
+    "AGENTBOARD_PR_DISCOVERY_ENABLED": "true",
+    "AGENTBOARD_PR_OBSERVATION_ENABLED": "true",
+    "AGENTBOARD_COOPERATION_ENABLED": "false",
+    "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "false"
+  },
+  "pod_environment_verified": true,
+  "github_token": {
+    "secret_key_ref": {
+      "key": "github-token",
+      "name": "agentboard-app"
+    },
+    "nonempty_in_pod": true,
+    "value_printed": false,
+    "value_committed": false
+  },
+  "database": {
+    "schema": 11,
+    "bm25": "1.5.1",
+    "snapshot_count": 507,
+    "snapshot_states": {
+      "failing": 20,
+      "unknown": 485,
+      "pending": 2
+    },
+    "latest_observation": "2026-10-07T17:51:12.783304+00:00",
+    "queues": [
+      {
+        "queue": "delivery_scheduler",
+        "state": "completed",
+        "n": 1,
+        "latest_attempt": "2026-10-07T17:51:00.417162",
+        "latest_completed": "2026-10-07T17:51:00.463865"
+      },
+      {
+        "queue": "delivery_discovery",
+        "state": "completed",
+        "n": 1,
+        "latest_attempt": "2026-10-07T17:51:00.413164",
+        "latest_completed": "2026-10-07T17:51:01.03717"
+      },
+      {
+        "queue": "delivery_polling",
+        "state": "completed",
+        "n": 40,
+        "latest_attempt": "2026-10-07T17:51:09.488198",
+        "latest_completed": "2026-10-07T17:51:12.790498"
+      }
+    ]
+  },
+  "cnpg": {
+    "ready_instances": 2,
+    "primary": "agentboard-db-2",
+    "image": "registry.carverauto.dev/agentboard/postgres:18.6-bm25-1.5.1-7c20962@sha256:90ea5695afde3d2d56128baad84bd775b3121cf18d9830974910105aa08e3356",
+    "spec_unchanged_during_post_rollout_verification": true
+  },
+  "mattermost": {
+    "ready_replicas": 1,
+    "image": "mattermost/mattermost-team-edition:11.11.1@sha256:6ad5912b45875ef2fafc41886b5a70a3ec1b6c17ec706e0492566e8a2fd8aa85",
+    "pvc_phase": "Bound",
+    "spec_unchanged_during_post_rollout_verification": true,
+    "pvc_spec_unchanged_during_post_rollout_verification": true,
+    "patched_transport_verified_https_ping": {
+      "status": "OK",
+      "database_status": null,
+      "filestore_status": null
+    },
+    "probe_bootstrap": "Read-only standalone release eval explicitly started SSL; initial attempt without starting SSL failed. No board-event posting or bridge enablement."
+  },
+  "http": {
+    "captured_at": "2026-10-07T17:51:55.653128+00:00",
+    "http": [
+      {
+        "path": "/health/live",
+        "status": 200,
+        "body": {
+          "status": "live"
+        }
+      },
+      {
+        "path": "/health/ready",
+        "status": 200,
+        "body": {
+          "status": "ready",
+          "schema_version": 11
+        }
+      },
+      {
+        "path": "/api/v1/meta",
+        "status": 200,
+        "body": {
+          "schema_version": 11,
+          "api_version": 1,
+          "required_schema_version": 11
+        }
+      },
+      {
+        "path": "/prs",
+        "status": 200,
+        "ci_states": {
+          "unknown": 19,
+          "failing": 1,
+          "pending": 0,
+          "passing": 0,
+          "stale": 0
+        },
+        "fresh_observation_rows": 20,
+        "policy_unknown_rows": 20
+      }
+    ],
+    "mattermost_ping": {
+      "ActiveSearchBackend": "database",
+      "AndroidLatestVersion": "",
+      "AndroidMinVersion": "",
+      "IosLatestVersion": "",
+      "IosMinVersion": "",
+      "database_status": "OK",
+      "filestore_status": "OK",
+      "status": "OK"
+    }
+  },
+  "log_summary": {
+    "log_lines": 414,
+    "unauthorized_indicators": 0
+  },
+  "configuration_persistence": {
+    "scope": "This maintenance PR changes only image pin and receipt, per captain message 334.",
+    "live_pr_flags": "true",
+    "committed_pr_flags": "false",
+    "live_github_token_ref_present": true,
+    "committed_github_token_ref_present": false,
+    "followup_task": "agentboard-farm01-enable-pr-observation",
+    "note": "Persist live observation enablement and Secret reference separately before applying the full overlay; this verification did not apply ConfigMap or Deployment manifests."
+  },
+  "limitations": {
+    "independent_immediately_pre_rollout_data_fingerprints": false,
+    "prefix_preservation_claimed": false,
+    "live_rollback_exercised": false,
+    "browser_interactions_tested": false,
+    "mattermost_post_delivery_tested": false,
+    "cooperation_enabled": false,
+    "oban_check_queue_rpc_available": false,
+    "rpc_limit_reason": "RELEASE_DISTRIBUTION=none; completed queue work is independently observed in PostgreSQL instead.",
+    "local_builds": false
+  }
+}
