@@ -74,3 +74,13 @@ to 60/minute. Raising it to 300–500/minute does not raise a PAT's 5,000/hour
 consume that same provider limit; Retry-After/reset cooldown remains mandatory.
 This change does not enable cooperation or the Mattermost bridge, and does not
 implement task merge disposition.
+
+Legacy rows disabled by direct SQL require explicit reconciliation after
+deployment; ordinary enrollment must not silently reactivate every disabled
+row. The bounded operator-only `Polling.reconcile_disabled/3` dry run/apply
+path records each repair through an audited Ash action, including unchanged
+terminal retirement, and rejects missing rows or active reservations atomically.
+Immutable repair versions make retries harmless. See the
+[farm01 incident runbook](deploy/reference-farm01-disabled-polls-20261007.md)
+for the exact 44-row cohort and deployment evidence; it has not been executed
+against the live deployment.

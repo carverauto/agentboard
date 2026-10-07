@@ -8,6 +8,87 @@ defmodule Agentboard.Delivery.Polling do
   @lease_seconds 120
   @actor %{"agent" => "delivery-polling", "model" => "system", "harness" => "ash"}
 
+  # One-time repair, explicitly invoked by the post-deploy operator runbook.
+  # Dry run is the default; no provider I/O, CI projection or flag changes.
+  def reconcile_disabled(ids, actor, apply? \\ false)
+
+  def reconcile_disabled(ids, actor, apply?)
+      when is_list(ids) and length(ids) in 1..100 and is_boolean(apply?) do
+    with {:ok, actor} <- Agentboard.Input.actor(actor) do
+      if not Enum.all?(ids, &is_binary/1) or length(Enum.uniq(ids)) != length(ids) do
+        {:error, "invalid_input", "Distinct canonical PR IDs are required"}
+      else
+        Operations.transaction(fn ->
+          # Immutable canonical PRs are protected by PollState's foreign key.
+          # Only lock poll rows, in sorted order: an observer holding one may
+          # need a canonical FK key-share lock to append its snapshot.
+          %{rows: rows} =
+            Repo.statement!(
+              "SELECT id FROM delivery_poll_states WHERE id=ANY($1) ORDER BY id FOR UPDATE",
+              [ids]
+            )
+
+          if length(rows) != length(ids),
+            do: Operations.reject("not_found", "Repair cohort contains missing PR state")
+
+          Enum.map(Enum.sort(ids), fn id ->
+            state = Operations.fetch!(PollState, id, "PR polling state not found")
+            reconcile_state(state, actor, apply?)
+          end)
+        end)
+      end
+    end
+  end
+
+  def reconcile_disabled(_, _, _),
+    do:
+      {:error, "invalid_input",
+       "Repair requires 1–100 distinct IDs and an explicit apply boolean"}
+
+  defp reconcile_state(state, actor, apply?) do
+    %{rows: [[done?]]} =
+      Repo.statement!(
+        "SELECT EXISTS(SELECT 1 FROM delivery_poll_states_versions WHERE version_source_id=$1 AND version_action_name='reconcile_disabled')",
+        [state.id]
+      )
+
+    stamp = Operations.now()
+
+    cond do
+      done? ->
+        %{id: state.id, disposition: "already_reconciled"}
+
+      state.lease_expires_at && DateTime.compare(state.lease_expires_at, stamp) == :gt ->
+        Operations.reject("conflict", "Repair row has an active reservation")
+
+      true ->
+        terminal? = state.lifecycle in ["merged", "closed"]
+        next_poll_at = if terminal?, do: DateTime.add(stamp, 3600), else: stamp
+
+        if apply? do
+          Operations.update(
+            state,
+            :reconcile_disabled,
+            %{
+              expected_generation: state.generation,
+              expected_enabled: state.enabled,
+              generation: state.generation + 1,
+              enabled: not terminal?,
+              next_poll_at: next_poll_at
+            },
+            actor
+          )
+        end
+
+        %{
+          id: state.id,
+          disposition: if(terminal?, do: "retired", else: "reenabled"),
+          lifecycle: state.lifecycle,
+          apply: apply?
+        }
+    end
+  end
+
   # Caller holds this canonical PR's lock in the inventory transaction.
   # Idempotent for the PR being persisted. A schema-7 writer can add inventory
   # without PollState; current-link catch-up does not cover cleared task URLs.
