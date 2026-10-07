@@ -14,17 +14,17 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 
 ## 2. Durable CI delivery and one supervised worker
 
-- [ ] 2.1 Add Cooperation event/delivery/batch/attempt/receipt Ash resources and scoped runtime capability actions; verify recipient uniqueness, revoked/foreign credentials, transactional failure-intent rollback and a lower-ID late commit remotely, and document proposed API schemas/error/429 contracts.
-- [ ] 2.2 Implement scoped enrollment/bootstrap, pending reads and source-state reconciliation; verify lost notification, all-page recovery, previously handled Context receipt compatibility and unresolved CI after source-task completion remotely, and document the enrollment start policy.
-- [ ] 2.3 Implement immutable bounded reservation and epoch/generation-checked submit/reconcile/receipt actions; verify crash-before/after submission, stale writers, exact-id receipts, arrivals mid-batch and no automatic acknowledgement on turn end remotely, and document uncertain-delivery resolution.
+- [x] 2.1 Add Cooperation event/delivery/batch/attempt/receipt Ash resources and scoped runtime capability actions; verify recipient uniqueness, revoked/foreign credentials, transactional failure-intent rollback and a lower-ID late commit remotely, and document proposed API schemas/error/429 contracts.
+- [x] 2.2 Implement scoped enrollment/bootstrap, pending reads and source-state reconciliation; verify lost notification, all-page recovery, previously handled Context receipt compatibility and unresolved CI after source-task completion remotely, and document the enrollment start policy.
+- [x] 2.3 Implement immutable bounded reservation and epoch/generation-checked submit/reconcile/receipt actions; verify crash-before/after submission, stale writers, exact-id receipts, arrivals mid-batch and no automatic acknowledgement on turn end remotely, and document uncertain-delivery resolution.
 - [ ] 2.4 Add `internal/worker` host loop and CLI `worker serve/check-in/ack/bind/doctor/pause/resume` seams through `internal/client`; verify API-only operation, independent blocked workers, cancellation, rate limiting, protected crash journal and restart reconciliation through remote-built binaries and transport fixtures.
 - [ ] 2.5 Package launchd/systemd installation/removal with owned configuration and credential references; verify idempotent preview/install/uninstall and preservation of foreign hooks remotely, then inspect rendered operator files without local compilation and document reload requirements.
 - [ ] 2.6 Validate installed Herdr session/safe-input capabilities in a named isolated session, then implement explicit socket/binding transport if supported; verify replacement occupant, busy/blocked/unknown/occupied composer, reconnect and uncertain submission. If that contract is unavailable, ship one proven Claude/Pi native boundary path instead; document the actual supported adapter, not an untested universal fallback.
-- [ ] 2.7 Add visible connector/binding/pending/received/handled/uncertainty state to existing agent/task views; verify stale heartbeat versus live lease/healthy connector distinctions remotely and in a real browser, and keep Herdr out of roster GC authority.
+- [x] 2.7 Add visible connector/binding/pending/received/handled/uncertainty state to existing agent/task views; verify stale heartbeat versus live lease/healthy connector distinctions remotely and in a real browser, and keep Herdr out of roster GC authority.
 
 ## 3. First release: red CI reaches the owner and stays accountable
 
-- [ ] 3.1 Add obligation reminder/escalation scheduling with defaults from design D9; verify acknowledgement without progress, progress postponement, blocker, pause, duplicate reminder jobs, four-per-hour bound and new failure episodes remotely, and document the captain escalation path.
+- [x] 3.1 Add obligation reminder/escalation scheduling with defaults from design D9; verify acknowledgement without progress, progress postponement, blocker, pause, duplicate reminder jobs, four-per-hour bound and new failure episodes remotely, and document the captain escalation path.
 - [ ] 3.2 Run a controlled live PR failure after its recorded owner starts another issue; measure detection/eligible-boundary delivery, inspect failed-head/job links, record an exact receipt and show the still-red obligation in the dashboard. Then leave it without progress to prove bounded reminder/escalation.
 - [ ] 3.3 Restart the host connector and selected agent session during the same controlled obligation; verify pending recovery, stale-generation rejection, no automatic lease recovery and retained repair responsibility. Repair/rerun CI and verify canonical current-head recovery without silent follow-up task completion.
 - [ ] 3.4 Publish remote-built immutable service/CLI assets, enroll the selected worker explicitly and enable observation/delivery only after the proof; verify production service health/pause/rollback and update participation skills with actual check-in/repair/receipt commands. Record unsupported agents separately.
@@ -116,3 +116,28 @@ schema 10 and provider calls are not deployed or enabled by that record.
 Collector Archify: source-linked implementation evidence, 9/9 showcase checks,
 zero errors/warnings, four desktop containment measurements and separate actual
 light/dark screenshot review. Viewer interactions are not implied.
+## Server delivery and reminder evidence
+
+Tasks 2.1–2.3 and 3.1 are implemented on the server. [Twenty-target remote
+acceptance](https://carverauto.buildbuddy.io/invocation/95a37bdf-86ab-4ed1-83f3-3d1769cfa6df)
+passed after named source-capture attributes and isolated enrollment/receipt helpers.
+The packaged runtime proves scoped/revoked credentials, exact immutable receipt
+attribution, atomic Context receipt/source rollback, late lower-ID commits,
+interrupted 205-recipient fan-out, bounded fairness, dispatch expiry with retained
+uncertainty, read-only historical reconciliation, independent blocked recipients,
+and four-per-hour reminders with duplicate jobs/progress/blocker/pause fences.
+The global switch gates reservations and reminder wakes while preserving evidence.
+The [pre-fix reminder predicate](https://carverauto.buildbuddy.io/invocation/ef8a16a9-22f0-41d2-8257-0a0015da3c04)
+fails specifically on a disabled flag producing a reminder; fixed behavior is
+included in the passing acceptance above.
+
+Tasks 1.4/1.5 remain open until the published collector transaction is integrated
+and immutable snapshot/policy recovery is proved. Task 2.7 is proved by [connected full-render export](https://carverauto.buildbuddy.io/invocation/c54bd1e1-f572-44e9-8823-355a83ff8612)
+and eight actual Chrome desktop/mobile light/dark checks; stale heartbeat, fresh
+connector reports and live task leases remain separately visible. Architecture and historical portable planning viewers
+are [document 63](https://agentboard.farm01.carverauto.dev/documents/63) and
+[document 64](https://agentboard.farm01.carverauto.dev/documents/64); final PR-bound
+immutable versions remain a delivery requirement. Protocol 1 is documented in
+[worker API](../../../docs/worker-api.md). This does not complete the live release
+gate, host conformance, provider merge-ref/BuildBuddy diagnostics, completion guard,
+or the broader Ash/CI dashboard checklists.

@@ -14,6 +14,7 @@ defmodule Agentboard.Delivery do
     resource(Agentboard.Delivery.ProviderBudget)
     resource(Agentboard.Delivery.Observation)
     resource(Agentboard.Delivery.CISnapshot)
+    resource(Agentboard.Delivery.Obligation)
   end
 
   def discover(after_id \\ nil, limit \\ 100),
@@ -24,4 +25,3 @@ defmodule Agentboard.Delivery do
   defdelegate defer_poll(id, attempt_id, generation, delay_seconds, reason),
     to: Agentboard.Delivery.Polling
 end
-

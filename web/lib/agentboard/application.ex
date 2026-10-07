@@ -15,6 +15,10 @@ defmodule Agentboard.Application do
          repo: Agentboard.Repo,
          queues: [
            housekeeping: 1,
+           cooperation: [
+             limit: 2,
+             paused: not Application.get_env(:agentboard, :cooperation_enabled, false)
+           ],
            delivery_discovery: [limit: 1, paused: not discovery_enabled?()],
            delivery_scheduler: [limit: 1, paused: not observation_enabled?()],
            delivery_polling: [limit: 4, paused: not observation_enabled?()],
@@ -37,7 +41,10 @@ defmodule Agentboard.Application do
 
   defp worker_config(options) do
     config =
-      AshOban.config([Agentboard.Housekeeping, Agentboard.Delivery, Agentboard.Mattermost], options)
+      AshOban.config(
+        [Agentboard.Housekeeping, Agentboard.Delivery, Agentboard.Cooperation, Agentboard.Mattermost],
+        options
+      )
 
     plugins =
       Enum.map(config[:plugins], fn
@@ -65,4 +72,3 @@ defmodule Agentboard.Application do
     :ok
   end
 end
-

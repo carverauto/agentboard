@@ -5,8 +5,10 @@ Application.ensure_all_started(:agentboard)
 
 alias Agentboard.Board.Resources, as: Board
 alias Agentboard.Evidence.Resources, as: Evidence
+require Ash.Query
 
-[%{id: "worker", harness: "codex", capabilities: [], metadata: %{}}] = Ash.read!(Board.Agent)
+[%{id: "worker", harness: "codex", capabilities: [], metadata: %{}}] =
+  Board.Agent |> Ash.Query.filter(id == "worker") |> Ash.read!()
 [%{id: "sample", status: "open", revision: 1, assignee_id: nil}] = Ash.read!(Board.Task)
 [%{task_id: "sample", actor_id: "worker", kind: "created", new_revision: 1}] = Ash.read!(Board.TaskEvent)
 [%{task_id: "sample", body: "Investigated TLS", read_at: nil}] = Ash.read!(Board.Message)

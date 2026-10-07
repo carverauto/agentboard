@@ -1,0 +1,753 @@
+{
+  "checked_at": "2026-10-07T05:50:14.201106+00:00",
+  "fixture_invocation": "6543d08c-c952-4f83-a08d-84b47c82ccc1",
+  "method": "Actual packaged Phoenix SSR exports, CSS inlined by remote acceptance fixture, rendered in Chrome. Local HTML rendering does not assert connected production behavior.",
+  "measurements": [
+    {
+      "state": "failing",
+      "viewport": "1440x1000x1",
+      "theme": "light",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tfailing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "failing",
+      "viewport": "1440x1000x1",
+      "theme": "dark",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tfailing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "failing",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "light",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tfailing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "failing",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "dark",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tfailing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "pending",
+      "viewport": "1440x1000x1",
+      "theme": "light",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpending\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "pending",
+      "viewport": "1440x1000x1",
+      "theme": "dark",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpending\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "pending",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "light",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpending\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "pending",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "dark",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpending\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "unknown",
+      "viewport": "1440x1000x1",
+      "theme": "light",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tunknown\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "unknown",
+      "viewport": "1440x1000x1",
+      "theme": "dark",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tunknown\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "unknown",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "light",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tunknown\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "unknown",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "dark",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tunknown\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "passing",
+      "viewport": "1440x1000x1",
+      "theme": "light",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpassing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "passing",
+      "viewport": "1440x1000x1",
+      "theme": "dark",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpassing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "passing",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "light",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpassing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "passing",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "dark",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpassing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "stale",
+      "viewport": "1440x1000x1",
+      "theme": "light",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "stale",
+      "viewport": "1440x1000x1",
+      "theme": "dark",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "stale",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "light",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "stale",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "dark",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "uncertain",
+      "viewport": "1440x1000x1",
+      "theme": "light",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nEnabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "uncertain",
+      "viewport": "1440x1000x1",
+      "theme": "dark",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nEnabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "uncertain",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "light",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nEnabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "uncertain",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "dark",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nEnabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "disabled",
+      "viewport": "1440x1000x1",
+      "theme": "light",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nDisabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "disabled",
+      "viewport": "1440x1000x1",
+      "theme": "dark",
+      "width": 1440,
+      "rootWidth": 1440,
+      "regionWidth": 1378,
+      "scrollWidth": 1378,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nDisabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "disabled",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "light",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nDisabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    },
+    {
+      "state": "disabled",
+      "viewport": "390x844x1,mobile,touch",
+      "theme": "dark",
+      "width": 390,
+      "rootWidth": 390,
+      "regionWidth": 358,
+      "scrollWidth": 650,
+      "tabindex": "0",
+      "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nDisabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nProgress 2026-10-07T05:44:09.683973Z\n\nCaptain escalation"
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "server-prs-uncertain-desktop-light.png",
+      "viewport": "1440x1000",
+      "theme": "light",
+      "sha256": "ab3b2a98eef0215e839b46dd2ea474c4b1074ba0df93d9a63aa0803bfa3ef16f",
+      "review": "Actual image inspected; text readable, state distinctions visible, no page overflow. Mobile table uses contained horizontal scrolling."
+    },
+    {
+      "path": "server-prs-disabled-mobile-dark.png",
+      "viewport": "390x844",
+      "theme": "dark",
+      "sha256": "b5301a7ea7d67584f79ecee78a66c57197115c847e1ce3fec241243b3002f45a",
+      "review": "Actual image inspected; text readable, state distinctions visible, no page overflow. Mobile table uses contained horizontal scrolling."
+    },
+    {
+      "path": "server-prs-failing-mobile-light.png",
+      "viewport": "390x844",
+      "theme": "light",
+      "sha256": "21499c91e95b905e5e8db7ed60b3b44314be837fa8556a1fd715fc071ff81d80",
+      "review": "Actual image inspected; text readable, state distinctions visible, no page overflow. Mobile table uses contained horizontal scrolling."
+    },
+    {
+      "path": "server-prs-failing-desktop-dark.png",
+      "viewport": "1440x1000",
+      "theme": "dark",
+      "sha256": "f3959a713f0ad1c7387172f4958721482a12b38c2cd175e03f3b670e637262f4",
+      "review": "Actual image inspected; text readable, state distinctions visible, no page overflow. Mobile table uses contained horizontal scrolling."
+    },
+    {
+      "path": "server-task-health-mobile-light.png",
+      "viewport": "390x844",
+      "theme": "light",
+      "fixture_invocation": "c54bd1e1-f572-44e9-8823-355a83ff8612",
+      "sha256": "2c3e848d593142066059beff95e4785014a00a8f1f50a29e4b3dcead16299828",
+      "review": "Actual image inspected; connector freshness, native adapter, delivery counts, and stale heartbeat remain distinct. Task screenshot also shows live lease. No horizontal page overflow."
+    },
+    {
+      "path": "server-agents-health-desktop-dark.png",
+      "viewport": "1440x1000",
+      "theme": "dark",
+      "fixture_invocation": "c54bd1e1-f572-44e9-8823-355a83ff8612",
+      "sha256": "1876a2d3c7bbc0a1d70e61ca10d73bf3aefbc335dd9c0f9b7969cb9df5014357",
+      "review": "Actual image inspected; connector freshness, native adapter, delivery counts, and stale heartbeat remain distinct. Task screenshot also shows live lease. No horizontal page overflow."
+    }
+  ],
+  "limitations": [
+    "Invented controlled fixture data, not production.",
+    "PR fixture projections are forced to exercise renderer states; machine recovery has separate packaged transaction assertions.",
+    "Chrome wrapper reported BROWSER_ERROR after screenshots, but PNGs were written and each retained image was opened and inspected.",
+    "Collector callback and packaged native host interoperability are pending separate gates."
+  ],
+  "connected_health": {
+    "checked_at": "2026-10-07T05:58:55.084652+00:00",
+    "fixture_invocation": "c54bd1e1-f572-44e9-8823-355a83ff8612",
+    "method": "Actual connected full WebSocket join render converted by pinned Phoenix.LiveView.Diff consumer, inside real packaged page layout/CSS. Invented fixture data; frozen browser snapshot.",
+    "measurements": [
+      {
+        "page": "task-health",
+        "viewport": "1440x1000x1",
+        "theme": "light",
+        "width": 1440,
+        "rootWidth": 1440,
+        "text": "Task detail\n\nUpdated 05:57:36 UTC\n\nci-repair-8ad5d029-7946-45c0-8342-e73a5d044264\nIn progress / P1\nRepair CI: fixture/repo #101\n\nConfirmed current-head CI failure at aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa. Sources: ci-source, ci-conflict. https://github.com/fixture/repo/pull/101. Notification handling does not resolve CI.\n\nWorker delivery\n\nPaused \u00b7 connector healthy / fresh\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\nOwner\nci-peer\nAssigned by\nci-accountability\nClaimed\n2026-10-07T05:57:36.517225Z\nLease expires\n2026-10-07T07:57:36.517225Z\nRevision\n3\nRepository\nfixture/repo\nAgent stale\nGitHub pull request\nTask history\nCi failure\n2026-10-07T05:57:31.920181Z\n\nci-accountability / system / ash / revision 1\n\nCi responsibility handoff\n2026-10-07T05:57:32.562122Z\n\nci-accountability / system / ash / revision 2\n\nCaptain resolved conflicting provenance\n\nClaim\n2026-10-07T05:57:36.517225Z\n\nci-peer / fixture-model / codex / revision 3\n\nDocumentation\n\nNo documentation attached.\n\nTask thread\n\nNo messages on this task."
+      },
+      {
+        "page": "task-health",
+        "viewport": "1440x1000x1",
+        "theme": "dark",
+        "width": 1440,
+        "rootWidth": 1440,
+        "text": "Task detail\n\nUpdated 05:57:36 UTC\n\nci-repair-8ad5d029-7946-45c0-8342-e73a5d044264\nIn progress / P1\nRepair CI: fixture/repo #101\n\nConfirmed current-head CI failure at aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa. Sources: ci-source, ci-conflict. https://github.com/fixture/repo/pull/101. Notification handling does not resolve CI.\n\nWorker delivery\n\nPaused \u00b7 connector healthy / fresh\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\nOwner\nci-peer\nAssigned by\nci-accountability\nClaimed\n2026-10-07T05:57:36.517225Z\nLease expires\n2026-10-07T07:57:36.517225Z\nRevision\n3\nRepository\nfixture/repo\nAgent stale\nGitHub pull request\nTask history\nCi failure\n2026-10-07T05:57:31.920181Z\n\nci-accountability / system / ash / revision 1\n\nCi responsibility handoff\n2026-10-07T05:57:32.562122Z\n\nci-accountability / system / ash / revision 2\n\nCaptain resolved conflicting provenance\n\nClaim\n2026-10-07T05:57:36.517225Z\n\nci-peer / fixture-model / codex / revision 3\n\nDocumentation\n\nNo documentation attached.\n\nTask thread\n\nNo messages on this task."
+      },
+      {
+        "page": "task-health",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light",
+        "width": 390,
+        "rootWidth": 390,
+        "text": "Task detail\n\nUpdated 05:57:36 UTC\n\nci-repair-8ad5d029-7946-45c0-8342-e73a5d044264\nIn progress / P1\nRepair CI: fixture/repo #101\n\nConfirmed current-head CI failure at aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa. Sources: ci-source, ci-conflict. https://github.com/fixture/repo/pull/101. Notification handling does not resolve CI.\n\nWorker delivery\n\nPaused \u00b7 connector healthy / fresh\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\nOwner\nci-peer\nAssigned by\nci-accountability\nClaimed\n2026-10-07T05:57:36.517225Z\nLease expires\n2026-10-07T07:57:36.517225Z\nRevision\n3\nRepository\nfixture/repo\nAgent stale\nGitHub pull request\nTask history\nCi failure\n2026-10-07T05:57:31.920181Z\n\nci-accountability / system / ash / revision 1\n\nCi responsibility handoff\n2026-10-07T05:57:32.562122Z\n\nci-accountability / system / ash / revision 2\n\nCaptain resolved conflicting provenance\n\nClaim\n2026-10-07T05:57:36.517225Z\n\nci-peer / fixture-model / codex / revision 3\n\nDocumentation\n\nNo documentation attached.\n\nTask thread\n\nNo messages on this task."
+      },
+      {
+        "page": "task-health",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark",
+        "width": 390,
+        "rootWidth": 390,
+        "text": "Task detail\n\nUpdated 05:57:36 UTC\n\nci-repair-8ad5d029-7946-45c0-8342-e73a5d044264\nIn progress / P1\nRepair CI: fixture/repo #101\n\nConfirmed current-head CI failure at aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa. Sources: ci-source, ci-conflict. https://github.com/fixture/repo/pull/101. Notification handling does not resolve CI.\n\nWorker delivery\n\nPaused \u00b7 connector healthy / fresh\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\nOwner\nci-peer\nAssigned by\nci-accountability\nClaimed\n2026-10-07T05:57:36.517225Z\nLease expires\n2026-10-07T07:57:36.517225Z\nRevision\n3\nRepository\nfixture/repo\nAgent stale\nGitHub pull request\nTask history\nCi failure\n2026-10-07T05:57:31.920181Z\n\nci-accountability / system / ash / revision 1\n\nCi responsibility handoff\n2026-10-07T05:57:32.562122Z\n\nci-accountability / system / ash / revision 2\n\nCaptain resolved conflicting provenance\n\nClaim\n2026-10-07T05:57:36.517225Z\n\nci-peer / fixture-model / codex / revision 3\n\nDocumentation\n\nNo documentation attached.\n\nTask thread\n\nNo messages on this task."
+      },
+      {
+        "page": "agents-health",
+        "viewport": "1440x1000x1",
+        "theme": "light",
+        "width": 1440,
+        "rootWidth": 1440,
+        "text": "Agents\n\nUpdated 05:57:36 UTC\n\nAgent / harness\tModel / host\tActivity\tHeartbeat\tCapabilities\nCI accountability (server)\n\nci-accountability / ash\n\n\tsystem\n\nHost unknown\n\n\tNot reported\n\n\tStale\n\nNever\n\nNo heartbeat\n\n\tWorker not enrolled\nci-owner\n\nci-owner / codex\n\n\tfixture-model\n\nHost unknown\n\n\tbusy\n\nci-other\n\n\tFresh\n\n2026-10-07T05:57:29.527432Z\n\n7 seconds ago\n\n\tWorker not enrolled\nci-peer\n\nci-peer / codex\n\n\tfixture-model\n\nHost unknown\n\n\tNot reported\n\n\tStale\n\n2026-10-07T04:57:36.551594Z\n\n3600 seconds ago\n\n\t\n\nPaused \u00b7 connector healthy / fresh\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities"
+      },
+      {
+        "page": "agents-health",
+        "viewport": "1440x1000x1",
+        "theme": "dark",
+        "width": 1440,
+        "rootWidth": 1440,
+        "text": "Agents\n\nUpdated 05:57:36 UTC\n\nAgent / harness\tModel / host\tActivity\tHeartbeat\tCapabilities\nCI accountability (server)\n\nci-accountability / ash\n\n\tsystem\n\nHost unknown\n\n\tNot reported\n\n\tStale\n\nNever\n\nNo heartbeat\n\n\tWorker not enrolled\nci-owner\n\nci-owner / codex\n\n\tfixture-model\n\nHost unknown\n\n\tbusy\n\nci-other\n\n\tFresh\n\n2026-10-07T05:57:29.527432Z\n\n7 seconds ago\n\n\tWorker not enrolled\nci-peer\n\nci-peer / codex\n\n\tfixture-model\n\nHost unknown\n\n\tNot reported\n\n\tStale\n\n2026-10-07T04:57:36.551594Z\n\n3600 seconds ago\n\n\t\n\nPaused \u00b7 connector healthy / fresh\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities"
+      },
+      {
+        "page": "agents-health",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light",
+        "width": 390,
+        "rootWidth": 390,
+        "text": "Agents\n\nUpdated 05:57:36 UTC\n\nAgent / harness\tModel / host\tActivity\tHeartbeat\tCapabilities\nCI accountability (server)\n\nci-accountability / ash\n\n\tsystem\n\nHost unknown\n\n\tNot reported\n\n\tStale\n\nNever\n\nNo heartbeat\n\n\tWorker not enrolled\nci-owner\n\nci-owner / codex\n\n\tfixture-model\n\nHost unknown\n\n\tbusy\n\nci-other\n\n\tFresh\n\n2026-10-07T05:57:29.527432Z\n\n7 seconds ago\n\n\tWorker not enrolled\nci-peer\n\nci-peer / codex\n\n\tfixture-model\n\nHost unknown\n\n\tNot reported\n\n\tStale\n\n2026-10-07T04:57:36.551594Z\n\n3600 seconds ago\n\n\t\n\nPaused \u00b7 connector healthy / fresh\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities"
+      },
+      {
+        "page": "agents-health",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark",
+        "width": 390,
+        "rootWidth": 390,
+        "text": "Agents\n\nUpdated 05:57:36 UTC\n\nAgent / harness\tModel / host\tActivity\tHeartbeat\tCapabilities\nCI accountability (server)\n\nci-accountability / ash\n\n\tsystem\n\nHost unknown\n\n\tNot reported\n\n\tStale\n\nNever\n\nNo heartbeat\n\n\tWorker not enrolled\nci-owner\n\nci-owner / codex\n\n\tfixture-model\n\nHost unknown\n\n\tbusy\n\nci-other\n\n\tFresh\n\n2026-10-07T05:57:29.527432Z\n\n7 seconds ago\n\n\tWorker not enrolled\nci-peer\n\nci-peer / codex\n\n\tfixture-model\n\nHost unknown\n\n\tNot reported\n\n\tStale\n\n2026-10-07T04:57:36.551594Z\n\n3600 seconds ago\n\n\t\n\nPaused \u00b7 connector healthy / fresh\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities"
+      }
+    ]
+  },
+  "overdue_followup": {
+    "checked_at": "2026-10-07T06:05:54.519750+00:00",
+    "fixture_invocation": "974beaa9-e366-4e48-9768-505f4614a4a6",
+    "measurements": [
+      {
+        "state": "failing",
+        "viewport": "1440x1000x1",
+        "theme": "light",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tfailing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "failing",
+        "viewport": "1440x1000x1",
+        "theme": "dark",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tfailing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "failing",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tfailing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "failing",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tfailing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "pending",
+        "viewport": "1440x1000x1",
+        "theme": "light",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpending\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "pending",
+        "viewport": "1440x1000x1",
+        "theme": "dark",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpending\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "pending",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpending\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "pending",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpending\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "unknown",
+        "viewport": "1440x1000x1",
+        "theme": "light",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tunknown\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "unknown",
+        "viewport": "1440x1000x1",
+        "theme": "dark",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tunknown\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "unknown",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tunknown\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "unknown",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tunknown\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "passing",
+        "viewport": "1440x1000x1",
+        "theme": "light",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpassing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "passing",
+        "viewport": "1440x1000x1",
+        "theme": "dark",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpassing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "passing",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpassing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "passing",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tpassing\n\nFresh observation\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "stale",
+        "viewport": "1440x1000x1",
+        "theme": "light",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "stale",
+        "viewport": "1440x1000x1",
+        "theme": "dark",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "stale",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "stale",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nPaused \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 0 \u00b7 received 0 \u00b7 handled 1\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "uncertain",
+        "viewport": "1440x1000x1",
+        "theme": "light",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nEnabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "uncertain",
+        "viewport": "1440x1000x1",
+        "theme": "dark",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nEnabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "uncertain",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nEnabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "uncertain",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nEnabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "disabled",
+        "viewport": "1440x1000x1",
+        "theme": "light",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nDisabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "disabled",
+        "viewport": "1440x1000x1",
+        "theme": "dark",
+        "width": 1440,
+        "rootWidth": 1440,
+        "regionWidth": 1378,
+        "scrollWidth": 1378,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nDisabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nDeclared adapter capabilities\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "disabled",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "light",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nDisabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      },
+      {
+        "state": "disabled",
+        "viewport": "390x844x1,mobile,touch",
+        "theme": "dark",
+        "width": 390,
+        "rootWidth": 390,
+        "regionWidth": 358,
+        "scrollWidth": 650,
+        "tabindex": "0",
+        "text": "Pull requests\n\nCI responsibility persists after agents change tasks.\n\nPull request / head\tCI / freshness\tResponsible / repair\tDelivery / progress\nfixture/repo #101\n\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n\tstale\n\nUnknown or stale evidence\n\n\tci-peer\n\nunresolved \u00b7 episode 3\n\n\t\n\nDisabled \u00b7 connector healthy / stale\n\nAdapter ready \u00b7 manual 1\n\nPending 5 \u00b7 received 0 \u00b7 handled 1\n\nSubmission uncertain; reconciliation required\n\nProgress 2026-10-07T06:02:56.680751Z\n\nReminder overdue\n\n \n\nCaptain escalation"
+      }
+    ],
+    "method": "Packaged SSR exports include same domain-backed progress/overdue component in PR table and detail. Earlier screenshot provenance remains separately recorded."
+  }
+}

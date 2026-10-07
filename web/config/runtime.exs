@@ -125,3 +125,8 @@ if config_env() == :prod do
     secret_key_base: System.fetch_env!("SECRET_KEY_BASE")
 end
 
+config :agentboard,
+       :cooperation_enabled,
+       System.get_env("AGENTBOARD_COOPERATION_ENABLED") == "true"
+
+config :agentboard, :ci_policies, Jason.decode!(System.get_env("AGENTBOARD_CI_POLICIES") || "{}")

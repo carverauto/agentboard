@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "CI responsibility survives task changes",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1260,
+      760
+    ]
+  },
+  "components": [
+    {
+      "id": "collector",
+      "type": "external",
+      "label": "GitHub collector",
+      "sublabel": "current head + complete pages",
+      "pos": [
+        70,
+        110
+      ],
+      "size": [
+        220,
+        76
+      ]
+    },
+    {
+      "id": "accountability",
+      "type": "backend",
+      "label": "Accountability",
+      "sublabel": "episode + responsible submitter",
+      "pos": [
+        480,
+        110
+      ],
+      "size": [
+        250,
+        76
+      ]
+    },
+    {
+      "id": "obligation",
+      "type": "database",
+      "label": "Repair obligation",
+      "sublabel": "remains after notification handled",
+      "pos": [
+        900,
+        110
+      ],
+      "size": [
+        250,
+        76
+      ]
+    },
+    {
+      "id": "intent",
+      "type": "database",
+      "label": "Source intent",
+      "sublabel": "atomic capture + pinned audience",
+      "pos": [
+        480,
+        365
+      ],
+      "size": [
+        250,
+        76
+      ]
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "Worker API",
+      "sublabel": "scope + epoch + generation fences",
+      "pos": [
+        900,
+        365
+      ],
+      "size": [
+        250,
+        76
+      ]
+    },
+    {
+      "id": "host",
+      "type": "external",
+      "label": "Supervised host",
+      "sublabel": "separate Agent B workstream",
+      "pos": [
+        900,
+        615
+      ],
+      "size": [
+        250,
+        76
+      ]
+    },
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "Captain dashboard",
+      "sublabel": "CI, delivery, overdue, uncertainty",
+      "pos": [
+        70,
+        615
+      ],
+      "size": [
+        250,
+        76
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "collector",
+      "to": "accountability",
+      "label": "fenced observation"
+    },
+    {
+      "from": "accountability",
+      "to": "obligation",
+      "label": "one active episode"
+    },
+    {
+      "from": "accountability",
+      "to": "intent",
+      "label": "same transaction",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "from": "intent",
+      "to": "api",
+      "label": "pending ledger"
+    },
+    {
+      "from": "api",
+      "to": "host",
+      "label": "immutable batch",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "from": "intent",
+      "to": "dashboard",
+      "label": "durable reread"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Separate truths",
+      "items": [
+        "Handled notification never means repaired CI",
+        "Missing policy stays unknown; recovery needs verified evidence"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Retain uncertainty",
+      "items": [
+        "Expired lease cannot authorize replay",
+        "Explicit receipts name exact frozen delivery IDs"
+      ]
+    }
+  ]
+}

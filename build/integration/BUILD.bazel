@@ -174,3 +174,23 @@ sh_test(
     size = "medium",
     timeout = "long",
 )
+
+sh_test(
+    name = "cooperation_api_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "cooperation_api_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["cooperation_api_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "large",
+    timeout = "long",
+)
+
+sh_test(
+    name = "ci_accountability_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "ci_accountability_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["ci_accountability_test.py", "liveview_client.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "large",
+    timeout = "long",
+)
