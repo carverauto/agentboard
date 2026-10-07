@@ -139,7 +139,10 @@ and record the current head/CI status on the owned task.
 
 Each binding has its own cancellation, dispatch state and retry loop. Default
 fallback is 30 seconds; reconnect is jittered exponential 1–60 seconds, retaining
-a longer server Retry-After. No connector heartbeat manufactures model activity
+a longer server Retry-After up to a 24-hour host safety ceiling. A Retry-After
+beyond 24 hours sleeps 24 hours and emits an explicit degraded reason keeping
+the raw server duration as diagnostic; cancellation stays immediate.
+No connector heartbeat manufactures model activity
 or renews/reclaims board task leases.
 
 Before native I/O the protected fsync journal records reservation key, exact

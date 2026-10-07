@@ -335,7 +335,7 @@ class WorkerRuntime(unittest.TestCase):
         self.assertIn('degraded', line)
         time.sleep(0.5)
         output = f.stop(process)
-        self.assertIn('invalid frozen', output)
+        self.assertIn('invalid frozen', line + output)
         self.assertEqual(f.submissions, [])
         self.assertFalse(any(p[1] == 'result' for p in f.posts))
         self.assertFalse(any(p[1] == 'receipts' for p in f.posts))
