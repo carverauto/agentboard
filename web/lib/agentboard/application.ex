@@ -42,7 +42,12 @@ defmodule Agentboard.Application do
   defp worker_config(options) do
     config =
       AshOban.config(
-        [Agentboard.Housekeeping, Agentboard.Delivery, Agentboard.Cooperation, Agentboard.Mattermost],
+        [
+          Agentboard.Housekeeping,
+          Agentboard.Delivery,
+          Agentboard.Cooperation,
+          Agentboard.Mattermost
+        ],
         options
       )
 
