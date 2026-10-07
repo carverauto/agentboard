@@ -217,7 +217,7 @@ func (c *commands) chatSend() *cobra.Command {
 	cmd.Flags().StringVar(&dm, "dm", "", "Mattermost user ID to open/resolve a direct channel with")
 	cmd.Flags().StringVar(&body, "body", "", "Message text (required)")
 	cmd.Flags().StringVar(&rootID, "root-id", "", "Root post ID to reply in a thread")
-	cmd.Flags().StringVar(&retryKey, "retry-key", "", "Client idempotency key; a matching recent post is adopted, never duplicated")
+	cmd.Flags().StringVar(&retryKey, "retry-key", "", "Client idempotency key; a matching post from the last 5 pages (300 posts) is adopted, never duplicated")
 	cmd.Flags().BoolVar(&noCoverage, "no-coverage", false, "Skip reporting the send as a coverage receipt")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if body == "" || (channel == "" && dm == "") {
@@ -247,7 +247,11 @@ func (c *commands) chatSend() *cobra.Command {
 		props := map[string]any{mmAgentProp: c.cfg.Actor.ID}
 		if retryKey != "" {
 			props[mmRetryKeyProp] = retryKey
-			if dupe := mm.findRetryKey(channel, retryKey); dupe != nil {
+			dupe, err := mm.findRetryKey(channel, retryKey, c.cfg.Actor.ID)
+			if err != nil {
+				return err
+			}
+			if dupe != nil {
 				return c.chatEmit(cmd, map[string]any{"duplicate": true, "post": dupe}, channel, dupe.ID, noCoverage)
 			}
 		}
@@ -268,25 +272,27 @@ func (c *commands) chatSend() *cobra.Command {
 	return cmd
 }
 
-func (m *mmTarget) findRetryKey(channelID, retryKey string) *mmPost {
+func (m *mmTarget) findRetryKey(channelID, retryKey, agentID string) (*mmPost, error) {
 	for page := 0; page < 5; page++ {
 		order, posts, err := m.channelPostsPage(channelID, page, 60)
 		if err != nil {
-			return nil
+			return nil, err
 		}
 		for _, id := range order {
 			if post, ok := posts[id]; ok && post.ID != "" {
 				if value, _ := post.Props[mmRetryKeyProp].(string); value == retryKey {
-					dupe := post
-					return &dupe
+					if author, _ := post.Props[mmAgentProp].(string); author == agentID {
+						dupe := post
+						return &dupe, nil
+					}
 				}
 			}
 		}
 		if len(order) < 60 {
-			return nil
+			return nil, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func (c *commands) chatEmit(cmd *cobra.Command, record map[string]any, channelID, lastPostID string, noCoverage bool) error {
