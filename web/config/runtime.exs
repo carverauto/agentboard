@@ -129,7 +129,7 @@ config :agentboard,
        :cooperation_enabled,
        System.get_env("AGENTBOARD_COOPERATION_ENABLED") == "true"
 
-config :agentboard, :ci_policies,
+ci_policies =
   case Jason.decode(System.get_env("AGENTBOARD_CI_POLICIES") || "{}") do
     {:ok, policies} when is_map(policies) ->
       Map.new(policies, fn {repo, entry} -> {repo, entry} end)
@@ -166,3 +166,5 @@ config :agentboard, :ci_policies,
     _ ->
       %{}
   end
+
+config :agentboard, :ci_policies, ci_policies
