@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "source_base": "75ac24a979114858d9628e4e4d04524f81a58dd5",
+  "focused_remote": {
+    "result": "passed",
+    "targets": [
+      "delivery_github_test",
+      "delivery_polling_test",
+      "delivery_scheduling_test",
+      "ci_accountability_test"
+    ],
+    "url": "https://carverauto.buildbuddy.io/invocation/fbe8ddd8-b751-4c2e-893b-01a2c4795f2e",
+    "post_check_edits": "Only extra EOF blank lines from remote formatter removed; proxy must validate final publication head."
+  },
+  "negative_control": {
+    "result": "failed_as_expected",
+    "url": "https://carverauto.buildbuddy.io/invocation/f3ded433-4797-4519-9ebd-ed6d4a30373c",
+    "failure": "Closed PR collection made seven HTTP requests instead of one metadata request on pre-fix main."
+  },
+  "formatting": {
+    "method": "Remote packaged-release Code.format_file!",
+    "url": "https://carverauto.buildbuddy.io/invocation/dd709b66-3dde-4cd7-ba48-bfa8a5e7fcfd",
+    "scope": "Changed Elixir files only; extra EOF blank lines normalized afterward."
+  },
+  "archify": {
+    "diagram_type": "architecture",
+    "specification_sha256": "860f6cf6b8732165e97ad838944542e685209aaa4b8f0b6144d78a0e1420f4f7",
+    "artifact_sha256": "8bd56985ae4b2d4197a96602093849f03d9f37b13fea5756ccb241a4a080a502",
+    "artifact_bytes": 707253,
+    "validation": "9/9 showcase; zero composition errors/warnings",
+    "browser_evidence": "failed",
+    "browser_failure": "Packaged visual-check Chrome closed with SIGABRT; CLI fallback could not select the new artifact page, so no manual visual approval is claimed.",
+    "visual_review": "pending",
+    "correction_rounds": 1
+  },
+  "quality": {
+    "baseline": "git HEAD75ac24a",
+    "finding": "Seven verbosity increases, six minor. ProviderAdmission grows 60\u219261 measured LOC for explicit safe capacity clamp; retained in its existing transactional owner. No claim of zero quality findings."
+  },
+  "publication": {
+    "status": "blocked",
+    "reason": "Session write roots exclude existing .git and global no-mistakes state. Isolated writable clone is not initialized with the proxy. No direct push or PR bypass."
+  },
+  "scope": {
+    "cooperation": "unchanged/off",
+    "mattermost_bridge": "unchanged/off",
+    "task_merge_disposition": "Separate GH58 owner; this patch does not complete tasks on provider merge."
+  }
+}

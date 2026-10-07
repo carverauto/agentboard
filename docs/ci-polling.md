@@ -45,3 +45,32 @@ Scheduling acceptance executes the configured AshOban cron, two bounded recovery
 The quality scan reports shared due predicates between batch reservation, exact-PR reservation and scheduling. Their SQL owns different locking and dispatch semantics; each reuses the existing reservation mutation rather than introducing a generic selector that hides those contracts. Framework callbacks reported as dead code are exercised by the real AshOban/Oban and migration acceptance.
 
 After remote formatting, [full 18-target acceptance](https://carverauto.buildbuddy.io/invocation/eb4b683e-7e3d-42d1-ae45-9412e467059b) passed. Scheduling Archify passed 9/9 showcase checks with zero errors/warnings, four desktop containment measurements, and separate actual light/dark image review; viewer interactions are not covered by that image review.
+
+## Terminal lifecycle and adaptive cadence
+
+A complete metadata observation of a merged or closed PR uses the audited
+`observe_terminal` Ash action to disable polling, inside the same fenced
+snapshot transaction. Terminal collection makes one PR metadata request;
+it does not fetch suites, runs or statuses, and cannot certify passing CI.
+Merged PRs remain disabled. Closed PRs become eligible for one metadata-only
+reopen check after one hour, through bounded discovery or the independent
+all-canonical scheduler. A new explicit submission link may reconcile a closed
+PR immediately. Ordinary repeated discovery does not reset this delay.
+If metadata says open, full current-head collection resumes. Provider errors
+retain evidence and the shared cooldown; they do not reopen or certify a PR.
+
+Changed heads/base/verdicts or pending latest attempts are sampled after
+60 seconds; unchanged evidence without pending attempts waits ten minutes.
+The dashboard still applies its conservative three-minute freshness limit:
+last-known stable evidence may show stale between polls. The PR list hides
+merged/closed rows before its bounded page is selected; the Show merged/closed
+toggle preserves history and detail URLs, and pagination retains the filter.
+Task completion/archive state remains independent of provider lifecycle.
+
+The default GitHub allowance remains 60 HTTP requests per minute (3,600/hour),
+shared by replicas. Admission also clamps historical/manual higher capacities
+to 60/minute. Raising it to 300–500/minute does not raise a PAT's 5,000/hour
+[GitHub core limit](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) and accelerates exhaustion. Other clients using the token
+consume that same provider limit; Retry-After/reset cooldown remains mandatory.
+This change does not enable cooperation or the Mattermost bridge, and does not
+implement task merge disposition.

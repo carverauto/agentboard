@@ -14,6 +14,7 @@ import tempfile
 import threading
 import time
 import urllib.parse
+import urllib.request
 from pathlib import Path
 
 
@@ -157,7 +158,7 @@ class Provider(http.server.BaseHTTPRequestHandler):
             metadata_reads += 1
             head = OLD if mode == 'changed-head' and metadata_reads > 1 else HEAD
             base = OLD if mode == 'changed-base' and metadata_reads > 1 else BASE
-            body = dict(number=601, head=dict(sha=head), base=dict(sha=base), state='open', merged=False, draft=mode == 'draft' or (mode == 'changed-draft' and metadata_reads > 1))
+            body = dict(number=601, head=dict(sha=head), base=dict(sha=base), state='closed' if mode in ('closed', 'merged') else 'open', merged=mode == 'merged', draft=mode == 'draft' or (mode == 'changed-draft' and metadata_reads > 1))
             if mode == 'missing-draft':
                 body.pop('draft')
             if mode == 'malformed-draft':
@@ -398,5 +399,56 @@ with tempfile.TemporaryDirectory() as temp:
                                 "UPDATE delivery_ci_snapshots SET ci_state='failing'"], capture_output=True, text=True)
     assert immutable.returncode != 0 and 'append-only' in immutable.stderr
     assert sql("SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(t) FROM tasks t WHERE id='collector-task'),'events',(SELECT jsonb_agg(t) FROM task_events t WHERE task_id='collector-task'),'links',(SELECT jsonb_agg(t) FROM delivery_task_links t))") == source_before
+    # Terminal lifecycle stop is observed through real TLS HTTP + the Ash
+    # collector. Discovery must not defeat it on every minute's catch-up.
+    # The preceding audit rollback leaves its separately committed reservation
+    # live. Advance that fixture lease explicitly before testing a new sample.
+    sql("UPDATE delivery_poll_states SET attempt_id=NULL,lease_expires_at=NULL")
+    start = len(requests)
+    poll('closed', 'observed')
+    assert requests[start:] == ['/repos/fixture/repo/pulls/601'], requests[start:]
+    assert sql("SELECT enabled||','||lifecycle FROM delivery_poll_states") == 'false,closed'
+    assert sql("SELECT next_poll_at-observed_at=interval '1 hour' FROM delivery_poll_states") == 't'
+    assert sql("SELECT count(*)>0 FROM delivery_poll_states_versions WHERE version_action_name='observe_terminal'") == 't'
+    count = len(requests)
+    rpc('{:ok, _} = Agentboard.Delivery.discover()')
+    rpc('Agentboard.Delivery.Scheduling.poll("' + pr_id + '")')
+    assert len(requests) == count, 'Discovery restarted terminal CI polling immediately'
+    html = urllib.request.urlopen(os.environ['AGENTBOARD_URL'] + '/prs').read().decode()
+    assert 'fixture/repo #601' not in html and 'Show merged/closed' in html
+    html = urllib.request.urlopen(os.environ['AGENTBOARD_URL'] + '/prs?show_terminal=true').read().decode()
+    assert 'fixture/repo #601' in html and 'Hide merged/closed' in html
+    html = urllib.request.urlopen(os.environ['AGENTBOARD_URL'] + '/prs/' + pr_id).read().decode()
+    assert 'Immutable submission sources' in html
+    # The independent scheduler catches closed inventory even if task URLs
+    # are cleared. Once hourly eligibility expires, open metadata resumes CI.
+    sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 second'")
+    mode = 'clean'
+    rpc('{:ok, _} = Agentboard.Delivery.Scheduling.tick()')
+    assert sql('SELECT enabled FROM delivery_poll_states') == 't'
+    assert sql("SELECT count(*)>0 FROM delivery_poll_states_versions WHERE version_action_name='resume'") == 't'
+    poll('clean', 'unknown')
+    assert sql("SELECT enabled||','||lifecycle FROM delivery_poll_states") == 'true,open'
+    poll('clean', 'unknown')
+    assert sql("SELECT next_poll_at-observed_at=interval '10 minutes' FROM delivery_poll_states") == 't'
+    poll('normal', 'pending')
+    assert sql("SELECT next_poll_at-observed_at=interval '60 seconds' FROM delivery_poll_states") == 't'
+    # A fresh explicit PR submission can reconcile a closed row immediately.
+    poll('closed', 'unknown')
+    ab('task', 'create', '--id', 'reopen-link', '--title', 'Explicit reopen link',
+       '--pr', 'https://github.com/fixture/repo/pull/601')
+    assert sql('SELECT enabled FROM delivery_poll_states') == 't'
+    start = len(requests)
+    poll('merged', 'unknown')
+    assert requests[start:] == ['/repos/fixture/repo/pulls/601']
+    sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 day'")
+    rpc('{:ok, _} = Agentboard.Delivery.discover(); {:ok, _} = Agentboard.Delivery.Scheduling.tick()')
+    rpc('Agentboard.Delivery.Scheduling.poll("' + pr_id + '")')
+    assert sql('SELECT enabled FROM delivery_poll_states') == 'f'
+    assert len(requests) == start + 1, 'Merged PR resumed provider requests'
+    # A prior operator capacity bump cannot exceed the safe per-minute cap.
+    sql("UPDATE delivery_provider_budgets SET capacity=500,remaining=500,blocked_until=NULL,reset_at=clock_timestamp()+interval '60 seconds' WHERE id='github'")
+    output = rpc('results = Enum.map(1..61, fn _ -> {:ok, r} = Agentboard.Delivery.ProviderAdmission.acquire("github"); r.allowed end); IO.puts("ALLOWED=" <> to_string(Enum.count(results, & &1)))')
+    assert 'ALLOWED=60' in output, output
     server.shutdown()
 print('Current-head all-page attempts/source links, no-policy unknown, fenced late reply, isolated writes and durable provider backoff passed.')

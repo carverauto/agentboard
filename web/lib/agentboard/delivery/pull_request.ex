@@ -33,6 +33,10 @@ defmodule Agentboard.Delivery.PullRequest do
   end
 
   relationships do
+    has_one :poll_state, Agentboard.Delivery.PollState do
+      destination_attribute(:id)
+    end
+
     has_many :task_links, Agentboard.Delivery.TaskLink do
       destination_attribute(:pull_request_id)
     end
@@ -49,4 +53,3 @@ defmodule Agentboard.Delivery.PullRequest do
     attribute(:created_at, :utc_datetime_usec, allow_nil?: false, public?: true)
   end
 end
-

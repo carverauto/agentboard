@@ -14,7 +14,10 @@ defmodule Agentboard.Delivery.ProviderAdmission do
         budget = Operations.fetch!(ProviderBudget, provider, "Provider budget unavailable")
         stamp = Operations.now()
         expired? = DateTime.compare(budget.reset_at, stamp) != :gt
-        remaining = if expired?, do: budget.capacity, else: budget.remaining
+        # A PAT's 5,000/hour core limit is shared with other clients. Never
+        # turn a historic/manual capacity bump into 300–500 requests/minute.
+        capacity = if provider == "github", do: min(budget.capacity, 60), else: budget.capacity
+        remaining = if expired?, do: capacity, else: min(budget.remaining, capacity)
         reset_at = if expired?, do: DateTime.add(stamp, 60), else: budget.reset_at
 
         blocked? = budget.blocked_until && DateTime.compare(budget.blocked_until, stamp) == :gt
@@ -69,4 +72,3 @@ defmodule Agentboard.Delivery.ProviderAdmission do
     end)
   end
 end
-

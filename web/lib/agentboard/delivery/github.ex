@@ -12,7 +12,36 @@ defmodule Agentboard.Delivery.Github do
 
     with {:ok, root} <- root(pr),
          {:ok, before, ctx} <- metadata(root, pr, ctx),
-         {:ok, suites, ctx} <-
+         {:ok, result} <- collect_head(root, pr, before, ctx) do
+      {:ok, result}
+    else
+      false -> {:error, "incomplete", 60}
+      {:error, reason, seconds} -> {:error, reason, seconds}
+      {:error, reason} -> {:error, reason, 60}
+    end
+  end
+
+  # A terminal lifecycle is a complete metadata observation, not CI evidence.
+  # Avoid suites/runs/status requests after merge/close. Reconciliation only
+  # re-enables closed rows hourly (or on a new explicit link) to detect reopen.
+  defp collect_head(_root, _pr, %{lifecycle: lifecycle} = before, _ctx)
+       when lifecycle in ["merged", "closed"] do
+    {:ok,
+     Map.merge(before, %{
+       ci_state: "unknown",
+       payload: %{
+         "draft" => before.draft,
+         "coverage" => "terminal_metadata",
+         "policy" => "unknown",
+         "tested_ref" => "head",
+         "attempts" => [],
+         "evidence" => "source_links_only"
+       }
+     })}
+  end
+
+  defp collect_head(root, pr, before, ctx) do
+    with {:ok, suites, ctx} <-
            pages(root <> "/commits/" <> before.head_sha <> "/check-suites", "check_suites", ctx),
          {:ok, runs, ctx} <- suite_runs(root, before.head_sha, suites, ctx),
          {:ok, statuses, ctx} <-

@@ -37,7 +37,13 @@ defmodule Agentboard.Delivery.PollState do
       accept([:attempt_id, :lease_expires_at, :next_poll_at, :last_error])
     end
 
-    for action <- [:observe_change, :observe] do
+    update :resume do
+      accept([:next_poll_at])
+      change(set_attribute(:enabled, true))
+      change(filter(expr(enabled == false and lifecycle == "closed")))
+    end
+
+    for action <- [:observe_change, :observe, :observe_terminal] do
       update action do
         accept([
           :attempt_id,
@@ -51,6 +57,10 @@ defmodule Agentboard.Delivery.PollState do
           :snapshot_id,
           :lifecycle
         ])
+
+        if action == :observe_terminal do
+          change(set_attribute(:enabled, false))
+        end
 
         argument(:expected_generation, :integer, allow_nil?: false)
         argument(:expected_attempt_id, :uuid, allow_nil?: false)

@@ -11,14 +11,25 @@ defmodule Agentboard.Delivery.Polling do
   # Caller holds this canonical PR's lock in the inventory transaction.
   # Idempotent for the PR being persisted. A schema-7 writer can add inventory
   # without PollState; current-link catch-up does not cover cleared task URLs.
-  def enroll(id, stamp, actor) do
-    if is_nil(Ash.get!(PollState, id, not_found_error?: false)) do
-      Operations.create(
-        PollState,
-        :enroll,
-        %{id: id, registered_at: stamp, next_poll_at: stamp},
-        actor
-      )
+  def enroll(id, stamp, actor, linked? \\ false) do
+    Repo.statement!("SELECT id FROM delivery_poll_states WHERE id=$1 FOR UPDATE", [id])
+    state = Ash.get!(PollState, id, not_found_error?: false)
+
+    cond do
+      is_nil(state) ->
+        Operations.create(
+          PollState,
+          :enroll,
+          %{id: id, registered_at: stamp, next_poll_at: stamp},
+          actor
+        )
+
+      not state.enabled and state.lifecycle == "closed" and
+          (linked? or DateTime.compare(state.next_poll_at, stamp) != :gt) ->
+        Operations.update(state, :resume, %{next_poll_at: stamp}, actor)
+
+      true ->
+        state
     end
   end
 
@@ -143,7 +154,14 @@ defmodule Agentboard.Delivery.Polling do
             state.ci_state != result.ci_state or state.lifecycle != result.lifecycle or
             state.last_error != policy_error
 
-        action = if changed?, do: :observe_change, else: :observe
+        terminal? = result.lifecycle in ["merged", "closed"]
+
+        action =
+          cond do
+            terminal? -> :observe_terminal
+            changed? -> :observe_change
+            true -> :observe
+          end
 
         projection =
           Operations.update(
@@ -161,7 +179,7 @@ defmodule Agentboard.Delivery.Polling do
               last_error: policy_error,
               attempt_id: nil,
               lease_expires_at: nil,
-              next_poll_at: DateTime.add(stamp, 60)
+              next_poll_at: DateTime.add(stamp, cadence(result, changed?))
             },
             @actor
           )
@@ -172,6 +190,20 @@ defmodule Agentboard.Delivery.Polling do
     else
       {:error, "disabled", "PR observation is disabled"}
     end
+  end
+
+  # Closed PRs get one metadata-only reopen check per hour; merged PRs stay
+  # disabled. Stable non-pending evidence is sampled every ten minutes.
+  defp cadence(%{lifecycle: lifecycle}, _) when lifecycle in ["merged", "closed"], do: 3600
+
+  defp cadence(result, changed?) do
+    pending? =
+      Enum.any?(result.payload["attempts"] || [], fn attempt ->
+        Map.get(attempt, :latest, attempt["latest"]) == true and
+          Map.get(attempt, :status, attempt["status"]) != "completed"
+      end)
+
+    if changed? or result.ci_state == "pending" or pending?, do: 60, else: 600
   end
 
   defp assert_reservation!(state, attempt_id, generation, stamp) do
