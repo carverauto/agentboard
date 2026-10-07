@@ -63,7 +63,8 @@ let session = 'invented-claude-new';
 let surfaces = [];
 let surfacesError = false;
 let idCalls = 0; let failIdCall = -1;
-const engine = { env: { get: async name => env[name] }, session: { id: async () => { if (++idCalls === failIdCall) { failIdCall = -1; throw new Error('invented id failure'); } return session; }, surfaces: async () => { if (surfacesError) throw new Error('invented surfaces unavailable'); return surfaces; } }, http: { fetch } };
+let holdSurfaces = null;
+const engine = { env: { get: async name => env[name] }, session: { id: async () => { if (++idCalls === failIdCall) { failIdCall = -1; throw new Error('invented id failure'); } return session; }, surfaces: async () => { if (surfacesError) throw new Error('invented surfaces unavailable'); if (holdSurfaces) { const held = holdSurfaces; holdSurfaces = null; await held; } return surfaces; } }, http: { fetch } };
 function hooksCall(route, body) {
   return fetch('http://agentboard-native' + route, { socketPath: socket + '.hooks', method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
 }
@@ -333,6 +334,25 @@ try {
   id = identity(); state(id);
   assert.equal((await native(id,'submit',batch('bindthrow'))).outcome,'submitted');
   assert.ok((await event('prompt.submit', original)).context[1].includes('"attempt_id":"bindthrow"'));
+  session = 'invented-stale-surfaces-old';
+  await event('session.start', {isInteractive:false});
+  const staleOld = identity(); state(staleOld);
+  assert.equal((await native(staleOld,'submit',batch('staleold'))).outcome,'submitted');
+  let releaseSurfaces;
+  holdSurfaces = new Promise(resolve => { releaseSurfaces = resolve; });
+  const stalePrompt = event('prompt.submit', original);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  session = 'invented-stale-surfaces-new';
+  await event('session.start', {isInteractive:false});
+  id = identity(); state(id);
+  assert.equal((await native(id,'submit',batch('stalenew'))).outcome,'submitted');
+  releaseSurfaces();
+  holdSurfaces = null;
+  assert.deepEqual(await stalePrompt, original, 'stale surface result must not touch the replacement');
+  assert.equal((await native(staleOld,'submit',batch('staleold-again'))).outcome,'not_submitted');
+  const staleNewDelivered = await event('prompt.submit', original);
+  assert.equal(staleNewDelivered.context.length, 2);
+  assert.ok(staleNewDelivered.context[1].includes('"attempt_id":"stalenew"'));
   const allCalls = fs.readFileSync(callsFile, 'utf8').trim().split('\n').map(JSON.parse);
   assert.equal(allCalls.filter(args => args[1] === 'ack').length, 1);
   assert.ok((await rpc('tools/list')).result.tools.some(t=>t.name==='agentboard_ack'));
