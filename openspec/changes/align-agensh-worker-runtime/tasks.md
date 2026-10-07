@@ -1,12 +1,12 @@
 # Tasks
 
-All boxes describe future implementation. Each group lands its own focused acceptance and documentation. Remote-only builds/tests use `./scripts/bazel` (injects `--config=remote`); new acceptance targets belong alongside the packaged API/CLI fixtures in `build/integration/`. Each PR starts from freshly fetched main.
+Unchecked boxes describe remaining implementation. Each group lands its own focused acceptance and documentation. Remote-only builds/tests use `./scripts/bazel` (injects `--config=remote`); new acceptance targets belong alongside the packaged API/CLI fixtures in `build/integration/`. Each PR starts from freshly fetched main.
 
 The **first release gate is group 3**, an actual failed PR returning to its responsible running worker. Groups 4–8 must not delay that release. Existing Ash/CI tasks remain authoritative for provider truth, diagnostics and completion gates; completing a subset here does not mark their larger tasks complete without all required evidence.
 
 ## 1. Server observes CI after the owner moves on
 
-- [ ] 1.1 Extend `Agentboard.Delivery` with due-PR reservation/generation and additive observation state (existing Ash/CI 1.3, 4.2–4.4); verify fresh/repeat/schema-7 upgrade preservation and two concurrent poll reservations remotely, and document the observation cutoff/default-off switch.
+- [x] 1.1 Extend `Agentboard.Delivery` with due-PR reservation/generation and additive observation state (existing Ash/CI 1.3, 4.2–4.4); verify fresh/repeat/schema-7 upgrade preservation and two concurrent poll reservations remotely, and document the observation cutoff/default-off switch.
 - [ ] 1.2 Add independent bounded AshOban due scheduling and immediate PR-link scheduling (existing 4.2); verify restart, archived/terminal links, previously green open PRs, disabled queued jobs and shared per-provider budgets remotely, and document actual poll/backoff bounds.
 - [ ] 1.3 Implement current-head GitHub metadata/check/status pagination and latest-attempt observation (existing 5.1–5.3); verify old-head failure, superseded attempts, equal-time ordering, partial pages, auth failure and 429 remotely with controlled provider fixtures, and retain failed-job source links.
 - [ ] 1.4 Add confirmed-failure episode and one canonical responsible-agent repair obligation (existing 7.1, 7.3); verify repeated/concurrent polls, unknown/conflicting attribution, changed current-task pointer, explicit handoff and recurrence remotely, and document notification versus repair resolution.
@@ -63,3 +63,21 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 - [ ] 8.1 Run remote packaged API/CLI acceptance covering legacy board/context/document/watch contracts, additive upgrades, multi-replica routing, shared budgets and independent provider/session failures; record exact BuildBuddy invocations and report any unsupported live adapter as untested.
 - [ ] 8.2 Complete the remaining CI provider policy, BuildBuddy diagnostics and completion-guard gates through `adopt-ash-and-monitor-pr-ci`; prove no false green/early completion and available/degraded evidence, without replacing its task checklist with notification success.
 - [ ] 8.3 Update architecture and portable proposal artifacts for implemented behavior, upload/link immutable versions and verify live sandbox rendering; record final mode, image/CLI digests, enrollment capability matrix and a tested no-data-loss rollback before marking the whole runtime change complete.
+
+## Reservation foundation evidence
+
+Task 1.1 adds a mutable Ash PollState, atomic submission enrollment, bounded
+120-second per-PR reservations, generations/attempt UUIDs and fenced persistent
+failure backoff, with observation default-off. [Remote polling/inventory/discovery
+proof](https://carverauto.buildbuddy.io/invocation/dfa54af4-ad05-40dd-9d9c-f71c1e42360c)
+passed those three targets; that first run's additional schema target failed on
+an omitted BM25 extension in the new upgrade fixture. After correcting the
+fixture, [fresh/repeat/schema-4/schema-7 migration proof](https://carverauto.buildbuddy.io/invocation/b99cbebd-2f59-460a-bff4-6bfd125a4609)
+passed. See [stage contracts](../../../docs/ci-polling.md).
+
+There is no due scheduler, GitHub CI collector, failure obligation, worker
+connector or automatic reminder in this stage. Existing Ash/CI tasks 1.3 and
+4.2–4.4 remain open because this implements only their reservation subset.
+The first release gate and the remaining 35 runtime tasks remain open.
+
+After remote formatting, [full 17-target acceptance](https://carverauto.buildbuddy.io/invocation/9f599f54-8769-466d-8de4-1e88b8fe7368) passed (12 executed, five unchanged cached targets). Archify foundation: 9/9 showcase checks, zero errors/warnings, all four desktop containment measurements, and separate light/dark image review. No live runtime or provider result is implied.

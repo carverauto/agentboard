@@ -13,7 +13,7 @@ export PHX_SERVER=false
 
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 7 ]]
+[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 8 ]]
 
 fixture_psql "INSERT INTO agents (id, name, model, harness) VALUES ('worker','Worker','model-1','codex')" >/dev/null
 fixture_psql "INSERT INTO tasks (id, title) VALUES ('sample','Sample')" >/dev/null
@@ -55,8 +55,34 @@ INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html
 CREATE EXTENSION pg_textsearch VERSION '1.5.1';" >/dev/null
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 7 ]]
+[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 8 ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM task_events WHERE task_id='retained-task'")" == 1 ]]
 [[ "$(upgrade_psql "SELECT html FROM task_documents WHERE task_id='retained-task'")" == '<!doctype html><p>Retained</p>' ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM pg_indexes WHERE indexname='context_entries_bm25'")" == 1 ]]
 echo 'Schema-4 upgrade and repeated migration preserve task history and document bytes.'
+
+# Upgrade actual schema 7 with immutable PR inventory and existing history.
+"$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_inventory_upgrade
+export DATABASE_NAME=agentboard_inventory_upgrade
+PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=$DATABASE_NAME user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION pg_textsearch VERSION '1.5.1'" >/dev/null
+"$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261006001000) end)'
+inventory_psql() {
+  PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=agentboard_inventory_upgrade user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -Atc "$1"
+}
+[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 7 ]]
+inventory_psql "INSERT INTO agents(id,name,model,harness) VALUES ('retained','Retained worker','model','codex');
+INSERT INTO tasks(id,title,status,pr_url) VALUES ('retained-task','Retained task','done','https://github.com/fixture/repo/pull/101');
+INSERT INTO task_events(task_id,actor_id,model,harness,kind,new_revision) VALUES ('retained-task','retained','model','codex','created',1);
+INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html,digest) VALUES ('retained-task','retained','model','codex','archify','Retained diagram','<!doctype html><p>Retained</p>',repeat('c',64));
+INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES (repeat('d',64),'fixture','repo','101','https://github.com/fixture/repo/pull/101',clock_timestamp());
+INSERT INTO delivery_task_links(task_id,pull_request_id,submitted_by_id,model,harness,source_event_id,attribution,linked_at,recorded_at) SELECT 'retained-task',repeat('d',64),'retained','model','codex',id,'submission',created_at,clock_timestamp() FROM task_events;
+INSERT INTO delivery_pull_requests_versions(id,version_source_id,version_action_type,version_action_name,changes,provenance,version_inserted_at,version_updated_at) VALUES (gen_random_uuid(),repeat('d',64),'create','record','{}','{}',clock_timestamp(),clock_timestamp());" >/dev/null
+history_query="SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM task_events t),'documents',(SELECT jsonb_agg(t ORDER BY id) FROM task_documents t),'prs',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests t),'links',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_task_links t),'versions',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests_versions t),'audit',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t))"
+before_inventory="$(inventory_psql "$history_query")"
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 8 ]]
+[[ "$(inventory_psql "$history_query")" == "$before_inventory" ]]
+[[ "$(inventory_psql "SELECT ci_state||','||generation||','||(head_sha IS NULL)||','||(observed_at IS NULL)||','||(attempt_id IS NULL)||','||(next_poll_at <= clock_timestamp()) FROM delivery_poll_states")" == 'unknown,0,true,true,true,true' ]]
+[[ "$(inventory_psql 'SELECT count(*) FROM delivery_poll_states_versions')" == 0 ]]
+echo 'Schema-7 upgrade/repeat retains inventory/history bytes and initializes one due, unknown poll state.'

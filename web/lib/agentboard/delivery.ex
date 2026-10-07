@@ -10,9 +10,15 @@ defmodule Agentboard.Delivery do
     resource(Agentboard.Delivery.PullRequest)
     resource(Agentboard.Delivery.TaskLink)
     resource(Agentboard.Delivery.Discovery)
+    resource(Agentboard.Delivery.PollState)
   end
 
   def discover(after_id \\ nil, limit \\ 100),
     do: Agentboard.Delivery.Inventory.discover(after_id, limit)
+
+  defdelegate reserve_due(limit \\ 20), to: Agentboard.Delivery.Polling
+
+  defdelegate defer_poll(id, attempt_id, generation, delay_seconds, reason),
+    to: Agentboard.Delivery.Polling
 end
 

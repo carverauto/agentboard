@@ -165,3 +165,20 @@ Historical submitting model/harness values are copied exactly, including
 whitespace; normalization is never evidence of a different agent identity.
 This fixes the initial inventory resource's inherited Ash string trimming
 without rewriting previously retained immutable links.
+
+## Schema 8: poll reservation foundation
+
+Migrate and serve the same immutable schema-8 release. The additive PollState
+and enrollment-version tables preserve schema-7 submission inventory, legacy
+IDs, task history and HTML bytes. Existing canonical PRs start due and unknown
+at the migration timestamp; runtime enrollment audits start with new writes.
+Observation defaults off through `AGENTBOARD_PR_OBSERVATION_ENABLED`, separate
+from inventory catch-up. This stage supplies internal bounded reservation and
+failure-backoff actions only; it installs no provider scheduler, CI verdict,
+repair task or session notification. Keep the switch off until later acceptance.
+
+Retain the additive schema during an image rollback. Old schema-7 writers do
+not enroll polling rows; the later scheduler must reconcile all missing
+canonical inventory before re-enabling observation. Full cutoff/concurrency
+and rollback contracts are in [PR polling foundation](ci-polling.md), with
+[the implemented architecture](architecture/pr-polling-foundation.html).

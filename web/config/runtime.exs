@@ -7,6 +7,11 @@ config :agentboard,
        :pr_discovery_enabled,
        System.get_env("AGENTBOARD_PR_DISCOVERY_ENABLED", "false") in ["true", "1"]
 
+# Separate from inventory catch-up. No provider scheduler is installed yet.
+config :agentboard,
+       :pr_observation_enabled,
+       System.get_env("AGENTBOARD_PR_OBSERVATION_ENABLED", "false") in ["true", "1"]
+
 config :agentboard, :rate_limits,
   ip: String.to_integer(System.get_env("API_RATE_LIMIT_IP", "120")),
   agent: String.to_integer(System.get_env("API_RATE_LIMIT_AGENT", "60")),
