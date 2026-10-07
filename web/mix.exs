@@ -17,7 +17,7 @@ defmodule Agentboard.MixProject do
   end
 
   def application do
-    [mod: {Agentboard.Application, []}, extra_applications: [:logger, :runtime_tools]]
+    [mod: {Agentboard.Application, []}, extra_applications: [:logger, :runtime_tools, :inets, :ssl]]
   end
 
   # Runs in the remote release assembler for both Bazel and Docker. Phoenix owns

@@ -7,7 +7,8 @@ config :agentboard,
     Agentboard.Evidence,
     Agentboard.Delivery,
     Agentboard.Housekeeping,
-    Agentboard.Context
+    Agentboard.Context,
+    Agentboard.Mattermost
   ]
 
 config :ash,

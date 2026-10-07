@@ -17,7 +17,9 @@ defmodule Agentboard.Application do
            housekeeping: 1,
            delivery_discovery: [limit: 1, paused: not discovery_enabled?()],
            delivery_scheduler: [limit: 1, paused: not observation_enabled?()],
-           delivery_polling: [limit: 4, paused: not observation_enabled?()]
+           delivery_polling: [limit: 4, paused: not observation_enabled?()],
+           mattermost_router: [limit: 1, paused: not bridge_enabled?()],
+           mattermost_sender: [limit: 2, paused: not bridge_enabled?()]
          ],
          plugins: [Oban.Plugins.Cron, Oban.Plugins.Pruner]
        )},
@@ -31,8 +33,11 @@ defmodule Agentboard.Application do
 
   defp observation_enabled?, do: Agentboard.Delivery.Scheduling.enabled?()
 
+  defp bridge_enabled?, do: Agentboard.Mattermost.Bridge.enabled?()
+
   defp worker_config(options) do
-    config = AshOban.config([Agentboard.Housekeeping, Agentboard.Delivery], options)
+    config =
+      AshOban.config([Agentboard.Housekeeping, Agentboard.Delivery, Agentboard.Mattermost], options)
 
     plugins =
       Enum.map(config[:plugins], fn
@@ -41,6 +46,7 @@ defmodule Agentboard.Application do
             Enum.reject(opts[:crontab] || [], fn
               {_, Agentboard.Delivery.ReconcileLinks, _} -> not discovery_enabled?()
               {_, Agentboard.Delivery.ScheduleDue, _} -> not observation_enabled?()
+              {_, Agentboard.Mattermost.RoutePending, _} -> not bridge_enabled?()
               _ -> false
             end)
 

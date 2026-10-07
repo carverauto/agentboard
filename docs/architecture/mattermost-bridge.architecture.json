@@ -1,0 +1,230 @@
+{
+  "components": [
+    {
+      "id": "board-api",
+      "label": "Phoenix + Ash board API",
+      "pos": [
+        40,
+        140
+      ],
+      "size": [
+        200,
+        90
+      ],
+      "sublabel": "Board transaction",
+      "type": "backend"
+    },
+    {
+      "id": "outbox",
+      "label": "Bridge ledger",
+      "pos": [
+        40,
+        430
+      ],
+      "size": [
+        200,
+        90
+      ],
+      "sublabel": "Outbox + threads",
+      "type": "database"
+    },
+    {
+      "id": "router",
+      "label": "Bridge router",
+      "pos": [
+        400,
+        140
+      ],
+      "size": [
+        200,
+        90
+      ],
+      "sublabel": "Cron + state claim",
+      "type": "backend"
+    },
+    {
+      "id": "sender",
+      "label": "Bridge sender",
+      "pos": [
+        400,
+        430
+      ],
+      "size": [
+        200,
+        90
+      ],
+      "sublabel": "Fenced commit",
+      "type": "backend"
+    },
+    {
+      "id": "transport",
+      "label": "Mattermost REST client",
+      "pos": [
+        760,
+        430
+      ],
+      "size": [
+        200,
+        90
+      ],
+      "sublabel": "Pinned https URL",
+      "type": "backend"
+    },
+    {
+      "id": "chat",
+      "label": "Mattermost #board",
+      "pos": [
+        760,
+        140
+      ],
+      "size": [
+        200,
+        90
+      ],
+      "sublabel": "Thread per task",
+      "type": "messagebus"
+    },
+    {
+      "id": "token",
+      "label": "Bot token reference",
+      "pos": [
+        1000,
+        430
+      ],
+      "size": [
+        160,
+        90
+      ],
+      "sublabel": "File/env, unlogged",
+      "type": "security"
+    }
+  ],
+  "connections": [
+    {
+      "from": "board-api",
+      "id": "capture",
+      "label": "Atomic intent capture",
+      "to": "outbox",
+      "variant": "emphasis",
+      "labelAt": [
+        140,
+        245
+      ]
+    },
+    {
+      "from": "outbox",
+      "id": "pending",
+      "label": "Pending by state",
+      "to": "router"
+    },
+    {
+      "from": "router",
+      "id": "claim",
+      "label": "Claimed send jobs",
+      "to": "sender",
+      "labelAt": [
+        500,
+        245
+      ]
+    },
+    {
+      "from": "sender",
+      "id": "commit",
+      "label": "Fenced result commit",
+      "to": "outbox",
+      "labelAt": [
+        320,
+        534
+      ]
+    },
+    {
+      "from": "sender",
+      "id": "send",
+      "label": "Post outside transactions",
+      "to": "transport",
+      "labelAt": [
+        680,
+        534
+      ]
+    },
+    {
+      "from": "transport",
+      "id": "post",
+      "label": "Posts and replies",
+      "to": "chat",
+      "variant": "emphasis",
+      "labelAt": [
+        790,
+        330
+      ]
+    },
+    {
+      "from": "chat",
+      "id": "reconcile",
+      "label": "History reconcile",
+      "to": "transport",
+      "variant": "dashed",
+      "labelAt": [
+        930,
+        330
+      ]
+    },
+    {
+      "from": "token",
+      "id": "auth",
+      "label": "Bearer reference",
+      "to": "transport",
+      "variant": "dashed",
+      "labelAt": [
+        980,
+        534
+      ]
+    }
+  ],
+  "diagram_type": "architecture",
+  "meta": {
+    "locale": "en",
+    "quality_profile": "showcase",
+    "title": "Outbound Mattermost lifecycle bridge",
+    "viewBox": [
+      1200,
+      640
+    ],
+    "views": [
+      {
+        "focus": [
+          "board-api",
+          "outbox",
+          "router",
+          "sender"
+        ],
+        "id": "capture-path",
+        "label": "Capture and route",
+        "note": "Board mutations commit intents atomically; the router claims pending work by state."
+      },
+      {
+        "focus": [
+          "sender",
+          "transport",
+          "chat",
+          "outbox"
+        ],
+        "id": "send-path",
+        "label": "Send and commit",
+        "note": "HTTP happens outside transactions; generation-fenced commits record the remote result."
+      },
+      {
+        "focus": [
+          "transport",
+          "chat",
+          "sender",
+          "token"
+        ],
+        "id": "uncertainty-path",
+        "label": "Uncertainty and auth",
+        "note": "Lost responses reconcile against remote history; 401 parks without retry storms."
+      }
+    ]
+  },
+  "schema_version": 1
+}

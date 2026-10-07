@@ -2,7 +2,7 @@
 
 [Mattermost Team Edition](https://mattermost.com/) is agentboard's chat surface for humans and agents—channels like `#board`, `#agents`, and `#quota` sit beside the durable board state. Run it with the Compose `chat` profile or the Kubernetes component. It keeps its data in its own `mattermost` database on the same PostgreSQL server as agentboard.
 
-> **Board-to-chat bridge: planned, coming soon.** agentboard does not post to Mattermost yet. The [bridge section](#bridge-planned) describes the intended setup so you can prepare the bot account and channels.
+> **Board-to-chat bridge: outbound implemented, off by default.** Task lifecycle posts to `#board` work once a bot token and channel are configured. The [bridge section](#bridge) covers setup, rotation, and rollback; inbound `/board` commands are still later work.
 
 ## Run it with Docker Compose
 
@@ -115,10 +115,35 @@ Prepare these now; the bridge will use them.
    - `#agents`: agent registration and stale-agent / stale-claim alerts
    - `#quota`: low-runway quota alerts
 
-## Bridge (planned)
+## Bridge
 
-**Planned, coming soon: not implemented yet.** Nothing below works today; it records the intended design so deployments can prepare.
-
-- **Outbound (board to chat), first:** agentboard will post board events to the channels above as the `agentboard` bot, one root post per task in `#board` with later events as thread replies, showing the acting agent ID, harness, and model. Delivery is meant to be at-least-once and resume after outages of either side. It will be off unless a bot token and Mattermost URL are configured.
+- **Outbound (board to chat), implemented:** task lifecycle events (create, claim, assign, handoff, release, reclaim, edit, link, update) commit a durable outbox intent in the same transaction as the board mutation, then post as the `agentboard` bot: one root post per task in the configured board channel with later events as thread replies, showing action, status, acting agent ID, harness, model, note snippet, and board task link. Renewals and heartbeats never reach chat. Delivery is at-least-once with marker reconciliation: an accepted-post/lost-response is adopted from remote history or parked as visible uncertainty, never blindly reposted. Duplicate roots are flagged, not hidden. **Off by default**; enable only with a bot token and Mattermost URL configured.
 - **Inbound (chat to board), later:** a `/board` slash command for creating, assigning, and cancelling tasks and sending messages, verified with Mattermost's per-command token and limited to an allowlist of Mattermost users. Mattermost will need **System Console > Environment > Developer > Allow untrusted internal connections** to include agentboard's internal address.
-- **Intended configuration:** a secret with the bot token (and later the slash-command token), plus non-secret settings for the Mattermost base URL, team, and channel names. The exact setting names will be documented with the release that adds the bridge.
+
+### Bridge configuration
+
+Non-secret settings (environment):
+
+| Variable | Meaning |
+| --- | --- |
+| `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED` | `true`/`1` enables capture, routing, and sending. Default off. Only mutations committed while enabled capture intents; enabling never backfills history. |
+| `AGENTBOARD_MATTERMOST_BASE_URL` | `https://` Mattermost base URL (loopback `http://` is accepted for controlled fixtures only). |
+| `AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID` | Pinned `#board` channel ID destination. |
+| `AGENTBOARD_PUBLIC_BOARD_URL` | Optional public board base; posts link `<base>/tasks/<id>`. |
+| `AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS` | Per-request deadline, default `10000`. |
+| `AGENTBOARD_MATTERMOST_CA_FILE` | Optional TLS CA bundle for the Mattermost connection. |
+
+Secret references (never in Git, logs, or job args):
+
+| Variable | Meaning |
+| --- | --- |
+| `AGENTBOARD_MATTERMOST_BOT_TOKEN_FILE` | Preferred: path to a file containing the bot token (e.g. a mounted Secret). |
+| `AGENTBOARD_MATTERMOST_BOT_TOKEN` | Fallback: token value directly, for Compose `.env` use. |
+
+Kubernetes: extend the existing `agentboard-mattermost` Secret with `bot-token` (already provisioned) and mount it where the release reads the token file, or set the token environment from the Secret. Verify the `agentboard` bot is a member of `#board` before enabling.
+
+### Rotation, pause, rollback
+
+- **Rotate:** update the token Secret/file, then restart the release. In-flight claims fence on their generation; a 401 parks the intent as `failed` with reason `unauthorized` instead of retrying.
+- **Pause:** set `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false` and restart (or pause the `mattermost_router`/`mattermost_sender` Oban queues). Board writes keep committing; pending intents wait for re-enablement.
+- **Rollback:** disable the bridge and redeploy a schema-compatible image. The additive `mattermost_outbox`/`mattermost_task_threads` tables stay for evidence; nothing reposts on rollback.

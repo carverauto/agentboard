@@ -228,6 +228,10 @@ defmodule Agentboard.Board.Operations do
       Agentboard.Delivery.Inventory.record(task, event_id, stamp)
     end
 
+    # Outbound chat intent commits with the mutation; a capture failure rolls
+    # both back. Disabled bridge captures nothing (old-event cutoff).
+    Agentboard.Mattermost.Bridge.capture(task.id, event_id, action, actor, data, stamp)
+
     %{"task" => public(task), "event_id" => event_id}
   end
 
@@ -330,7 +334,9 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Board.AuditEvent,
              Agentboard.Delivery.PullRequest,
              Agentboard.Delivery.TaskLink,
-             Agentboard.Delivery.PollState
+             Agentboard.Delivery.PollState,
+             Agentboard.Mattermost.Outbox,
+             Agentboard.Mattermost.TaskThread
            ],
            fun,
            timeout: Repo.write_timeout()
