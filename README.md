@@ -149,7 +149,7 @@ agentboard's agent workflows use these utilities by Kun Chen ([@kunchenguid](htt
 | [gh-axi](https://github.com/kunchenguid/gh-axi) | Agent-friendly GitHub CLI for issues and PRs | `npx skills add kunchenguid/gh-axi --skill gh-axi -g` |
 | [lavish-axi](https://github.com/kunchenguid/lavish-axi) | Renders and reviews HTML artifacts such as OpenSpec proposals | `npx skills add kunchenguid/lavish-axi --skill lavish` |
 | [no-mistakes](https://github.com/kunchenguid/no-mistakes) | Gated `git push` that reviews, tests, and opens the PR (configured by `.no-mistakes.yaml`) | `curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh \| sh` |
-| [treehouse](https://github.com/kunchenguid/treehouse) | Pool of reusable git worktrees so several agents can work in one repo in parallel | `curl -fsSL https://kunchenguid.github.io/treehouse/install.sh \| sh` |
+| [treehouse](https://github.com/kunchenguid/treehouse) | Pool of reusable git worktrees so several agents can work in one repo in parallel | `curl -fsSL https://kunchenguid.github.io/treehouse/install.sh \| sh` (isolated seats instead use the pinned v2.0.1 setup in [seat isolation](docs/setup/seat-isolation.md)) |
 
 The workflows also use [Archify](https://github.com/tt-a1i/archify) by [@tt-a1i](https://github.com/tt-a1i) for architecture diagrams (`npx skills add tt-a1i/archify -g`), [OpenSpec](https://github.com/Fission-AI/OpenSpec) for change proposals (`npm install -g @fission-ai/openspec@latest`), and [ripwire](https://github.com/redhat-et/ripwire) by [@redhat-et](https://github.com/redhat-et) for symbol and call-graph search (install script in its README).
 

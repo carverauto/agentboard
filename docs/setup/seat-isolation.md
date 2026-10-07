@@ -44,9 +44,12 @@ Treehouse chooses the default branch tip for acquisition. Inspect the acquired
 base against freshly fetched `origin/main` before starting a new feature branch;
 do not reuse a stale task or overwrite another seat's work.
 
-The launcher requires two consecutive checks of the physical cwd and Git root,
-rejects the primary/spawning checkout, subdirectories, unrelated repositories and
-unregistered worktrees, then writes a private brief inside `.agentboard-seat/`.
+The launcher refuses inherited `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR` or
+`GIT_INDEX_FILE` before anything else; unset them and retry. It then requires
+two consecutive checks of the physical cwd and Git root, rejects the
+primary/spawning checkout, subdirectories, unrelated repositories and
+unregistered worktrees, then writes a private brief inside `.agentboard-seat/`
+(directory mode 0700, brief file mode 0600, symlinks and redirected paths rejected).
 It checks again immediately before starting the harness with that exact cwd.
 The child inherits `AGENTBOARD_SEAT_WORKTREE`, `AGENTBOARD_SEAT_SOURCE` and
 `AGENTBOARD_SEAT_BRIEF`. A successful launch does not prove the model followed the
