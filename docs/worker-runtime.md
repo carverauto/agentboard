@@ -185,3 +185,7 @@ not stop a running process. Protected config, credentials, journals, backups and
 pending server obligations remain. Foreign or edited integration files cause
 refusal. Global production services and existing sessions are never activated by
 skill installation or by the default install preview.
+
+The subsequent opt-in [Claude native adapter](worker-claude-adapter.md) supports
+generation-fenced prompt and dedicated check-in boundaries. Its idle wake remains
+unsupported; readiness is per worker and surface.

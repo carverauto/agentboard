@@ -28,7 +28,7 @@ type Probe struct {
 
 func AdapterCall(ctx context.Context, b Binding, action string, batch *Batch) (Probe, error) {
 	var p Probe
-	if b.Adapter != AdapterVersion {
+	if b.Adapter != AdapterVersion && b.Adapter != ClaudeAdapterVersion {
 		return p, errors.New("automatic adapter unsupported; use explicit check-in")
 	}
 	if err := PrivateDir(filepath.Dir(b.Socket)); err != nil {
@@ -59,7 +59,7 @@ func AdapterCall(ctx context.Context, b Binding, action string, batch *Batch) (P
 	if json.NewDecoder(io.LimitReader(conn, 64<<10)).Decode(&p) != nil {
 		return p, errors.New("native submission outcome uncertain")
 	}
-	if p.Protocol != Protocol || p.Version != AdapterVersion || p.Session != b.Session || p.Generation != b.Generation {
+	if p.Protocol != Protocol || p.Version != b.Adapter || p.Session != b.Session || p.Generation != b.Generation {
 		return p, errors.New("native identity changed; verified rebind required")
 	}
 	return p, nil

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Volumes/Build/.treehouse/agentboard-115218/10/agentboard/docs/architecture/claude-native.architecture.json",
+  "output": "/Volumes/Build/.treehouse/agentboard-115218/10/agentboard/docs/architecture/claude-native.html",
+  "specification": {
+    "sha256": "b85d614df0b70057dfa6ba15409834cac7ede620764c0665a15a740c6b3142bc",
+    "bytes": 2346
+  },
+  "artifact": {
+    "sha256": "4c00d17d9f6795716aef8b211f51dc3534212c06fa07792b85942e9e14ac6b4b",
+    "bytes": 707375
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

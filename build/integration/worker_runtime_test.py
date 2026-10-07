@@ -156,7 +156,7 @@ class Fixture:
                         if fixture.outcomes.get(current_name) == 'hang': fixture.release.wait(8)
                         outcome = fixture.outcomes.get(current_name, 'submitted')
                     elif request['action'] == 'reconcile': outcome = 'uncertain' if fixture.outcomes.get(current_name) == 'lost-response' else 'submitted'
-                    value = dict(protocol=1, adapter_version='pi-native-v1', session_id=current['session_id'], generation=current['adapter_generation'], state=fixture.adapter_states[current_name], outcome=outcome, capabilities={c: {'supported': True, 'reason': 'invented adapter fixture'} for c in ['idle_wake','turn_start','tool_return','receipt','recovery']})
+                    value = dict(protocol=1, adapter_version=current['adapter'], session_id=current['session_id'], generation=current['adapter_generation'], state=fixture.adapter_states[current_name], outcome=outcome, capabilities={c: {'supported': c != 'idle_wake' or current['adapter'] == 'pi-native-v1', 'reason': 'invented adapter fixture'} for c in ['idle_wake','turn_start','tool_return','receipt','recovery']})
                     with contextlib.suppress(BrokenPipeError): self.wfile.write((json.dumps(value)+'\n').encode())
             adapter = socketserver.ThreadingUnixStreamServer(str(sock), Native)
             adapter.daemon_threads = True
@@ -198,6 +198,19 @@ class WorkerRuntime(unittest.TestCase):
         self.temp.cleanup()
     def fixture(self, names=('worker-a',)):
         f = Fixture(self.root, names); self.fixtures.append(f); return f
+
+    def test_claude_boundary_only_adapter_is_verified_through_public_cli(self):
+        f = self.fixture()
+        f.bindings[0].update(adapter='claude-hook-v1', harness='claude')
+        protected(f.config_path, f.config)
+        proof = f.run('doctor')
+        self.assertEqual(proof['adapter']['adapter_version'], 'claude-hook-v1')
+        self.assertFalse(proof['adapter']['capabilities']['idle_wake']['supported'])
+        process = f.serve()
+        until(lambda: any(p[1] == 'result' for p in f.posts))
+        f.stop(process)
+        self.assertEqual(len(f.submissions), 1)
+        self.assertFalse(any(p[1] == 'receipts' for p in f.posts))
 
     def test_server_supplied_protocol_fixtures_execute_through_public_cli(self):
         directory = pathlib.Path(os.environ['AB_WORKER_CONTRACT'])

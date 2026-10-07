@@ -1,0 +1,83 @@
+{
+  "harness": "claude",
+  "version": "2.1.289",
+  "profile": "isolated-headless-stream-json",
+  "session_id": "5e5fbbcf-2380-4dbb-b755-f70e526de29f",
+  "generation": "3c8e586e-ef26-489f-8432-4ac65623c5d8",
+  "transport": "Claude-supervised MCP child + native mods hook",
+  "native_prompt_source_observed": true,
+  "explicit_receipts": [
+    {
+      "attempt_id": "attempt-1",
+      "binding_epoch": 1,
+      "delivery_ids": [
+        "delivery-1",
+        "delivery-2"
+      ],
+      "dispatch_generation": 1,
+      "idempotency_key": "claude-live-received",
+      "kind": "received",
+      "payload_hash": "7272578f9ac15e5d705b61cf916e3d2ae37dfb26ae975b651fa610376e687c0b"
+    },
+    {
+      "attempt_id": "attempt-1",
+      "binding_epoch": 1,
+      "delivery_ids": [
+        "delivery-1",
+        "delivery-2"
+      ],
+      "dispatch_generation": 1,
+      "idempotency_key": "claude-live-handled",
+      "kind": "handled",
+      "payload_hash": "7272578f9ac15e5d705b61cf916e3d2ae37dfb26ae975b651fa610376e687c0b"
+    }
+  ],
+  "idle_wake_supported": false,
+  "proof_backend": "invented HTTP contract; not published-server interop",
+  "remote_binary_build": "1a465c0f-0ba3-4b2a-8639-e27602fbb9a2",
+  "limitations": [
+    "interactive composer wake unproven",
+    "installed-session /clear proof pending",
+    "real packaged-server interop remains separate"
+  ],
+  "model_requested": "haiku",
+  "models_observed": [
+    "claude-haiku-4-5-20251001"
+  ],
+  "foreign_hooks_preserved": true,
+  "foreign_hook_events": [
+    "SessionStart",
+    "Stop",
+    "Stop",
+    "Stop"
+  ],
+  "plugin_sha256": {
+    "bridge.mjs": "af9e59507476a6414c4c16a40a4df929fa6f3eb0b7b585cd38ec34f963ef609b",
+    "hooks/register.js": "129cff9a2f52fd252894e65bc8f226ebd8a427568edd1f62f449026e2dc75bde",
+    ".mcp.json": "715513785a3c706d6bcdf8a839f7ec9913e01e7e2cf38008db2d527afdcbd600",
+    ".claude-plugin/plugin.json": "10effe1749471d36acb261e1ab69ac7ac3f89e574132139d6043f65d28b9f78d",
+    "hooks/hooks.json": "b6e8720c937b1a4ee1ee389fa5d9b5a22df25298241f701bb484d28f431f5153"
+  },
+  "lifecycle": [
+    {
+      "mode": "resume",
+      "session_id": "5e5fbbcf-2380-4dbb-b755-f70e526de29f",
+      "generation": "c802581d-a8a8-40a7-b111-c219682429af",
+      "old_recipient_rejected": true,
+      "old_attempt_uncertain": true,
+      "stale_config_rejected": true,
+      "fresh_explicit_fixture_binding_verified": true
+    },
+    {
+      "mode": "fork",
+      "session_id": "187ffa59-a2a3-4cfd-911c-0196859c72ce",
+      "generation": "aece71e9-0feb-4a5f-b444-2898789e5fea",
+      "old_recipient_rejected": true,
+      "old_attempt_uncertain": true,
+      "stale_config_rejected": true,
+      "fresh_explicit_fixture_binding_verified": true
+    }
+  ],
+  "native_pause_suppression_observed": true,
+  "native_busy_tool_return_source_observed": true
+}

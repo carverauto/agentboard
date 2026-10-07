@@ -1,0 +1,1 @@
+Reviewed the exact delivered HTML screenshots at 1440×900 light and 2048×1320 dark. The main delivery rail is clear; generation and scoped CLI branches are distinct; labels, cards, legend and navigation remain readable and contained. Automated browser evidence covers all four desktop sizes in both themes. No perceptual issues found in the inspected images.
