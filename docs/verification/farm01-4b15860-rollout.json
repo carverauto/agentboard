@@ -1,0 +1,253 @@
+{
+  "verified_at": "2026-10-07T15:41:21.382877+00:00",
+  "commit": "4b158601cc60a9877312d654a258d2030ce963ca",
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37643460359",
+  "acceptance_targets": 24,
+  "acceptance_scope": "Published source workflow remote acceptance; separate from live rollout checks below.",
+  "registry_proof": {
+    "dashboard": {
+      "ref": "registry.carverauto.dev/agentboard/dashboard:sha-4b158601cc60a9877312d654a258d2030ce963ca",
+      "digest": "sha256:098b466b15f9e30b6d59ee80d7a0074fcfea9a5a9272ceb4a1ce7d827e2f8c92",
+      "verified": true
+    },
+    "cli": {
+      "ref": "registry.carverauto.dev/agentboard/cli:sha-4b158601cc60a9877312d654a258d2030ce963ca",
+      "digest": "sha256:6d1943a18404c97fd84ab6b681f307c87ad710fe7bde3882516b28a44aba8edf",
+      "verified": true
+    }
+  },
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:098b466b15f9e30b6d59ee80d7a0074fcfea9a5a9272ceb4a1ce7d827e2f8c92",
+  "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:a60886cdeb0a296782d29166150a593b64b52a135d5f2c3e7a8c54d98030c815",
+  "migration": {
+    "job": "agentboard-migrate-4b15860",
+    "image": "registry.carverauto.dev/agentboard/dashboard@sha256:098b466b15f9e30b6d59ee80d7a0074fcfea9a5a9272ceb4a1ce7d827e2f8c92",
+    "started_at": "2026-10-07T15:38:47Z",
+    "completed_at": "2026-10-07T15:38:56Z",
+    "succeeded": true,
+    "schema_before": 9,
+    "schema_after": 11,
+    "required_schema": 11,
+    "applied_before_dashboard": true,
+    "expectation_correction": "The initial brief expected schema 10; selected main includes collector migration 20261007000400 (10) and cooperation migration 20261007000500 (11). Coordinator acknowledged schema 11 before rollout."
+  },
+  "writes": {
+    "resources": [
+      "Job/agentboard-migrate-4b15860",
+      "ConfigMap/agentboard-config",
+      "Deployment/agentboard-dashboard"
+    ],
+    "server_side_dry_run_passed": true,
+    "overlay_bulk_apply": false,
+    "prune": false
+  },
+  "dashboard": {
+    "pod": "agentboard-dashboard-75cb7ddf8-rnwkr",
+    "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:098b466b15f9e30b6d59ee80d7a0074fcfea9a5a9272ceb4a1ce7d827e2f8c92",
+    "ready": true,
+    "restarts": 0
+  },
+  "disabled_flags": {
+    "AGENTBOARD_PR_DISCOVERY_ENABLED": "false",
+    "AGENTBOARD_PR_OBSERVATION_ENABLED": "false",
+    "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "false",
+    "AGENTBOARD_COOPERATION_ENABLED": "false"
+  },
+  "pod_flags_verified": true,
+  "inactive_runtime_counts": {
+    "ci_snapshots": 0,
+    "obligations": 0,
+    "worker_subscriptions": 0
+  },
+  "preserved_immutable_prefixes": {
+    "task_events": {
+      "max_id": 686,
+      "count": 670,
+      "digest": "ae6f05f2c06a3fe0d18bea73d0825d21",
+      "retained": true
+    },
+    "task_documents": {
+      "max_id": 74,
+      "count": 42,
+      "digest": "007a0ed3c8a05810788d20da1e8f8db0",
+      "retained": true
+    },
+    "context_entries": {
+      "max_id": 95,
+      "count": 93,
+      "digest": "2c0a2f2f5c8ad24e532fbeea44b20a71",
+      "retained": true
+    }
+  },
+  "cnpg": {
+    "primary": "agentboard-db-2",
+    "ready_instances": 2,
+    "image": "registry.carverauto.dev/agentboard/postgres:18.6-bm25-1.5.1-7c20962@sha256:90ea5695afde3d2d56128baad84bd775b3121cf18d9830974910105aa08e3356",
+    "spec_unchanged": true,
+    "pg_textsearch": "1.5.1"
+  },
+  "http": [
+    {
+      "path": "/health/live",
+      "status": 200,
+      "bytes": 17,
+      "body": {
+        "status": "live"
+      }
+    },
+    {
+      "path": "/health/ready",
+      "status": 200,
+      "bytes": 38,
+      "body": {
+        "status": "ready",
+        "schema_version": 11
+      }
+    },
+    {
+      "path": "/api/v1/meta",
+      "status": 200,
+      "bytes": 66,
+      "body": {
+        "schema_version": 11,
+        "api_version": 1,
+        "required_schema_version": 11
+      }
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "bytes": 1865
+    },
+    {
+      "path": "/prs",
+      "status": 200,
+      "bytes": 9612
+    },
+    {
+      "path": "/agents",
+      "status": 200,
+      "bytes": 1866
+    },
+    {
+      "path": "/quota",
+      "status": 200,
+      "bytes": 1865
+    },
+    {
+      "path": "/context",
+      "status": 200,
+      "bytes": 2526
+    },
+    {
+      "path": "/settings",
+      "status": 200,
+      "bytes": 1893
+    },
+    {
+      "path": "/tasks/agentboard-farm01-4b15860-rollout",
+      "status": 200,
+      "bytes": 1871
+    },
+    {
+      "path": "/documents/73",
+      "status": 200,
+      "bytes": 1034
+    },
+    {
+      "path": "/documents/74",
+      "status": 200,
+      "bytes": 1010
+    },
+    {
+      "path": "/documents/69/download",
+      "status": 200,
+      "bytes": 710953,
+      "sha256": "73e0b643bae26186bbe17ab5f5e34d817b3fa76512bae515363a772fd72558a7",
+      "byte_equal_source": true
+    },
+    {
+      "path": "/documents/73/download",
+      "status": 200,
+      "bytes": 709024,
+      "sha256": "a1d2230e4ac162369ae513fd469b7e025832e2c666550dfbf791736d0e93d661",
+      "byte_equal_source": true
+    },
+    {
+      "path": "/documents/74/download",
+      "status": 200,
+      "bytes": 842575,
+      "sha256": "aa6e42e4bb67dcb7e654fe57ba65288774562562defcb9b0f4a771e4d2f4cdc0",
+      "byte_equal_source": true
+    }
+  ],
+  "mattermost": {
+    "ping": {
+      "ActiveSearchBackend": "database",
+      "AndroidLatestVersion": "",
+      "AndroidMinVersion": "",
+      "IosLatestVersion": "",
+      "IosMinVersion": "",
+      "database_status": "OK",
+      "filestore_status": "OK",
+      "status": "OK"
+    },
+    "storage_observed_after_rollout": {
+      "pvc_uid": "a0e1a256-6380-4992-ab95-144d817cceef",
+      "volume": "pvc-a0e1a256-6380-4992-ab95-144d817cceef",
+      "storage_class": "local-path-cnpg",
+      "phase": "Bound",
+      "pods": [
+        {
+          "name": "mattermost-5d49d5b797-smzl8",
+          "ready": true,
+          "restarts": [
+            0
+          ]
+        }
+      ]
+    },
+    "storage_modified_by_rollout": false
+  },
+  "gateway_watches": [
+    {
+      "name": "tasks",
+      "duration_seconds": 25.19,
+      "snapshots": 5,
+      "valid_ndjson": true,
+      "stderr_empty": true,
+      "exit_code": 0,
+      "cancelled_by": "SIGINT"
+    },
+    {
+      "name": "messages",
+      "duration_seconds": 25.19,
+      "snapshots": 5,
+      "valid_ndjson": true,
+      "stderr_empty": true,
+      "exit_code": 0,
+      "cancelled_by": "SIGINT"
+    },
+    {
+      "name": "quota",
+      "duration_seconds": 25.19,
+      "snapshots": 5,
+      "valid_ndjson": true,
+      "stderr_empty": true,
+      "exit_code": 0,
+      "cancelled_by": "SIGINT"
+    }
+  ],
+  "bm25_search": {
+    "backend": "pg_textsearch-1.5.1",
+    "returned_existing_protocol_entry": true
+  },
+  "limitations": {
+    "browser_interactions_tested": false,
+    "worker_activation": false,
+    "worker_interoperability_tested": false,
+    "mattermost_delivery_tested": false,
+    "rollback_exercised": false,
+    "local_builds": false,
+    "cli_image_installed_by_this_rollout": false
+  }
+}
