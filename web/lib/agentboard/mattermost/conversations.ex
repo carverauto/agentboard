@@ -152,7 +152,6 @@ defmodule Agentboard.Mattermost.Conversations do
         {:error, "conflict", _} -> store_coverage(agent_id, channel_id, last_post_id, version, opts)
         other -> other
       end
-      |> unwrap()
     end
   end
 
