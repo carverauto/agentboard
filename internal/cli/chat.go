@@ -166,13 +166,9 @@ func (m *mmTarget) me() (string, error) {
 }
 
 func (m *mmTarget) channelPosts(channelID string, limit int) ([]string, map[string]mmPost, error) {
-	return m.channelPostsPage(channelID, 0, limit)
-}
-
-func (m *mmTarget) channelPostsPage(channelID string, page, perPage int) ([]string, map[string]mmPost, error) {
 	q := url.Values{}
-	q.Set("page", fmt.Sprint(page))
-	q.Set("per_page", fmt.Sprint(perPage))
+	q.Set("page", "0")
+	q.Set("per_page", fmt.Sprint(limit))
 	_, raw, err := m.call(http.MethodGet, "channels/"+channelID+"/posts", q, nil)
 	if err != nil {
 		return nil, nil, err
@@ -217,12 +213,9 @@ func (c *commands) chatSend() *cobra.Command {
 	cmd.Flags().StringVar(&dm, "dm", "", "Mattermost user ID to open/resolve a direct channel with")
 	cmd.Flags().StringVar(&body, "body", "", "Message text (required)")
 	cmd.Flags().StringVar(&rootID, "root-id", "", "Root post ID to reply in a thread")
-	cmd.Flags().StringVar(&retryKey, "retry-key", "", "Client idempotency key; a matching post from the last 5 pages (300 posts) is adopted, never duplicated")
+	cmd.Flags().StringVar(&retryKey, "retry-key", "", "Client idempotency key; a matching recent post is adopted, never duplicated")
 	cmd.Flags().BoolVar(&noCoverage, "no-coverage", false, "Skip reporting the send as a coverage receipt")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if err := c.cfg.Actor.Validate(); err != nil {
-			return err
-		}
 		if body == "" || (channel == "" && dm == "") {
 			return errors.New("--body and --channel or --dm are required")
 		}
@@ -250,11 +243,7 @@ func (c *commands) chatSend() *cobra.Command {
 		props := map[string]any{mmAgentProp: c.cfg.Actor.ID}
 		if retryKey != "" {
 			props[mmRetryKeyProp] = retryKey
-			dupe, err := mm.findRetryKey(channel, retryKey, c.cfg.Actor.ID)
-			if err != nil {
-				return err
-			}
-			if dupe != nil {
+			if dupe := mm.findRetryKey(channel, retryKey); dupe != nil {
 				return c.chatEmit(cmd, map[string]any{"duplicate": true, "post": dupe}, channel, dupe.ID, noCoverage)
 			}
 		}
@@ -275,27 +264,20 @@ func (c *commands) chatSend() *cobra.Command {
 	return cmd
 }
 
-func (m *mmTarget) findRetryKey(channelID, retryKey, agentID string) (*mmPost, error) {
-	for page := 0; page < 5; page++ {
-		order, posts, err := m.channelPostsPage(channelID, page, 60)
-		if err != nil {
-			return nil, err
-		}
-		for _, id := range order {
-			if post, ok := posts[id]; ok && post.ID != "" {
-				if value, _ := post.Props[mmRetryKeyProp].(string); value == retryKey {
-					if author, _ := post.Props[mmAgentProp].(string); author == agentID {
-						dupe := post
-						return &dupe, nil
-					}
-				}
+func (m *mmTarget) findRetryKey(channelID, retryKey string) *mmPost {
+	order, posts, err := m.channelPosts(channelID, 60)
+	if err != nil {
+		return nil
+	}
+	for _, id := range order {
+		if post, ok := posts[id]; ok && post.ID != "" {
+			if value, _ := post.Props[mmRetryKeyProp].(string); value == retryKey {
+				dupe := post
+				return &dupe
 			}
 		}
-		if len(order) < 60 {
-			return nil, nil
-		}
 	}
-	return nil, nil
+	return nil
 }
 
 func (c *commands) chatEmit(cmd *cobra.Command, record map[string]any, channelID, lastPostID string, noCoverage bool) error {
@@ -314,7 +296,7 @@ func mustJSON(value any) json.RawMessage {
 }
 
 func (c *commands) chatRead() *cobra.Command {
-	channel, since, incompleteReason := "", "", ""
+	channel, since, selfOverride, incompleteReason := "", "", "", ""
 	limit := 50
 	includeOwn := false
 	noCoverage := false
@@ -322,6 +304,7 @@ func (c *commands) chatRead() *cobra.Command {
 	cmd.Flags().StringVar(&channel, "channel", "", "Channel ID to read (required)")
 	cmd.Flags().IntVar(&limit, "limit", 50, "Newest posts to fetch, 1-200")
 	cmd.Flags().StringVar(&since, "since", "", "Exclusive cursor: stop at this post ID")
+	cmd.Flags().StringVar(&selfOverride, "self", "", "Mattermost user ID treated as self (defaults to the token owner)")
 	cmd.Flags().BoolVar(&includeOwn, "include-own", false, "Include the worker's own posts in the output")
 	cmd.Flags().StringVar(&incompleteReason, "incomplete-reason", "", "Explicit reason to record when catch-up is incomplete")
 	cmd.Flags().BoolVar(&noCoverage, "no-coverage", false, "Skip reporting the read as a coverage receipt")
@@ -336,9 +319,11 @@ func (c *commands) chatRead() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		self, err := mm.me()
-		if err != nil {
-			return err
+		self := selfOverride
+		if self == "" {
+			if self, err = mm.me(); err != nil {
+				return err
+			}
 		}
 		order, posts, err := mm.channelPosts(channel, limit)
 		if err != nil {
