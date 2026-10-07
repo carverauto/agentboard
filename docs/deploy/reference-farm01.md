@@ -100,10 +100,45 @@ before the dashboard rolled; schema 7/API 1, one Ready exact-image pod,
 retained history/HTML/context prefixes, BM25 search, Gateway watch and
 Mattermost health are verified in [rollout acceptance](../verification.md#canonical-pr-inventory-rollout-pr32-2026-10-07-utc)
 and the [normalized receipt](../verification/farm01-pr-inventory.json).
-This is the current operator-managed image pin.
+This was the operator-managed image pin before the scheduling foundation rollout below.
 
 Historical discovery is explicitly disabled until the exact-attribution fix
 and catch-up worker in merged PR36 are rolled out. Canonical submissions are
 recorded by the live API; CI provider monitoring and agent follow-ups remain
 pending. Preserve schema 7 on image rollback, as described in the
 [schema-7 compatibility notes](../release.md#schema-7-durable-pr-submission-inventory).
+
+
+## Observation scheduling foundation release
+
+The PR45 rollout (`9f1e712ffc98311d267bae907738114070e224e4`) uses
+`registry.carverauto.dev/agentboard/dashboard@sha256:0c9dbedfdaf57c87a1b2f90d1f655837d5e350df8b410cdbacb676de1ae6d334`
+for migration Job `agentboard-migrate-9f1e712` and the dashboard Deployment.
+The migration completed before traffic moved to the new Ready pod, upgrading
+schema 7 to 9. This is the current operator-managed image pin.
+
+Both `AGENTBOARD_PR_DISCOVERY_ENABLED` and
+`AGENTBOARD_PR_OBSERVATION_ENABLED` remain explicitly false. The release
+includes merged PR36 attribution/catch-up and PR44/45 reservation/scheduling
+foundations; it does not deploy the current-head collector, repair obligations,
+worker wake adapter or Mattermost bridge. Existing Agentboard tools remain
+available through API1.
+
+Four canonical PRs retained four unknown/unobserved poll rows, untouched
+provider budgets and no runnable observation jobs. All captured task-history,
+document and Context prefixes match their pre-roll fingerprints. HTTPS routes,
+byte-exact retained Archify/proposal downloads, BM25 backend, a 25-second
+Gateway task watch, two-instance CNPG and Mattermost health passed. See
+[rollout acceptance](../verification.md#observation-scheduling-rollout-pr45-2026-10-07-utc)
+and the [normalized receipt](../verification/farm01-pr45-scheduling.json).
+
+Rollback retains additive schema9 and evidence, keeps both flags false and
+restores the prior schema7-compatible image digest
+`sha256:eb5c074b40cfea5b59cac49a689390d66d778ef18e99b606896cb809a0255fa4`.
+No live rollback was performed during this successful rollout.
+
+The existing enabled `agentboard` Mattermost bot and protected token are
+verified members of `#board`, `#agents` and `#quota` in the actual
+`carver-automation-corporation` team. All three channels had zero posts at
+verification: the sender is not implemented in this release. Per-worker
+conversation identities and tools remain subsequent work.
