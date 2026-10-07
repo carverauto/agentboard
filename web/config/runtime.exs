@@ -129,4 +129,40 @@ config :agentboard,
        :cooperation_enabled,
        System.get_env("AGENTBOARD_COOPERATION_ENABLED") == "true"
 
-config :agentboard, :ci_policies, Jason.decode!(System.get_env("AGENTBOARD_CI_POLICIES") || "{}")
+config :agentboard, :ci_policies,
+  case Jason.decode(System.get_env("AGENTBOARD_CI_POLICIES") || "{}") do
+    {:ok, policies} when is_map(policies) ->
+      Map.new(policies, fn {repo, entry} -> {repo, entry} end)
+      |> Enum.filter(fn {repo, entry} -> is_binary(repo) and is_map(entry) end)
+      |> Map.new(fn {repo, entry} ->
+        cleaned =
+          entry
+          |> then(fn e ->
+            case e["required"] do
+              nil -> e
+              req when is_list(req) -> if Enum.all?(req, &is_binary/1), do: e, else: Map.delete(e, "required")
+              _ -> Map.delete(e, "required")
+            end
+          end)
+          |> then(fn e ->
+            case e["accepted_conclusions"] do
+              nil -> e
+              list when is_list(list) ->
+                if Enum.all?(list, &is_binary/1), do: e, else: Map.delete(e, "accepted_conclusions")
+              _ -> Map.delete(e, "accepted_conclusions")
+            end
+          end)
+          |> then(fn e ->
+            case e["tested_ref"] do
+              nil -> e
+              ref when is_binary(ref) -> e
+              _ -> Map.delete(e, "tested_ref")
+            end
+          end)
+
+        {repo, cleaned}
+      end)
+
+    _ ->
+      %{}
+  end

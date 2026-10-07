@@ -3,6 +3,7 @@ defmodule Agentboard.Delivery.Policy do
   # A merge-ref policy is deliberately unsupported until a collector proves that association.
   def classify(pr, result) do
     config = Application.get_env(:agentboard, :ci_policies, %{})[pr.owner <> "/" <> pr.repo]
+    accepted = accepted_conclusions(config)
     attempts = result.payload["attempts"] || []
     latest = Enum.filter(attempts, &(field(&1, :latest) == true))
 
@@ -14,7 +15,7 @@ defmodule Agentboard.Delivery.Policy do
           case Enum.filter(latest, &(field(&1, :identity) == identity)) do
             [check] ->
               field(check, :status) == "completed" and
-                field(check, :conclusion) in (config["accepted_conclusions"] || ["success"])
+                field(check, :conclusion) in accepted
 
             _ ->
               false
@@ -23,7 +24,7 @@ defmodule Agentboard.Delivery.Policy do
         Enum.all?(
           latest,
           &(field(&1, :status) == "completed" and
-              field(&1, :conclusion) in (config["accepted_conclusions"] || ["success"]))
+              field(&1, :conclusion) in accepted)
         )
 
     if qualified and result.ci_state != "failing" do
@@ -40,6 +41,16 @@ defmodule Agentboard.Delivery.Policy do
       }
     end
   end
+
+  defp accepted_conclusions(config) when is_map(config) do
+    case config["accepted_conclusions"] do
+      nil -> ["success"]
+      list when is_list(list) -> if Enum.all?(list, &is_binary/1), do: list, else: ["success"]
+      _ -> ["success"]
+    end
+  end
+
+  defp accepted_conclusions(_), do: ["success"]
 
   defp field(map, key), do: Map.get(map, key, Map.get(map, Atom.to_string(key)))
 end

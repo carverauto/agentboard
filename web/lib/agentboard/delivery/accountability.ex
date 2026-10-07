@@ -289,7 +289,7 @@ defmodule Agentboard.Delivery.Accountability do
     Enum.each(obligations, fn o ->
       pr = Ash.get!(PullRequest, o.pull_request_id)
 
-      if (pr.owner <> "/" <> pr.repo) in subscription.repos do
+      if String.downcase(pr.owner <> "/" <> pr.repo) in subscription.repos do
         e = capture(o, "failure", subscription.id)
 
         d =
@@ -358,8 +358,8 @@ defmodule Agentboard.Delivery.Accountability do
     generation = o.reminder_generation + 1
 
     can_wake =
-      ((current and is_nil(o.blocker) and subscription) && Runtime.enabled?(subscription)) and
-        not subscription.paused and wakes < 4
+      current && is_nil(o.blocker) && !is_nil(subscription) &&
+        Runtime.enabled?(subscription) && !subscription.paused && wakes < 4
 
     if can_wake, do: capture(o, "reminder-#{generation}", o.responsible_id)
     escalated = not can_wake or wakes + 1 >= 4

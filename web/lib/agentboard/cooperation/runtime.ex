@@ -304,7 +304,8 @@ defmodule Agentboard.Cooperation.Runtime do
     query =
       Ash.Query.filter(
         query,
-        repo in ^s.repos or fragment("'carverauto/' || ?", repo) in ^s.repos
+        fragment("lower(?)", repo) in ^s.repos or
+          fragment("lower('carverauto/' || ?)", repo) in ^s.repos
       )
 
     page(query, limit, :tasks)
@@ -322,7 +323,7 @@ defmodule Agentboard.Cooperation.Runtime do
       Ash.Query.filter(
         query,
         fragment(
-          "EXISTS (SELECT 1 FROM delivery_pull_requests p WHERE p.id=? AND p.owner || '/' || p.repo = ANY(?::text[]))",
+          "EXISTS (SELECT 1 FROM delivery_pull_requests p WHERE p.id=? AND lower(p.owner || '/' || p.repo) = ANY(?::text[]))",
           pull_request_id,
           ^s.repos
         )
@@ -553,7 +554,7 @@ defmodule Agentboard.Cooperation.Runtime do
     if d.worker_id != s.id, do: Ops.reject("forbidden", "Foreign recipient")
     event = get(Event, d.event_id)
 
-    if event.repo not in s.repos,
+    if canonical_repo(event.repo) not in s.repos,
       do: Ops.reject("forbidden", "Source outside authorized scope")
 
     if kind == "handled" and event.context_id do
@@ -705,6 +706,7 @@ defmodule Agentboard.Cooperation.Runtime do
   def capture(attrs, audience_options \\ []) do
     key = attrs.source_key
     prior = Event |> Ash.Query.filter(source_key == ^key) |> Ash.read_one!()
+    repo = canonical_repo(attrs.repo)
 
     if prior do
       prior
@@ -716,7 +718,7 @@ defmodule Agentboard.Cooperation.Runtime do
       audience =
         subscriptions
         |> Enum.filter(
-          &(attrs.repo in &1.repos and &1.id != excluded and
+          &(repo in &1.repos and &1.id != excluded and
               (is_nil(recipient) or recipient == &1.id))
         )
         |> Enum.map(& &1.id)
@@ -726,6 +728,7 @@ defmodule Agentboard.Cooperation.Runtime do
         Event,
         Map.merge(attrs, %{
           id: Ash.UUID.generate(),
+          repo: repo,
           context_id: Map.get(attrs, :context_id),
           summary: truncate(attrs.summary, 1024),
           audience: audience,
@@ -802,7 +805,7 @@ defmodule Agentboard.Cooperation.Runtime do
       %{
         source_key: "context:#{entry.id}",
         kind: "context",
-        repo: entry.repo,
+        repo: canonical_repo(entry.repo),
         task_id: entry.task_id,
         summary: entry.summary,
         source_url: "/context/#{entry.id}",
@@ -816,7 +819,7 @@ defmodule Agentboard.Cooperation.Runtime do
   defp bootstrap(s) do
     entries =
       Agentboard.Context.Entry
-      |> Ash.Query.filter(repo in ^s.repos and source_agent_id != ^s.id)
+      |> Ash.Query.filter(source_agent_id != ^s.id and fragment("lower(?)", repo) in ^s.repos)
       |> Ash.Query.sort(id: :desc)
       |> Ash.Query.limit(20)
       |> Ash.read!()
