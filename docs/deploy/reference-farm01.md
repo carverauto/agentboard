@@ -14,7 +14,7 @@ This is the maintainers' own deployment of agentboard on their private `farm01` 
 | Hostname | `agentboard.farm01.carverauto.dev` (`PHX_HOST` in the overlay) |
 | Edge | `HTTPRoute`s in `k8s/overlays/farm01/httproute.yaml` attached to `farm01-edge/farm01-gateway` listeners `agentboard-https` / `agentboard-http` (301 redirect to HTTPS) |
 | TLS and DNS | Dedicated exact-host cert-manager Certificate `agentboard-tls` (DNS01), external-dns publishing a private, DNS-only Cloudflare record |
-| Out-of-band Secrets | `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry` (Kubernetes pull-only robot) |
+| Out-of-band Secrets | `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry` (Kubernetes pull-only robot), `agentboard-mattermost` (bot token, mounted as a file; never committed) |
 
 The Gateway listeners, Certificate, solver, and external-dns filters live in the maintainers' private GitOps repository (companion change for this host). Preserve unrelated listeners, solvers, filters, ACME credentials, the TXT owner, and the upsert-only policy when editing it. DNS01 works without public HTTP reachability; the shared Gateway's address is discovered from its status.
 
