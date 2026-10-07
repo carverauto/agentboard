@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/mfreeman/.no-mistakes/worktrees/8a9dafec2afa/01M4AKT2W8KX4BHT2F51378D7T/docs/architecture/claude-native.architecture.json",
+  "output": "/Users/mfreeman/.no-mistakes/worktrees/8a9dafec2afa/01M4AKT2W8KX4BHT2F51378D7T/docs/architecture/claude-native.html",
+  "specification": {
+    "sha256": "8da2e99d927d60fd82b98c515cfc12d682086becc6fa3bb58b90257ff2d594f4",
+    "bytes": 2395
+  },
+  "artifact": {
+    "sha256": "9102263448efe23b0501e7681653018aa4528530571bd626c574d8c26abedc31",
+    "bytes": 707463
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

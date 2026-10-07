@@ -1,0 +1,6 @@
+{
+  "name": "agentboard-native",
+  "version": "0.1.0",
+  "description": "Explicit Agentboard generation-fenced turn-start and dedicated check-in boundaries. No idle wake or automatic receipts.",
+  "author": { "name": "Agentboard maintainers" }
+}

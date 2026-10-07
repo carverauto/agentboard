@@ -2,12 +2,13 @@ package worker
 
 import (
 	"crypto/sha256"
-	_ "embed"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,6 +17,9 @@ import (
 
 //go:embed pi-native.mjs
 var piExtension []byte
+
+//go:embed claude-native/bridge.mjs claude-native/.mcp.json claude-native/.claude-plugin/plugin.json claude-native/hooks/register.js claude-native/hooks/hooks.json
+var claudePlugin embed.FS
 
 type OwnedFile struct {
 	Path string `json:"path"`
@@ -46,6 +50,18 @@ func serviceFiles(home, configPath, platform string) (map[string][]byte, []strin
 	}
 	base := filepath.Join(home, ".config", "agentboard", "worker")
 	files := map[string][]byte{filepath.Join(base, "pi-native.mjs"): piExtension}
+	if err := fs.WalkDir(claudePlugin, "claude-native", func(name string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() {
+			return walkErr
+		}
+		data, err := claudePlugin.ReadFile(name)
+		if err == nil {
+			files[filepath.Join(base, filepath.FromSlash(name))] = data
+		}
+		return err
+	}); err != nil {
+		return nil, nil, err
+	}
 	binary := filepath.Join(home, ".local", "bin", "agentboard")
 	var reload []string
 	switch platform {
@@ -70,6 +86,7 @@ func serviceFiles(home, configPath, platform string) (map[string][]byte, []strin
 	default:
 		return nil, nil, errors.New("only launchd macOS and systemd Linux are supported")
 	}
+	reload = append(reload, "Claude: explicitly load claude-native with --plugin-dir; native mods must be available; boundary-only delivery and verified worker bind required")
 	return files, reload, nil
 }
 
