@@ -1,0 +1,320 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agentboard · Merged Review disposition</title><style>
+:root{color-scheme:light;--ink:#172f48;--muted:#5a6572;--canvas:#edf2f8;--paper:#fff;--line:#cfdae6;--accent:#175bb8;--green:#12694c;--amber:#7a4a00;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.5}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--canvas)}body[data-theme=dark]{color-scheme:dark;--ink:#e4edf6;--muted:#a4b5c5;--canvas:#152536;--paper:#203246;--line:#3c5268;--accent:#8ebdff;--green:#a2e7ca;--amber:#ffe0a0}header{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;padding:1.2rem max(1rem,calc((100vw - 1120px)/2));background:var(--paper);border-bottom:1px solid var(--line)}header b{font-size:1.4rem;letter-spacing:-.04em}header span{color:var(--muted);font-size:.85rem}button{margin-left:auto;background:var(--accent);border:0;border-radius:4px;padding:.55rem 1rem;color:var(--paper);font:inherit;cursor:pointer}main{max-width:1120px;padding:2rem 1rem;margin:auto}h1{font-size:clamp(1.8rem,4vw,2.7rem);letter-spacing:-.025em;line-height:1.2;margin:.7rem 0 1rem}h2{font-size:1.2rem;margin:0 0 .6rem}p{margin:.6rem 0}.eyebrow{font-size:.8rem;color:var(--accent);font-weight:650;text-transform:uppercase;letter-spacing:.1em}.lead{max-width:75ch;color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;margin:1.5rem 0}.card,figure,details{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:1.2rem}figure{margin:1.5rem 0}svg{display:block;width:100%;height:auto;color:var(--ink)}svg rect{fill:var(--canvas);stroke:var(--line)}svg path{fill:none;stroke:var(--accent);stroke-width:2}svg text{fill:currentColor;font:15px -apple-system,BlinkMacSystemFont,sans-serif;text-anchor:middle}figcaption,.muted{color:var(--muted);font-size:.85rem}.badge{color:var(--green);font-size:.8rem;font-weight:600}.warning{color:var(--amber)}details{margin:.7rem 0}summary{font-weight:650;cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%;font: .88rem/1.55 ui-monospace,monospace;color:var(--muted)}table{width:100%;border-collapse:collapse;table-layout:fixed;background:var(--paper)}th,td{text-align:left;padding:.85rem;border:1px solid var(--line);overflow-wrap:anywhere}th{font-size:.85rem;color:var(--muted)}code{overflow-wrap:anywhere;font-size:.85em}.status{border-left:4px solid var(--accent);padding:.8rem 1rem;background:var(--paper);margin:1.5rem 0}footer{padding:1.5rem 0;color:var(--muted);font-size:.85rem}@media(max-width:720px){.grid{grid-template-columns:minmax(0,1fr)}main{padding:1.4rem 1rem}svg text{font-size:17px}figure{padding:.7rem}th,td{padding:.6rem;font-size:.85rem}}@media(prefers-color-scheme:dark){body:not([data-theme=light]){color-scheme:dark;--ink:#e4edf6;--muted:#a4b5c5;--canvas:#152536;--paper:#203246;--line:#3c5268;--accent:#8ebdff;--green:#a2e7ca;--amber:#ffe0a0}}
+</style><header><b>agentboard</b><span>OpenSpec · #58 policy update</span><button id="theme" aria-label="Toggle color theme">Theme</button></header><main>
+<div class="eyebrow">Merged PR lifecycle</div><h1>Clear Review when all submitted PRs merge.</h1><p class="lead">Agents can move on and owners' leases can expire while merged cards stay in Review. A durable system catch-up closes eligible source work from retained merge observations. CI repair remains an independent responsibility.</p>
+<div class="grid"><article id="scope" class="card"><span class="badge">Review → Done</span><h2>Only accepted source work</h2><p>Current PR plus every recorded submission must have matching immutable merged evidence. Preserve the assignee; clear the completed task lease.</p></article><article id="ci" class="card"><span class="badge warning">CI truth preserved</span><h2>Merged can still be failing</h2><p>No green verdict is fabricated. CI failure episodes and repair tasks remain visible and need explicit investigation and acknowledgement.</p></article><article id="recovery" class="card"><span class="badge">Minute catch-up</span><h2>Survives stopped polling</h2><p>The watcher reads retained snapshots after pruning, restart or downtime. It requires no new provider calls, broker, singleton or schema migration.</p></article></div>
+<figure id="flow"><svg viewBox="0 0 940 140" role="img" aria-labelledby="flow-title"><title id="flow-title">Retained merged proof is validated under task and sorted PR locks, then commits an audited Done transition.</title><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6" /></marker></defs><g id="snapshot"><title>Snapshots survive disabled PR polling</title><rect x="8" y="25" width="190" height="82" rx="6" /><text x="103" y="59">Retained snapshots</text><text x="103" y="85">Merged lifecycle</text></g><g id="lock"><title>Task before all PR states, sorted</title><rect x="251" y="25" width="190" height="82" rx="6" /><text x="346" y="59">Task → PR locks</text><text x="346" y="85">Reread current work</text></g><g id="proof"><title>Every retained submission must be merged</title><rect x="493" y="25" width="190" height="82" rx="6" /><text x="588" y="59">All PRs merged?</text><text x="588" y="85">Identity + snapshot</text></g><g id="commit"><title>Single audited board transaction</title><rect x="736" y="25" width="190" height="82" rx="6" /><text x="831" y="59">Review → Done</text><text x="831" y="85">Audit + notifications</text></g><path id="evidence-edge" d="M198 66H241" marker-end="url(#arrow)" /><path id="lock-edge" d="M441 66H483" marker-end="url(#arrow)" /><path id="completion-edge" d="M683 66H726" marker-end="url(#arrow)" /></svg><figcaption>One transaction per eligible task. Ineligible cards remain unchanged. Replays and concurrent workers produce one completion.</figcaption></figure>
+<h2>Disposition boundary</h2><table id="boundary"><thead><tr><th>Observed condition</th><th>Source card</th><th>CI / follow-up</th></tr></thead><tbody><tr><td>Every submitted PR merged, matching evidence</td><td>Review → Done; assignee retained</td><td>CI state preserved; repair remains explicit</td></tr><tr><td>Another PR open, closed-unmerged or unobserved</td><td>Stays Review</td><td>Lifecycle/evidence visible in /prs</td></tr><tr><td>Cleared link, no PR URL, other status or repair task</td><td>Unchanged</td><td>Owner/captain handles exceptions</td></tr><tr><td>Observation disabled or audit/capture fails</td><td>No completion; lease intact</td><td>Durable retry / operator evidence</td></tr></tbody></table>
+<div id="delivery-state" class="status"><b>Implementation delivery</b><p>Portable patch and remote verification are being prepared. Native No-mistakes publication is blocked by the workstation permission boundary. No PR, merge, deployment or live acceptance is implied by this proposal.</p></div>
+<h2>Complete OpenSpec context</h2><p class="muted">The existing approved Ash/CI proposal remains the parent. #58 adds the explicit merged-Review exception; other unchecked work is retained.</p>
+<details id="proposal"><summary>Proposal</summary><pre># Proposal
+
+## Why
+
+Agents currently deliver PRs and move on without confirming CI finishes successfully. The board stores a PR URL but cannot show failing jobs, explain failures, or retain a visible follow-up obligation. The application also needs to adopt the requested Ash framework conventions before adding background automation.
+
+## What Changes
+
+- Make Ash resources/domains and AshPostgres the board&#x27;s application boundary for API, LiveView, documents, quota and worker operations. Retain existing PostgreSQL data, API v1 contracts, explicit leases, atomic claims and immutable history.
+- Add AshPaperTrail resource versions and attributed AshEvents action records, with scoped locking rather than a shared write bottleneck. Preserve the existing public task timeline as a compatible projection.
+- Add an AshOban PR-monitor job that discovers every board-linked GitHub PR, checks its current head and applicable CI policy, and stores bounded, retry-safe observations.
+- Add a dashboard PR table with CI state, failed checks, repository/head, responsible agent, observation freshness, GitHub/BuildBuddy evidence and outstanding follow-up.
+- Collect failed check/job details from GitHub and correlated invocation/log evidence through the BuildBuddy API. Keep GitHub and BuildBuddy credentials in namespace Secrets and never expose them to the CLI or HTML.
+- Keep failed/pending/unknown/stale CI visibly distinct from green. Prevent owner-requested linked-PR deliveries from becoming done until current-head CI is verified; preserve existing terminal tasks and create a deduplicated board follow-up for failures discovered afterward.
+- Add explicit merged-Review disposition: a system AshOban catch-up completes source Review tasks only when their current PR and all retained submissions have matching immutable merged evidence. Preserve the assignee, append merge proof, clear the lease and retain CI repair obligations; terminal polling may stop without losing this catch-up.
+- Update the canonical and captain skills: PR delivery includes waiting for CI, inspecting failures, fixing and rechecking, or explicitly recording a blocker/handoff. The monitor observes and records; it does not launch coding agents, merge PRs or sweep expired claims.
+
+## Capabilities
+
+### New Capabilities
+
+- `ash-application`: Shared Ash resource/action/domain boundary, attributed version/event history, migration compatibility and independent request/job concurrency.
+- `pr-ci-monitoring`: Durable current-head CI monitoring, provider evidence, bounded retries and visible follow-up accountability.
+- `pr-ci-dashboard`: Read-only PR status table and failure/evidence detail linked to board tasks.
+- `ci-delivery-workflow`: CI-aware delivery gate and agent/captain follow-up requirements.
+
+### Modified Capabilities
+
+None in the main specification inventory yet (`openspec list --specs` reports none). The two completed changes remain the baseline for existing task/dashboard/workflow behavior; this change adds CI obligations and explicitly preserves those contracts rather than silently rewriting their unarchived artifacts.
+
+## Impact
+
+`web/mix.exs`, the hermetic Hex dependency closure and remote release checks; `web/lib/agentboard/{board,documents,quota}.ex`; API/watch/document controllers and LiveView; additive migrations and existing database functions; farm01 runtime Secrets/configuration and worker supervision; API/CLI CI reads and task completion errors; shared skills and release/verification documentation. New dependencies are Ash, AshPostgres, AshPhoenix, AshPaperTrail, AshEvents, Oban and AshOban, plus a pinned HTTP client selected during remote dependency resolution. No new message broker or object store is required. Implementation will be staged under this one proposal; the current v0.1.0 service remains live during planning.
+</pre></details><details id="design"><summary>Design</summary><pre># Design
+
+## Context
+
+See proposal.md for the problem and scope. The live v0.1.0 application has no Ash dependencies. `Board`, `Documents` and `Quota` validate input and issue pooled Ecto SQL; database functions own claims, events, handoffs, quota ingest and document inserts. `BoardLive`, API/watch controllers and the document controller call those contexts. SQL triggers protect append-only history and emit compact PostgreSQL notifications. A task stores one `pr_url`; there is no CI resource, provider client or background job runtime. Current terminal tasks are immutable.
+
+`buildbuddy.yaml` declares PR/push acceptance and packaging, while the current GitHub checks observed during rollout reported only GitGuardian. BuildBuddy remote acceptance was separately verified. A green GitHub rollup alone therefore cannot be assumed to prove Agentboard acceptance. The repo has two completed, unarchived OpenSpec changes and no main spec inventory. Preserve their existing contracts; this proposal introduces four new capability contracts.
+
+## Goals / Non-Goals
+
+**Goals:** Share real Ash operations across all application entry points, retain existing data/API semantics, monitor submitted PRs independently of agent attention, explain CI failures and make unfinished delivery visible.
+
+**Non-Goals:** Launching or forcibly waking coding agents, automatic fixes/merges/check reruns, external GitHub comments, automatic lease renewal/reclaim, destructive event replay, NATS or object storage. The UI remains read-only. Provider observations are sampled evidence, not a distributed transaction with GitHub.
+
+## Decisions
+
+### 1. Ash is the application boundary
+
+Use AshPostgres resources over the existing tables and project-owned Ash domain code interfaces. Proposed domains are Board (Agent, Task, TaskEvent, Message), Evidence (Document, QuotaReport/Observation/Window/Scope) and Delivery (PullRequest, CISnapshot, CICheck, FailureEvidence, FollowUp and RepositoryCIPolicy). API controllers remain thin v1 transport adapters, preserving response fields and errors; LiveView calls the same domain read actions using AshPhoenix where useful. Do not replace the API with an incompatible generated JSON:API interface. Document metadata reads explicitly select fields excluding HTML; content is fetched only by the existing sandbox viewer.
+
+Move validation/state transitions into resource actions, changes and policies. Atomic updates retain compare-and-set filters on the caller changeset; implement atomic callbacks instead of turning off `require_atomic?` to hide warnings. Complex multi-record operations acquire scoped locks in a declared order and invoke related Ash actions inside one transaction. During conversion, an existing SQL function can be a narrowly documented manual-action bridge, but final acceptance requires its state changes to participate in Ash attribution/version/event hooks. A cosmetic resource wrapper around all existing SQL is insufficient. Keep migrations and database constraints as defense in depth; retire old mutation entry points only after compatible end-to-end checks pass.
+
+Alternative: add only a raw Oban worker beside Ecto. That would leave the requested application-wide Ash adoption unfinished.
+
+### 2. Distinguish versions, action events and the public timeline
+
+AshPaperTrail supplies per-resource versions for meaningful mutable state (Task, Agent registration, Message acknowledgement, monitored PR/follow-up). Use an atomic-compatible tracking mode such as `changes_only`, action names and actor metadata; exclude noisy timestamps/heartbeat refreshes and secrets. Immutable documents and raw quota evidence remain authoritative original rows, not repeated full HTML/report audit copies.
+
+AshEvents supplies a centralized append-only action audit for meaningful domain mutations. Use action versions and explicit system provenance. Maintain the existing `task_events` timeline projection once per successful operation, in the same transaction, so CLI task history remains compatible. Do not enable public replay actions. Preserve old history as legacy provenance, not fabricated Ash events/versions; establish a documented migration cutoff.
+
+AshEvents&#x27; documented non-tenant default advisory key serializes event-tracked writes globally. Provide a custom key generator scoped to the affected task/PR aggregate (stable 64-bit digest or namespaced two-integer key), with ordered acquisition for multi-aggregate actions. Ensure actor attribution does not turn a shared system actor row into a write lock on every mutation. Hash collisions can serialize two keys; they must never weaken integrity. Test independent writes with a deliberately held unrelated lock. See [AshEvents locking and audit distinctions](https://github.com/ash-project/ash_events#readme) and [PaperTrail DSL](https://ash-paper-trail.hexdocs.pm/dsl-ashpapertrail-resource.html).
+
+### 3. Durable bounded PR monitoring through AshOban
+
+Run supervised Oban/AshOban in the existing release/namespace with explicit scheduler and worker module names. No separate singleton query service or broker. A one-minute scheduled discovery action keyset-scans all task PR links, including done tasks, normalizes GitHub owner/repo/number and upserts a unique monitored PR. Linking a PR also schedules an immediate observation transactionally. Reconciliation recovers missed scheduling. Each due PR receives a retry-safe monitoring action; start with per-pod queue concurrency four and configurable repository/provider budgets. Oban basic queue concurrency is per node, so deployment replica changes require recomputing the aggregate budget.
+
+Do not hold a database transaction/row/advisory lock while calling providers. The AshOban monitor trigger uses `lock_for_update? false` and a nontransactional orchestration action. It first reserves an observation generation/short expiry in a scoped transaction, fetches outside transactions, then commits through a transactional Ash action only if its generation and observed revision are still applicable. Expired reservations are retryable; stale replies are retained as superseded history or ignored, never overwrite newer evidence. Database uniqueness/compare-and-set is the correctness boundary, not Oban uniqueness alone. Stable JSON job args contain IDs, not credentials, structs or complete logs. Durable follow-up updates and CI event/notification writes share the commit transaction. [AshOban DSL](https://ash-oban.hexdocs.pm/dsl-ashoban.html) documents trigger locking, cron, pagination and module names.
+
+### 4. CI truth is tied to revision, attempt and repository policy
+
+Persist canonical PR identity, lifecycle, observed head/base, provider-tested commit, policy version, current projection, successful observation time, next due time and provider errors. Append immutable snapshots/check attempts/failure excerpts. One row per PR joins every linked task and a separate responsible agent recorded at link/submission time; do not rely only on a mutable current assignee.
+
+GitHub reads PR metadata, all pages of check runs and commit statuses, applicable required checks/rules where accessible, and failed Actions run/job details. Rank latest attempts by provider/run identity and timestamps; superseded failures do not poison a successful retry. Include checks on a verified PR merge/test ref when workflows use it, and retain the exact head/base association rather than equating its SHA to the branch head. Re-read PR revision after collection to reject pushes/base changes during a poll.
+
+RepositoryCIPolicy specifies expected build/test checks and accepted terminal conclusions. This is required where branch rules are inaccessible or BuildBuddy results are not published to GitHub. Never infer an empty expected set means healthy. GitGuardian-only success cannot satisfy an expected acceptance/test job. For Agentboard, explicitly verify/configure publication of `AgentboardAcceptance` or a correlated completed BuildBuddy CI invocation; do not assume the workflow declaration means it already reports a check.
+
+Aggregate states: **failing** if any applicable latest check has failure/error/timed_out/cancelled/action_required; **pending** while expected checks are queued/in_progress; **unknown** for missing expected checks, unknown policy, partial pagination or inaccessible evidence; **passing** only for complete current-revision success under policy. Neutral/skipped are shown separately and count only when the configured policy explicitly accepts them. Freshness overlays state after five minutes without a successful poll, preserving the last-known state. Keep PR open/merged/closed state separate from CI. Terminal PRs get a final reconciliation; unresolved failure/pending/unknown stays monitored until resolved or explicitly dispositioned on the board, with slower configured polling, rather than silently disappearing.
+
+### 5. Fetch GitHub and BuildBuddy failure evidence safely
+
+A project-owned provider client calls configured HTTPS hosts with verified TLS, bounded timeouts, pagination/response caps, Retry-After and GitHub reset headers. Provider 401/403/429/outage updates monitor health and backs off; no busy loop and no fake green. GitHub log retrieval is read-only and optional; use a narrow authorized download flow for provider-owned signed redirects, without forwarding Authorization cross-origin. Unknown destinations are rejected.
+
+For BuildBuddy use its configured deployment API (`https://carverauto.buildbuddy.io/api/v1/…`), header `x-buildbuddy-api-key`, GetInvocation by invocation ID or commit, and GetLog&#x27;s pagination. Match returned repo URL, commit/tested-ref association, CI role and invocation completion before attaching. A local/manual invocation with the same SHA does not automatically satisfy CI policy. Child invocations and failed-target/test artifacts can enrich diagnostics through supported API methods; no unbounded bytestream download. Begin with bounded invocation log excerpts and original result links. Missing/not-enabled API support is a visible evidence limitation, not a reason to erase GitHub failure. See [BuildBuddy API](https://www.buildbuddy.io/docs/enterprise-api/).
+
+Store names/conclusions/times/links plus at most 64 KiB of normalized UTF-8 plain text per failure and a 256 KiB total excerpt budget per PR snapshot; cap fetches (1 MiB per response, ten log pages, ten seconds per request) and identify truncation. Strip ANSI, redact configured credential values and common authorization/token patterns, never log request headers or raw provider response bodies on error. Logs may contain confidential data even after redaction; expose only on the existing private-network board and document the access assumption. Do not pass provider logs to an LLM in this phase.
+
+Namespace Secret references supply GITHUB_TOKEN (initial scoped read credential, replaceable with an installation token) and BUILDBUDDY_API_KEY. Set permissions for linked repositories&#x27; PRs/checks/statuses/Actions and required-check metadata where available. Missing scopes make affected PRs unknown. BuildBuddy API access must be verified against the actual deployment; no assumption that an RBE-capable key can read every invocation. Runtime manifests contain references only. CLI receives no provider/database credentials.
+
+### 6. Keep a remediation obligation after PR submission
+
+Each newly failing PR creates or updates one active CI follow-up board task, assigned to its recorded submitting agent if registered, otherwise visible unassigned in the captain queue. An internal system actor records monitor provenance; assignment does not claim/renew a lease. Unique active PR linkage and a failure episode/revision identity prevent duplicate tasks/messages on repeated polls. A later failure after a resolved episode creates a new episode without altering terminal history. No GitHub comments, agent process dispatch or automatic expired-claim sweep.
+
+For active source tasks, failure is additionally visible as delivery state. Failure observation does not change their owner/status; the explicit merged-Review disposition below is a separate lifecycle policy. For already-done source tasks, retain the original immutable record and link the follow-up through Delivery resources. Passing CI resolves the machine failure condition; the assigned follow-up task remains for explicit owner acknowledgement/completion, avoiding silent lifecycle bypass.
+
+Add a completion guard for owner-requested new transitions of linked-PR tasks: a fresh passing snapshot (at most two minutes old), applicable policy and matching head/base are required. Before the short completion transaction, fetch PR metadata through the provider boundary; compare it with the snapshot in the transaction and record the verified revision. This cannot fence a subsequent remote push; continued monitoring and a new follow-up handle that case. If provider verification is unavailable, return a documented conflict and keep the lease/state; do not allow a generic force-green flag. Cancellation and explicit blocked/handoff actions remain available. API v1 transports remain compatible; the new conflict is an intentional behavior tightening documented in skills/API notes.
+
+### 6a. Explicit merged-Review disposition (#58)
+
+Merged lifecycle is irreversible evidence of accepted source work, separate from CI qualification. With `AGENTBOARD_PR_OBSERVATION_ENABLED`, a system-only `Delivery.MergeDisposition.reconcile` Ash action runs every minute through AshOban. It keyset-scans 100 source Review tasks per page and persists cursor continuations as jobs. It uses retained immutable snapshots independently of `polling_enabled`: a final observation and terminal pruning may commit before catch-up, without making the obligation invisible. Restart and repeated jobs recover already-merged Review cards; no provider request or new quota is needed for retained proof.
+
+Lock the task row first, reread its Review status/current canonical URL, exclude all CI repair tasks, then lock every retained submitted PR state in sorted canonical-ID order. Require the current URL and every retained submission (at most 100 per task) to have a current merged projection backed by an immutable snapshot with matching identity/head/base/observation time. A newer reservation or provider failure may increase generation without invalidating retained merged proof. An open, closed-unmerged, unobserved or mismatched submission blocks completion. Cleared/invalid URLs, non-Review source tasks and oversized submission sets are left unchanged. PRs mentioned only in notes do not manufacture submissions. The `/prs` lifecycle/evidence columns expose these exceptions for explicit owner/captain disposition.
+
+The dedicated `Task.complete_merged_pr` Ash action runs in the existing Board transaction as the migration-reserved `ci-accountability` system actor. Its Review/current-URL/revision filter is a second fence. It preserves the assignee, clears only the completed task&#x27;s lease, increments revision and appends PaperTrail, AshEvents and one compatible `update` timeline event containing `merged_review_v1` and every snapshot&#x27;s proof. Enabled Mattermost/cooperation intents are captured in the same transaction. Audit/capture failure rolls everything back; concurrent/replayed jobs see Done and create no duplicate completion. No agent-row write lock, GenServer, expiry reclaim or automatic lease renewal is introduced.
+
+The policy accepts retained merge proof after downtime or an expired owner lease. It does not convert unknown/failing/stale CI to passing, resolve a failure episode or acknowledge/complete its repair task. CI remains independently actionable after source work is Done. Backfill uses the same catch-up action for trustworthy existing snapshots. If polling was disabled before any merged snapshot was collected, an authorized operator must deliberately obtain fresh lifecycle evidence; this feature never trusts direct SQL lifecycle edits or silently reenables polling. Disable observation to stop scheduled and queued action execution; rollback to a compatible image preserves completed history and does not reopen tasks.
+
+### 7. Read-only PR table and delivery skills
+
+Add `/prs` with paginated Ash reads, columns Task(s), PR/repository, Responsible agent, CI, Checks, Follow-up and Updated; include head SHA and provider links in row/detail. Default ordering surfaces failures then pending/unknown/stale; filtering supports state/repo/agent. A `/prs/:id` detail shows current attempts, escaped diagnostic excerpts, older snapshot history and source task/document links. Text labels complement colors. CI unavailable and evidence unavailable are separate. Existing PubSub/NOTIFY and durable reread fallback refresh views; add a compact CI topic rather than shipping logs through notifications. Provide API v1 list/detail and CLI `pr list/show/watch` with existing rate-limit/reconnect semantics.
+
+Canonical and captain skills require waiting for all applicable checks, reading GitHub/BuildBuddy evidence, fixing and rechecking latest commits, and recording a blocker/handoff if work cannot continue. A PR link alone is not delivery. Keep the already implemented Archify and automatic Lavish documentation requirements; this proposal itself includes both artifacts linked from its board task.
+
+## Risks / Trade-offs
+
+- [Framework migration changes action/audit behavior] → Convert resources in bounded stages, keep v1 compatibility fixtures and require real remote API/CLI/LiveView acceptance before rollout.
+- [Default extension locks or long job transactions reduce concurrency] → Scoped key generator, provider I/O outside transactions, deterministic lock order and contention/outage checks.
+- [Polling has latency and consumes provider budget] → One-minute default, conditional requests where supported, bounded due-record batches, provider-aware backoff and visible freshness. Webhooks can be a later optimization.
+- [Incomplete required-check knowledge or BuildBuddy entitlement] → Explicit policy and unknown state; verify actual API access/publication during rollout.
+- [External logs can contain secrets or hostile text] → Bound/redact, escape, no raw HTML/LLM processing; original provider links remain available.
+- [Agents do not actually read skills/board] → Completion gate and durable follow-up expose the gap. This phase cannot guarantee an idle external agent will wake up.
+
+## Migration Plan
+
+1. Resolve/pin Ash/Oban/client dependencies and hermetic Bazel closure remotely; validate extension atomic/audit compatibility with the existing Elixir/PostgreSQL versions.
+2. Add resource mappings and additive audit/Delivery/Oban migrations. Preserve source IDs, constraints and immutable historical rows; snapshot existing schema for generator baselines so migration generation cannot recreate/drop tables.
+3. Route existing API/LiveView operations through tested Ash domains; preserve notification contracts and document cutoff for new audit history. Do not ship duplicate old/new mutation entry points as separate authorities.
+4. Add provider policies/Secrets and disabled-by-default monitoring configuration. Deploy observation-only mode first to validate all linked PRs, expected checks, BuildBuddy correlations and budget behavior.
+5. Enable deduplicated follow-ups and the completion guard after observation-only evidence passes. Publish a new immutable compatible image/CLI release; do not replace v0.1.0 assets.
+6. Roll back only to a schema-compatible image with jobs paused through configuration; retain additive data. Once CI obligations exist, do not return to an image that silently bypasses them without an explicit operator decision. No destructive down migration or automatic audit replay.
+</pre></details><details id="delivery-contract"><summary>Delivery contract</summary><pre>## Purpose
+
+Make CI verification and failure follow-up part of delivering a linked PR across every supported agent harness.
+
+## ADDED Requirements
+
+### Requirement: CI-aware completion
+An owner-requested transition of a linked-PR task SHALL reject a new transition to done unless its monitored current revision has fresh passing CI under its repository policy. Rejection SHALL preserve the task/lease and return a conflict with the CI state and evidence/follow-up links. Tasks without PRs and existing terminal records SHALL retain their established lifecycle.
+
+#### Scenario: Agent submits PR then completes immediately
+- **WHEN** a live owner requests done while linked PR checks are pending, failed, unknown or stale
+- **THEN** the task remains nonterminal and the response explains what CI evidence or remediation is outstanding
+
+#### Scenario: Agent verifies all checks
+- **WHEN** a live owner requests done with fresh current-revision passing evidence
+- **THEN** completion commits normally with the verified PR revision recorded in delivery history
+
+### Requirement: Continued CI responsibility
+Canonical and harness skills SHALL require agents to wait for CI, inspect failures and logs, fix and recheck the latest revision, and explicitly record blockers or handoffs before changing work. Creating a PR or seeing a partial green check set SHALL NOT be described as completed delivery. Archify/OpenSpec delivery requirements SHALL continue to apply.
+
+#### Scenario: Failure requires outside access
+- **WHEN** an agent cannot fix or inspect a failing job because access is unavailable
+- **THEN** it records the specific blocker and evidence on the board and deliberately retains, releases or hands off ownership
+
+### Requirement: Captain follow-up review
+The captain workflow SHALL inspect outstanding CI follow-ups and stale/unknown provider states when assessing completed delivery. Green CI SHALL resolve the failure condition but SHALL NOT silently execute work or grant merge/deploy authorization.
+
+#### Scenario: Original owner unavailable
+- **WHEN** a CI follow-up is assigned to an unavailable agent
+- **THEN** the captain can explicitly reassign/handoff it under ordinary ownership rules without automatic expired-claim reclamation
+
+### Requirement: Merged Review disposition
+When PR observation is enabled, a system-only AshOban catch-up SHALL complete a source Review task whose current canonical PR and every retained submitted PR have matching immutable merged observations. It SHALL preserve the assignee, clear the completed task lease and append attributed action/version/timeline proof atomically. Merged lifecycle SHALL NOT certify CI, resolve an obligation or complete its repair task. The owner-requested completion guard remains a separate policy.
+
+#### Scenario: Final poll is pruned or application restarts
+- **WHEN** retained merged evidence exists and terminal PR polling has stopped or the application was offline
+- **THEN** catch-up completes eligible Review cards without another provider call, including cards with expired leases
+
+#### Scenario: Current link or another submission is unfinished
+- **WHEN** the current PR was cleared or relinked to an unmerged PR, or any retained submission is open, closed-unmerged, unobserved or inconsistent with its snapshot
+- **THEN** the task remains unchanged for explicit disposition and provider lifecycle/evidence remains visible
+
+#### Scenario: CI is unknown or failing after merge
+- **WHEN** every submitted PR has trustworthy merged lifecycle evidence but CI is unknown, failing or stale
+- **THEN** source Review completion records that evidence without reporting passing CI and existing repair tasks/obligations retain their explicit lifecycle
+
+#### Scenario: Replayed jobs or audit failure
+- **WHEN** concurrent catch-up jobs race or the transactional audit/notification capture fails
+- **THEN** successful work produces exactly one completion/version/timeline event, and failed work retains task status, assignee, lease and history
+
+#### Scenario: Disabled action and ineligible source
+- **WHEN** observation is disabled, the source is outside Review, it has no canonical PR, it is a CI repair task, or it exceeds the bounded submission limit
+- **THEN** the action leaves it unchanged; queued disabled jobs snooze without completing tasks
+</pre></details><details id="implementation-checklist"><summary>Implementation checklist</summary><pre># Tasks
+
+## 1. Ash dependency and migration foundation
+
+- [x] 1.1 Pin Ash, AshPostgres, AshPhoenix, AshPaperTrail, AshEvents, Oban, AshOban and provider HTTP client in Mix and hermetic Hex/Bazel closure; verify dependency compilation and release packaging only through remote Bazel.
+- [x] 1.2 Map existing Agent/Task/TaskEvent/Message/Document/quota tables into Ash resources/domains without recreating tables; verify remote schema fixtures preserve v0.1.0 IDs, constraints and HTML bytes.
+- [ ] 1.3 Add additive audit/version/Delivery/Oban schema with generator baselines; verify fresh install, schema-4 upgrade and repeat migration remotely, and document audit cutoff/rollback compatibility in docs/release.md.
+
+## 2. Existing operations through Ash
+
+- [x] 2.1 Convert Agent registration/heartbeat and board read/pagination/snapshots to domain actions; verify current API/CLI registration, harness conflict and keyset/full-watch behavior remotely.
+- [x] 2.2 Convert Task create/assign/claim/renew/release/reclaim/status/link/update to atomic resource operations; verify one-winner claims, revision conflicts, manual expiry recovery, lifecycle restrictions and compatible error envelopes remotely.
+- [x] 2.3 Convert handoff and Message send/recipient acknowledgement into shared transactional actions; verify assignment/event/message rollback and recipient-only acknowledgement through the real API/CLI remotely.
+- [x] 2.4 Convert quota evidence resources/ingest and immutable Document uploads/fetches; verify schema 5/6 retention, canonical retries, live-owner/terminal rules, size bounds and metadata reads excluding HTML remotely.
+- [ ] 2.5 Route API/watch/document controllers and LiveView reads through domain interfaces, removing independent mutation authorities; verify all existing routes/streams and sandbox viewer in remote acceptance plus a real browser, and document the shared operation boundary.
+
+## 3. Attributed audit and concurrency
+
+- [x] 3.1 Enable atomic-compatible PaperTrail versions on meaningful mutable state with actor/action metadata and heartbeat/HTML exclusions; verify versions reflect actual mutations and contain no noisy refreshes or full document copies remotely.
+- [x] 3.2 Add versioned AshEvents recording and one compatible task timeline projection in each mutation transaction; verify an induced audit insert failure rolls back state and timeline remotely.
+- [ ] 3.3 Implement aggregate-scoped advisory keys, ordered multi-record locking and no shared actor-row write lock; verify an intentionally held unrelated task/PR lock does not block independent mutations or reads remotely.
+- [ ] 3.4 Expose bounded escaped version/event reads without public replay; verify legacy/new history attribution and absence of secrets/HTML in read payloads remotely, and document the audit cutoff and concurrency rules.
+
+## 4. Durable PR inventory and worker runtime
+
+- [x] 4.1 Implement canonical monitored PR/task links and submitting-agent attribution; verify paginated discovery includes terminal tasks and deduplicates multiple links to one PR remotely.
+- [ ] 4.2 Supervise Oban/AshOban with stable module names, due-record scheduler, immediate link scheduling and queue budgets; verify restart recovery and schedule reconciliation remotely, and document per-pod concurrency/poll defaults.
+- [ ] 4.3 Implement reservation/fetch/commit orchestration with provider I/O outside transactions and generation comparison; verify timeout/crash recovery, overlapping polls and out-of-order replies remotely.
+- [ ] 4.4 Add immutable CI snapshots/check attempts/evidence and current projection with idempotent identity; verify duplicate job delivery produces no duplicate snapshots or obligations remotely.
+
+## 5. GitHub CI observations
+
+- [ ] 5.1 Implement bounded PR metadata/check-run/status/required-policy reads with all-page completion and current head/base/test-ref association; verify pagination, merge-ref checks and revision changes during collection against controlled HTTP fixtures remotely.
+- [ ] 5.2 Implement latest-attempt normalization and explicit repository policies; verify failures, pending, missing checks, unknown policies, accepted skipped/neutral outcomes and superseded retries remotely.
+- [ ] 5.3 Implement provider health/backoff, conditional requests where supported, 401/403/429/reset handling and read-only failed Actions job details; verify no fake passing on partial/error responses and no busy retry loops remotely.
+- [ ] 5.4 Document repository credential scopes and expected-check configuration, including AgentboardAcceptance correlation/publication; verify the documented policy matches actual provider metadata during read-only rollout checks.
+
+## 6. BuildBuddy failure diagnostics
+
+- [ ] 6.1 Implement configured GetInvocation/GetLog clients with pagination and repo/revision/CI-role/completion correlation; verify matching and rejected unrelated/manual invocations remotely using controlled API fixtures.
+- [ ] 6.2 Store bounded normalized/redacted excerpts, source links, truncation and unavailable reasons; verify GitHub failure remains failing after BuildBuddy permission denial, oversized responses and missing invocations remotely.
+- [ ] 6.3 Enforce destination/TLS/redirect and request/response limits for GitHub/BuildBuddy evidence fetches; verify hostile URLs never receive provider credentials and cross-origin downloads do not forward Authorization remotely.
+- [ ] 6.4 Add namespace Secret references/configuration with no values and a disabled observation-mode option; server-dry-run rendered manifests, verify actual API entitlement/key scopes out of band and document secret rotation/evidence limits.
+
+## 7. Delivery gate and follow-up accountability
+
+- [ ] 7.1 Implement one active follow-up per PR/failure episode with submitting-agent assignment or captain queue; verify concurrent/repeated failure polls create one task and one notification without modifying terminal source tasks remotely.
+- [ ] 7.2 Implement fresh current-revision completion guard and verified-revision delivery metadata; verify failed/pending/unknown/stale completion rejects without changing lease/state, and passing/no-PR completion retains normal lifecycle remotely.
+- [ ] 7.3 Implement machine-resolution tracking without silent follow-up task completion, plus explicit handoff/acknowledgement reads; verify passing recovery, recurrent failure and unavailable-owner cases remotely.
+- [ ] 7.4 Update canonical/harness/captain skills and API documentation for wait/fix/recheck/block/handoff obligations; verify all adapters inherit the rule and documented commands against the remote-built CLI.
+
+- [ ] 7.5 Implement #58 system-only merged-Review disposition with task-then-sorted-PR locking, retained-snapshot catch-up after pruning/downtime, all-submission fences, unchanged CI repair obligations and atomic audit/notification capture; record remote packaged-job/LiveView/replay/rollback/pagination proof plus a pre-fix negative control, publish portable Archify/Lavish documentation, and complete native publication/live acceptance separately.
+
+## 8. PR dashboard and CLI visibility
+
+- [ ] 8.1 Add paginated domain-backed `/prs` table, filters, accessible CI labels, responsible agent, freshness and follow-up links; verify boundary fixtures for every state remotely and browser-review desktop/narrow layouts.
+- [ ] 8.2 Add PR detail with current/historical attempts, failed-job excerpts, provider/task/document links and evidence-degraded states; verify escaping/truncation and preserved data during provider/database outage remotely.
+- [ ] 8.3 Add API v1 PR list/detail/watch and CLI `pr list/show/watch`, retaining 429/cancellation/reconnect contracts; verify actual remote-built binaries against packaged HTTP application remotely.
+- [ ] 8.4 Add compact CI notifications and LiveView durable reread/fallback; verify failure-to-passing updates and missed-notification recovery remotely, and document dashboard/CLI inspection commands.
+- [ ] 8.5 Refresh Archify source/HTML/receipts, browser/perceptual evidence and portable Lavish proposal; upload/link both from the live claimed board task and PR and verify sandboxed HTML remains readable.
+
+## 9. Integration and staged farm01 rollout
+
+- [ ] 9.1 Run full remote acceptance/release packaging including legacy M1–M3/document behaviors and provider outage/restart/concurrency flows; record actual BuildBuddy invocation results with no local compilation.
+- [ ] 9.2 Publish a new immutable image/CLI release and deploy additive migration plus Ash application in observation-only mode; verify healthy CNPG/app/jobs, provider access, complete linked PR inventory, expected checks and BuildBuddy correlations.
+- [ ] 9.3 Enable follow-ups/completion guard after observation evidence passes; demonstrate a controlled failing PR row/job/log, one assigned follow-up, rejected early completion, successful retry and passing delivery, retaining exact head/digest evidence.
+- [ ] 9.4 Verify live long-lived PR/task/message/quota watches through Gateway, all dashboard routes and sandbox documentation; record rollout/rollback evidence and mark tasks complete only after demonstrated behavior.
+
+## Foundation-stage evidence
+
+The first implementation stage completes Board registration/lifecycle/messages,
+board read/watch queries, immutable document and quota ingestion, and attributed
+PaperTrail/AshEvents writes. The packaged release/CLI acceptance passed remotely
+in [BuildBuddy 6809dbc8](https://carverauto.buildbuddy.io/invocation/6809dbc8-0cc4-4715-9486-9dda39a4a54c),
+including audit insert failures, one-winner claims, scoped audit contention,
+canonical evidence retries, raw retention, HTML exclusions and sandbox serving.
+Schema-6 fresh, repeat, and schema-4 upgrades passed in
+[BuildBuddy 5d07772f](https://carverauto.buildbuddy.io/invocation/5d07772f-147e-47f2-a049-9fe5a0164b9a).
+After the foundation stage, the quota latest-observation SQL projection,
+public audit inspection, complete Delivery snapshot/policy schema, PR
+workers/providers/UI/CLI, completion guard and live rollout were still
+unchecked. Scoped Task audit isolation was demonstrated. Inventory PR-identity
+lock ordering is recorded in the stage below; task 3.3 stays open. Archify
+documents this stage; it does not claim CI-monitor delivery. Database-clock expiry, bounded time input, and
+nonqueued pool checkout then passed packaged board API and schema acceptance in
+[BuildBuddy 4f96f5ff](https://carverauto.buildbuddy.io/invocation/4f96f5ff-8ecf-48aa-a7f2-990e10c76b9c).
+That run did not execute the other acceptance targets or a live rollout.
+
+
+### Durable PR inventory stage
+
+Task 4.1 is implemented with the Ash Delivery domain, atomic task submission
+links, per-task first submitting-agent/model/harness evidence, case-canonical
+PR deduplication, immutable links retained after handoff/URL changes, and
+keyset discovery of current links including terminal and archived tasks.
+Legacy introduction events supply attribution; absent provenance and time
+remain explicitly unknown. No historical task/timeline rows are rewritten.
+
+The [15-target remote acceptance run](https://carverauto.buildbuddy.io/invocation/806505ce-555b-4bf3-9514-a00e607e7ddd)
+passed; the [focused final inventory proof](https://carverauto.buildbuddy.io/invocation/2d534d51-125b-4267-bc34-d2b87c66b16f)
+also covers archived-terminal discovery and explicit immutable-trigger errors.
+Fresh/repeated/schema-4 upgrade migrations preserve existing IDs, timeline and
+HTML bytes. The [Archify diagram](../../../docs/architecture/pr-inventory.html)
+has all nine deterministic checks with no warnings, four desktop browser
+measurements and separate light/dark perceptual review receipts.
+
+Task 1.3 remains unchecked: this preparatory schema does not supply the complete
+Delivery snapshot/policy schema or Ash migration-generator baselines. Tasks
+4.2–4.4 and the provider, follow-up, CI dashboard/API/CLI and monitored rollout
+remain pending. Discovery remains an explicitly callable domain operation
+alongside the catch-up scheduler; inventory existence is not a CI health verdict.
+
+### Inventory catch-up worker stage
+
+The Delivery discovery resource now supplies a stable AshOban scheduled action
+with one-minute root sweeps, durable 100-task cursor continuations, independent
+per-task transactions, five-attempt retry, a separate one-worker-per-pod queue
+and a default-off runtime fence for already-queued jobs. Historical model and
+harness strings now retain exact source bytes instead of Ash&#x27;s trimming default.
+
+Task 4.2 remains unchecked. Its due-PR scheduler, immediate enqueue and shared
+admission subset is in [polling contracts](../../../docs/ci-polling.md);
+provider collection, CI results, follow-ups, a completion guard and a deployed
+monitor are not implied. The approved change remains 9/37 complete; no
+outstanding requirement has been removed or waived.
+</pre></details><footer>Design source: Agentboard's existing light/dark CSS tokens in web/assets/app.css. This is a policy review artifact, not a live dashboard. No external fonts, scripts or network dependencies.</footer></main><script>document.getElementById('theme').onclick=()=>{document.body.dataset.theme=(document.body.dataset.theme|| (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'))==='dark'?'light':'dark'}</script></html>

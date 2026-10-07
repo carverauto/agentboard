@@ -13,6 +13,7 @@ defmodule Agentboard.Delivery do
     resource(Agentboard.Delivery.PollState)
     resource(Agentboard.Delivery.ProviderBudget)
     resource(Agentboard.Delivery.Observation)
+    resource(Agentboard.Delivery.MergeDisposition)
     resource(Agentboard.Delivery.CISnapshot)
     resource(Agentboard.Delivery.Obligation)
   end

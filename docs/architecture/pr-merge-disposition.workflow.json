@@ -1,0 +1,153 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Agentboard merged PR disposition",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "lanes": [
+    {
+      "id": "watcher",
+      "label": "AshOban merge watcher"
+    },
+    {
+      "id": "manual",
+      "label": "Keep current board state",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "minute",
+    "task_lock",
+    "pr_lock",
+    "merge_proof",
+    "complete",
+    "dashboard"
+  ],
+  "nodes": [
+    {
+      "id": "minute",
+      "lane": "watcher",
+      "col": 0,
+      "type": "backend",
+      "label": "Minute cron",
+      "sublabel": "Observation flag enabled",
+      "tag": "100 tasks per page",
+      "width": 128
+    },
+    {
+      "id": "task_lock",
+      "lane": "watcher",
+      "col": 1,
+      "type": "database",
+      "label": "Task row lock",
+      "sublabel": "Reread Review + PR URL",
+      "width": 128
+    },
+    {
+      "id": "pr_lock",
+      "lane": "watcher",
+      "col": 2,
+      "type": "database",
+      "label": "PR state locks",
+      "sublabel": "All submissions, sorted",
+      "width": 128
+    },
+    {
+      "id": "merge_proof",
+      "lane": "watcher",
+      "col": 3,
+      "type": "security",
+      "label": "Merge snapshots",
+      "sublabel": "Every submission merged",
+      "width": 128
+    },
+    {
+      "id": "complete",
+      "lane": "watcher",
+      "col": 4,
+      "type": "backend",
+      "label": "Review \u2192 Done",
+      "sublabel": "Ash action + audit + timeline",
+      "tag": "One transaction",
+      "width": 128
+    },
+    {
+      "id": "dashboard",
+      "lane": "watcher",
+      "col": 5,
+      "type": "frontend",
+      "label": "Board reread",
+      "sublabel": "Card leaves Review",
+      "width": 128
+    },
+    {
+      "id": "unchanged",
+      "lane": "manual",
+      "col": 3,
+      "type": "frontend",
+      "label": "Leave unchanged",
+      "sublabel": "No matching merge evidence",
+      "width": 128
+    }
+  ],
+  "edges": [
+    {
+      "from": "minute",
+      "to": "task_lock"
+    },
+    {
+      "from": "task_lock",
+      "to": "pr_lock"
+    },
+    {
+      "from": "pr_lock",
+      "to": "merge_proof"
+    },
+    {
+      "from": "merge_proof",
+      "to": "complete"
+    },
+    {
+      "from": "complete",
+      "to": "dashboard",
+      "label": "Durable reread"
+    },
+    {
+      "from": "merge_proof",
+      "to": "unchanged",
+      "label": "Proof absent",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Explicit policy",
+      "items": [
+        "All submitted PRs merged; source Review only; assignee preserved",
+        "Retained merge proof survives downtime and expired ownership",
+        "Replay and concurrent jobs create one completion event"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "CI stays honest",
+      "items": [
+        "Merged lifecycle does not certify passing or fresh CI",
+        "CI repair tasks and failure obligations remain explicit",
+        "Other task states and missing or changed links are preserved"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Existing boundaries",
+      "items": [
+        "Task then PR locking matches inventory and pruning",
+        "No provider I/O, new quota, singleton, or schema migration",
+        "Audit and enabled notification capture commit atomically"
+      ]
+    }
+  ]
+}

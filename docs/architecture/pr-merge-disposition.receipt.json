@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "docs/architecture/pr-merge-disposition.workflow.json",
+  "output": "docs/architecture/pr-merge-disposition.html",
+  "specification": {
+    "sha256": "928d778e01cc0a160fc33ecca18508d6f54e9eec50a81750829daa12ac42b65d",
+    "bytes": 3392
+  },
+  "artifact": {
+    "sha256": "71a484de731a01eb871e415252f7e987c367687f7393471838b13905143451ab",
+    "bytes": 708677
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}
