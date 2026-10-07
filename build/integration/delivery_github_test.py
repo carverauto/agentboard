@@ -118,6 +118,10 @@ class Provider(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         global metadata_reads
+        if '\r' in self.path or '\n' in self.path:
+            self.send_response(400)
+            self.end_headers()
+            return
         requests.append(self.path)
         assert self.headers['Authorization'] == 'Bearer invented-fixture-token'
         u = urllib.parse.urlparse(self.path)
@@ -225,6 +229,7 @@ with tempfile.TemporaryDirectory() as temp:
     openssl('x509','-req','-in',csr,'-CA',ca,'-CAkey',ca_key,'-CAcreateserial','-out',cert,'-days','1','-extfile',str(extensions))
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Provider)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     ctx.load_cert_chain(cert, key)
     server.socket = ctx.wrap_socket(server.socket, server_side=True)
     threading.Thread(target=server.serve_forever, daemon=True).start()
