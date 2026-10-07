@@ -194,3 +194,11 @@ sh_test(
     size = "large",
     timeout = "long",
 )
+
+sh_test(
+    name = "seat_isolation_test",
+    srcs = ["seat_isolation_test.sh"],
+    data = ["seat_isolation_test.py", "//scripts:launch-seat", "@seat_treehouse_linux_amd64//:treehouse"],
+    args = ["$(rlocationpath //scripts:launch-seat)", "$(rlocationpath @seat_treehouse_linux_amd64//:treehouse)"],
+    size = "small",
+)

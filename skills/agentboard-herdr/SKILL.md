@@ -9,6 +9,17 @@ Read [the canonical workflow](../agentboard/SKILL.md) and the variant for the ac
 
 Load these files using the session's supported instruction mechanism. No hook integration or automatic worker dispatch is installed. Commands, explicit leases, inbox acknowledgement, and authorization boundaries remain those of the canonical skill.
 
+## Worktree isolation remains required
+
+`--backend herdr` records hosting metadata; it does **not** establish worktree
+isolation. Every seat still needs a persistently leased Treehouse v2.0.1 linked
+worktree, the launcher's settled physical-cwd gate, and its harness's generated
+STOP brief. Verify `pwd -P` and `git rev-parse --show-toplevel` against the exact
+expected `AGENTBOARD_SEAT_WORKTREE` before editing. A primary or mismatched cwd
+means STOP, report the failure, and mark the owned task blocked after checking
+its live claim. Hooks may be optional backstops only. This requirement does not
+enable Herdr automation or automatic prompt delivery.
+
 ## Ask-user gates: escalate to the coordinator, never the human pane
 
 On a no-mistakes ask-user gate, follow [the shared ask-user → coordinator procedure](../agentboard/ask-user-escalation.md): write the findings verbatim, escalate with `agentboard msg send --to "$AGENTBOARD_COORDINATOR_ID" --task TASK --body '...'` (env-resolved; `--body` is required; include `--task` when a board task is active), mark blocked, then end the turn — only if the escalation went through. Never pass `--yes`, and never prompt the Herdr human pane for ask-user authority — the coordinator (or captain via coordinator) is the only escalation path.

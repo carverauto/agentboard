@@ -29,6 +29,7 @@ test_suite(
         "//internal/cli:cli_test",
         "//build/integration:worker_runtime_test",
         "//build/integration:pi_native_test",
+        "//build/integration:seat_isolation_test",
         "//web:rate_limits_test",
         "//build/integration:postgres_tls_test",
         "//build/integration:db_tls_guard_test",

@@ -1,0 +1,4 @@
+# Treehouse v2.0.1 appends .treehouse and the repository pool name to root.
+# Keep its state separate from any globally configured newer Treehouse pool.
+root = "$HOME/.local/share/agentboard/treehouse-v2.0.1"
+max_trees = 16

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Volumes/Build/.treehouse/agentboard-seat-isolation-management/.treehouse/agentboard-115218/1/agentboard/docs/architecture/seat-isolation.workflow.json",
+  "output": "/Volumes/Build/.treehouse/agentboard-seat-isolation-management/.treehouse/agentboard-115218/1/agentboard/docs/architecture/seat-isolation.html",
+  "specification": {
+    "sha256": "e7c1371dbec2c26db1bf20bc602582d71c698c375ba587b78beaef794f987cd7",
+    "bytes": 2768
+  },
+  "artifact": {
+    "sha256": "45502edf5d92fac62d0ef1d826ff1f32195ac0b62e1b30c9d7ce6b7e775a6676",
+    "bytes": 707653
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  },
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "perceptual_review": {
+    "reviewer": "image-capable Codex driver",
+    "viewports": [
+      "2048x1320 light",
+      "2048x1320 dark"
+    ],
+    "findings": "Readable node and edge labels, distinct STOP branch, no collisions or clipped cards; balanced main panel and recovery lane."
+  },
+  "correction_rounds": 2
+}
