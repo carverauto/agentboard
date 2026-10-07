@@ -103,6 +103,17 @@ defmodule Agentboard.Board.Resources.Task do
       accept([:status, :claimed_at, :claim_expires_at, :revision, :updated_at])
     end
 
+    # Internal system disposition, never exposed as a caller-selected API action.
+    # The watcher validates retained evidence after locking the task and PR state.
+    update :complete_merged_pr do
+      accept([:revision, :updated_at])
+      argument(:expected_pr_url, :string, allow_nil?: false)
+      change(filter(expr(status == "review" and pr_url == ^arg(:expected_pr_url))))
+      change(set_attribute(:status, "done"))
+      change(set_attribute(:claimed_at, nil))
+      change(set_attribute(:claim_expires_at, nil))
+    end
+
     update :handoff do
       accept([
         :status,

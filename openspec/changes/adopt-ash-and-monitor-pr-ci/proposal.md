@@ -11,7 +11,8 @@ Agents currently deliver PRs and move on without confirming CI finishes successf
 - Add an AshOban PR-monitor job that discovers every board-linked GitHub PR, checks its current head and applicable CI policy, and stores bounded, retry-safe observations.
 - Add a dashboard PR table with CI state, failed checks, repository/head, responsible agent, observation freshness, GitHub/BuildBuddy evidence and outstanding follow-up.
 - Collect failed check/job details from GitHub and correlated invocation/log evidence through the BuildBuddy API. Keep GitHub and BuildBuddy credentials in namespace Secrets and never expose them to the CLI or HTML.
-- Keep failed/pending/unknown/stale CI visibly distinct from green. Prevent new linked-PR deliveries from becoming done until current-head CI is verified; preserve existing terminal tasks and create a deduplicated board follow-up for failures discovered afterward.
+- Keep failed/pending/unknown/stale CI visibly distinct from green. Prevent owner-requested linked-PR deliveries from becoming done until current-head CI is verified; preserve existing terminal tasks and create a deduplicated board follow-up for failures discovered afterward.
+- Add explicit merged-Review disposition: a system AshOban catch-up completes source Review tasks only when their current PR and all retained submissions have matching immutable merged evidence. Preserve the assignee, append merge proof, clear the lease and retain CI repair obligations; terminal polling may stop without losing this catch-up.
 - Update the canonical and captain skills: PR delivery includes waiting for CI, inspecting failures, fixing and rechecking, or explicitly recording a blocker/handoff. The monitor observes and records; it does not launch coding agents, merge PRs or sweep expired claims.
 
 ## Capabilities

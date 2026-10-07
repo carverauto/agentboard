@@ -144,6 +144,74 @@ defmodule Agentboard.Board.Operations do
     end
   end
 
+  # Called only by the merge watcher inside its task -> PollState transaction.
+  # A dedicated Ash action records the policy; the compatible update event
+  # carries merge proof and captures normal notification intents atomically.
+  def complete_merged_pr(task, snapshot, url, snapshots, stamp) do
+    actor = %{"agent" => "ci-accountability", "model" => "system", "harness" => "ash"}
+
+    changed =
+      update(
+        task,
+        :complete_merged_pr,
+        %{expected_pr_url: task.pr_url, revision: task.revision + 1, updated_at: stamp},
+        actor,
+        task.revision
+      )
+
+    result =
+      result(
+        changed,
+        task,
+        "update",
+        actor,
+        %{
+          "status" => "done",
+          "note" =>
+            "Automatically completed Review: #{url} was observed merged. CI qualification is unchanged.",
+          "merge_evidence" => %{
+            "policy" => "merged_review_v1",
+            "pull_request_id" => snapshot.pull_request_id,
+            "url" => url,
+            "snapshot_id" => snapshot.id,
+            "generation" => snapshot.generation,
+            "observed_at" => snapshot.observed_at,
+            "head_sha" => snapshot.head_sha,
+            "base_sha" => snapshot.base_sha,
+            "ci_state" => snapshot.ci_state,
+            "submissions" =>
+              Enum.map(snapshots, fn proof ->
+                %{
+                  "pull_request_id" => proof.pull_request_id,
+                  "snapshot_id" => proof.id,
+                  "generation" => proof.generation,
+                  "head_sha" => proof.head_sha,
+                  "base_sha" => proof.base_sha,
+                  "observed_at" => proof.observed_at,
+                  "ci_state" => proof.ci_state
+                }
+              end)
+          }
+        },
+        stamp
+      )
+
+    if changed.assignee_id do
+      send_message(
+        actor,
+        %{
+          "to" => changed.assignee_id,
+          "task" => changed.id,
+          "body" =>
+            "Review completed by system: #{url} was observed merged at #{snapshot.observed_at}. CI qualification is unchanged; investigate any outstanding CI repair obligations before taking new work."
+        },
+        stamp
+      )
+    end
+
+    result
+  end
+
   def message(id, actor, data) do
     with {:ok, actor} <- Input.actor(actor),
          true <- is_map(data),
@@ -220,7 +288,10 @@ defmodule Agentboard.Board.Operations do
         data["note"],
         prior && prior.revision,
         task.revision,
-        %{"before" => prior && public(prior), "after" => public(task)},
+        Map.merge(
+          %{"before" => prior && public(prior), "after" => public(task)},
+          Map.take(data, ["merge_evidence"])
+        ),
         stamp
       )
 
@@ -423,3 +494,4 @@ defmodule Agentboard.Board.Operations do
     defp action_name(unquote(Atom.to_string(name))), do: unquote(name)
   end
 end
+

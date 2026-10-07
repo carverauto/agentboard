@@ -49,6 +49,8 @@
 - [ ] 7.3 Implement machine-resolution tracking without silent follow-up task completion, plus explicit handoff/acknowledgement reads; verify passing recovery, recurrent failure and unavailable-owner cases remotely.
 - [ ] 7.4 Update canonical/harness/captain skills and API documentation for wait/fix/recheck/block/handoff obligations; verify all adapters inherit the rule and documented commands against the remote-built CLI.
 
+- [ ] 7.5 Implement #58 system-only merged-Review disposition with task-then-sorted-PR locking, retained-snapshot catch-up after pruning/downtime, all-submission fences, unchanged CI repair obligations and atomic audit/notification capture; record remote packaged-job/LiveView/replay/rollback/pagination proof plus a pre-fix negative control, publish portable Archify/Lavish documentation, and complete native publication/live acceptance separately.
+
 ## 8. PR dashboard and CLI visibility
 
 - [ ] 8.1 Add paginated domain-backed `/prs` table, filters, accessible CI labels, responsible agent, freshness and follow-up links; verify boundary fixtures for every state remotely and browser-review desktop/narrow layouts.

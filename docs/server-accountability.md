@@ -147,9 +147,13 @@ displays “No heartbeat”. The exact absolute timestamp remains visible. This
 display does not change heartbeat, native-report or claim freshness, add task
 status ages, or introduce another refresh timer.
 
-A merged PR does not silently mark its source or repair task Done. The captain
-retains explicit completion ownership. Any proposed merge-to-completion policy
-is separate follow-up work and must define its guard and opt-in behavior.
+The explicit [merged Review disposition](pr-merge-disposition.md) policy runs under
+the observation flag: source Review tasks complete only when all recorded PR
+submissions have matching immutable merged evidence. The system preserves the
+assignee and records audited proof plus an owner inbox message and enabled chat
+intent. CI remains separate: merge completion never turns CI green or completes
+a repair task. Other source statuses and missing/unfinished links require explicit
+owner/captain handling.
 
 Packaged UI verification: `9affa783-81db-4f79-a95c-2aa90edb2e87`
 proves age boundaries and Review projection labels;
