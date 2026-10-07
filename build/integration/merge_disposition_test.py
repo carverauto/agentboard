@@ -57,7 +57,9 @@ def task(id, number=None, status='review', url=None):
 
 def observe(number, lifecycle='merged', failing=False):
     ident = sql(f"SELECT id FROM delivery_pull_requests WHERE number='{number}' AND repo='merge'")
-    sql(f"UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 second' WHERE id='{ident}'")
+    # Repeated invented observations explicitly reenable the fixture row;
+    # production terminal retirement remains the collector's responsibility.
+    sql(f"UPDATE delivery_poll_states SET enabled=true,next_poll_at=clock_timestamp()-interval '1 second' WHERE id='{ident}'")
     expr = ('{:ok, [r]} = Agentboard.Delivery.Polling.reserve_pr(' + json.dumps(ident) + '); '
             'result = %{lifecycle: ' + json.dumps(lifecycle) + ', head_sha: "' + HEAD +
             '", base_sha: "' + BASE + '", ci_state: ' + json.dumps('failing' if failing else 'unknown') +

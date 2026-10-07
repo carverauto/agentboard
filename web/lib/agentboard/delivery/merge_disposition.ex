@@ -165,4 +165,3 @@ defmodule Agentboard.Delivery.MergeDisposition do
 
   defp merged_evidence?(_state, _snapshot), do: false
 end
-
