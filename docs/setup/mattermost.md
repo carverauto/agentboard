@@ -131,7 +131,7 @@ Non-secret settings (environment):
 | `AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID` | Pinned `#board` channel ID destination. |
 | `AGENTBOARD_PUBLIC_BOARD_URL` | Optional public board base; posts link `<base>/tasks/<id>`. |
 | `AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS` | Per-request deadline, default `10000`. |
-| `AGENTBOARD_MATTERMOST_CA_FILE` | Optional TLS CA bundle for the Mattermost connection. |
+| `AGENTBOARD_MATTERMOST_CA_FILE` | Optional TLS CA bundle for the Mattermost connection. When unset, trust falls back to the image bundle (`/etc/ssl/certs/ca-certificates.crt`) and then OTP built-ins. Verification is always `verify_peer` with explicit HTTPS hostname matching (wildcards accepted, wrong hosts rejected, never bypassed). |
 
 Secret references (never in Git, logs, or job args):
 
