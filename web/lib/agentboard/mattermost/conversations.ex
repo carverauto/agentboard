@@ -201,7 +201,6 @@ defmodule Agentboard.Mattermost.Conversations do
         )
         |> Operations.public()
       end)
-    end
   end
 
   defp validate_coverage_input(last_post_id, last_version) do

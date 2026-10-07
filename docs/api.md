@@ -130,3 +130,9 @@ that stage. Schema 11 adds the compact `/prs` reads and the scoped worker API;
 see [server accountability](server-accountability.md), [worker API](worker-api.md),
 [collector limits](github-ci-observation.md) and
 [schema 11 compatibility](release.md#schema-11-server-accountability-and-delivery).
+
+Schema 12 adds the conversations identity/coverage routes
+(`/conversations/identities`, `/conversations/coverage/:agent_id/:channel_id`)
+for per-agent Mattermost seats; task/watch payloads are unchanged by that stage.
+See the [agent-chat runbook](setup/mattermost-agent-chat-runbook.md) and
+[schema 12 compatibility](release.md#schema-12-mattermost-agent-identities-and-coverage).
