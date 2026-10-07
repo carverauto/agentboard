@@ -1,0 +1,75 @@
+{
+  "harness": "claude",
+  "version": "2.1.289 (Claude Code)",
+  "profile": "isolated-headless-stream-json",
+  "session_id": "79e12e1d-3000-4eb4-b664-6a4c8b26a1e6",
+  "generation": "0dcdea67-646f-4f5a-84c3-7f9de76a4014",
+  "transport": "Claude-supervised MCP child + native mods hook",
+  "native_prompt_source_observed": true,
+  "explicit_receipts": [
+    {
+      "attempt_id": "attempt-1",
+      "binding_epoch": 1,
+      "delivery_ids": [
+        "delivery-1",
+        "delivery-2"
+      ],
+      "dispatch_generation": 1,
+      "idempotency_key": "claude-live-received",
+      "kind": "received",
+      "payload_hash": "7272578f9ac15e5d705b61cf916e3d2ae37dfb26ae975b651fa610376e687c0b"
+    },
+    {
+      "attempt_id": "attempt-1",
+      "binding_epoch": 1,
+      "delivery_ids": [
+        "delivery-1",
+        "delivery-2"
+      ],
+      "dispatch_generation": 1,
+      "idempotency_key": "claude-live-handled",
+      "kind": "handled",
+      "payload_hash": "7272578f9ac15e5d705b61cf916e3d2ae37dfb26ae975b651fa610376e687c0b"
+    }
+  ],
+  "idle_wake_supported": false,
+  "proof_backend": "invented HTTP contract; not published-server interop",
+  "remote_binary_build": "1a465c0f-0ba3-4b2a-8639-e27602fbb9a2",
+  "limitations": [
+    "interactive composer wake unproven",
+    "resume/fork/clear installed-session proof pending",
+    "real packaged-server interop remains separate"
+  ],
+  "model_requested": "haiku",
+  "models_observed": [
+    "claude-haiku-4-5-20251001"
+  ],
+  "foreign_hooks_preserved": true,
+  "foreign_hook_events": [
+    "SessionStart",
+    "Stop",
+    "Stop",
+    "Stop"
+  ],
+  "plugin_sha256": {
+    "bridge.mjs": "19cb30c3f8ee0121ec79184ca4fbe47a78ac5ff91c2ca90efe6eb713bad1c402",
+    "hooks/register.js": "9274bb699d449215649eca33478db0f211b62334ea3881a0c2470bc126c40814",
+    ".mcp.json": "715513785a3c706d6bcdf8a839f7ec9913e01e7e2cf38008db2d527afdcbd600",
+    ".claude-plugin/plugin.json": "10effe1749471d36acb261e1ab69ac7ac3f89e574132139d6043f65d28b9f78d",
+    "hooks/hooks.json": "b6e8720c937b1a4ee1ee389fa5d9b5a22df25298241f701bb484d28f431f5153"
+  },
+  "busy_fixture": "Second batch staged through public native socket while receipt-scoped check-in state was held; exact receipts refer to the first real host-reserved native-prompt batch.",
+  "explicit_busy_check_in": {
+    "waiting_batch_returned": true,
+    "automatic_frame_appended": false,
+    "pending_evidence_phase": "accepted",
+    "no_implicit_receipts": true,
+    "exact_tool_result_count": 1,
+    "delivery_ids": [
+      "delivery-live-policy-1",
+      "delivery-live-policy-2"
+    ]
+  },
+  "source_commit": "183790a196dfa88e7261e1fecf9e5496de3c55e2",
+  "policy": "MCP returns the original explicit waiting-batch result only; no automatic MCP staged-frame consumption or append. Native prompt delivery requires current headless proof; exact explicit ack remains."
+}

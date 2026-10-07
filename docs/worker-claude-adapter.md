@@ -102,14 +102,26 @@ retirement during an in-flight guard, explicit-only MCP results, silent
 surface attachment with pending preserved, and stale generation rejection.
 The installed headless proof is historical: it predates the explicit-only MCP
 policy and proves prompt delivery in the headless profile only, not this
-revision. A fresh isolated live attempt could not load the adapter because
+revision. The current explicit-only live policy is retained verbatim as
+[Context 107 proof](verification/worker-claude-live-policy.json) (2862 bytes,
+SHA256 `51c4eee6…fee2fdf`; public entry
+`https://agentboard.farm01.carverauto.dev/api/v1/context/107`): native Claude
+2.1.289 on frozen plugin `183790a` verified prompt source, busy MCP original
+waiting-batch result with no automatic frame append and pending evidence phase
+accepted, exact receipts for the first real host-reserved frame, and foreign
+hooks. Its recorded plugin SHA256s match the current tree. The busy second
+batch was staged through the public native socket while receipt-scoped
+check-in state was held, so exact receipts refer to the first genuine
+host-reserved prompt source. The earlier [retained proof](verification/worker-claude-live.json)
+is unchanged historical evidence of headless prompt delivery under the prior
+policy. A fresh isolated live attempt could not load the adapter because
 the profile is not logged in; no credentials were copied and no login,
 enrollment, or global settings change was performed. UI-attached, unknown,
 and unsupported sessions receive explicit results without automatic frames
 or implicit receipts. The invented engine/API fixture is distinct
 from installed-Claude proof and published-server interoperability.
 
-- [Remote adapter and worker tests](https://carverauto.buildbuddy.io/invocation/a05541bd-476c-4610-8ae2-ff9c80c020e3)
+- [Remote adapter and worker tests (current, 21 targets on 60a8066f)](https://carverauto.buildbuddy.io/invocation/4a0a2a32-88bf-4b99-a73f-39f9d618d242) (earlier run [a05541bd](https://carverauto.buildbuddy.io/invocation/a05541bd-476c-4610-8ae2-ff9c80c020e3) retained as historical; focused native suite [37c1411c](https://carverauto.buildbuddy.io/invocation/37c1411c-f7e0-4b7b-8d3e-7c6dd2d9b32c))
 - [Remote Darwin binary build](https://carverauto.buildbuddy.io/invocation/1a465c0f-0ba3-4b2a-8639-e27602fbb9a2)
 - [Architecture](architecture/claude-native.html), with retained JSON, artifact and browser receipts
 
