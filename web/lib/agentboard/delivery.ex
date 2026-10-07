@@ -11,6 +11,8 @@ defmodule Agentboard.Delivery do
     resource(Agentboard.Delivery.TaskLink)
     resource(Agentboard.Delivery.Discovery)
     resource(Agentboard.Delivery.PollState)
+    resource(Agentboard.Delivery.ProviderBudget)
+    resource(Agentboard.Delivery.Observation)
   end
 
   def discover(after_id \\ nil, limit \\ 100),

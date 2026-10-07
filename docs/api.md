@@ -120,4 +120,6 @@ This inventory stage does not yet expose PR list/show/watch endpoints or a CI ve
 Schema 8 adds internal Delivery polling bookkeeping without new public routes
 or a change to task/watch payloads. New submissions atomically enroll unknown
 poll state; inventory and attribution remain immutable. No provider checks or
-CI result are exposed by this stage. See [polling contracts](ci-polling.md).
+CI result are exposed by this stage. Schema 9 adds no public route or payload.
+See [polling contracts](ci-polling.md) and
+[schema 9 compatibility](release.md#schema-9-observation-scheduling-budgets).

@@ -106,8 +106,7 @@ Task 1.3 remains unchecked: this preparatory schema does not supply the complete
 Delivery snapshot/policy schema or Ash migration-generator baselines. Tasks
 4.2–4.4 and the provider, follow-up, CI dashboard/API/CLI and monitored rollout
 remain pending. Discovery remains an explicitly callable domain operation
-alongside the catch-up scheduler below until the provider observation stages;
-inventory existence is not a CI health verdict.
+alongside the catch-up scheduler; inventory existence is not a CI health verdict.
 
 ### Inventory catch-up worker stage
 
@@ -117,8 +116,8 @@ per-task transactions, five-attempt retry, a separate one-worker-per-pod queue
 and a default-off runtime fence for already-queued jobs. Historical model and
 harness strings now retain exact source bytes instead of Ash's trimming default.
 
-This is preparatory work within task 4.2, which remains unchecked: due-PR
-observation scheduling, immediate poll enqueueing and the four-worker provider
-budget still require the reservation/provider stages. No CI result, follow-up,
-completion guard or deployed monitor is implied. The approved change remains
-9/37 complete; no outstanding requirement has been removed or waived.
+Task 4.2 remains unchecked. Its due-PR scheduler, immediate enqueue and shared
+admission subset is in [polling contracts](../../../docs/ci-polling.md);
+provider collection, CI results, follow-ups, a completion guard and a deployed
+monitor are not implied. The approved change remains 9/37 complete; no
+outstanding requirement has been removed or waived.

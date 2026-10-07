@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Durable PR observation scheduling",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "viewBox": [
+      1260,
+      700
+    ],
+    "repository": {
+      "url": "https://github.com/carverauto/agentboard",
+      "revision": "c67084e390e01e8c61102890e71970b96b45301f"
+    }
+  },
+  "components": [
+    {
+      "id": "submission",
+      "type": "backend",
+      "label": "PR submission",
+      "sublabel": "Board API \u00b7 atomic job insert",
+      "pos": [
+        50,
+        100
+      ],
+      "size": [
+        250,
+        86
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/inventory.ex"
+        }
+      ]
+    },
+    {
+      "id": "jobs",
+      "type": "messagebus",
+      "label": "Persisted PR jobs",
+      "sublabel": "Oban \u00b7 one PR per job",
+      "pos": [
+        500,
+        100
+      ],
+      "size": [
+        250,
+        86
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/poll_worker.ex"
+        }
+      ]
+    },
+    {
+      "id": "poll",
+      "type": "backend",
+      "label": "Ash poll action",
+      "sublabel": "120s reservation \u00b7 generation fence",
+      "pos": [
+        950,
+        100
+      ],
+      "size": [
+        260,
+        86
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/scheduling.ex"
+        }
+      ]
+    },
+    {
+      "id": "cron",
+      "type": "backend",
+      "label": "AshOban scheduler",
+      "sublabel": "Every minute \u00b7 100 jobs per tick",
+      "pos": [
+        500,
+        320
+      ],
+      "size": [
+        250,
+        86
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/observation.ex"
+        }
+      ]
+    },
+    {
+      "id": "budget",
+      "type": "database",
+      "label": "Provider admission",
+      "sublabel": "Shared PostgreSQL budgets",
+      "pos": [
+        950,
+        320
+      ],
+      "size": [
+        260,
+        86
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/provider_admission.ex"
+        }
+      ]
+    },
+    {
+      "id": "inventory",
+      "type": "database",
+      "label": "Canonical PR inventory",
+      "sublabel": "Includes cleared / archived links",
+      "pos": [
+        50,
+        540
+      ],
+      "size": [
+        250,
+        86
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/scheduling.ex"
+        }
+      ]
+    },
+    {
+      "id": "states",
+      "type": "database",
+      "label": "Durable PollState",
+      "sublabel": "Due times \u00b7 retained CI evidence",
+      "pos": [
+        500,
+        540
+      ],
+      "size": [
+        250,
+        86
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/polling.ex"
+        }
+      ]
+    },
+    {
+      "id": "collector",
+      "type": "external",
+      "label": "Next: GitHub collector",
+      "sublabel": "Not implemented in this stage",
+      "pos": [
+        950,
+        540
+      ],
+      "size": [
+        260,
+        86
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "submission",
+      "to": "jobs",
+      "label": "Immediate",
+      "variant": "emphasis"
+    },
+    {
+      "from": "jobs",
+      "to": "poll",
+      "label": "Per-PR worker",
+      "variant": "emphasis"
+    },
+    {
+      "from": "cron",
+      "to": "jobs",
+      "label": "Enqueue due",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "from": "inventory",
+      "to": "states",
+      "label": "Recover missing rows"
+    },
+    {
+      "from": "states",
+      "to": "cron",
+      "label": "Due / unleased",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "from": "poll",
+      "to": "budget",
+      "label": "Shared admission",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1130,
+        250
+      ]
+    },
+    {
+      "from": "budget",
+      "to": "collector",
+      "label": "Later provider I/O",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1130,
+        470
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Independent work",
+      "items": [
+        "Discovery, scheduling and polling use separate queues",
+        "A completed task or green PR does not end scheduling"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Recovery and pacing",
+      "items": [
+        "Jobs, reservations, deadlines and admission survive restart",
+        "Disabled jobs snooze; unrelated board writes stay available"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Provider collection pending",
+      "items": [
+        "Current jobs defer as unavailable and retain provider evidence",
+        "No CI verdict or automatic agent alert is invented"
+      ]
+    }
+  ]
+}

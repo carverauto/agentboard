@@ -7,7 +7,7 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 ## 1. Server observes CI after the owner moves on
 
 - [x] 1.1 Extend `Agentboard.Delivery` with due-PR reservation/generation and additive observation state (existing Ash/CI 1.3, 4.2–4.4); verify fresh/repeat/schema-7 upgrade preservation and two concurrent poll reservations remotely, and document the observation cutoff/default-off switch.
-- [ ] 1.2 Add independent bounded AshOban due scheduling and immediate PR-link scheduling (existing 4.2); verify restart, archived/terminal links, previously green open PRs, disabled queued jobs and shared per-provider budgets remotely, and document actual poll/backoff bounds.
+- [x] 1.2 Add independent bounded AshOban due scheduling and immediate PR-link scheduling (existing 4.2); verify restart, archived/terminal links, previously green open PRs, disabled queued jobs and shared per-provider budgets remotely, and document actual poll/backoff bounds.
 - [ ] 1.3 Implement current-head GitHub metadata/check/status pagination and latest-attempt observation (existing 5.1–5.3); verify old-head failure, superseded attempts, equal-time ordering, partial pages, auth failure and 429 remotely with controlled provider fixtures, and retain failed-job source links.
 - [ ] 1.4 Add confirmed-failure episode and one canonical responsible-agent repair obligation (existing 7.1, 7.3); verify repeated/concurrent polls, unknown/conflicting attribution, changed current-task pointer, explicit handoff and recurrence remotely, and document notification versus repair resolution.
 - [ ] 1.5 Add compact CI/responsible-agent/obligation reads in planned `/prs` and related task links (existing 8.1–8.2 subset); verify failing/pending/unknown/stale/green fixture rendering and desktop/narrow containment, and document evidence limitations without claiming full dashboard delivery.
@@ -75,9 +75,16 @@ an omitted BM25 extension in the new upgrade fixture. After correcting the
 fixture, [fresh/repeat/schema-4/schema-7 migration proof](https://carverauto.buildbuddy.io/invocation/b99cbebd-2f59-460a-bff4-6bfd125a4609)
 passed. See [stage contracts](../../../docs/ci-polling.md).
 
-There is no due scheduler, GitHub CI collector, failure obligation, worker
-connector or automatic reminder in this stage. Existing Ash/CI tasks 1.3 and
-4.2–4.4 remain open because this implements only their reservation subset.
-The first release gate and the remaining 35 runtime tasks remain open.
+The reservation foundation alone has no due scheduler. Task 1.2 now adds scheduling as documented below; GitHub collection, failure obligations, worker connectors and automatic reminders remain pending. Existing Ash/CI tasks 1.3 and
+4.2–4.4 remain open; 1.2 covers only the scheduling subset of 4.2.
+The first release gate and the remaining 34 runtime tasks remain open.
 
 After remote formatting, [full 17-target acceptance](https://carverauto.buildbuddy.io/invocation/9f599f54-8769-466d-8de4-1e88b8fe7368) passed (12 executed, five unchanged cached targets). Archify foundation: 9/9 showcase checks, zero errors/warnings, all four desktop containment measurements, and separate light/dark image review. No live runtime or provider result is implied.
+
+## Scheduling evidence
+
+Task 1.2 adds immediate transactional per-PR Oban jobs, a bounded minute AshOban scheduler, missing-state reconciliation from all canonical inventory, independent queues, and shared PostgreSQL provider admission windows. [Full 18-target remote acceptance](https://carverauto.buildbuddy.io/invocation/c39b75ed-fca7-4114-b78c-4992a52d3ed9) proves restart, archived/terminal and previously-green PR scheduling, recovery across 100 rows, disabled queued jobs, atomic enqueue rollback, independent shared budgets and schema-8 backoff preservation during schema-9 upgrade. Actual pacing and unavailable defer limits are in [stage contracts](../../../docs/ci-polling.md).
+
+No provider HTTP collector, CI verdict writer, repair obligation, wake connector or reminder is delivered yet. Existing Ash/CI 4.2–4.4 remain open for their broader observation requirements. The first release gate remains group 3; observation remains default-off. The approved exported proposal remains the historical planning snapshot.
+
+After remote formatting, [full 18-target acceptance](https://carverauto.buildbuddy.io/invocation/eb4b683e-7e3d-42d1-ae45-9412e467059b) passed. Scheduling Archify passed 9/9 showcase checks with zero errors/warnings, four desktop containment measurements, and separate actual light/dark image review; viewer interactions are not covered by that image review.

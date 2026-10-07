@@ -124,11 +124,12 @@ compatible but omits new PR submissions from the inventory until reconciliation
 runs. Record that gap and fix forward. Do not drop immutable PR/link/version
 history or run a down migration.
 
-This stage establishes inventory for the next scheduler. Provider
-credentials, CI verdicts, provider observation scheduling, the PR dashboard/API/CLI,
-completion guard and follow-ups remain pending in the approved OpenSpec change
+This stage establishes inventory for later scheduling. Provider
+credentials, CI verdicts, the PR dashboard/API/CLI, completion guard and
+follow-ups remain pending in the approved OpenSpec change
 (opt-in inventory catch-up is the next section; reservation state is
-[schema 8](#schema-8-poll-reservation-foundation)).
+[schema 8](#schema-8-poll-reservation-foundation); observation scheduling is
+[schema 9](#schema-9-observation-scheduling-budgets)).
 An inventory record alone makes no assertion about CI health. See the
 [Archify submission and discovery diagram](architecture/pr-inventory.html).
 
@@ -139,8 +140,10 @@ AshOban reconciliation of current task PR links. It defaults to false. The
 stable worker is `Agentboard.Delivery.ReconcileLinks`, on the separate
 `delivery_discovery` queue with concurrency **one per pod**; housekeeping
 keeps its own queue. Recompute total database demand when increasing replicas.
-This worker discovers links; GitHub/BuildBuddy polls, CI state and follow-up
-creation remain separate unfinished stages of the approved change.
+This worker discovers links. Observation scheduling is
+[schema 9](#schema-9-observation-scheduling-budgets). GitHub/BuildBuddy
+collection, CI verdicts and follow-up creation remain separate unfinished
+stages of the approved change.
 
 Each job scans at most 100 linked tasks in keyset order, including Done,
 Cancelled and archived tasks. If another page exists, it persists a cursor-only
@@ -179,7 +182,26 @@ failure-backoff actions only; it installs no provider scheduler, CI verdict,
 repair task or session notification. Keep the switch off until later acceptance.
 
 Retain the additive schema during an image rollback. Old schema-7 writers do
-not enroll polling rows; the later scheduler must reconcile all missing
-canonical inventory before re-enabling observation. Full cutoff/concurrency
+not enroll polling rows. Reconciliation of missing canonical inventory is
+[schema 9](#schema-9-observation-scheduling-budgets). Full cutoff/concurrency
 and rollback contracts are in [PR polling foundation](ci-polling.md), with
 [the implemented architecture](architecture/pr-polling-foundation.html).
+
+## Schema 9: observation scheduling budgets
+
+Migrate and serve the same immutable schema-9 release. The additive
+`delivery_provider_budgets` table is operational admission state. Existing
+PollState rows, backoff, inventory, history and audit bytes are preserved;
+migration does not reset due times or invent observations. Repeat migration
+is harmless. Readiness requires at least schema 9 and that table.
+
+`AGENTBOARD_PR_OBSERVATION_ENABLED` still defaults to false. Enabling it at
+boot installs the scheduler; this schema adds no provider collector, CI
+verdict, repair task, session notification or public route. Keep it off until
+the later observation/delivery acceptance gate.
+
+Roll back by deploying an older compatible image and retaining schema 9,
+jobs, evidence and budgets. Do not drop the additive table or run a down
+migration. Scheduling, pacing, disabled queued jobs and reconciliation are
+in [PR polling foundation](ci-polling.md), with
+[the implemented architecture](architecture/pr-observation-scheduling.html).

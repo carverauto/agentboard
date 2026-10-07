@@ -123,6 +123,7 @@ defmodule Agentboard.Delivery.Inventory do
     end
 
     Agentboard.Delivery.Polling.enroll(attrs.id, stamp, provenance)
+    Agentboard.Delivery.Scheduling.linked(attrs.id)
 
     existing =
       TaskLink
