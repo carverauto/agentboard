@@ -14,7 +14,7 @@ This is the maintainers' own deployment of agentboard on their private `farm01` 
 | Hostname | `agentboard.farm01.carverauto.dev` (`PHX_HOST` in the overlay) |
 | Edge | `HTTPRoute`s in `k8s/overlays/farm01/httproute.yaml` attached to `farm01-edge/farm01-gateway` listeners `agentboard-https` / `agentboard-http` (301 redirect to HTTPS) |
 | TLS and DNS | Dedicated exact-host cert-manager Certificate `agentboard-tls` (DNS01), external-dns publishing a private, DNS-only Cloudflare record |
-| Out-of-band Secrets | `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry` (Kubernetes pull-only robot) |
+| Out-of-band Secrets | `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry` (Kubernetes pull-only robot), `agentboard-mattermost` (bot token, mounted as a file; never committed) |
 
 The Gateway listeners, Certificate, solver, and external-dns filters live in the maintainers' private GitOps repository (companion change for this host). Preserve unrelated listeners, solvers, filters, ACME credentials, the TXT owner, and the upsert-only policy when editing it. DNS01 works without public HTTP reachability; the shared Gateway's address is discovered from its status.
 
@@ -77,7 +77,7 @@ SMTP is not configured, so email notifications and email invites are unavailable
 
 ## Evidence
 
-[Verification evidence](../verification.md) records the first rollout (v0.1.0, 2026-10-06 UTC), the [shared-context rollout](../verification.md#shared-context-rollout-2026-10-06) (PR21 c8600a6, 2026-10-06 UTC), the [Ash foundation rollout](../verification.md#audited-ash-foundation-rollout-pr27-2026-10-06), and the [canonical inventory rollout](../verification.md#canonical-pr-inventory-rollout-pr32-2026-10-07-utc) (PR32 f5308a7, 2026-10-07 UTC). Those records cover release workflow and remote acceptance, image digest checks, CNPG and Gateway status, live CLI smoke, watch streams through the Gateway, and browser isolation of task documents.
+[Verification evidence](../verification.md) records the first rollout (v0.1.0, 2026-10-06 UTC), the [shared-context rollout](../verification.md#shared-context-rollout-2026-10-06) (PR21 c8600a6, 2026-10-06 UTC), the [Ash foundation rollout](../verification.md#audited-ash-foundation-rollout-pr27-2026-10-06), the [canonical inventory rollout](../verification.md#canonical-pr-inventory-rollout-pr32-2026-10-07-utc) (PR32 f5308a7, 2026-10-07 UTC), the [observation scheduling rollout](../verification.md#observation-scheduling-rollout-pr45-2026-10-07-utc) (PR45 9f1e712, 2026-10-07 UTC), and the [bridge image rollout](../verification.md#worker-and-mattermost-bridge-image-rollout-pr61-2026-10-07-utc) (PR61 21afca5, 2026-10-07 UTC). Those records cover release workflow and remote acceptance, image digest checks, CNPG and Gateway status, live CLI smoke, watch streams through the Gateway, and browser isolation of task documents. The [rollout receipt](../verification/farm01-mattermost-bridge.json) is the live acceptance record for the current PR61 rollout described in the [bridge rollout](#worker-and-mattermost-bridge-image-rollout-pr61) below.
 
 
 ## Shared context completion release
@@ -115,7 +115,7 @@ The PR45 rollout (`9f1e712ffc98311d267bae907738114070e224e4`) uses
 `registry.carverauto.dev/agentboard/dashboard@sha256:0c9dbedfdaf57c87a1b2f90d1f655837d5e350df8b410cdbacb676de1ae6d334`
 for migration Job `agentboard-migrate-9f1e712` and the dashboard Deployment.
 The migration completed before traffic moved to the new Ready pod, upgrading
-schema 7 to 9. This is the current operator-managed image pin.
+schema 7 to 9. This was the operator-managed image pin before the [bridge rollout](#worker-and-mattermost-bridge-image-rollout-pr61) below.
 
 Both `AGENTBOARD_PR_DISCOVERY_ENABLED` and
 `AGENTBOARD_PR_OBSERVATION_ENABLED` remain explicitly false. The release
@@ -142,3 +142,30 @@ verified members of `#board`, `#agents` and `#quota` in the actual
 `carver-automation-corporation` team. All three channels had zero posts at
 verification: the sender is not implemented in this release. Per-worker
 conversation identities and tools remain subsequent work.
+
+## Worker and Mattermost bridge image rollout (PR61)
+
+On 2026-10-07, merged main `21afca5366726cbbe5486b008df320c7e2595b78`
+was rolled to farm01 using dashboard digest
+`sha256:a60886cdeb0a296782d29166150a593b64b52a135d5f2c3e7a8c54d98030c815`.
+Job `agentboard-migrate-21afca5` completed the additive Mattermost tables
+before the dashboard rolled. Board schema remains 9/API 1. The release
+includes the published worker runtime and historical journal fixes; it does
+not activate host workers or deploy the unpublished CI collector/server.
+CI discovery and observation stay disabled.
+
+The bot token and membership in `#board` were verified. Live bridge delivery
+exposed an OTP HTTPS trust/hostname configuration defect: with the system CA
+bundle, the current client rejects the valid wildcard certificate. The bridge
+was paused, with four queued intents retained, and corrective work handed to
+`muse-agentboard-agent-c`. A read-only ping from the release returned 200 with
+`verify_peer`, the system CA bundle and the standard HTTPS hostname match
+function. This is diagnostic proof, not a runtime fix or completed chat
+acceptance. Keep the bridge disabled until a corrected published image passes
+root/reply and reconciliation checks. The token mount uses only the existing
+out-of-band Secret.
+
+The dashboard, CNPG/BM25 and Mattermost health checks passed. Captured immutable
+history, HTML and shared-context prefixes retained their hashes. See the
+[rollout receipt](../verification/farm01-mattermost-bridge.json). The prior
+compatible image is retained; no live rollback was exercised.

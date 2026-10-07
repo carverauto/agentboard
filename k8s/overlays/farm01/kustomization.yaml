@@ -8,6 +8,7 @@ resources:
 components:
   - ../../components/mattermost
 patches:
+  - path: dashboard-mattermost.yaml
   - target:
       kind: Cluster
       name: agentboard-db
@@ -40,6 +41,12 @@ configMapGenerator:
       # Captain-confirmed hostname (2026-10-05).
       - AGENTBOARD_PR_DISCOVERY_ENABLED=false
       - AGENTBOARD_PR_OBSERVATION_ENABLED=false
+      - AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false
+      - AGENTBOARD_MATTERMOST_BASE_URL=https://mattermost.k8s-farm.carverauto.dev
+      - AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID=5ujo4n8df3njxgxsso15zbi59a
+      - AGENTBOARD_MATTERMOST_BOT_TOKEN_FILE=/etc/agentboard/mattermost/bot-token
+      - AGENTBOARD_MATTERMOST_CA_FILE=/etc/ssl/certs/ca-certificates.crt
+      - AGENTBOARD_PUBLIC_BOARD_URL=https://agentboard.farm01.carverauto.dev
       - PHX_HOST=agentboard.farm01.carverauto.dev
       - DATABASE_HOST=agentboard-db-rw.agentboard.svc.cluster.local
 generatorOptions:
@@ -47,5 +54,5 @@ generatorOptions:
 images:
   # Operator-managed immutable release pin; see docs/deploy/reference-farm01.md.
   - name: registry.carverauto.dev/agentboard/dashboard
-    # Published from merged PR45 (9f1e712); schedulers remain disabled.
-    digest: sha256:0c9dbedfdaf57c87a1b2f90d1f655837d5e350df8b410cdbacb676de1ae6d334
+    # Published from merged Mattermost bridge PR61 (21afca5).
+    digest: sha256:a60886cdeb0a296782d29166150a593b64b52a135d5f2c3e7a8c54d98030c815

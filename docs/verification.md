@@ -292,3 +292,16 @@ additive rollback, which was not exercised live. Full normalized results are
 in [farm01-pr45-scheduling.json](verification/farm01-pr45-scheduling.json).
 Provider collection, confirmed CI truth, repair obligations, worker delivery
 and chat traffic are not implied by this rollout.
+
+
+## Worker and Mattermost bridge image rollout (PR61, 2026-10-07 UTC)
+
+Merged main `21afca5366726cbbe5486b008df320c7e2595b78` rolled the dashboard to
+`sha256:a60886cdeb0a296782d29166150a593b64b52a135d5f2c3e7a8c54d98030c815`.
+Job `agentboard-migrate-21afca5` completed; schema 9/API 1 with a Ready
+zero-restart pod. CI discovery and observation stay disabled and the bridge
+stays disabled with four retained intents. Full results are in the [rollout
+receipt](verification/farm01-mattermost-bridge.json); the operator runbook
+retains the [current rollout
+record](deploy/reference-farm01.md#worker-and-mattermost-bridge-image-rollout-pr61).
+This pointer claims no bot-post or worker interoperability proof.

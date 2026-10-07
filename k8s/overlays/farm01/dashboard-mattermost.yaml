@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentboard-dashboard
+spec:
+  template:
+    spec:
+      containers:
+        - name: dashboard
+          volumeMounts:
+            - name: mattermost-bot-token
+              mountPath: /etc/agentboard/mattermost
+              readOnly: true
+      volumes:
+        - name: mattermost-bot-token
+          secret:
+            secretName: agentboard-mattermost
+            items:
+              - key: bot-token
+                path: bot-token
