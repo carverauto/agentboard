@@ -69,4 +69,3 @@ defmodule Agentboard.Delivery.PollState do
     attribute(:head_sha, :string, public?: true)
   end
 end
-

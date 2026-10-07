@@ -117,4 +117,3 @@ defmodule Agentboard.Delivery.Polling do
 
   defp enabled?, do: Application.get_env(:agentboard, :pr_observation_enabled, false)
 end
-

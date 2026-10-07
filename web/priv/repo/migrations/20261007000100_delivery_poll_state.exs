@@ -82,4 +82,3 @@ defmodule Agentboard.Repo.Migrations.DeliveryPollState do
   def down,
     do: raise("Preserve polling and submission history; roll back a schema-compatible image")
 end
-
