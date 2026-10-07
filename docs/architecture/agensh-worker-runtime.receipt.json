@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Volumes/Build/agentboard-agensh-worker-runtime/docs/architecture/agensh-worker-runtime.architecture.json",
+  "output": "/Volumes/Build/agentboard-agensh-worker-runtime/docs/architecture/agensh-worker-runtime.html",
+  "specification": {
+    "sha256": "9c565f588302da429a80530f14fed7c6656211ac4dee1c15791c2aeb0333a2ab",
+    "bytes": 1758
+  },
+  "artifact": {
+    "sha256": "537674e7d00bbceb83ee5db2dcee7554d24458e2a77096204cec3774eb2b6d55",
+    "bytes": 707300
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

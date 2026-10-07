@@ -1,0 +1,18 @@
+{
+  "artifact_sha256": "537674e7d00bbceb83ee5db2dcee7554d24458e2a77096204cec3774eb2b6d55",
+  "artifact_bytes": 707300,
+  "visual_review": "passed",
+  "browser_evidence": "passed",
+  "correction_rounds": 0,
+  "scope": [
+    "1440x900 light screenshot",
+    "2048x1320 dark screenshot"
+  ],
+  "observations": [
+    "Default READ composition has clear routes and labels in both themes; no unrelated-node crossing or ambiguous shared corridor visible.",
+    "Large desktop composition remains balanced; legend/navigation do not overlap nodes."
+  ],
+  "limitations": [
+    "Perceptual review uses the exact automated screenshots. Focus/search/passport/export interactions are not covered by this screenshot review."
+  ]
+}
