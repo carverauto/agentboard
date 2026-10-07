@@ -1,0 +1,139 @@
+{
+  "verified_at": "2026-10-07T07:05:02.924424+00:00",
+  "commit": "21afca5366726cbbe5486b008df320c7e2595b78",
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37583585510",
+  "remote_acceptance": "https://carverauto.buildbuddy.io/invocation/11c0bb33-3f7d-4c14-b32f-6a7c8b428150",
+  "acceptance_targets": 20,
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:a60886cdeb0a296782d29166150a593b64b52a135d5f2c3e7a8c54d98030c815",
+  "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:0c9dbedfdaf57c87a1b2f90d1f655837d5e350df8b410cdbacb676de1ae6d334",
+  "migration": {
+    "job": "agentboard-migrate-21afca5",
+    "succeeded": true
+  },
+  "dashboard": [
+    {
+      "pod": "agentboard-dashboard-5fb8f69fb5-lgn5w",
+      "containers": [
+        {
+          "ready": true,
+          "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:a60886cdeb0a296782d29166150a593b64b52a135d5f2c3e7a8c54d98030c815",
+          "restarts": 0
+        }
+      ]
+    }
+  ],
+  "preserved_immutable_prefixes": {
+    "task_events": {
+      "max_id": 497,
+      "count": 481,
+      "digest": "3994b026a16e2d880d71ffd492ba3133",
+      "retained": true
+    },
+    "task_documents": {
+      "max_id": 66,
+      "count": 34,
+      "digest": "699118165087cc2492f8bd1602a7282d",
+      "retained": true
+    },
+    "context_entries": {
+      "max_id": 57,
+      "count": 55,
+      "digest": "0d199eddeec6916f4b16c379edd1d262",
+      "retained": true
+    }
+  },
+  "http": {
+    "/health/live": {
+      "status": 200,
+      "bytes": 17,
+      "body": {
+        "status": "live"
+      }
+    },
+    "/health/ready": {
+      "status": 200,
+      "bytes": 37,
+      "body": {
+        "status": "ready",
+        "schema_version": 9
+      }
+    },
+    "/api/v1/meta": {
+      "status": 200,
+      "bytes": 64,
+      "body": {
+        "schema_version": 9,
+        "api_version": 1,
+        "required_schema_version": 9
+      }
+    },
+    "/": {
+      "status": 200,
+      "bytes": 1840
+    },
+    "/quota": {
+      "status": 200,
+      "bytes": 1840
+    },
+    "/context": {
+      "status": 200,
+      "bytes": 2504
+    },
+    "/tasks/agentboard-farm01-21afca5-rollout": {
+      "status": 200,
+      "bytes": 1846
+    },
+    "/documents/59": {
+      "status": 200,
+      "bytes": 959
+    },
+    "/documents/60": {
+      "status": 200,
+      "bytes": 1010
+    },
+    "mattermost": {
+      "ActiveSearchBackend": "database",
+      "AndroidLatestVersion": "",
+      "AndroidMinVersion": "",
+      "IosLatestVersion": "",
+      "IosMinVersion": "",
+      "database_status": "OK",
+      "filestore_status": "OK",
+      "status": "OK"
+    }
+  },
+  "cnpg": {
+    "phase": "Cluster in healthy state",
+    "ready_instances": 2,
+    "primary": "agentboard-db-2",
+    "image": "registry.carverauto.dev/agentboard/postgres:18.6-bm25-1.5.1-7c20962@sha256:90ea5695afde3d2d56128baad84bd775b3121cf18d9830974910105aa08e3356",
+    "pg_textsearch": "1.5.1"
+  },
+  "ci_discovery_enabled": false,
+  "ci_observation_enabled": false,
+  "worker_activation": false,
+  "mattermost_bridge": {
+    "enabled": false,
+    "reason": "Live OTP HTTPS rejects wildcard hostname; missing system CA fallback in Transport. Corrective work handed to muse-agentboard-agent-c. Pending intents retained; no verification bypass.",
+    "bot_token_valid": true,
+    "bot_member_of_board": true,
+    "pending_intents_when_paused": 4,
+    "tls_fix_read_only_probe": {
+      "https_status": 200,
+      "verify_peer": true,
+      "system_ca_file": "/etc/ssl/certs/ca-certificates.crt",
+      "hostname_match_fun": "public_key.pkix_verify_hostname_match_fun(:https)"
+    }
+  },
+  "rollback_exercised": false,
+  "local_application_builds": false,
+  "watch": {
+    "duration_seconds": 25,
+    "snapshots": 5,
+    "stderr": "",
+    "returncode": 0
+  },
+  "browser": {
+    "task_detail_liveview_loaded": true
+  }
+}
