@@ -1,0 +1,65 @@
+{
+  "task": "agentboard-prs-detail-table",
+  "issue": "https://github.com/carverauto/agentboard/issues/74",
+  "base_revision": "23d2ea5e6ab2fc7795c3715e8e153b9dc970c645",
+  "code_revision": "8f970a337604ecb8aaa9b0696513234727767db9",
+  "remote_acceptance": {
+    "target": "//build/integration:ci_accountability_test",
+    "status": "passed",
+    "seconds": 54.5,
+    "invocation": "https://carverauto.buildbuddy.io/invocation/b215256d-d016-448d-97f5-974446a54fc3",
+    "boundary": "Packaged release + PostgreSQL + real connected LiveView, invented observations",
+    "coverage": [
+      "Seven-column semantic table",
+      "Success versus failure labels independent of unknown aggregate policy",
+      "Failure-only badges for all normalized conclusions",
+      "Source URL with details URL fallback and safe new-tab rel",
+      "Escaped provider text",
+      "Missing timestamps and links",
+      "Latest versus superseded attempts",
+      "100-row limit and truncation notice",
+      "Empty attempts"
+    ]
+  },
+  "negative_control": {
+    "status": "failed as expected",
+    "invocation": "https://carverauto.buildbuddy.io/invocation/e39b42ff-25cd-4ab4-a527-2b8f91898fdb",
+    "mutation": "Restored pre-fix PRLive and CSS from base revision; retained final regression fixture",
+    "failure": "A successful check is still labelled Failed job / source",
+    "restoration": "Fixed files restored byte-for-byte from code revision; verified equality"
+  },
+  "remote_formatter": {
+    "status": "passed",
+    "invocation": "https://carverauto.buildbuddy.io/invocation/abc8c451-8a7f-4bc1-a7ea-548e22641968",
+    "comparison": "Changed Elixir source equals remote Code.format_file! output after normalizing final newline"
+  },
+  "quality_delta": {
+    "base_revision": "23d2ea5e6ab2fc7795c3715e8e153b9dc970c645",
+    "target_revision": "8f970a337604ecb8aaa9b0696513234727767db9",
+    "gating_findings": 1,
+    "findings": [
+      "Module measured LOC 71 to104: retained cohesive private table component rather than adding another public module for this single consumer.",
+      "Private observed_attempts reported dead: a HEEx component invocation calls it; real connected acceptance executes it. Dynamic template edge not resolved by graph."
+    ],
+    "no_clean_quality_claim": true
+  },
+  "browser": {
+    "status": "unverified",
+    "reason": "Selected browser1 unavailable when opening local synthetic fixture; no alternate access to denied farm01 site attempted.",
+    "fixture_sha256": "c431d183b9d1ae57e52c0941acabe853ad0df6d5d81512e2233c0f87b7039aad"
+  },
+  "publication": {
+    "status": "pending",
+    "pr_url": null,
+    "github_current_head_ci": "unverified until proxy publishes a PR",
+    "blocker": "Sandbox write roots exclude ~/.no-mistakes. Initialized shared gate99fd17a059fb lives there; do not route writes through daemon or bypass proxy. Coordinator msg388 directs implement/verify then stop at publication if still restricted."
+  },
+  "constraints": {
+    "local_compilation": false,
+    "all_bazel_remote": true,
+    "cooperation_bridge_changes": false,
+    "migration_api_or_poller_changes": false,
+    "architecture_feature": false,
+    "lease_retained_through_publication": true
+  }
+}

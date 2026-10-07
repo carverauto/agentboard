@@ -307,6 +307,138 @@ assert 'ci-peer' in html and 'episode 3' in html and 'Reminder overdue' in html
 html = urllib.request.urlopen(URL + '/prs/' + urllib.parse.quote(pr, safe=''), timeout=10).read().decode()
 assert 'Immutable submission sources' in html and 'ci-source' in html
 assert 'Reminder overdue' in html and 'Captain escalation' in html and 'Progress' in html
+# The detail LiveView owns the user-visible attempt table and conclusion labels.
+# Collector normalization has its own HTTP suite; these invented stored observations
+# exercise the real callback, database read and connected Phoenix renderer.
+class AttemptTables(HTMLParser):
+    def __init__(self, page):
+        super().__init__()
+        self.tables = []
+        self.table = None
+        self.row = None
+        self.cell = None
+        self.link = None
+        self.badge = None
+        self.feed(page)
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'table':
+            self.table = {'rows': [], 'links': [], 'conclusions': []}
+            self.tables.append(self.table)
+        elif self.table is not None:
+            if tag == 'tr':
+                self.row = []
+            elif tag in ('td', 'th'):
+                self.cell = []
+            elif tag == 'a':
+                self.link = [dict(attrs), []]
+            elif tag == 'span' and 'flag' in dict(attrs).get('class', '').split():
+                self.badge = [dict(attrs), []]
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+        if self.link is not None:
+            self.link[1].append(data)
+        if self.badge is not None:
+            self.badge[1].append(data)
+
+    def handle_endtag(self, tag):
+        if self.table is None:
+            return
+        if tag == 'span' and self.badge is not None:
+            self.table['conclusions'].append((''.join(self.badge[1]).strip(),
+                                             'danger' in self.badge[0]['class'].split()))
+            self.badge = None
+        elif tag == 'a' and self.link is not None:
+            self.table['links'].append((self.link[0], ''.join(self.link[1]).strip()))
+            self.link = None
+        elif tag in ('td', 'th') and self.cell is not None:
+            self.row.append(' '.join(''.join(self.cell).split()))
+            self.cell = None
+        elif tag == 'tr':
+            self.table['rows'].append(self.row)
+            self.row = None
+        elif tag == 'table':
+            self.table = None
+
+
+attempts = [
+    dict(identity='check:1:required', name='<script>bad</script> & "check"',
+         kind='check_run', status='completed', conclusion='success', latest=True,
+         started_at='2026-10-07T00:00:00Z', completed_at='2026-10-07T00:01:00Z',
+         source_url='https://github.com/fixture/repo/actions/runs/11'),
+    dict(identity='check:1:required', name='Older failure', kind='check_run',
+         status='completed', conclusion='failure', latest=False,
+         started_at='2026-10-06T23:00:00Z', completed_at='2026-10-06T23:01:00Z',
+         source_url='https://github.com/fixture/repo/actions/runs/10'),
+    dict(identity='check:1:waiting', name='Waiting check', kind='check_run',
+         status='in_progress', conclusion=None, latest=True,
+         started_at=None, completed_at=None,
+         source_url='https://github.com/fixture/repo/actions/runs/12'),
+    dict(identity='status:external', name='External status', kind='commit_status',
+         status='completed', conclusion='success', latest=True,
+         started_at='2026-10-07T00:02:00Z', completed_at=None, source_url=None),
+    dict(identity='check:1:details', name='Details only', kind='check_run',
+         status='completed', conclusion='neutral', latest=True, started_at=None,
+         completed_at=None, source_url=None,
+         details_url='https://carverauto.buildbuddy.io/invocation/fixture-check'),
+]
+extra_conclusions = [('skipped', False), ('stale', False), ('timed_out', True),
+                     ('cancelled', True), ('action_required', True),
+                     ('startup_failure', True), ('error', True)]
+for conclusion, failure_badge in extra_conclusions:
+    attempts.append(dict(identity='status:' + conclusion, name=conclusion,
+                         kind='commit_status' if conclusion == 'error' else 'check_run',
+                         status='completed', conclusion=conclusion, latest=True,
+                         started_at=None, completed_at=None, source_url=None))
+observe('pending', attempts=attempts)
+path = '/prs/' + urllib.parse.quote(pr, safe='')
+view = LiveView(URL, path)
+page = export_page(path, 'prs-attempts.html', view.initial)
+view.close()
+assert 'Failed job / source' not in page, 'A successful check is still labelled Failed job / source'
+assert '<script>bad</script>' not in page and '&lt;script&gt;bad&lt;/script&gt;' in page
+parsed = AttemptTables(page)
+assert parsed.tables, 'Observed attempts must be a semantic table'
+table = parsed.tables[0]
+assert table['rows'][:6] == [
+    ['Name', 'Kind', 'Status / conclusion', 'Latest', 'Started', 'Completed', 'Source'],
+    ['<script>bad</script> & "check"', 'check_run', 'completed / success', 'Latest',
+     '2026-10-07T00:00:00Z', '2026-10-07T00:01:00Z', 'View success source'],
+    ['Older failure', 'check_run', 'completed / failure', 'Superseded',
+     '2026-10-06T23:00:00Z', '2026-10-06T23:01:00Z', 'View failure source'],
+    ['Waiting check', 'check_run', 'in_progress / pending', 'Latest',
+     'Not observed', 'Not observed', 'View in_progress source'],
+    ['External status', 'commit_status', 'completed / success', 'Latest',
+     '2026-10-07T00:02:00Z', 'Not observed', 'Unavailable'],
+    ['Details only', 'check_run', 'completed / neutral', 'Latest',
+     'Not observed', 'Not observed', 'View neutral source'],
+], table
+assert table['conclusions'] == [('success', False), ('failure', True), ('pending', False),
+                                 ('success', False), ('neutral', False)] + extra_conclusions
+assert len(table['rows']) == 13
+assert 'Policy unknown' in page, 'Aggregate policy must stay separate from individual results'
+assert [text for attrs, text in table['links']] == [
+    'View success source', 'View failure source', 'View in_progress source', 'View neutral source']
+for (attrs, text), attempt in zip(table['links'], [attempts[0], attempts[1], attempts[2], attempts[4]]):
+    assert attrs['href'] == (attempt['source_url'] or attempt.get('details_url')) and attrs['target'] == '_blank'
+    assert set(attrs['rel'].split()) == {'noopener', 'noreferrer'}
+
+# Large provider histories remain bounded visibly, with an explicit truncation notice.
+observe('pending', attempts=[dict(attempts[0], identity=f'check:1:overflow-{i:03}',
+                                name=f'Overflow-{i:03}') for i in range(101)])
+view = LiveView(URL, path)
+page = export_page(path, 'prs-attempts-bounded.html', view.initial)
+view.close()
+rows = AttemptTables(page).tables[0]['rows']
+assert len(rows) == 101 and rows[-1][0] == 'Overflow-099', rows[-1]
+assert 'Overflow-100' not in page and 'Showing the first 100 attempts in this observation.' in page
+observe('pending', attempts=[])
+view = LiveView(URL, path)
+assert contains(view.initial, 'No observed attempts.')
+view.close()
+
 # The actual connected LiveView follows durable rereads after missed notifications.
 view = LiveView(URL, '/prs')
 assert contains(view.initial, 'Captain escalation')
