@@ -22,7 +22,10 @@ defmodule Agentboard.MessageMode do
   def status do
     requested = Application.get_env(:agentboard, :message_mode, "board")
     blockers = bridge_blockers() ++ @missing_capabilities
-    refused = requested not in ["board", "dual"]
+
+    refused =
+      requested not in ["board", "dual", "mattermost"] or
+        (requested == "mattermost" and blockers != [])
 
     %{
       requested: requested,
