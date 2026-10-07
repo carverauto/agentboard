@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "evidenceKind": "perceptual-image-review",
+  "artifact": {
+    "sha256": "c55bf94b995285619d4ac54e52ce3c1048fa62527aaad41cec08d37b503a406c",
+    "bytes": 706230
+  },
+  "inspected": [
+    "pr-polling-foundation.visual-check.1440x900.light.png",
+    "pr-polling-foundation.visual-check.2048x1320.dark.png"
+  ],
+  "observations": [
+    "Both themes have contained nodes and clear labeled routes without crossings.",
+    "Largest view remains vertically balanced.",
+    "Future scheduler/provider node is explicitly marked pending."
+  ],
+  "notCovered": [
+    "focus/search/passport/export interaction"
+  ],
+  "correction_rounds": 0
+}

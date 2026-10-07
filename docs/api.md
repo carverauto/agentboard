@@ -116,3 +116,8 @@ links without an introducing timeline event remain unknown; current task
 ownership is not evidence of PR submission. Exact URL admission, discovery,
 and image rollback are in [schema 7 compatibility](release.md#schema-7-durable-pr-submission-inventory).
 This inventory stage does not yet expose PR list/show/watch endpoints or a CI verdict.
+
+Schema 8 adds internal Delivery polling bookkeeping without new public routes
+or a change to task/watch payloads. New submissions atomically enroll unknown
+poll state; inventory and attribution remain immutable. No provider checks or
+CI result are exposed by this stage. See [polling contracts](ci-polling.md).

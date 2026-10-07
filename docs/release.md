@@ -124,10 +124,11 @@ compatible but omits new PR submissions from the inventory until reconciliation
 runs. Record that gap and fix forward. Do not drop immutable PR/link/version
 history or run a down migration.
 
-This stage establishes inventory for the next scheduler. CI polling, provider
+This stage establishes inventory for the next scheduler. Provider
 credentials, CI verdicts, provider observation scheduling, the PR dashboard/API/CLI,
 completion guard and follow-ups remain pending in the approved OpenSpec change
-(opt-in inventory catch-up is described in the next section).
+(opt-in inventory catch-up is the next section; reservation state is
+[schema 8](#schema-8-poll-reservation-foundation)).
 An inventory record alone makes no assertion about CI health. See the
 [Archify submission and discovery diagram](architecture/pr-inventory.html).
 
@@ -158,10 +159,27 @@ itself: an existing queued job snoozes for 60 seconds while disabled, without
 writing inventory or falsely completing. Queue pause/resume and explicit retry
 use normal Oban operations; an operator-paused queue must be deliberately
 resumed. Disabling catch-up does not disable housekeeping or Board/API queries.
-There is no extra migration beyond schema 7 and no provider credential in job
+Catch-up adds no migration of its own and no provider credential in job
 arguments. Retain additive inventory/audit tables during an image rollback.
 
 Historical submitting model/harness values are copied exactly, including
 whitespace; normalization is never evidence of a different agent identity.
 This fixes the initial inventory resource's inherited Ash string trimming
 without rewriting previously retained immutable links.
+
+## Schema 8: poll reservation foundation
+
+Migrate and serve the same immutable schema-8 release. The additive PollState
+and enrollment-version tables preserve schema-7 submission inventory, legacy
+IDs, task history and HTML bytes. Existing canonical PRs start due and unknown
+at the migration timestamp; runtime enrollment audits start with new writes.
+Observation defaults off through `AGENTBOARD_PR_OBSERVATION_ENABLED`, separate
+from inventory catch-up. This stage supplies internal bounded reservation and
+failure-backoff actions only; it installs no provider scheduler, CI verdict,
+repair task or session notification. Keep the switch off until later acceptance.
+
+Retain the additive schema during an image rollback. Old schema-7 writers do
+not enroll polling rows; the later scheduler must reconcile all missing
+canonical inventory before re-enabling observation. Full cutoff/concurrency
+and rollback contracts are in [PR polling foundation](ci-polling.md), with
+[the implemented architecture](architecture/pr-polling-foundation.html).

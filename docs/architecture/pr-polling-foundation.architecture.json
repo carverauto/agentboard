@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {"title": "PR polling reservation foundation", "locale": "en", "quality_profile": "showcase", "viewBox": [1360, 680]},
+  "components": [
+    {"id": "client", "type": "frontend", "label": "agentboard CLI", "sublabel": "Task PR submission", "pos": [120, 140], "size": [230, 90]},
+    {"id": "submission", "type": "backend", "label": "Phoenix + Ash", "sublabel": "Atomic task transaction", "pos": [570, 140], "size": [250, 90]},
+    {"id": "inventory", "type": "database", "label": "PR inventory", "sublabel": "Immutable PostgreSQL evidence", "pos": [120, 430], "size": [230, 90]},
+    {"id": "state", "type": "database", "label": "PollState", "sublabel": "PostgreSQL: due, lease, generation", "pos": [1060, 140], "size": [250, 90]},
+    {"id": "polling", "type": "backend", "label": "Delivery.Polling", "sublabel": "Ordinary pooled job process", "pos": [1060, 430], "size": [250, 90]},
+    {"id": "future", "type": "external", "label": "Next: CI observation", "sublabel": "Scheduler and provider reads pending", "pos": [570, 430], "size": [250, 90]}
+  ],
+  "connections": [
+    {"id": "api-only", "from": "client", "to": "submission", "label": "HTTPS"},
+    {"id": "submission-history", "from": "submission", "to": "inventory", "label": "Retain first submitter"},
+    {"id": "initial-state", "from": "submission", "to": "state", "label": "Atomic enrollment"},
+    {"id": "reservation", "from": "polling", "to": "state", "label": "Per-PR reservation"},
+    {"id": "future-provider", "from": "polling", "to": "future", "label": "I/O outside transaction", "variant": "dashed"}
+  ]
+}

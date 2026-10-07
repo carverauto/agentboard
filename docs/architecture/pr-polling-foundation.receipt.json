@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Volumes/Build/agentboard-agensh-worker-runtime/docs/architecture/pr-polling-foundation.architecture.json",
+  "output": "/Volumes/Build/agentboard-agensh-worker-runtime/docs/architecture/pr-polling-foundation.html",
+  "specification": {
+    "sha256": "96853a50a9a18dec165ba93f300491bb47ad082148e343e16ee4d19fe890fa64",
+    "bytes": 1647
+  },
+  "artifact": {
+    "sha256": "c55bf94b995285619d4ac54e52ce3c1048fa62527aaad41cec08d37b503a406c",
+    "bytes": 706230
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

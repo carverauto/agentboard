@@ -329,7 +329,8 @@ defmodule Agentboard.Board.Operations do
              TaskEvent,
              Agentboard.Board.AuditEvent,
              Agentboard.Delivery.PullRequest,
-             Agentboard.Delivery.TaskLink
+             Agentboard.Delivery.TaskLink,
+             Agentboard.Delivery.PollState
            ],
            fun,
            timeout: Repo.write_timeout()

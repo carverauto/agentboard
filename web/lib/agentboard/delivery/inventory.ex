@@ -122,6 +122,8 @@ defmodule Agentboard.Delivery.Inventory do
       Operations.create(PullRequest, :record, Map.put(attrs, :created_at, stamp), provenance)
     end
 
+    Agentboard.Delivery.Polling.enroll(attrs.id, stamp, provenance)
+
     existing =
       TaskLink
       |> Ash.Query.filter(task_id == ^task.id and pull_request_id == ^attrs.id)

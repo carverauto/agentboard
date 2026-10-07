@@ -1,0 +1,21 @@
+{
+  "proposal": "align-agensh-worker-runtime",
+  "status": "approved",
+  "source": "Lavish user feedback",
+  "session": "a0c5bfbefd4377bf",
+  "feedback": "looks good continue",
+  "session_ended_by": "user",
+  "artifact_sha256": "aa6e42e4bb67dcb7e654fe57ba65288774562562defcb9b0f4a771e4d2f4cdc0",
+  "artifact_bytes": 842575,
+  "design_source": "Agentboard web/assets/app.css theme tokens and typography",
+  "checks": [
+    "Strict OpenSpec validation passed",
+    "Desktop width 1440: scrollWidth 1440 with all source details expanded",
+    "Narrow browser window requested 390x844; actual innerWidth 500, scrollWidth 500",
+    "Scenario selector updates the ignored-alert explanation"
+  ],
+  "limitations": [
+    "Actual narrow width was 500px; no 390px containment claim.",
+    "Runtime functionality remains future work; these are planning and artifact checks."
+  ]
+}

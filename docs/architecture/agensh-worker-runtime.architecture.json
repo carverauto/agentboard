@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {"title": "Proposed worker cooperation runtime", "locale": "en", "quality_profile": "showcase", "viewBox": [1360, 680]},
+  "components": [
+    {"id": "workspace", "type": "external", "label": "GitHub workspace", "sublabel": "Code, PRs and CI", "pos": [120, 430], "size": [230, 90]},
+    {"id": "ledger", "type": "database", "label": "PostgreSQL", "sublabel": "Ownership, Context, delivery", "pos": [120, 140], "size": [230, 90]},
+    {"id": "api", "type": "backend", "label": "Phoenix + AshOban", "sublabel": "API and durable obligations", "pos": [570, 140], "size": [250, 90]},
+    {"id": "host", "type": "backend", "label": "agentboard worker", "sublabel": "Supervised host connector", "pos": [1060, 140], "size": [250, 90]},
+    {"id": "chat", "type": "messagebus", "label": "Mattermost", "sublabel": "Channels and worker DMs", "pos": [570, 430], "size": [250, 90]},
+    {"id": "session", "type": "frontend", "label": "Agent session", "sublabel": "Herdr and native adapters", "pos": [1060, 430], "size": [250, 90]}
+  ],
+  "connections": [
+    {"id": "provider-observations", "from": "workspace", "to": "api", "label": "Provider reads", "variant": "dashed"},
+    {"id": "durable-pending", "from": "ledger", "to": "api", "label": "Pending records"},
+    {"id": "host-protocol", "from": "api", "to": "host", "label": "HTTPS + receipts", "variant": "emphasis"},
+    {"id": "session-dispatch", "from": "host", "to": "session", "label": "Verified binding", "labelDy": 24},
+    {"id": "board-bridge", "from": "api", "to": "chat", "label": "Lifecycle outbox", "variant": "dashed", "labelDy": 24},
+    {"id": "peer-conversation", "from": "chat", "to": "host", "label": "REST + WebSocket"}
+  ]
+}
