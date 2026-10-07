@@ -81,6 +81,7 @@ class DualStack(ThreadingHTTPServer):
 def serve(crt, key, ready):
     server = DualStack(('::', 0, 0, 0), Stub)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(crt, key)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     ready.append(server.server_address[1])
