@@ -101,11 +101,20 @@ func runChat(t *testing.T, args ...string) (string, error) {
 	return stdout.String(), err
 }
 
+func TestChatSendRequiresActor(t *testing.T) {
+	t.Setenv("AGENT_ID", "")
+	if _, err := runChat(t, "chat", "send", "--channel", "chan-1", "--body", "hi"); err == nil {
+		t.Fatal("expected actor validation error")
+	}
+}
+
 func TestChatSendRequiresTokenFile(t *testing.T) {
 	f := newMMFixture(t)
 	t.Setenv("AGENTBOARD_MATTERMOST_BASE_URL", f.server.URL)
 	t.Setenv("AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE", filepath.Join(t.TempDir(), "missing"))
-	t.Setenv("AGENT_ID", "")
+	t.Setenv("AGENT_ID", "test-worker")
+	t.Setenv("AGENTBOARD_MODEL", "fixture")
+	t.Setenv("AGENTBOARD_HARNESS", "test")
 	if _, err := runChat(t, "chat", "send", "--channel", "chan-1", "--body", "hi"); err == nil {
 		t.Fatal("expected token file error")
 	}
@@ -115,7 +124,9 @@ func TestChatSendPostsAndNeverLeaksToken(t *testing.T) {
 	f := newMMFixture(t)
 	t.Setenv("AGENTBOARD_MATTERMOST_BASE_URL", f.server.URL)
 	t.Setenv("AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE", writeTokenFile(t, f.token))
-	t.Setenv("AGENT_ID", "")
+	t.Setenv("AGENT_ID", "test-worker")
+	t.Setenv("AGENTBOARD_MODEL", "fixture")
+	t.Setenv("AGENTBOARD_HARNESS", "test")
 	out, err := runChat(t, "chat", "send", "--channel", "chan-1", "--body", "hello agents", "--json")
 	if err != nil {
 		t.Fatal(err)
@@ -141,7 +152,9 @@ func TestChatSendRetryKeyAdoptsDuplicate(t *testing.T) {
 	f := newMMFixture(t)
 	t.Setenv("AGENTBOARD_MATTERMOST_BASE_URL", f.server.URL)
 	t.Setenv("AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE", writeTokenFile(t, f.token))
-	t.Setenv("AGENT_ID", "")
+	t.Setenv("AGENT_ID", "test-worker")
+	t.Setenv("AGENTBOARD_MODEL", "fixture")
+	t.Setenv("AGENTBOARD_HARNESS", "test")
 	out, err := runChat(t, "chat", "send", "--channel", "chan-1", "--body", "first", "--retry-key", "key-1", "--json")
 	if err != nil {
 		t.Fatal(err)

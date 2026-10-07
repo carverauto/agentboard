@@ -158,6 +158,11 @@ defmodule Agentboard.Mattermost.Conversations do
 
   defp store_coverage(agent_id, channel_id, last_post_id, last_version, opts) do
     Operations.transaction(fn ->
+      case Ash.get!(ConversationIdentity, agent_id, not_found_error?: false) do
+        %ConversationIdentity{status: "enrolled"} -> :ok
+        _ -> Operations.reject("invalid_context", "Conversation identity not enrolled")
+      end
+
       stamp = Operations.now()
       caught_up = Keyword.get(opts, :caught_up, false)
       reason = Keyword.get(opts, :incomplete_reason)
