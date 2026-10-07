@@ -165,7 +165,8 @@ defmodule Agentboard.Mattermost.Bridge do
   defp unique_conflict?(%Ash.Error.Unknown{errors: errors}) do
     Enum.any?(List.wrap(errors), fn
       %Ash.Error.Unknown.UnknownError{error: message} when is_binary(message) ->
-        String.contains?(message, "mattermost_outbox_source_uniq")
+        String.contains?(message, "mattermost_outbox_source_source_key_index") or
+          String.contains?(message, "mattermost_outbox_source_uniq")
 
       _ ->
         false
@@ -176,8 +177,9 @@ defmodule Agentboard.Mattermost.Bridge do
     constraint = Map.get(pg, :constraint) || Map.get(pg, "constraint")
 
     cond do
-      constraint == "mattermost_outbox_source_uniq" -> true
+      constraint in ["mattermost_outbox_source_uniq", "mattermost_outbox_source_source_key_index"] -> true
       is_binary(err.message) and String.contains?(err.message, "mattermost_outbox_source_uniq") -> true
+      is_binary(err.message) and String.contains?(err.message, "mattermost_outbox_source_source_key_index") -> true
       true -> false
     end
   end

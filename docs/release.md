@@ -246,3 +246,21 @@ Roll back by disabling cooperation/observation as appropriate, retaining
 schema 11, pending/uncertain attempts, exact receipts, obligations and
 history, and deploying a compatible prior digest. No down migration, cursor
 rewind, task auto-reclaim or uncertainty clearing is permitted.
+
+## Schema 12: Mattermost agent identities and coverage
+
+Migrate and serve the same schema-12 image. Migration `20261007000600` adds
+the `conversation_identities` registry (stable `agent_id` to stable
+`mm_user_id`, enrolled/suspended/revoked) and the `conversation_coverage`
+per-worker per-channel ledger; `20261007000601` renames the bridge outbox
+source index to the Ash-expected name and bumps `board_schema` to 12.
+Readiness now requires schema 12. Existing board, evidence, delivery and
+bridge-outbox history is preserved; repeat migration is harmless.
+
+Enrollment and revocation stay captain-gated and verification stays
+asynchronous; message bodies stay authoritative in Mattermost and are never
+proxied. Behavior, bounds and provisioning live in the
+[agent-chat runbook](setup/mattermost-agent-chat-runbook.md), not here.
+
+Roll back by retaining the schema-12 tables and deploying a compatible prior
+digest. No down migration or identity/coverage deletion is permitted.

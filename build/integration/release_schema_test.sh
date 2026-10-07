@@ -13,7 +13,7 @@ export PHX_SERVER=false
 
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 11 ]]
+[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 12 ]]
 
 fixture_psql "INSERT INTO agents (id, name, model, harness) VALUES ('worker','Worker','model-1','codex')" >/dev/null
 fixture_psql "INSERT INTO tasks (id, title) VALUES ('sample','Sample')" >/dev/null
@@ -55,7 +55,7 @@ INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html
 CREATE EXTENSION pg_textsearch VERSION '1.5.1';" >/dev/null
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 11 ]]
+[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 12 ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM task_events WHERE task_id='retained-task'")" == 1 ]]
 [[ "$(upgrade_psql "SELECT html FROM task_documents WHERE task_id='retained-task'")" == '<!doctype html><p>Retained</p>' ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM pg_indexes WHERE indexname='context_entries_bm25'")" == 1 ]]
@@ -98,7 +98,7 @@ before_snapshot="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_ci_snapshots
 before_projection="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_poll_states s')"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 11 ]]
+[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 12 ]]
 [[ "$(inventory_psql "$history_query")" == "$before_inventory" ]]
 [[ "$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_poll_states s')" == "$before_projection" ]]
 [[ "$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_ci_snapshots s')" == "$before_snapshot" ]]
