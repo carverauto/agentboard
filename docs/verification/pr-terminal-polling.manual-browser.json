@@ -1,0 +1,92 @@
+{
+  "evidenceKind": "supplementary-manual-browser",
+  "artifact": {
+    "sha256": "8bd56985ae4b2d4197a96602093849f03d9f37b13fea5756ccb241a4a080a502",
+    "bytes": 707253
+  },
+  "records": [
+    {
+      "capture": "/private/tmp/agentboard-b-pruning-1440-light.png",
+      "theme": "light",
+      "width": 1440,
+      "height": 900,
+      "sha256": "62fced931c70e4075f4263913ee415a4018ed8e5dc992400fd7ef1f34ec9040b",
+      "command_exit": 1,
+      "command_output": "error: chrome-devtools-mcp did not report a saved screenshot path\ncode: BROWSER_ERROR"
+    },
+    {
+      "capture": "/private/tmp/agentboard-b-pruning-1440-dark.png",
+      "theme": "dark",
+      "width": 1440,
+      "height": 900,
+      "sha256": "2a82f51d6247e6b1c98513ac1c574f2d16df6c5452080c65504d38ee111a737e",
+      "command_exit": 1,
+      "command_output": "error: chrome-devtools-mcp did not report a saved screenshot path\ncode: BROWSER_ERROR"
+    },
+    {
+      "capture": "/private/tmp/agentboard-b-pruning-2048-light.png",
+      "theme": "light",
+      "width": 2048,
+      "height": 1320,
+      "sha256": "629a24aa2ac460f93afaeb42160ae28f65651318435b03b6e8968c54452ef925",
+      "command_exit": 1,
+      "command_output": "error: chrome-devtools-mcp did not report a saved screenshot path\ncode: BROWSER_ERROR"
+    },
+    {
+      "capture": "/private/tmp/agentboard-b-pruning-2048-dark.png",
+      "theme": "dark",
+      "width": 2048,
+      "height": 1320,
+      "sha256": "7b691bc2f903427567765408c210749587f5c539dcfd2882097c2ef273a7b776",
+      "command_exit": 1,
+      "command_output": "error: chrome-devtools-mcp did not report a saved screenshot path\ncode: BROWSER_ERROR"
+    }
+  ],
+  "visualReview": "passed",
+  "automated_status": "failed",
+  "automated_failure": "Chrome SIGABRT; supplementary record does not override automated failure.",
+  "measurements": [
+    {
+      "width": 1440,
+      "height": 900,
+      "scrollWidth": 1440,
+      "scrollHeight": 900,
+      "detail": "read",
+      "motionConfigured": false,
+      "activeAnimations": 0
+    },
+    {
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "scrollHeight": 1000,
+      "detail": "read",
+      "motionConfigured": false,
+      "activeAnimations": 0
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "scrollWidth": 1920,
+      "scrollHeight": 1080,
+      "detail": "read",
+      "motionConfigured": false,
+      "activeAnimations": 0
+    },
+    {
+      "width": 2048,
+      "height": 1320,
+      "scrollWidth": 2048,
+      "scrollHeight": 1320,
+      "detail": "read",
+      "motionConfigured": false,
+      "activeAnimations": 0
+    }
+  ],
+  "state": {
+    "detail": "read",
+    "motion": "still",
+    "evidence": "No configured motion; hidden motion control and zero active animations at all four viewports. Hidden control retains unused Live label."
+  },
+  "review": "Image-capable review inspected all four endpoint-theme captures: readable labels and nodes, clear routes, unclipped cards, balanced large composition. No new composition edits."
+}

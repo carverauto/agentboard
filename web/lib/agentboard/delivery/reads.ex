@@ -11,9 +11,15 @@ defmodule Agentboard.Delivery.Reads do
       if not is_binary(cursor) or byte_size(cursor) > 200,
         do: Ops.reject("invalid_input", "Invalid PR cursor")
 
+      query = PullRequest |> Ash.Query.filter(id > ^cursor)
+
+      query =
+        if params["show_terminal"] == "true",
+          do: query,
+          else: Ash.Query.filter(query, not exists(poll_state, lifecycle in ["merged", "closed"]))
+
       rows =
-        PullRequest
-        |> Ash.Query.filter(id > ^cursor)
+        query
         |> Ash.Query.sort(id: :asc)
         |> Ash.Query.limit(21)
         |> Ash.read!()

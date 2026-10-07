@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Bounded PR observation",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "due-job",
+      "type": "backend",
+      "label": "Due PR job",
+      "sublabel": "AshOban \u00b7 fenced generation",
+      "pos": [
+        40,
+        150
+      ],
+      "size": [
+        240,
+        84
+      ]
+    },
+    {
+      "id": "request-budget",
+      "type": "database",
+      "label": "Shared provider budget",
+      "sublabel": "GitHub \u00b7 at most 60/min",
+      "pos": [
+        440,
+        150
+      ],
+      "size": [
+        240,
+        84
+      ]
+    },
+    {
+      "id": "provider",
+      "type": "external",
+      "label": "GitHub observation",
+      "sublabel": "Terminal: metadata only",
+      "pos": [
+        840,
+        150
+      ],
+      "size": [
+        240,
+        84
+      ]
+    },
+    {
+      "id": "poll-projection",
+      "type": "database",
+      "label": "Audited poll projection",
+      "sublabel": "Merged/closed disables polling",
+      "pos": [
+        840,
+        450
+      ],
+      "size": [
+        240,
+        84
+      ]
+    },
+    {
+      "id": "bounded-reads",
+      "type": "backend",
+      "label": "Bounded persisted reads",
+      "sublabel": "Terminal filter before pagination",
+      "pos": [
+        440,
+        450
+      ],
+      "size": [
+        240,
+        84
+      ]
+    },
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "Pull requests dashboard",
+      "sublabel": "Show merged/closed toggle",
+      "pos": [
+        40,
+        450
+      ],
+      "size": [
+        240,
+        84
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "admit-request",
+      "from": "due-job",
+      "to": "request-budget",
+      "label": "Each request"
+    },
+    {
+      "id": "collect-evidence",
+      "from": "request-budget",
+      "to": "provider",
+      "label": "Bounded HTTPS"
+    },
+    {
+      "id": "commit-evidence",
+      "from": "provider",
+      "to": "poll-projection",
+      "label": "Fenced commit",
+      "labelAt": [
+        960,
+        342
+      ]
+    },
+    {
+      "id": "read-state",
+      "from": "poll-projection",
+      "to": "bounded-reads",
+      "label": "Retained evidence"
+    },
+    {
+      "id": "render-state",
+      "from": "bounded-reads",
+      "to": "dashboard",
+      "label": "No provider I/O"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cadence",
+      "items": [
+        "Changed/pending: 60 seconds",
+        "Unchanged, no pending checks: 10 minutes"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Lifecycle",
+      "items": [
+        "Merged: disabled permanently",
+        "Closed: hourly metadata-only reopen check or new explicit link"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Evidence",
+      "items": [
+        "Terminal metadata cannot certify green",
+        "Snapshots and repair ownership remain retained; cooperation stays off"
+      ]
+    }
+  ]
+}

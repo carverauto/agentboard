@@ -115,4 +115,45 @@ assert sql('SELECT json_agg(t ORDER BY id) FROM delivery_poll_states t') == befo
 assert sql('SELECT count(*) FROM delivery_poll_states_versions') == '2', 'Operational polling produced version noise'
 assert sql("SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.PollState'") == '2'
 assert sql("SELECT count(*) FROM delivery_poll_states WHERE ci_state!='unknown' OR observed_at IS NOT NULL OR head_sha IS NOT NULL") == '0'
-print('Exclusive bounded reservations, row isolation, expiry/generation fences, durable backoff and disabled observation passed')
+# Operator repair must audit even disabled -> disabled retirement, preserve
+# unknown CI, reject a partial cohort/live reservation and be retry-safe.
+ab('task', 'create', '--id', 'repair-already-resumed', '--title', 'Already resumed PR',
+   '--pr', 'https://github.com/fixture/repo/pull/103')
+ids = json.loads(sql('SELECT json_agg(id ORDER BY id) FROM delivery_poll_states'))
+actor = '%{"agent" => "poll-owner", "model" => "fixture-model", "harness" => "codex"}'
+
+
+def repair(cohort=ids, apply=False):
+    expression = ('result = case Agentboard.Delivery.Polling.reconcile_disabled(' +
+                  json.dumps(cohort) + ', ' + actor + ', ' + str(apply).lower() + ') do '
+                  '{:ok, rows} -> %{rows: rows}; {:error, code, _} -> %{error: code} end')
+    return rpc(expression)
+
+
+sql("UPDATE delivery_poll_states SET enabled=false,attempt_id=NULL,lease_expires_at=NULL,lifecycle=CASE WHEN id=(SELECT id FROM delivery_pull_requests WHERE number='101') THEN 'merged' ELSE 'open' END")
+# Discovery may resume some incident rows between deploy and the operator step.
+sql("UPDATE delivery_poll_states SET enabled=true WHERE id=(SELECT id FROM delivery_pull_requests WHERE number='103')")
+before = sql('SELECT json_agg(t ORDER BY id) FROM delivery_poll_states t')
+assert repair(ids + ['missing-state'], True) == {'error': 'not_found'}
+assert sql('SELECT json_agg(t ORDER BY id) FROM delivery_poll_states t') == before
+assert sorted(row['disposition'] for row in repair()['rows']) == ['reenabled', 'reenabled', 'retired']
+assert sql('SELECT json_agg(t ORDER BY id) FROM delivery_poll_states t') == before
+sql("UPDATE delivery_poll_states SET attempt_id=gen_random_uuid(),lease_expires_at=clock_timestamp()+interval '1 minute' WHERE id=(SELECT id FROM delivery_pull_requests WHERE number='101')")
+assert repair(apply=True) == {'error': 'conflict'}
+assert sql('SELECT count(*) FROM delivery_poll_states_versions') == '3'
+sql('UPDATE delivery_poll_states SET attempt_id=NULL,lease_expires_at=NULL')
+sql("CREATE FUNCTION fixture_reject_repair() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture audit unavailable'; END $$; CREATE TRIGGER fixture_audit_failure BEFORE INSERT ON board_action_events FOR EACH ROW EXECUTE FUNCTION fixture_reject_repair()")
+assert repair(apply=True) == {'error': 'unavailable'}
+assert sql('SELECT json_agg(t ORDER BY id) FROM delivery_poll_states t') == before
+assert sql('SELECT count(*) FROM delivery_poll_states_versions') == '3'
+sql('DROP TRIGGER fixture_audit_failure ON board_action_events; DROP FUNCTION fixture_reject_repair()')
+assert sorted(row['disposition'] for row in repair(apply=True)['rows']) == ['reenabled', 'reenabled', 'retired']
+assert sql("SELECT string_agg(number||':'||enabled,',' ORDER BY number) FROM delivery_poll_states JOIN delivery_pull_requests USING(id)") == '101:false,102:true,103:true'
+assert sql("SELECT count(*) FROM delivery_poll_states_versions WHERE version_action_name='reconcile_disabled' AND provenance->>'agent'='poll-owner'") == '3'
+assert sql("SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.PollState'") == '6'
+repaired = sql('SELECT json_agg(t ORDER BY id) FROM delivery_poll_states t')
+assert all(row['disposition'] == 'already_reconciled' for row in repair(apply=True)['rows'])
+assert sql('SELECT json_agg(t ORDER BY id) FROM delivery_poll_states t') == repaired
+assert sql('SELECT count(*) FROM delivery_poll_states_versions') == '6'
+assert sql("SELECT count(*) FROM delivery_poll_states WHERE ci_state!='unknown' OR observed_at IS NOT NULL OR head_sha IS NOT NULL") == '0'
+print('Exclusive reservations, durable backoff, disabled observation and audited retry-safe operator repair passed')

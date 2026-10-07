@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "source_base": "75ac24a979114858d9628e4e4d04524f81a58dd5",
+  "focused_remote": {
+    "result": "passed",
+    "targets": [
+      "delivery_github_test",
+      "delivery_polling_test",
+      "delivery_scheduling_test",
+      "ci_accountability_test"
+    ],
+    "url": "https://carverauto.buildbuddy.io/invocation/fbe8ddd8-b751-4c2e-893b-01a2c4795f2e",
+    "post_check_edits": "Only extra EOF blank lines from remote formatter removed; proxy must validate final publication head."
+  },
+  "negative_control": {
+    "result": "failed_as_expected",
+    "url": "https://carverauto.buildbuddy.io/invocation/f3ded433-4797-4519-9ebd-ed6d4a30373c",
+    "failure": "Closed PR collection made seven HTTP requests instead of one metadata request on pre-fix main."
+  },
+  "formatting": {
+    "method": "Remote packaged-release Code.format_file!",
+    "url": "https://carverauto.buildbuddy.io/invocation/dd709b66-3dde-4cd7-ba48-bfa8a5e7fcfd",
+    "scope": "Changed Elixir files only; extra EOF blank lines normalized afterward."
+  },
+  "archify": {
+    "diagram_type": "architecture",
+    "specification_sha256": "860f6cf6b8732165e97ad838944542e685209aaa4b8f0b6144d78a0e1420f4f7",
+    "artifact_sha256": "8bd56985ae4b2d4197a96602093849f03d9f37b13fea5756ccb241a4a080a502",
+    "artifact_bytes": 707253,
+    "validation": "9/9 showcase; zero composition errors/warnings",
+    "browser_evidence": "failed",
+    "browser_failure": "Packaged visual-check Chrome exited SIGABRT. Automated failed receipt retained separately; supplementary manual browser coverage does not override it.",
+    "visual_review": "passed",
+    "correction_rounds": 1,
+    "viewer_url": "https://agentboard.farm01.carverauto.dev/documents/79",
+    "download_verified": true,
+    "superseded_document": {
+      "id": 78,
+      "reason": "Incorrect source revision typed in initial upload; document79 binds the actual commit."
+    },
+    "supplementary_manual_record": "pr-terminal-polling.manual-browser.json",
+    "visual_scope": "Four exact desktop containment measurements, READ/no configured motion, light/dark captures at 1440x900 and 2048x1320. Image-capable reviewer inspected all four; no new composition edits."
+  },
+  "quality": {
+    "baseline": "git HEAD75ac24a",
+    "finding": "Seven verbosity increases, six minor. ProviderAdmission grows 60\u219261 measured LOC for explicit safe capacity clamp; retained in its existing transactional owner. No claim of zero quality findings."
+  },
+  "publication": {
+    "status": "pending",
+    "method": "No-mistakes only; initialized source-clone gate99fd17a059fb. No --yes, direct push, PR bypass or merge.",
+    "restriction": "Stop and record on owned task if sandbox refuses gate write."
+  },
+  "scope": {
+    "cooperation": "unchanged/off",
+    "mattermost_bridge": "unchanged/off",
+    "task_merge_disposition": "Separate GH58 owner; this patch does not complete tasks on provider merge."
+  },
+  "handoff": {
+    "original_source_head": "be7041c1106f559859cb2417db16636ea25831bd",
+    "fresh_base": "23d2ea5",
+    "inherited_commits": [
+      "e2c5155",
+      "19d46db"
+    ],
+    "context_entries": [
+      114,
+      116,
+      124
+    ]
+  },
+  "repair_acceptance": {
+    "passed_url": "https://carverauto.buildbuddy.io/invocation/e442878c-7ec1-4188-8cce-c9ce4c864429",
+    "target": "delivery_polling_test",
+    "initial_fixture_failure_url": "https://carverauto.buildbuddy.io/invocation/decac91b-6ba5-4b58-a298-6b94e961462f",
+    "initial_failure": "New fixture violated reservation_pair by setting expiry without attempt UUID; fixture corrected.",
+    "other_three_targets": "Passed in initial invocation.",
+    "post_check_edits": "Documentation and evidence metadata only; executable code unchanged.",
+    "live_execution": "not performed",
+    "manifest_ids": 44,
+    "manifest_sha256": "d0f10c63a8c9cbb3aced34bad7512de68e7ae6260ad96ab3d2a84f8cb38f28c4",
+    "format_url": "https://carverauto.buildbuddy.io/invocation/9e88aa3a-5575-4484-8798-a8760864e940",
+    "final_remote_url": "https://carverauto.buildbuddy.io/invocation/0f7c402d-79af-4eed-9f4c-032da5d566b1",
+    "final_remote_result": "All four focused suites passed after final helper/guard/format changes."
+  },
+  "repair_quality": {
+    "baseline": "git HEAD19d46db (inherited patch)",
+    "result": "conscious_owner_size_tradeoff",
+    "findings": {
+      "baseline": "git-HEAD",
+      "regressions": 4,
+      "minor": 1,
+      "acked": 0,
+      "stale": 0,
+      "preexisting-worse": 2,
+      "new-symbol": 2,
+      "gating": 1,
+      "register-macro-excluded": 0,
+      "api-new-surface": 0,
+      "at": "19d46db75+dirty",
+      "r": [
+        {
+          "kind": "dead-code",
+          "sym": "polling.ex::Agentboard.Delivery.Polling::reconcile_disabled",
+          "p": "polling.ex:15",
+          "origin": "new-symbol"
+        },
+        {
+          "kind": "dead-code",
+          "sym": "polling.ex::Agentboard.Delivery.Polling::reconcile_disabled",
+          "p": "polling.ex:43",
+          "origin": "new-symbol"
+        },
+        {
+          "kind": "verbosity",
+          "sym": "Agentboard.Delivery.PollState",
+          "was": 97,
+          "now": 112,
+          "p": "poll_state.ex:1",
+          "sev": "minor"
+        },
+        {
+          "kind": "verbosity",
+          "sym": "Agentboard.Delivery.Polling",
+          "was": 204,
+          "now": 268,
+          "p": "polling.ex:1",
+          "gating": true
+        }
+      ],
+      "sa": []
+    },
+    "decision": "Retain bounded operator repair in existing transactional Polling owner with one per-row helper; do not move code solely to improve file-size metrics. Runtime RPC/runbook is the real production caller of functions labeled dead-code by static analysis. Actual tests and proxy review assess behavior independently."
+  }
+}

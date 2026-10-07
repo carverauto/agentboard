@@ -122,7 +122,7 @@ defmodule Agentboard.Delivery.Inventory do
       Operations.create(PullRequest, :record, Map.put(attrs, :created_at, stamp), provenance)
     end
 
-    Agentboard.Delivery.Polling.enroll(attrs.id, stamp, provenance)
+    Agentboard.Delivery.Polling.enroll(attrs.id, stamp, provenance, attribution == "submission")
     Agentboard.Delivery.Scheduling.linked(attrs.id)
 
     existing =
@@ -154,4 +154,3 @@ defmodule Agentboard.Delivery.Inventory do
     end
   end
 end
-

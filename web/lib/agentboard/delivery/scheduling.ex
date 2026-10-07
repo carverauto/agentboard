@@ -78,7 +78,7 @@ defmodule Agentboard.Delivery.Scheduling do
     Operations.transaction(fn ->
       %{rows: rows} =
         Repo.statement!(
-          "SELECT pr.id FROM delivery_pull_requests pr WHERE NOT EXISTS (SELECT 1 FROM delivery_poll_states s WHERE s.id=pr.id) ORDER BY pr.id LIMIT 100",
+          "SELECT pr.id FROM delivery_pull_requests pr LEFT JOIN delivery_poll_states s ON s.id=pr.id WHERE s.id IS NULL OR (NOT s.enabled AND s.lifecycle='closed' AND s.next_poll_at<=clock_timestamp()) ORDER BY pr.id LIMIT 100",
           []
         )
 
@@ -107,4 +107,3 @@ defmodule Agentboard.Delivery.Scheduling do
 
   defp snooze, do: {:error, AshOban.Errors.SnoozeJob.exception(snooze_for: 60)}
 end
-

@@ -8,17 +8,109 @@ defmodule Agentboard.Delivery.Polling do
   @lease_seconds 120
   @actor %{"agent" => "delivery-polling", "model" => "system", "harness" => "ash"}
 
+  # One-time repair, explicitly invoked by the post-deploy operator runbook.
+  # Dry run is the default; no provider I/O, CI projection or flag changes.
+  def reconcile_disabled(ids, actor, apply? \\ false)
+
+  def reconcile_disabled(ids, actor, apply?)
+      when is_list(ids) and length(ids) in 1..100 and is_boolean(apply?) do
+    with {:ok, actor} <- Agentboard.Input.actor(actor) do
+      if not Enum.all?(ids, &is_binary/1) or length(Enum.uniq(ids)) != length(ids) do
+        {:error, "invalid_input", "Distinct canonical PR IDs are required"}
+      else
+        Operations.transaction(fn ->
+          # Immutable canonical PRs are protected by PollState's foreign key.
+          # Only lock poll rows, in sorted order: an observer holding one may
+          # need a canonical FK key-share lock to append its snapshot.
+          %{rows: rows} =
+            Repo.statement!(
+              "SELECT id FROM delivery_poll_states WHERE id=ANY($1) ORDER BY id FOR UPDATE",
+              [ids]
+            )
+
+          if length(rows) != length(ids),
+            do: Operations.reject("not_found", "Repair cohort contains missing PR state")
+
+          Enum.map(Enum.sort(ids), fn id ->
+            state = Operations.fetch!(PollState, id, "PR polling state not found")
+            reconcile_state(state, actor, apply?)
+          end)
+        end)
+      end
+    end
+  end
+
+  def reconcile_disabled(_, _, _),
+    do:
+      {:error, "invalid_input",
+       "Repair requires 1–100 distinct IDs and an explicit apply boolean"}
+
+  defp reconcile_state(state, actor, apply?) do
+    %{rows: [[done?]]} =
+      Repo.statement!(
+        "SELECT EXISTS(SELECT 1 FROM delivery_poll_states_versions WHERE version_source_id=$1 AND version_action_name='reconcile_disabled')",
+        [state.id]
+      )
+
+    stamp = Operations.now()
+
+    cond do
+      done? ->
+        %{id: state.id, disposition: "already_reconciled"}
+
+      state.lease_expires_at && DateTime.compare(state.lease_expires_at, stamp) == :gt ->
+        Operations.reject("conflict", "Repair row has an active reservation")
+
+      true ->
+        terminal? = state.lifecycle in ["merged", "closed"]
+        next_poll_at = if terminal?, do: DateTime.add(stamp, 3600), else: stamp
+
+        if apply? do
+          Operations.update(
+            state,
+            :reconcile_disabled,
+            %{
+              expected_generation: state.generation,
+              expected_enabled: state.enabled,
+              generation: state.generation + 1,
+              enabled: not terminal?,
+              next_poll_at: next_poll_at
+            },
+            actor
+          )
+        end
+
+        %{
+          id: state.id,
+          disposition: if(terminal?, do: "retired", else: "reenabled"),
+          lifecycle: state.lifecycle,
+          apply: apply?
+        }
+    end
+  end
+
   # Caller holds this canonical PR's lock in the inventory transaction.
   # Idempotent for the PR being persisted. A schema-7 writer can add inventory
   # without PollState; current-link catch-up does not cover cleared task URLs.
-  def enroll(id, stamp, actor) do
-    if is_nil(Ash.get!(PollState, id, not_found_error?: false)) do
-      Operations.create(
-        PollState,
-        :enroll,
-        %{id: id, registered_at: stamp, next_poll_at: stamp},
-        actor
-      )
+  def enroll(id, stamp, actor, linked? \\ false) do
+    Repo.statement!("SELECT id FROM delivery_poll_states WHERE id=$1 FOR UPDATE", [id])
+    state = Ash.get!(PollState, id, not_found_error?: false)
+
+    cond do
+      is_nil(state) ->
+        Operations.create(
+          PollState,
+          :enroll,
+          %{id: id, registered_at: stamp, next_poll_at: stamp},
+          actor
+        )
+
+      not state.enabled and state.lifecycle == "closed" and
+          (linked? or DateTime.compare(state.next_poll_at, stamp) != :gt) ->
+        Operations.update(state, :resume, %{next_poll_at: stamp}, actor)
+
+      true ->
+        state
     end
   end
 
@@ -143,7 +235,14 @@ defmodule Agentboard.Delivery.Polling do
             state.ci_state != result.ci_state or state.lifecycle != result.lifecycle or
             state.last_error != policy_error
 
-        action = if changed?, do: :observe_change, else: :observe
+        terminal? = result.lifecycle in ["merged", "closed"]
+
+        action =
+          cond do
+            terminal? -> :observe_terminal
+            changed? -> :observe_change
+            true -> :observe
+          end
 
         projection =
           Operations.update(
@@ -161,7 +260,7 @@ defmodule Agentboard.Delivery.Polling do
               last_error: policy_error,
               attempt_id: nil,
               lease_expires_at: nil,
-              next_poll_at: DateTime.add(stamp, 60)
+              next_poll_at: DateTime.add(stamp, cadence(result, changed?))
             },
             @actor
           )
@@ -172,6 +271,20 @@ defmodule Agentboard.Delivery.Polling do
     else
       {:error, "disabled", "PR observation is disabled"}
     end
+  end
+
+  # Closed PRs get one metadata-only reopen check per hour; merged PRs stay
+  # disabled. Stable non-pending evidence is sampled every ten minutes.
+  defp cadence(%{lifecycle: lifecycle}, _) when lifecycle in ["merged", "closed"], do: 3600
+
+  defp cadence(result, changed?) do
+    pending? =
+      Enum.any?(result.payload["attempts"] || [], fn attempt ->
+        Map.get(attempt, :latest, attempt["latest"]) == true and
+          Map.get(attempt, :status, attempt["status"]) != "completed"
+      end)
+
+    if changed? or result.ci_state == "pending" or pending?, do: 60, else: 600
   end
 
   defp assert_reservation!(state, attempt_id, generation, stamp) do
