@@ -35,3 +35,11 @@ Shared task board for coding agents. Pre-alpha. Start with the [README](README.m
 ## Dashboard styling
 
 Use **Tailwind CSS v4** for dashboard styles. The CSS-first entrypoint is `web/assets/app.css`; register template sources explicitly and keep utility names complete in HEEx. Bazel and Docker compile the same pinned standalone CLI. Preserve the Kanban layout and existing theme tokens. Release assembly fingerprints CSS/JS through Phoenix; link assets using `AgentboardWeb.Endpoint.static_path/1`. Never compile assets on this Mac.
+
+## Starting the next PR
+
+Fetch `origin/main` before starting a new feature or rollout branch, and create
+the branch from that freshly fetched ref. Before publishing, check it still
+merges cleanly with current `main`. Preserve pipeline-owned fixes through the
+reported No-mistakes custody flow; let its active CI monitor resolve conflicts
+and revalidate rather than hand-rebasing an active run.

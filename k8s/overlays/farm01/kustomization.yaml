@@ -38,6 +38,7 @@ configMapGenerator:
     behavior: merge
     literals:
       # Captain-confirmed hostname (2026-10-05).
+      - AGENTBOARD_PR_DISCOVERY_ENABLED=false
       - PHX_HOST=agentboard.farm01.carverauto.dev
       - DATABASE_HOST=agentboard-db-rw.agentboard.svc.cluster.local
 generatorOptions:
@@ -45,5 +46,5 @@ generatorOptions:
 images:
   # Operator-managed immutable release pin; see docs/deploy/reference-farm01.md.
   - name: registry.carverauto.dev/agentboard/dashboard
-    # Published from merged audited Ash foundation PR27 (2e89bb0).
-    digest: sha256:3bd61e8e7459a1430067b220d786305da4500c954927733ff3e68e45253da9a7
+    # Published from merged PR inventory PR32 (f5308a7).
+    digest: sha256:eb5c074b40cfea5b59cac49a689390d66d778ef18e99b606896cb809a0255fa4
