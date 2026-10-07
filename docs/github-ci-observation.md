@@ -46,3 +46,11 @@ exposed unsupported OTP28.1 httpc bounds, a fixture CA-chain error, schema SQL
 quoting and a scheduler/quiescence race; these were corrected before this pass.
 The final transport uses the pinned passive Mint client rather than unsupported
 httpc cap options. No real provider or active worker delivery is claimed.
+
+
+The source-bound Archify delivery passed9/9 showcase checks with zero errors
+and warnings. Automated browser containment passed at1440x900,1600x1000,
+1920x1080 and2048x1320; separate perceptual image review covered1440light and
+2048dark. One diagnosed relationship-label placement correction was needed.
+Viewer interactions are not covered by that image review. Retained receipts
+are beside the HTML in `docs/architecture/`.

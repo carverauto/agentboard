@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Current-head GitHub CI observations",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1240,
+      700
+    ],
+    "repository": {
+      "url": "https://github.com/carverauto/agentboard",
+      "revision": "a55487111a66aa33764dfa5daf548c48065ff19a"
+    }
+  },
+  "components": [
+    {
+      "id": "ci-job",
+      "type": "messagebus",
+      "label": "Per-PR Oban job",
+      "sublabel": "Default off \u00b7 bounded queue",
+      "pos": [
+        45,
+        130
+      ],
+      "size": [
+        230,
+        94
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/poll_worker.ex"
+        },
+        {
+          "path": "web/lib/agentboard/delivery/scheduling.ex"
+        }
+      ]
+    },
+    {
+      "id": "ci-lease",
+      "type": "backend",
+      "label": "Reserve generation",
+      "sublabel": "120 s \u00b7 transaction commits",
+      "pos": [
+        345,
+        130
+      ],
+      "size": [
+        230,
+        94
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/polling.ex"
+        }
+      ]
+    },
+    {
+      "id": "ci-collector",
+      "type": "backend",
+      "label": "Collect and normalize",
+      "sublabel": "Pages \u00b7 latest provider IDs",
+      "pos": [
+        645,
+        130
+      ],
+      "size": [
+        230,
+        94
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/github.ex"
+        }
+      ]
+    },
+    {
+      "id": "ci-github",
+      "type": "external",
+      "label": "GitHub HTTPS API",
+      "sublabel": "Head/base before and after",
+      "pos": [
+        945,
+        130
+      ],
+      "size": [
+        230,
+        94
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/github_http.ex"
+        }
+      ]
+    },
+    {
+      "id": "ci-budget",
+      "type": "database",
+      "label": "Shared provider budget",
+      "sublabel": "Per request \u00b7 durable cooldown",
+      "pos": [
+        945,
+        440
+      ],
+      "size": [
+        230,
+        94
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/provider_admission.ex"
+        }
+      ]
+    },
+    {
+      "id": "ci-commit",
+      "type": "backend",
+      "label": "Fence and commit",
+      "sublabel": "Reject expired/replaced results",
+      "pos": [
+        645,
+        440
+      ],
+      "size": [
+        230,
+        94
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/polling.ex"
+        },
+        {
+          "path": "web/lib/agentboard/delivery/poll_state.ex"
+        }
+      ]
+    },
+    {
+      "id": "ci-snapshots",
+      "type": "database",
+      "label": "Immutable snapshots",
+      "sublabel": "Head/base \u00b7 attempts \u00b7 links",
+      "pos": [
+        345,
+        440
+      ],
+      "size": [
+        230,
+        94
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/ci_snapshot.ex"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "job-reserve",
+      "from": "ci-job",
+      "to": "ci-lease",
+      "label": "claim"
+    },
+    {
+      "id": "reserved-fetch",
+      "from": "ci-lease",
+      "to": "ci-collector",
+      "label": "outside TX"
+    },
+    {
+      "id": "github-read",
+      "from": "ci-collector",
+      "to": "ci-github",
+      "label": "GET / recheck"
+    },
+    {
+      "id": "request-admission",
+      "from": "ci-collector",
+      "to": "ci-budget",
+      "label": "admit / backoff"
+    },
+    {
+      "id": "result-commit",
+      "from": "ci-collector",
+      "to": "ci-commit",
+      "label": "complete head",
+      "labelAt": [
+        760,
+        238
+      ]
+    },
+    {
+      "id": "store-observation",
+      "from": "ci-commit",
+      "to": "ci-snapshots",
+      "label": "atomic write"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "CI evidence boundary",
+      "items": [
+        "Complete head failure or pending is visible",
+        "Clean checks remain unknown without policy"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Next accountability stages",
+      "items": [
+        "Repair obligations and session delivery remain pending",
+        "Policy, merge-ref and BuildBuddy gates remain open"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Volumes/Build/agentboard-github-ci-collector/docs/architecture/github-ci-observation.architecture.json",
+  "output": "/Volumes/Build/agentboard-github-ci-collector/docs/architecture/github-ci-observation.html",
+  "specification": {
+    "sha256": "b27650479fec80936206a00c3c736d5e21bf32e962f490ab28bc38304c02b80f",
+    "bytes": 4387
+  },
+  "artifact": {
+    "sha256": "73e0b643bae26186bbe17ab5f5e34d817b3fa76512bae515363a772fd72558a7",
+    "bytes": 710953
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  },
+  "evidence": {
+    "verified": true,
+    "repository": "https://github.com/carverauto/agentboard",
+    "revision": "a55487111a66aa33764dfa5daf548c48065ff19a",
+    "references": 9
+  }
+}

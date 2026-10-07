@@ -111,3 +111,8 @@ Merged PR45 is separately rolled to farm01 at schema9/API1 with discovery and
 observation explicitly false; its operator pin and retained-data receipt ship
 with this collector PR to avoid an extra maintenance-only PR. The collector
 schema10 and provider calls are not deployed or enabled by that record.
+
+
+Collector Archify: source-linked implementation evidence,9/9 showcase checks,
+zero errors/warnings, four desktop containment measurements and separate actual
+light/dark screenshot review. Viewer interactions are not implied.
