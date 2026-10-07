@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "worker",
+    srcs = ["adapter.go", "api.go", "config.go", "install.go", "journal.go", "runtime.go", "storage_unix.go"],
+    embedsrcs = ["pi-native.mjs"],
+    importpath = "github.com/carverauto/agentboard/internal/worker",
+    visibility = ["//:__subpackages__"],
+    deps = ["//internal/client", "//internal/config"],
+)
+filegroup(name = "format_srcs", srcs = glob(["*.go"]), visibility = ["//visibility:public"])
+exports_files(["pi-native.mjs"])

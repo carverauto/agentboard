@@ -31,3 +31,11 @@ Firstmate uses a durable wake queue and explicit acknowledgements with harness-s
 The proposed Agentboard split keeps PR checks in an always-running AshOban service. A local launchd-supervised Herdr connector would deliver pending follow-ups to explicitly bound idle sessions. Busy, blocked and unknown states need distinct handling; a queued wake must be reconciled after restart before retrying uncertain prompt delivery. Mattermost can report failures and stalled follow-ups, while the board retains authoritative ownership and acknowledgements. Neither connector nor outbound Mattermost bridge is deployed yet.
 
 Sources: [Codex skill discovery](https://learn.chatgpt.com/docs/build-skills), [Claude Code skill discovery](https://code.claude.com/docs/en/skills). Firstmate evidence: `docs/supervision-protocols/{codex,claude,grok,pi}.md` in the local Firstmate repository.
+
+## Opt-in host runtime
+
+The supervised worker CLI and first proven Pi native profile are documented in
+[worker-runtime.md](worker-runtime.md). This implementation remains distinct from
+production enrollment and the joint CI-return release gate. Existing agents keep
+the manual checkpoints above until their specific adapter is explicitly enrolled
+and verified. Installing these skills still starts no service or hook.

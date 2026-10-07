@@ -1,0 +1,24 @@
+{
+  "protocol_revision": 1,
+  "deliveries": [
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "event_id": "40000000-0000-4000-8000-000000000001",
+      "worker_id": "fixture-agent",
+      "state": "pending",
+      "received_at": null,
+      "handled_at": null,
+      "created_at": "2026-10-07T05:00:00Z",
+      "source_key": "obligation:fixture:failure",
+      "source_id": "40000000-0000-4000-8000-000000000001",
+      "kind": "ci_failure",
+      "repo": "fixture/repo",
+      "task_id": "fixture-repair",
+      "context_id": null,
+      "summary": "Fixture PR failed",
+      "source_url": "https://github.com/fixture/repo/pull/1",
+      "priority": 1
+    }
+  ],
+  "next_cursor": null
+}

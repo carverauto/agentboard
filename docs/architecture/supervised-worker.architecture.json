@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Supervised worker delivery",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1200,
+      640
+    ]
+  },
+  "components": [
+    {
+      "id": "ledger",
+      "type": "external",
+      "label": "Phoenix worker API",
+      "sublabel": "Protocol 1 \u00b7 server-owned ledger",
+      "pos": [
+        55,
+        155
+      ],
+      "size": [
+        250,
+        90
+      ]
+    },
+    {
+      "id": "host",
+      "type": "backend",
+      "label": "agentboard worker serve",
+      "sublabel": "Independent binding loops",
+      "pos": [
+        475,
+        155
+      ],
+      "size": [
+        250,
+        90
+      ]
+    },
+    {
+      "id": "native",
+      "type": "backend",
+      "label": "Pi native boundary",
+      "sublabel": "Session + generation \u00b7 exact receipt",
+      "pos": [
+        895,
+        155
+      ],
+      "size": [
+        250,
+        90
+      ]
+    },
+    {
+      "id": "supervisor",
+      "type": "backend",
+      "label": "launchd / systemd",
+      "sublabel": "Explicit activation \u00b7 restart custody",
+      "pos": [
+        55,
+        455
+      ],
+      "size": [
+        250,
+        90
+      ]
+    },
+    {
+      "id": "journal",
+      "type": "database",
+      "label": "Protected crash journal",
+      "sublabel": "Frozen hash \u00b7 phase \u00b7 uncertainty",
+      "pos": [
+        475,
+        455
+      ],
+      "size": [
+        250,
+        90
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "batch",
+      "from": "ledger",
+      "to": "host",
+      "label": "Frozen batch / HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "submit",
+      "from": "host",
+      "to": "native",
+      "label": "Generation socket",
+      "variant": "emphasis"
+    },
+    {
+      "id": "supervise",
+      "from": "supervisor",
+      "to": "host",
+      "label": "Restart supervision"
+    },
+    {
+      "id": "durability",
+      "from": "host",
+      "to": "journal",
+      "label": "fsync before I/O",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Fenced delivery",
+      "items": [
+        "Reserve immutable batch before native submission",
+        "Epoch loss cancels I/O; external effects may remain"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery preserves uncertainty",
+      "items": [
+        "Reread sources and exact receipts before another batch",
+        "Timeout, idle and lease expiry never prove non-submission"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Operator participation",
+      "items": [
+        "Exact received/handled IDs keep CI repair separate",
+        "Herdr automation remains disabled; no production enrollment"
+      ]
+    }
+  ]
+}

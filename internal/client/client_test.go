@@ -84,7 +84,7 @@ func TestRateLimitedWriteWaitsAndReplaysSameBody(t *testing.T) {
 }
 
 func TestRateLimitBudgetStopsFurtherRequests(t *testing.T) {
-	for _, header := range []string{"0", "121", "999999999999999999999999999999"} {
+	for _, header := range []string{"0", "121", "3600", "999999999999999999999999999999"} {
 		t.Run(header, func(t *testing.T) {
 			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -105,7 +105,31 @@ func TestRateLimitBudgetStopsFurtherRequests(t *testing.T) {
 			if calls.Load() != want {
 				t.Fatalf("calls %d, want %d", calls.Load(), want)
 			}
+			if header == "3600" && failure.RetryAfter < time.Hour {
+				t.Fatalf("lost server retry floor: %s", failure.RetryAfter)
+			}
 		})
+	}
+}
+
+func TestFarFutureHTTPDateRetryAfterSaturatesWithoutOverflow(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Retry-After", "Fri, 31 Dec 9999 23:59:59 GMT")
+		w.WriteHeader(429)
+	}))
+	defer server.Close()
+	_, err := api(t, server.URL).JSON(context.Background(), "POST", "tasks", nil, map[string]string{"title": "work"})
+	var failure *client.Error
+	if !errors.As(err, &failure) || failure.Code != "rate_limited" {
+		t.Fatalf("unexpected error %v", err)
+	}
+	if failure.RetryAfter < time.Hour || failure.RetryAfter <= 0 {
+		t.Fatalf("far-future Retry-After lost or wrapped: %s", failure.RetryAfter)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("calls %d, want 1", calls.Load())
 	}
 }
 

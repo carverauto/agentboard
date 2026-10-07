@@ -1,0 +1,15 @@
+{
+  "binary_version": "0.9.0",
+  "bundled_protocol": 22,
+  "isolated_session": "agentboard-runtime-conformance",
+  "automatic_prompt_enabled": false,
+  "reason": "Installed agent.prompt request has no expected session/generation or composer-empty guard. agent.prompt may submit to working agents. Native Pi is the chosen supported boundary. No user active session was inspected or prompted.",
+  "sources": [
+    "https://herdr.dev/docs/socket-api/",
+    "https://herdr.dev/docs/agent-automation/"
+  ],
+  "native_model_handling_receipt": false,
+  "isolated_server_version": "0.9.0",
+  "isolated_server_protocol": 22,
+  "isolated_server_stopped": true
+}
