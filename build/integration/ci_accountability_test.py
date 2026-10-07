@@ -192,6 +192,7 @@ export_page('/tasks/' + repair3, 'task-health.html', view.initial)
 view.close()
 view = LiveView(URL, '/agents')
 assert contains(view.initial, 'Stale') and contains(view.initial, 'healthy')
+assert contains(view.initial, '1h ago') and not contains(view.initial, '3600 seconds ago')
 export_page('/agents', 'agents-health.html', view.initial)
 view.close()
 sql("UPDATE cooperation_bindings SET reported_at=clock_timestamp()-interval '2 minutes' WHERE id='ci-peer'")
@@ -213,12 +214,43 @@ sql("UPDATE delivery_poll_states SET ci_state='unknown',last_error='unauthorized
 assert view.wait(lambda event: event[3] == 'diff' and contains(event[4], 'stale'), timeout=7)
 view.close()
 
+# Relative-age display contract uses a fixed clock for exact boundaries; real roster above consumes it.
+expression = 'now = ~U[2026-10-07 00:00:00Z]; values = Enum.map([0,1,59,89,90,201,947,3599,3600,86399,86400,172800,-60], fn n -> AgentboardWeb.RelativeTime.age(DateTime.to_iso8601(DateTime.add(now,-n)), now) end); IO.puts("AGES:" <> Jason.encode!(values ++ Enum.map([nil,"invalid",42], &AgentboardWeb.RelativeTime.age(&1, now))))'
+ages = json.loads(rpc(expression).split('AGES:', 1)[1].strip())
+assert ages == ['Just now','1s ago','59s ago','89s ago','1m ago','3m ago','15m ago','59m ago','1h ago','23h ago','1d ago','2d ago','Just now','Unknown age','Unknown age','Unknown age'], ages
+
+# Review-card badges consume the same canonical CI projection as /prs, not their own provider reader.
+api('/tasks', {'id': 'ci-review-card', 'title': 'Review ' + 'LongUnbrokenTitle' * 20,
+               'repo': 'fixture/repo', 'pr_url': 'https://github.com/fixture/repo/pull/101'})
+api('/tasks/ci-review-card/claim', {})
+api('/tasks/ci-review-card/update', {'status': 'review'})
+api('/tasks', {'id': 'ci-review-without-pr', 'title': 'Review without PR', 'repo': 'fixture/repo'})
+api('/tasks/ci-review-without-pr/claim', {})
+api('/tasks/ci-review-without-pr/update', {'status': 'review'})
+
+def export_review(state):
+    view = LiveView(URL, '/?status=review')
+    page = export_page('/?status=review', 'board-ci-' + state + '.html', view.initial)
+    view.close()
+    assert 'CI ' + state in page, page
+    cards = re.findall(r'<article[^>]*class="task-card"[^>]*>(.*?)</article>', page, re.S)
+    without = next(card for card in cards if 'ci-review-without-pr' in card)
+    assert 'review-ci' not in without
+    return page
+
 # Seven invented projections exercise real renderer output; recovery is proved above.
 for state in ('failing', 'pending', 'unknown', 'passing'):
     sql("UPDATE delivery_poll_states SET ci_state='" + state + "',observed_at=clock_timestamp(),head_sha='" + HEAD + "',last_error=NULL WHERE id='" + pr + "'")
     export_page('/prs', 'prs-' + state + '.html')
+    export_review(state)
 sql("UPDATE delivery_poll_states SET observed_at=clock_timestamp()-interval '1 hour' WHERE id='" + pr + "'")
 export_page('/prs', 'prs-stale.html')
+export_review('stale')
+# Policy-unverified passing never becomes a green Review card.
+sql("UPDATE delivery_poll_states SET observed_at=clock_timestamp(),last_error='policy_unknown' WHERE id='" + pr + "'")
+page = export_review('unknown')
+assert 'CI passing' not in page
+
 
 api('/workers/ci-peer/resume', {'binding_epoch': 1}, token=host)
 batch = api('/workers/ci-peer/reserve', {'binding_epoch': 1, 'idempotency_key': 'dashboard-uncertain'}, token=host)['batch']
@@ -230,5 +262,16 @@ assert 'Submission uncertain' in page and 'connector healthy / stale' in page
 rpc('Application.put_env(:agentboard, :cooperation_enabled, false)')
 page = export_page('/prs', 'prs-disabled.html')
 assert 'Disabled' in page and 'Submission uncertain' in page
+
+# Lost database after a verified-green card retains the card but removes its green claim.
+sql("UPDATE delivery_poll_states SET ci_state='passing',observed_at=clock_timestamp(),last_error=NULL WHERE id='" + pr + "'")
+view = LiveView(URL, '/?status=review')
+assert contains(view.initial, 'CI passing')
+import sys
+prefix = [sys.executable, str(Path(os.environ['FIXTURE_DATA']).parent / 'as_user.py')] if os.geteuid() == 0 else []
+subprocess.run(prefix + [os.environ['FIXTURE_CONTROL'], '-D', os.environ['FIXTURE_DATA'], '-m', 'immediate', 'stop'], check=True, capture_output=True)
+changed = view.wait(lambda event: event[3] == 'diff' and contains(event[4], 'CI unavailable'), timeout=7)
+assert changed and not contains(changed[4], 'CI passing'), view.events[-3:]
+view.close()
 
 print('Packaged failure episodes/provenance/recovery/handoff/rollback/dashboard contracts passed')

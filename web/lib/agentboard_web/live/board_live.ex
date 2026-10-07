@@ -10,6 +10,8 @@ defmodule AgentboardWeb.BoardLive do
       assign(socket,
         data: %{},
         workers: %{},
+        review_ci: %{},
+        ci_unavailable: false,
         health_unavailable: false,
         filters: %{},
         unavailable: false,
@@ -94,6 +96,7 @@ defmodule AgentboardWeb.BoardLive do
     case load(socket.assigns.live_action, socket.assigns.filters) do
       {:ok, data} ->
         health = load_health(data)
+        ci = load_review_ci(data)
 
         assign(socket,
           data: data,
@@ -103,6 +106,12 @@ defmodule AgentboardWeb.BoardLive do
               _ -> socket.assigns.workers
             end,
           health_unavailable: not match?({:ok, _}, health),
+          review_ci:
+            case ci do
+              {:ok, states} -> states
+              _ -> socket.assigns.review_ci
+            end,
+          ci_unavailable: not match?({:ok, _}, ci),
           loaded: true,
           unavailable: false,
           last_read: DateTime.utc_now()
@@ -205,12 +214,7 @@ defmodule AgentboardWeb.BoardLive do
   defp owner_stale?(task, roster), do: get_in(roster, [task["assignee_id"], "stale"]) == true
   defp age(nil), do: "No heartbeat"
 
-  defp age(stamp) do
-    case DateTime.from_iso8601(stamp) do
-      {:ok, time, _} -> "#{max(0, DateTime.diff(DateTime.utc_now(), time))} seconds ago"
-      _ -> "Unknown age"
-    end
-  end
+  defp age(stamp), do: AgentboardWeb.RelativeTime.age(stamp)
 
   defp remaining(window),
     do:
@@ -227,6 +231,41 @@ defmodule AgentboardWeb.BoardLive do
         Map.get(scope, "bounded_by", []),
         &(&1 not in Map.get(observation["state"], "untrusted_window_ids", []))
       )
+  end
+
+  defp load_review_ci(data) do
+    urls =
+      (get_in(data, ["columns", "review", "tasks"]) || [])
+      |> Enum.map(& &1["pr_url"])
+      |> Enum.reject(&is_nil/1)
+
+    Agentboard.Delivery.Reads.review(urls)
+  end
+
+  attr(:state, :map, default: nil)
+  attr(:unavailable, :boolean, default: false)
+
+  def review_ci(assigns) do
+    state =
+      if assigns.unavailable,
+        do: "unavailable",
+        else: (assigns.state && assigns.state.ci_state) || "unknown"
+
+    {symbol, title, tone} =
+      case state do
+        "passing" -> {"✓", "CI passing", "healthy"}
+        "pending" -> {"◷", "CI pending", ""}
+        "failing" -> {"×", "CI failing", "danger"}
+        "stale" -> {"⌛", "CI stale", "warning"}
+        "unavailable" -> {"?", "CI unavailable", "warning"}
+        _ -> {"?", "CI unknown", ""}
+      end
+
+    assigns = assign(assigns, symbol: symbol, title: title, tone: tone)
+
+    ~H"""
+    <div class="review-ci"><span class={"flag " <> @tone}><span aria-hidden="true">{@symbol}</span> {@title}</span><span :if={@state && @state[:draft] == true && !@unavailable} class="flag"><span aria-hidden="true">◇</span> Draft</span><time :if={@state && @state[:observed_at]} datetime={to_string(@state.observed_at)} title={to_string(@state.observed_at)}>{AgentboardWeb.RelativeTime.age(to_string(@state.observed_at))}</time></div>
+    """
   end
 
   defp load_health(data) do
@@ -271,6 +310,7 @@ defmodule AgentboardWeb.BoardLive do
                   <p>{task["repo"] || "No repository"}</p>
                   <div class="owner">{task["assignee_id"] || "Unassigned"}</div>
                   <div class="flags"><span :if={task["claim_expired"]} class="flag danger">Claim expired</span><span :if={owner_stale?(task,@data["roster"])} class="flag warning">Agent stale</span></div>
+                  <.review_ci :if={status == "review" && task["pr_url"]} state={@review_ci[task["pr_url"]]} unavailable={@ci_unavailable || @unavailable} />
                   <div class="links"><a :if={task["issue_url"]} href={task["issue_url"]} target="_blank" rel="noopener noreferrer">Issue</a><a :if={task["pr_url"]} href={task["pr_url"]} target="_blank" rel="noopener noreferrer">Pull request</a></div>
                 </article>
                 <a :if={@data["columns"][status]["next_cursor"]} class="more" href={page_link(@live_action,Map.put(@filters,"status",status),@data["columns"][status]["next_cursor"])}>Next tasks in {label(status)}</a>

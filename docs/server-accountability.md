@@ -123,3 +123,31 @@ Before PR readiness, integrate the published collector and prove the combined
 snapshot/projection/obligation/source transaction and schema-10 upgrade. Final
 native host-to-packaged-API proof and controlled live failed-PR/restart/recovery
 remain explicit host/coordinator release gates. Cooperation stays default-off.
+
+## Review cards and relative ages
+
+Review cards with a linked PR use the same bounded domain CI projection and
+180-second freshness rule as `/prs`. Text and distinct symbols identify passing,
+pending, failing, unknown, stale and unavailable; color is supplemental. Cards
+without a PR omit the indicator. A failed board/CI reread cannot retain a green
+label. Draft requires an actual head-matched provider boolean, with missing
+metadata remaining unavailable. Provider collection runs outside the UI.
+
+The shared age formatter displays seconds below 90 seconds, whole minutes below
+one hour, whole hours below one day, then whole days. Future timestamps display
+“Just now”; malformed values display “Unknown age”; absent roster heartbeat
+displays “No heartbeat”. The exact absolute timestamp remains visible. This
+display does not change heartbeat, native-report or claim freshness, add task
+status ages, or introduce another refresh timer.
+
+A merged PR does not silently mark its source or repair task Done. The captain
+retains explicit completion ownership. Any proposed merge-to-completion policy
+is separate follow-up work and must define its guard and opt-in behavior.
+
+Packaged UI verification: `9affa783-81db-4f79-a95c-2aa90edb2e87`
+proves age boundaries and Review projection labels;
+`3fc62830-989e-4205-aa50-60a3f8dc2549` fails at the roster age
+when only the prior raw-second renderer is restored;
+`82b42d19-15fd-422b-93df-7c4818ca28ef` proves that a real
+database outage replaces retained passing with unavailable. The browser receipt
+retains 24 viewport/theme measurements and the separate screenshot review.

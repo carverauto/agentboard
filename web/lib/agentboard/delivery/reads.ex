@@ -27,6 +27,16 @@ defmodule Agentboard.Delivery.Reads do
     end)
   end
 
+  def review(urls) when is_list(urls) and length(urls) <= 20 do
+    Ops.transaction(fn ->
+      PullRequest
+      |> Ash.Query.filter(url in ^urls)
+      |> Ash.Query.limit(20)
+      |> Ash.read!()
+      |> Map.new(fn pr -> {pr.url, ci_projection(pr)} end)
+    end)
+  end
+
   def detail(id) do
     Ops.transaction(fn ->
       pr = Ops.fetch!(PullRequest, id, "PR not found")
@@ -115,6 +125,21 @@ defmodule Agentboard.Delivery.Reads do
       |> Ash.Query.limit(1)
       |> Ash.read_one!()
 
+    %{
+      pr: Ops.public(pr),
+      poll: if(s, do: Ops.public(s)),
+      overdue:
+        !!o and is_nil(o.resolved_at) and DateTime.compare(o.next_reminder_at, Ops.now()) != :gt,
+      obligation: if(o, do: Ops.public(o)),
+      worker: if(o && o.responsible_id, do: health(o.responsible_id))
+    }
+    |> Map.merge(ci_projection(pr, s))
+  end
+
+  defp ci_projection(pr),
+    do: ci_projection(pr, Ash.get!(PollState, pr.id, not_found_error?: false))
+
+  defp ci_projection(_pr, s) do
     fresh =
       s && s.observed_at && DateTime.diff(Ops.now(), s.observed_at) <= 180 &&
         s.last_error in [nil, "policy_unknown"]
@@ -127,15 +152,6 @@ defmodule Agentboard.Delivery.Reads do
         true -> s.ci_state
       end
 
-    %{
-      pr: Ops.public(pr),
-      ci_state: state,
-      poll: if(s, do: Ops.public(s)),
-      fresh: !!fresh,
-      overdue:
-        !!o and is_nil(o.resolved_at) and DateTime.compare(o.next_reminder_at, Ops.now()) != :gt,
-      obligation: if(o, do: Ops.public(o)),
-      worker: if(o && o.responsible_id, do: health(o.responsible_id))
-    }
+    %{ci_state: state, fresh: !!fresh, observed_at: if(s, do: s.observed_at), draft: nil}
   end
 end
