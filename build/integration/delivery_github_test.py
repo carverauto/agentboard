@@ -57,6 +57,36 @@ def run(i, name, conclusion, head=HEAD, state='completed', completed=NOW):
                 details_url=f'https://carverauto.buildbuddy.io/invocation/fixture-{i}')
 
 
+REPO_ID = '424242'
+
+
+def next_link(path, page, filter_all):
+    prefix = '/repos/fixture/repo'
+    suffix = path[len(prefix):] if path.startswith(prefix) else ''
+    canonical = f'/repositories/{REPO_ID}{suffix}'
+    paging = f'per_page=100&page={page}' + ('&filter=all' if filter_all else '')
+    if mode == 'hostile-link':
+        return f'<https://evil.invalid{path}?{paging}>; rel="next"'
+    if mode == 'malformed-link':
+        return 'rel="next"'
+    if mode == 'suffix-link':
+        return f'<{api_url}/repositories/{REPO_ID}/check-suites/999/check-runs?{paging}>; rel="next"'
+    if mode == 'suite-suffix':
+        return f'<{api_url}/repositories/{REPO_ID}/commits/{"e" * 40}/statuses?per_page=100&page={page}>; rel="next"'
+    if mode == 'id-link':
+        return f'<{api_url}/repositories/not-an-id{suffix}?{paging}>; rel="next"'
+    if mode == 'query-link':
+        query = f'per_page=100&page={page}' if filter_all else f'per_page=100&page={page}&filter=latest'
+        return f'<{api_url}{canonical}?{query}>; rel="next"'
+    if mode == 'page-link':
+        bad = 'per_page=100&page=9' + ('&filter=all' if filter_all else '')
+        return f'<{api_url}{path}?{bad}>; rel="next"'
+    if mode in ('fail', 'partial') or (mode == 'canonical-suites' and path.endswith('/check-suites')):
+        advertised = f'{api_url}{canonical}?page={page}&per_page=100' + ('&filter=all' if filter_all else '')
+        return f'<{advertised}>; rel="next", <{advertised}>; rel="last"'
+    return f'<{api_url}{path}?{paging}>; rel="next"'
+
+
 class Provider(http.server.BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
@@ -102,6 +132,11 @@ class Provider(http.server.BaseHTTPRequestHandler):
         elif u.path.endswith('/check-suites'):
             if mode == 'request-cap':
                 body = dict(total_count=101, check_suites=[dict(id=i, head_sha=HEAD) for i in range((page-1)*100+1, min(page*100+1,102))])
+            elif mode in ('canonical-suites', 'suite-suffix'):
+                total = 101
+                body = dict(total_count=total, check_suites=[dict(id=i, head_sha=HEAD) for i in range((page-1)*100+1, min(page*100+1, total+1))])
+                if page * 100 < total:
+                    headers['Link'] = next_link(u.path, page + 1, False)
             else:
                 body = dict(total_count=1, check_suites=[dict(id=1, head_sha=HEAD)])
         elif u.path.endswith('/check-runs'):
@@ -129,8 +164,7 @@ class Provider(http.server.BaseHTTPRequestHandler):
             else:
                 body = dict(total_count=len(runs), check_runs=runs[(page-1)*100:page*100])
                 if page * 100 < len(runs):
-                    host = 'https://evil.invalid' if mode == 'hostile-link' else api_url
-                    headers['Link'] = f'<{host}{u.path}?per_page=100&page={page+1}&filter=all>; rel="next"'
+                    headers['Link'] = next_link(u.path, page + 1, True)
         elif u.path.endswith('/statuses'):
             body = [dict(id=i, context=f'context-{i}', state='success', created_at=NOW,
                          target_url=f'https://github.com/fixture/repo/actions/runs/{i}') for i in range(1, 101)]
@@ -138,7 +172,7 @@ class Provider(http.server.BaseHTTPRequestHandler):
                      dict(id=102, context='status-rerun', state='success', created_at=NOW)]
             body = sorted(body, key=lambda x: -x['id'])[(page-1)*100:page*100]
             if page == 1:
-                headers['Link'] = f'<{api_url}{u.path}?per_page=100&page=2>; rel="next"'
+                headers['Link'] = next_link(u.path, 2, False)
         else:
             raise AssertionError(self.path)
         encoded = json.dumps(body).encode()
@@ -205,18 +239,43 @@ with tempfile.TemporaryDirectory() as temp:
     assert sql("SELECT remaining FROM delivery_provider_budgets WHERE id='github'") == '53', requests
     assert all(OLD not in url for url in requests)
     assert sql("SELECT head_sha||','||base_sha||','||lifecycle||','||last_error FROM delivery_poll_states") == f'{HEAD},{BASE},open,policy_unknown'
+    start = len(requests)
     poll('fail', 'failing')
+    seen = requests[start:]
     failed = json.loads(sql("SELECT payload FROM delivery_ci_snapshots ORDER BY generation DESC LIMIT 1"))
     failure = next(a for a in failed['attempts'] if a['name'] == 'failed-build')
     assert failure['source_url'].endswith('/job/106') and failure['latest']
+    assert f'/repos/fixture/repo/check-suites/1/check-runs?per_page=100&page=2&filter=all' in seen
+    assert f'/repos/fixture/repo/commits/{HEAD}/statuses?per_page=100&page=2' in seen
+    assert not any('/repositories/' in url for url in seen)
+    link_rejections = {'hostile-link', 'malformed-link', 'suffix-link', 'query-link', 'page-link', 'id-link'}
     for scenario, reason in [('old-head','incomplete'), ('changed-head','incomplete'),
                              ('changed-base','incomplete'), ('partial','unavailable'),
-                             ('hostile-link','incomplete'), ('duplicate','incomplete'), ('request-cap','incomplete'), ('401','unauthorized'),
+                             ('hostile-link','incomplete'), ('malformed-link','incomplete'),
+                             ('suffix-link','incomplete'), ('query-link','incomplete'),
+                             ('page-link','incomplete'), ('id-link','incomplete'),
+                             ('duplicate','incomplete'), ('request-cap','incomplete'), ('401','unauthorized'),
                              ('403','unauthorized'), ('redirect','incomplete'),
                              ('oversize','incomplete'), ('chunked','incomplete')]:
         before = sql('SELECT count(*) FROM delivery_ci_snapshots')
         projection = sql('SELECT head_sha||base_sha||snapshot_id::text||observed_at::text||ci_state FROM delivery_poll_states')
+        start = len(requests)
         poll(scenario, reason)
+        seen = requests[start:]
+        assert sql('SELECT count(*) FROM delivery_ci_snapshots') == before, scenario
+        assert sql('SELECT head_sha||base_sha||snapshot_id::text||observed_at::text||ci_state FROM delivery_poll_states') == projection, scenario
+        if scenario in link_rejections:
+            assert not any('/repositories/' in url or 'page=9' in url for url in seen), (scenario, seen)
+            assert not any('check-runs' in url and 'page=2' in url for url in seen), (scenario, seen)
+    for scenario, present in (('canonical-suites', True), ('suite-suffix', False)):
+        before = sql('SELECT count(*) FROM delivery_ci_snapshots')
+        projection = sql('SELECT head_sha||base_sha||snapshot_id::text||observed_at::text||ci_state FROM delivery_poll_states')
+        start = len(requests)
+        poll(scenario, 'incomplete')
+        seen = requests[start:]
+        local = f'/repos/fixture/repo/commits/{HEAD}/check-suites?per_page=100&page=2'
+        assert (local in seen) is present, (scenario, seen)
+        assert not any('/repositories/' in url for url in seen), (scenario, seen)
         assert sql('SELECT count(*) FROM delivery_ci_snapshots') == before, scenario
         assert sql('SELECT head_sha||base_sha||snapshot_id::text||observed_at::text||ci_state FROM delivery_poll_states') == projection, scenario
     # A certificate for 127.0.0.1 cannot authenticate localhost. HTTP is
@@ -230,7 +289,7 @@ with tempfile.TemporaryDirectory() as temp:
         assert len(requests) == count
     rpc('Application.put_env(:agentboard, :github, [api_url: ' + json.dumps(api_url) +
         ', token: "invented-fixture-token", ca_file: ' + json.dumps(ca) + '])')
-    assert not any('/must-not-follow' in u for u in requests)
+    assert not any('/must-not-follow' in u or '/repositories/' in u or 'page=9' in u for u in requests)
     # 429/primary reset/secondary backoff are durable and block other polls too.
     for scenario, seconds in [('429',179), ('reset',238), ('secondary',59)]:
         poll(scenario, 'rate_limited')

@@ -113,7 +113,7 @@ defmodule Agentboard.Delivery.Github do
          {:ok, items, count} <- page_items(body, key),
          true <- length(items) <= 100 and length(acc) + length(items) <= @max_attempts,
          true <- is_nil(total) or count == total,
-         true <- safe_next?(headers["link"], path, page + 1) do
+         true <- safe_next?(headers["link"], path, page + 1, key) do
       acc = acc ++ items
       count = total || count
 
@@ -161,7 +161,7 @@ defmodule Agentboard.Delivery.Github do
 
   defp next?(link), do: is_binary(link) and Regex.match?(~r/rel="next"/, link)
 
-  defp safe_next?(link, path, next_page) do
+  defp safe_next?(link, path, next_page, key) do
     # Link URLs are validation evidence only; construct subsequent URLs locally.
     # Even an apparently same-origin URL never supplies credentials/destination.
     case if(is_binary(link), do: Regex.run(~r/<([^>]+)>;\s*rel="next"/, link)) do
@@ -179,11 +179,42 @@ defmodule Agentboard.Delivery.Github do
 
         parsed.scheme == expected.scheme and parsed.host == expected.host and
           parsed.port == expected.port and
-          is_nil(parsed.userinfo) and is_nil(parsed.fragment) and parsed.path == path and
-          params["page"] == Integer.to_string(next_page) and params["per_page"] == "100"
+          is_nil(parsed.userinfo) and is_nil(parsed.fragment) and
+          same_endpoint?(parsed.path, path) and query_contract?(params, key, next_page)
     end
   rescue
     ArgumentError -> false
+  end
+
+  defp same_endpoint?(link_path, "/repos/" <> rest = request_path) when is_binary(link_path) do
+    case String.split(rest, "/", parts: 3) do
+      [owner, repo, tail] when owner != "" and repo != "" and tail != "" ->
+        link_path == request_path or canonical_repository?(link_path, "/" <> tail)
+
+      _ ->
+        false
+    end
+  end
+
+  defp same_endpoint?(_, _), do: false
+
+  defp canonical_repository?("/repositories/" <> rest, suffix) do
+    case String.split(rest, "/", parts: 2) do
+      [id, tail] -> decimal_id?(id) and "/" <> tail == suffix
+      _ -> false
+    end
+  end
+
+  defp canonical_repository?(_, _), do: false
+
+  defp decimal_id?(id), do: Regex.match?(~r/\A[1-9][0-9]*\z/, id)
+
+  defp query_contract?(params, "check_runs", next_page) do
+    params == %{"filter" => "all", "page" => Integer.to_string(next_page), "per_page" => "100"}
+  end
+
+  defp query_contract?(params, _key, next_page) do
+    params == %{"page" => Integer.to_string(next_page), "per_page" => "100"}
   end
 
   defp duplicate_ids?(items) do
