@@ -77,15 +77,33 @@ SMTP is not configured, so email notifications and email invites are unavailable
 
 ## Evidence
 
-[Verification evidence](../verification.md) records the first rollout (v0.1.0, 2026-10-06 UTC), the [shared-context rollout](../verification.md#shared-context-rollout-2026-10-06) (PR21 c8600a6, 2026-10-06 UTC), and the [Ash foundation rollout](../verification.md#audited-ash-foundation-rollout-pr27-2026-10-06). Those records cover release workflow and remote acceptance, image digest checks, CNPG and Gateway status, live CLI smoke, watch streams through the Gateway, and browser isolation of task documents.
+[Verification evidence](../verification.md) records the first rollout (v0.1.0, 2026-10-06 UTC), the [shared-context rollout](../verification.md#shared-context-rollout-2026-10-06) (PR21 c8600a6, 2026-10-06 UTC), the [Ash foundation rollout](../verification.md#audited-ash-foundation-rollout-pr27-2026-10-06), and the [canonical inventory rollout](../verification.md#canonical-pr-inventory-rollout-pr32-2026-10-07-utc) (PR32 f5308a7, 2026-10-07 UTC). Those records cover release workflow and remote acceptance, image digest checks, CNPG and Gateway status, live CLI smoke, watch streams through the Gateway, and browser isolation of task documents.
 
 
 ## Shared context completion release
 
-The 2026-10-06 completion rollout used merged PR22 (`74e9d1d`) dashboard digest `sha256:d893984ed1495ac9d468ae1687353dc5032727933ebe7aaab0dc160c57864084` for both migration and Deployment. CNPG retains the already-deployed PostgreSQL 18.6 / pg_textsearch 1.5.1 image. That rollout served schema 5 with the mobile evidence-link fix; all six shared-context implementation tasks passed their delivery checks. See [final acceptance](../verification.md#shared-context-final-acceptance-pr22-2026-10-06). The current image pin and schema are the Ash foundation release below.
+The 2026-10-06 completion rollout used merged PR22 (`74e9d1d`) dashboard digest `sha256:d893984ed1495ac9d468ae1687353dc5032727933ebe7aaab0dc160c57864084` for both migration and Deployment. CNPG retains the already-deployed PostgreSQL 18.6 / pg_textsearch 1.5.1 image. That rollout served schema 5 with the mobile evidence-link fix; all six shared-context implementation tasks passed their delivery checks. See [final acceptance](../verification.md#shared-context-final-acceptance-pr22-2026-10-06). The later release records below identify the current operator image pin and schema.
 
 ## Audited Ash foundation release
 
 The subsequent PR27 rollout (`2e89bb0cc13218deab1304db38b4536d16721e87`) uses dashboard digest `sha256:3bd61e8e7459a1430067b220d786305da4500c954927733ff3e68e45253da9a7` for the migration and Deployment. Migration Job `agentboard-migrate-2e89bb0` completed before the dashboard rolled; schema 6 and one Ready pod on that exact image are verified. Existing immutable task history, HTML documents and shared-context entries retained their pre-roll hashes. CNPG/BM25 and Mattermost remain healthy. See the [rollout evidence](../verification.md#audited-ash-foundation-rollout-pr27-2026-10-06) and [normalized receipt](../verification/farm01-ash-foundation.json).
 
 This deploys the Board/Evidence Ash foundation. PR CI monitoring, completion guard, Mattermost bridge and agent wakeups remain subsequent work. Retain the schema-6 data if rolling back; an older schema-5 application does not provide the new audit coverage described in the [release notes](../release.md#schema-6-audited-board-and-evidence-actions).
+
+
+## Canonical PR inventory release
+
+The subsequent PR32 rollout (`f5308a7`) uses dashboard digest
+`sha256:eb5c074b40cfea5b59cac49a689390d66d778ef18e99b606896cb809a0255fa4`
+for Job `agentboard-migrate-f5308a7` and the Deployment. The Job completed
+before the dashboard rolled; schema 7/API 1, one Ready exact-image pod,
+retained history/HTML/context prefixes, BM25 search, Gateway watch and
+Mattermost health are verified in [rollout acceptance](../verification.md#canonical-pr-inventory-rollout-pr32-2026-10-07-utc)
+and the [normalized receipt](../verification/farm01-pr-inventory.json).
+This is the current operator-managed image pin.
+
+Historical discovery is explicitly disabled until the exact-attribution fix
+and catch-up worker in merged PR36 are rolled out. Canonical submissions are
+recorded by the live API; CI provider monitoring and agent follow-ups remain
+pending. Preserve schema 7 on image rollback, as described in the
+[schema-7 compatibility notes](../release.md#schema-7-durable-pr-submission-inventory).

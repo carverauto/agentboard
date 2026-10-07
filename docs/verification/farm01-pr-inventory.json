@@ -1,0 +1,88 @@
+{
+  "release_commit": "f5308a7ff00d6277682fc683a4469ef98cee4f11",
+  "release_pr": "https://github.com/carverauto/agentboard/pull/32",
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:eb5c074b40cfea5b59cac49a689390d66d778ef18e99b606896cb809a0255fa4",
+  "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:3bd61e8e7459a1430067b220d786305da4500c954927733ff3e68e45253da9a7",
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37550717976",
+  "remote_acceptance": "https://carverauto.buildbuddy.io/invocation/e53783aa-96fb-4607-889d-c1e3a2e42960",
+  "remote_packaging": "https://carverauto.buildbuddy.io/invocation/dbe2a557-631a-484c-94f1-6e3729eae17a",
+  "acceptance_targets": 15,
+  "schema_version": 7,
+  "api_version": 1,
+  "migration": {
+    "job": "agentboard-migrate-f5308a7",
+    "succeeded": true,
+    "image": "registry.carverauto.dev/agentboard/dashboard@sha256:eb5c074b40cfea5b59cac49a689390d66d778ef18e99b606896cb809a0255fa4"
+  },
+  "dashboard": {
+    "pod": "agentboard-dashboard-86dcbd74f9-8zphk",
+    "ready": true,
+    "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:eb5c074b40cfea5b59cac49a689390d66d778ef18e99b606896cb809a0255fa4",
+    "restarts": 0
+  },
+  "cnpg": {
+    "phase": "Cluster in healthy state",
+    "ready_instances": 2,
+    "primary": "agentboard-db-2",
+    "pg_textsearch": "1.5.1",
+    "application_roles_superuser": false
+  },
+  "preserved_immutable_prefixes": {
+    "schema": 7,
+    "task_events": {
+      "max_id": 184,
+      "count": 168,
+      "digest": "d1bb3b17009ff3c98271dbe3bc805db9"
+    },
+    "task_documents": {
+      "max_id": 49,
+      "count": 17,
+      "digest": "80cfcdc3642b4f8ffb4d654242431c84"
+    },
+    "context_entries": {
+      "max_id": 4,
+      "count": 3,
+      "digest": "de1e3c8b4c19672fab674f0ab3e1fd30"
+    }
+  },
+  "live_api": {
+    "schema_version": 7,
+    "api_version": 1,
+    "required_schema_version": 7,
+    "bm25_result": {
+      "id": 3,
+      "score": 0.9529823660850525,
+      "backend": "pg_textsearch-1.5.1"
+    },
+    "inventory_link": {
+      "task": "agentboard-ash-pr-ci-monitor",
+      "pr": "https://github.com/carverauto/agentboard/pull/36",
+      "submitting_agent": "codex-agentboard-rollout",
+      "model": "gpt-6",
+      "harness": "codex",
+      "attribution": "timeline"
+    },
+    "documents_byte_exact": [
+      48,
+      49,
+      50,
+      51
+    ],
+    "watch": {
+      "duration_seconds": 45,
+      "snapshots": 10,
+      "stderr": "",
+      "returncode": 0,
+      "ndjson_valid": true
+    }
+  },
+  "mattermost": {
+    "https": 200,
+    "database": "OK",
+    "filestore": "OK"
+  },
+  "automatic_pr_discovery_enabled": false,
+  "whitespace_attribution_events_before_rollout": 0,
+  "scope": "Canonical PR submission inventory; worker attribution fix/catch-up in merged PR36 awaits rollout; CI polling, followups, completion guard and Mattermost bridge remain pending",
+  "local_application_builds": false
+}

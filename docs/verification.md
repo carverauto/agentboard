@@ -176,6 +176,41 @@ unchecked. This is pre-merge acceptance, not production deployment evidence.
 
 Actual [release image and CLI packaging](https://carverauto.buildbuddy.io/invocation/b3808aa8-76df-4701-bc94-744ff98c97b9) passed remotely.
 
+
+## Canonical PR inventory rollout (PR32, 2026-10-07 UTC)
+
+Merged PR32 (`f5308a7ff00d6277682fc683a4469ef98cee4f11`) is live on farm01 at
+`registry.carverauto.dev/agentboard/dashboard@sha256:eb5c074b40cfea5b59cac49a689390d66d778ef18e99b606896cb809a0255fa4`.
+The [publication workflow](https://github.com/carverauto/agentboard/actions/runs/37550717976)
+passed [all 15 remote acceptance targets](https://carverauto.buildbuddy.io/invocation/e53783aa-96fb-4607-889d-c1e3a2e42960)
+and [image packaging](https://carverauto.buildbuddy.io/invocation/dbe2a557-631a-484c-94f1-6e3729eae17a).
+The immutable tag was independently resolved in Harbor before deploying.
+
+Scoped ConfigMap, migration Job and Deployment resources passed server-side
+dry-run. Job `agentboard-migrate-f5308a7` completed on the same digest before the
+dashboard rolled. One Ready pod runs that exact image with zero restarts.
+Verified HTTPS readiness and the installed API-only CLI report schema 7/API 1.
+The [normalized receipt](verification/farm01-pr-inventory.json) records the
+unchanged pre-roll task-event/document/context prefixes, healthy two-instance
+CNPG, pg_textsearch 1.5.1 and nonsuperuser application roles.
+
+The real CLI retained the earliest timeline submitting agent/model/harness when
+relinking this work's PR36 after migration. BM25 search returned a positive
+score. The installed CLI watch stayed connected through the Gateway for 45
+seconds with ten valid NDJSON snapshots, no stderr and clean cancellation.
+Existing HTML48/49 and worker-review HTML50/51 downloaded byte-exactly; the
+latter also rendered in sandboxed Chrome viewers. Mattermost HTTPS, database
+and filestore checks remain healthy. No application build or test ran locally.
+
+This rolls the canonical inventory only. Automatic historical discovery is
+explicitly false; the attribution repair and AshOban catch-up worker remain in
+merged PR36, awaiting rollout. Existing padded-attribution history
+count was zero before rollout. GitHub/BuildBuddy CI observation, follow-ups,
+completion enforcement, PR views and Mattermost/wakeup integration remain
+unfinished. Preserve schema 7 and immutable inventory/audit tables if rolling
+back the image; record any schema-6 writer inventory gap and fix forward.
+
+
 ## Inventory catch-up and historical attribution (2026-10-07 UTC)
 
 A whitespace-bearing invented legacy event reproduced the initial TaskLink
