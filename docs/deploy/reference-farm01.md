@@ -77,7 +77,7 @@ SMTP is not configured, so email notifications and email invites are unavailable
 
 ## Evidence
 
-[Verification evidence](../verification.md) records the first rollout (v0.1.0, 2026-10-06 UTC), the [shared-context rollout](../verification.md#shared-context-rollout-2026-10-06) (PR21 c8600a6, 2026-10-06 UTC), and the [Ash foundation rollout](../verification.md#audited-ash-foundation-rollout-pr27-2026-10-06). Those records cover release workflow and remote acceptance, image digest checks, CNPG and Gateway status, live CLI smoke, watch streams through the Gateway, and browser isolation of task documents.
+[Verification evidence](../verification.md) records the first rollout (v0.1.0, 2026-10-06 UTC), the [shared-context rollout](../verification.md#shared-context-rollout-2026-10-06) (PR21 c8600a6, 2026-10-06 UTC), the [Ash foundation rollout](../verification.md#audited-ash-foundation-rollout-pr27-2026-10-06), and the [canonical inventory rollout](../verification.md#canonical-pr-inventory-rollout-pr32-2026-10-07-utc) (PR32 f5308a7, 2026-10-07 UTC). Those records cover release workflow and remote acceptance, image digest checks, CNPG and Gateway status, live CLI smoke, watch streams through the Gateway, and browser isolation of task documents.
 
 
 ## Shared context completion release
