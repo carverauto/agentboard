@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Volumes/Build/.treehouse/agentboard-115218/4/agentboard/docs/architecture/ci-accountability.architecture.json",
+  "output": "/Volumes/Build/.treehouse/agentboard-115218/4/agentboard/docs/architecture/ci-accountability.html",
+  "specification": {
+    "sha256": "a2eb4d463bece668c9a633d20f54735aa64edb691485509b2bf2f78ca162910d",
+    "bytes": 3154
+  },
+  "artifact": {
+    "sha256": "a1d2230e4ac162369ae513fd469b7e025832e2c666550dfbf791736d0e93d661",
+    "bytes": 709024
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

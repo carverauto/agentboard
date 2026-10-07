@@ -232,6 +232,8 @@ defmodule Agentboard.Board.Operations do
     # both back. Disabled bridge captures nothing (old-event cutoff).
     Agentboard.Mattermost.Bridge.capture(task.id, event_id, action, actor, data, stamp)
 
+    Agentboard.Cooperation.Runtime.capture_task(task, event_id, action, actor)
+    Agentboard.Delivery.Accountability.progress(task, action, data, actor, stamp)
     %{"task" => public(task), "event_id" => event_id}
   end
 
@@ -337,7 +339,15 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Delivery.PollState,
              Agentboard.Delivery.CISnapshot,
              Agentboard.Mattermost.Outbox,
-             Agentboard.Mattermost.TaskThread
+             Agentboard.Mattermost.TaskThread,
+             Agentboard.Cooperation.Subscription,
+             Agentboard.Cooperation.Binding,
+             Agentboard.Cooperation.Event,
+             Agentboard.Cooperation.Delivery,
+             Agentboard.Cooperation.Batch,
+             Agentboard.Cooperation.Attempt,
+             Agentboard.Cooperation.Receipt,
+             Agentboard.Delivery.Obligation
            ],
            fun,
            timeout: Repo.write_timeout()
@@ -411,4 +421,3 @@ defmodule Agentboard.Board.Operations do
     defp action_name(unquote(Atom.to_string(name))), do: unquote(name)
   end
 end
-

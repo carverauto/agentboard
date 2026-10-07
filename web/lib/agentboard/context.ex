@@ -30,6 +30,7 @@ defmodule Agentboard.Context do
           with {:ok, entry} <-
                  Entry |> Ash.Changeset.for_create(:publish, attrs, actor: actor) |> Ash.create(),
                :ok <- create_links(entry, data["links"], actor) do
+            Agentboard.Cooperation.Runtime.capture_context(entry)
             {:ok, entry}
           end
         end)
@@ -176,21 +177,25 @@ defmodule Agentboard.Context do
          {:ok, id} <- positive(id),
          {:ok, entry} <- Ash.get(Entry, id, not_found_error?: false),
          false <- is_nil(entry) do
-      case Receipt
-           |> Ash.Changeset.for_create(:acknowledge, %{entry_id: id}, actor: actor)
-           |> Ash.create() do
-        {:ok, _} ->
-          {:ok, %{acknowledged: id}}
+      Agentboard.Board.Operations.transaction(fn ->
+        <<key::signed-64, _::binary>> =
+          :crypto.hash(:sha256, "agentboard-context-receipt:#{actor["agent"]}:#{id}")
 
-        {:error, error} ->
-          case Ash.get(Receipt, %{entry_id: id, source_agent_id: actor["agent"]},
-                 not_found_error?: false
-               ) do
-            {:ok, %{}} -> {:ok, %{acknowledged: id}}
-            {:ok, nil} -> failure(error)
-            {:error, _} -> {:error, "unavailable", "Context storage unavailable"}
-          end
-      end
+        Agentboard.Repo.statement!("SELECT pg_advisory_xact_lock($1)", [key])
+
+        existing =
+          Ash.get!(Receipt, %{entry_id: id, source_agent_id: actor["agent"]},
+            not_found_error?: false
+          )
+
+        unless existing,
+          do:
+            Receipt
+            |> Ash.Changeset.for_create(:acknowledge, %{entry_id: id}, actor: actor)
+            |> Ash.create!()
+
+        %{acknowledged: id}
+      end)
     else
       true -> {:error, "not_found", "Context entry not found"}
       {:error, _, _} = error -> error
@@ -336,4 +341,3 @@ defmodule Agentboard.Context do
 
   defp failure(_), do: {:error, "unavailable", "Context storage unavailable"}
 end
-

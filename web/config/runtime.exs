@@ -125,3 +125,15 @@ if config_env() == :prod do
     secret_key_base: System.fetch_env!("SECRET_KEY_BASE")
 end
 
+config :agentboard,
+       :cooperation_enabled,
+       System.get_env("AGENTBOARD_COOPERATION_ENABLED") == "true"
+
+# Preserve invalid entries so policy classification fails closed instead of applying defaults.
+ci_policies =
+  case Jason.decode(System.get_env("AGENTBOARD_CI_POLICIES") || "{}") do
+    {:ok, policies} when is_map(policies) -> policies
+    _ -> %{}
+  end
+
+config :agentboard, :ci_policies, ci_policies

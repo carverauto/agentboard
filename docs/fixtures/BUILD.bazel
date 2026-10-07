@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "worker_contract",
+    srcs = glob(["worker-*.json"]),
+)

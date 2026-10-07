@@ -15,6 +15,8 @@ defmodule AgentboardWeb.Router do
     pipe_through(:browser)
     live("/", BoardLive, :board)
     live("/tasks/:id", BoardLive, :task)
+    live("/prs", PRLive, :index)
+    live("/prs/:id", PRLive, :detail)
     live("/agents", BoardLive, :agents)
     live("/messages", BoardLive, :messages)
     live("/quota", BoardLive, :quota)
@@ -79,6 +81,13 @@ defmodule AgentboardWeb.Router do
 
   scope "/api/v1", AgentboardWeb do
     pipe_through([:api, :compatible])
+    post("/workers/provision", WorkerController, :provision)
+    post("/workers/:worker_id/resolve_attempt", WorkerController, :resolve_attempt)
+    post("/obligations/:id/responsibility", WorkerController, :responsibility)
+    post("/workers/:worker_id/revoke", WorkerController, :revoke)
+    get("/workers/:worker_id/:operation", WorkerController, :operate)
+    post("/workers/:worker_id/attempts/:attempt_id/:operation", WorkerController, :operate)
+    post("/workers/:worker_id/:operation", WorkerController, :operate)
     get("/quota", APIController, :quota)
     post("/quota", APIController, :push_quota)
     get("/context/search", APIController, :context_search)
@@ -106,4 +115,3 @@ defmodule AgentboardWeb.Router do
     post("/tasks/:id/:action", APIController, :mutate)
   end
 end
-

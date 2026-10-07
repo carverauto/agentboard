@@ -33,6 +33,7 @@ defmodule Agentboard.Delivery.Github do
        Map.merge(before, %{
          ci_state: state,
          payload: %{
+           "draft" => before.draft,
            "coverage" => "complete_head",
            "policy" => "unknown",
            "tested_ref" => "head",
@@ -67,8 +68,13 @@ defmodule Agentboard.Delivery.Github do
          true <-
            sha?(head) and sha?(base) and state in ["open", "closed"] and
              is_boolean(merged) and is_integer(number) and Integer.to_string(number) == pr.number do
-      {:ok, %{head_sha: head, base_sha: base, lifecycle: if(merged, do: "merged", else: state)},
-       ctx}
+      {:ok,
+       %{
+         head_sha: head,
+         base_sha: base,
+         lifecycle: if(merged, do: "merged", else: state),
+         draft: if(is_boolean(data["draft"]), do: data["draft"], else: nil)
+       }, ctx}
     else
       {:error, _, _} = error -> error
       _ -> {:error, "incomplete", 60}
@@ -351,4 +357,3 @@ defmodule Agentboard.Delivery.Github do
 
   defp source_url(_), do: nil
 end
-

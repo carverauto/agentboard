@@ -1,0 +1,20 @@
+{
+  "protocol_revision": 1,
+  "batch": {
+    "batch_id": "10000000-0000-4000-8000-000000000001",
+    "attempt_id": "30000000-0000-4000-8000-000000000001",
+    "worker_id": "fixture-agent",
+    "binding_epoch": 1,
+    "dispatch_generation": 1,
+    "payload": "{\"batch_id\":\"10000000-0000-4000-8000-000000000001\",\"items\":[{\"id\":\"20000000-0000-4000-8000-000000000001\",\"kind\":\"ci_failure\",\"summary\":\"Fixture PR failed\",\"source_url\":\"https://github.com/fixture/repo/pull/1\"}]}",
+    "payload_hash": "07d124249a2e7ee79f9161926ab78569a371f9e77c194b9d19080480ac27a9b3",
+    "delivery_ids": [
+      "20000000-0000-4000-8000-000000000001"
+    ],
+    "lease_expires_at": "2026-10-07T05:02:00Z",
+    "status": "reserved",
+    "more": false,
+    "continuation_url": "/api/v1/workers/fixture-agent/pending"
+  },
+  "idempotent": false
+}

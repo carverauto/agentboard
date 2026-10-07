@@ -1,6 +1,6 @@
 # PR polling foundation
 
-This documents tasks 1.1–1.2 of [the approved CI-first runtime](../openspec/changes/align-agensh-worker-runtime/tasks.md). Task 1.3 adds the [current-head GitHub collector](github-ci-observation.md). A live CI repair loop, repair obligations, session delivery and reminders remain pending. A submission or a poll reservation is never evidence of passing CI.
+This documents tasks 1.1–1.2 of [the approved CI-first runtime](../openspec/changes/align-agensh-worker-runtime/tasks.md). Task 1.3 adds the [current-head GitHub collector](github-ci-observation.md). The opt-in server runtime now implements repair obligations, scoped delivery and bounded reminders; see [server accountability](server-accountability.md). A submission or a poll reservation is never evidence of passing CI.
 
 ## State and concurrency
 

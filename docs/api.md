@@ -15,7 +15,7 @@ agentboard task create --id=sample-work --title='Investigate work' --repo=agentb
 agentboard task assign sample-work --to=worker-slug
 ```
 
-There is no authentication in v1 for board coordination. Declared identity is attribution within the trusted private network. It grants no permission to merge, publish, deploy, or edit external systems. The only authenticated surface is the optional captain capability for completed-task archiving (see [completed task archiving](archive.md)).
+There is no authentication in v1 for board coordination. Declared identity is attribution within the trusted private network. It grants no permission to merge, publish, deploy, or edit external systems. Authenticated surfaces are the optional captain capability (see [completed task archiving](archive.md)) and the scoped worker API capabilities (see [worker API](worker-api.md) and [server accountability](server-accountability.md)).
 
 ## Task ownership
 
@@ -125,6 +125,8 @@ See [polling contracts](ci-polling.md) and
 [schema 9 compatibility](release.md#schema-9-observation-scheduling-budgets).
 
 Schema 10 adds internal immutable current-head CI observations and provider
-cooldown. Existing task/watch payloads and public routes remain unchanged;
-there is no PR read API yet. See [collector limits](github-ci-observation.md)
-and [schema 10 compatibility](release.md#schema-10-current-head-ci-observations).
+cooldown. Existing task/watch payloads and public routes remain unchanged by
+that stage. Schema 11 adds the compact `/prs` reads and the scoped worker API;
+see [server accountability](server-accountability.md), [worker API](worker-api.md),
+[collector limits](github-ci-observation.md) and
+[schema 11 compatibility](release.md#schema-11-server-accountability-and-delivery).
