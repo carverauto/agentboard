@@ -109,6 +109,9 @@ assert sql(f"SELECT count(*)>0 FROM oban_jobs WHERE worker='{WORKER}' AND state=
 t = api('/tasks/merge-unknown')['task']
 assert (t['status'], t['assignee_id'], t['claimed_at'], t['claim_expires_at']) == ('done', 'merge-owner', None, None)
 assert t['revision'] == 4
+message = json.loads(sql("SELECT row_to_json(m) FROM messages m WHERE task_id='merge-unknown' AND sender_id='ci-accountability'"))
+assert (message['recipient_id'], message['model'], message['harness'], message['read_at']) == ('merge-owner', 'system', 'ash', None)
+assert 'Review completed' in message['body'] and 'CI qualification is unchanged' in message['body']
 assert sql("SELECT ci_state FROM delivery_poll_states WHERE id='" + projection['id'] + "'") == 'unknown'
 event = json.loads(sql("SELECT row_to_json(e) FROM task_events e WHERE task_id='merge-unknown' ORDER BY id DESC LIMIT 1"))
 assert (event['actor_id'], event['harness'], event['model'], event['kind']) == ('ci-accountability', 'ash', 'system', 'update')
@@ -185,7 +188,7 @@ observe(217, lifecycle='closed')
 assert reconcile()['completed'] == 0
 observe(217)
 # Terminal pruning/manual disable cannot make retained merge proof disappear.
-sql("UPDATE delivery_pull_requests SET enabled=false WHERE id IN (SELECT pull_request_id FROM delivery_task_links WHERE task_id='merge-multi')")
+sql("UPDATE delivery_poll_states SET enabled=false WHERE id IN (SELECT pull_request_id FROM delivery_task_links WHERE task_id='merge-multi')")
 assert reconcile()['completed'] == 1
 assert api('/tasks/merge-multi')['task']['status'] == 'done'
 proof = json.loads(sql("SELECT data->'merge_evidence' FROM task_events WHERE task_id='merge-multi' AND data ? 'merge_evidence'"))
@@ -200,6 +203,7 @@ with concurrent.futures.ThreadPoolExecutor(2) as pool:
 assert sum(p['completed'] for p in pages) == 1
 assert reconcile()['completed'] == 0
 assert sql("SELECT count(*) FROM tasks_versions WHERE version_source_id='merge-race' AND version_action_name='complete_merged_pr'") == '1'
+assert sql("SELECT count(*) FROM messages WHERE task_id='merge-race' AND sender_id='ci-accountability'") == '1'
 
 # The existing board transaction must include Ash audit + event + notification
 # capture. A capture/audit failure keeps the source task and its lease intact.
@@ -212,8 +216,17 @@ assert api('/tasks/merge-rollback')['task'] == before
 assert sql("SELECT count(*) FROM task_events WHERE task_id='merge-rollback' AND data ? 'merge_evidence'") == '0'
 assert sql("SELECT count(*) FROM tasks_versions WHERE version_source_id='merge-rollback' AND version_action_name='complete_merged_pr'") == '0'
 sql('DROP TRIGGER reject_merge_fixture ON board_action_events; DROP FUNCTION reject_merge_fixture()')
+# A notification failure after task/audit/timeline capture also rolls them back.
+sql("CREATE FUNCTION reject_merge_message() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.sender_id='ci-accountability' AND NEW.task_id='merge-rollback' THEN RAISE EXCEPTION 'Invented owner message failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER reject_merge_message BEFORE INSERT ON messages FOR EACH ROW EXECUTE FUNCTION reject_merge_message()")
+assert reconcile() == {'error': True}
+assert api('/tasks/merge-rollback')['task'] == before
+assert sql("SELECT count(*) FROM task_events WHERE task_id='merge-rollback' AND data ? 'merge_evidence'") == '0'
+assert sql("SELECT count(*) FROM tasks_versions WHERE version_source_id='merge-rollback' AND version_action_name='complete_merged_pr'") == '0'
+assert sql("SELECT count(*) FROM messages WHERE task_id='merge-rollback' AND sender_id='ci-accountability'") == '0'
+sql('DROP TRIGGER reject_merge_message ON messages; DROP FUNCTION reject_merge_message()')
 rpc('Application.put_env(:agentboard, :mattermost_bridge_enabled, true); Application.put_env(:agentboard, :cooperation_enabled, true)')
 assert reconcile()['completed'] == 1
+assert sql("SELECT count(*) FROM messages WHERE task_id='merge-rollback' AND sender_id='ci-accountability'") == '1'
 assert sql("SELECT count(*) FROM mattermost_outbox WHERE task_id='merge-rollback'") == '1'
 assert sql("SELECT count(*) FROM cooperation_events c JOIN task_events e ON c.source_key='task:'||e.id WHERE e.task_id='merge-rollback' AND e.data ? 'merge_evidence' AND c.kind='task_update'") == '1'
 assert reconcile()['completed'] == 0

@@ -30,7 +30,7 @@ The captain workflow SHALL inspect outstanding CI follow-ups and stale/unknown p
 - **THEN** the captain can explicitly reassign/handoff it under ordinary ownership rules without automatic expired-claim reclamation
 
 ### Requirement: Merged Review disposition
-When PR observation is enabled, a system-only AshOban catch-up SHALL complete a source Review task whose current canonical PR and every retained submitted PR have matching immutable merged observations. It SHALL preserve the assignee, clear the completed task lease and append attributed action/version/timeline proof atomically. Merged lifecycle SHALL NOT certify CI, resolve an obligation or complete its repair task. The owner-requested completion guard remains a separate policy.
+When PR observation is enabled, a system-only AshOban catch-up SHALL complete a source Review task whose current canonical PR and every retained submitted PR have matching immutable merged observations. It SHALL preserve the assignee, clear the completed task lease, notify an assigned owner through one durable inbox message and append attributed action/version/timeline proof atomically. Enabled Mattermost intents SHALL be captured in that transaction. Merged lifecycle SHALL NOT certify CI, resolve an obligation or complete its repair task. The owner-requested completion guard remains a separate policy.
 
 #### Scenario: Final poll is pruned or application restarts
 - **WHEN** retained merged evidence exists and terminal PR polling has stopped or the application was offline

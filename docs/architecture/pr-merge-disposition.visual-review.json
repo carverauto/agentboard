@@ -1,0 +1,19 @@
+{
+  "artifact": "71a484de731a01eb871e415252f7e987c367687f7393471838b13905143451ab",
+  "bytes": 708677,
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "reviewer": "codex image-capable reviewer",
+  "correction_rounds": 1,
+  "scope": [
+    "1440x900 light screenshot",
+    "2048x1320 dark screenshot"
+  ],
+  "observations": [
+    "Labels and relationship routes are readable; no node/card clipping or crossing ambiguity is visible.",
+    "Default READ composition and all three conclusion cards fit in both captured viewports."
+  ],
+  "limitations": [
+    "Screenshot inspection does not prove search/focus/export interaction behavior."
+  ]
+}

@@ -115,7 +115,8 @@ defmodule Agentboard.Delivery.MergeDisposition do
           [ids]
         )
 
-        states = PollState |> Ash.Query.filter(id in ^ids) |> Ash.read!()
+        states =
+          PollState |> Ash.Query.filter(id in ^ids) |> Ash.Query.sort(id: :asc) |> Ash.read!()
 
         evidence =
           Enum.map(states, fn state ->
@@ -143,14 +144,20 @@ defmodule Agentboard.Delivery.MergeDisposition do
 
   defp repair_task?(id) do
     %{rows: [[exists?]]} =
-      Repo.statement!("SELECT EXISTS (SELECT 1 FROM delivery_obligations WHERE repair_task_id=$1)", [id])
+      Repo.statement!(
+        "SELECT EXISTS (SELECT 1 FROM delivery_obligations WHERE repair_task_id=$1)",
+        [id]
+      )
 
     exists?
   end
 
   # Merge is irreversible lifecycle evidence; it remains usable after downtime
   # or a later failed provider fetch. It never certifies passing or fresh CI.
-  defp merged_evidence?(%PollState{lifecycle: "merged"} = state, %CISnapshot{lifecycle: "merged"} = snapshot) do
+  defp merged_evidence?(
+         %PollState{lifecycle: "merged"} = state,
+         %CISnapshot{lifecycle: "merged"} = snapshot
+       ) do
     snapshot.pull_request_id == state.id and snapshot.generation <= state.generation and
       snapshot.head_sha == state.head_sha and snapshot.base_sha == state.base_sha and
       snapshot.observed_at == state.observed_at
@@ -158,3 +165,4 @@ defmodule Agentboard.Delivery.MergeDisposition do
 
   defp merged_evidence?(_state, _snapshot), do: false
 end
+
