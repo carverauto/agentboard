@@ -11,9 +11,13 @@ defmodule Agentboard.Mattermost.VerifyWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"agent_id" => agent_id}}) do
-    case Agentboard.Mattermost.Conversations.verify(agent_id) do
-      {:ok, result} -> {:ok, result}
-      {:error, message} -> {:error, message}
+    try do
+      case Agentboard.Mattermost.Conversations.verify(agent_id) do
+        {:ok, result} -> {:ok, result}
+        {:error, message} -> {:error, message}
+      end
+    rescue
+      _ in Agentboard.Board.OperationError -> {:cancel, "conversation identity terminal"}
     end
   end
 end
