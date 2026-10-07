@@ -123,3 +123,8 @@ poll state; inventory and attribution remain immutable. No provider checks or
 CI result are exposed by this stage. Schema 9 adds no public route or payload.
 See [polling contracts](ci-polling.md) and
 [schema 9 compatibility](release.md#schema-9-observation-scheduling-budgets).
+
+Schema 10 adds internal immutable current-head CI observations and provider
+cooldown. Existing task/watch payloads and public routes remain unchanged;
+there is no PR read API yet. See [collector limits](github-ci-observation.md)
+and [schema10 compatibility](release.md#schema-10-current-head-ci-observations).

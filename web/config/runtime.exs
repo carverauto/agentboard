@@ -47,6 +47,12 @@ config :agentboard,
        :public_board_url,
        System.get_env("AGENTBOARD_PUBLIC_BOARD_URL")
 
+# Only operator-configured destinations receive credentials; provider URLs never do.
+config :agentboard, :github,
+  api_url: System.get_env("AGENTBOARD_GITHUB_API_URL", "https://api.github.com"),
+  token: System.get_env("GITHUB_TOKEN"),
+  ca_file: System.get_env("AGENTBOARD_GITHUB_CA_FILE")
+
 config :agentboard, :rate_limits,
   ip: String.to_integer(System.get_env("API_RATE_LIMIT_IP", "120")),
   agent: String.to_integer(System.get_env("API_RATE_LIMIT_AGENT", "60")),

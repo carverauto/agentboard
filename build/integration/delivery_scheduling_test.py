@@ -78,7 +78,7 @@ assert sql(f"SELECT count(*) FROM oban_jobs WHERE worker='{worker}' AND state IN
 rpc(':ok = Supervisor.terminate_child(Agentboard.Supervisor, Oban); {:ok, _} = Supervisor.restart_child(Agentboard.Supervisor, Oban)')
 wait_for('SELECT count(*) FROM delivery_poll_states WHERE generation>0', '126')
 wait_for(f"SELECT count(*) FROM oban_jobs WHERE worker='{worker}' AND state IN {active}", '0')
-assert sql("SELECT ci_state||','||head_sha||','||last_error FROM delivery_poll_states s JOIN delivery_pull_requests pr USING(id) WHERE pr.number='501'") in ['passing,fixture-head,unavailable', 'passing,fixture-head,rate_limited']
+assert sql("SELECT ci_state||','||head_sha||','||last_error FROM delivery_poll_states s JOIN delivery_pull_requests pr USING(id) WHERE pr.number='501'") in ['passing,fixture-head,unauthorized']
 assert sql("SELECT count(*) FROM delivery_poll_states WHERE ci_state='unknown' AND head_sha IS NULL AND observed_at IS NULL") == '125'
 assert sql("SELECT jsonb_build_object('task',(SELECT row_to_json(t) FROM tasks t WHERE id='terminal-pr'),'pr',(SELECT row_to_json(t) FROM delivery_pull_requests t WHERE number='501' AND repo='repo'),'links',(SELECT json_agg(t) FROM delivery_task_links t),'events',(SELECT json_agg(t) FROM task_events t))") == source_before
 # Already green still-open PRs keep recurring. Make due using the actual clock

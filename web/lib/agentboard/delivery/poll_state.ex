@@ -13,13 +13,13 @@ defmodule Agentboard.Delivery.PollState do
   paper_trail do
     change_tracking_mode(:changes_only)
     store_action_name?(true)
-    ignore_actions([:reserve, :defer])
+    ignore_actions([:reserve, :defer, :observe])
     metadata(:provenance, :map, allow_nil?: false)
   end
 
   events do
     event_log(Agentboard.Board.AuditEvent)
-    ignore_actions([:reserve, :defer])
+    ignore_actions([:reserve, :defer, :observe])
   end
 
   actions do
@@ -35,6 +35,36 @@ defmodule Agentboard.Delivery.PollState do
 
     update :defer do
       accept([:attempt_id, :lease_expires_at, :next_poll_at, :last_error])
+    end
+
+    for action <- [:observe_change, :observe] do
+      update action do
+        accept([
+          :attempt_id,
+          :lease_expires_at,
+          :next_poll_at,
+          :last_error,
+          :ci_state,
+          :observed_at,
+          :head_sha,
+          :base_sha,
+          :snapshot_id,
+          :lifecycle
+        ])
+
+        argument(:expected_generation, :integer, allow_nil?: false)
+        argument(:expected_attempt_id, :uuid, allow_nil?: false)
+
+        change(
+          filter(
+            expr(
+              enabled == true and generation == ^arg(:expected_generation) and
+                attempt_id == ^arg(:expected_attempt_id) and
+                lease_expires_at > fragment("clock_timestamp()")
+            )
+          )
+        )
+      end
     end
   end
 
@@ -63,9 +93,12 @@ defmodule Agentboard.Delivery.PollState do
     attribute(:lease_expires_at, :utc_datetime_usec, public?: true)
     attribute(:last_attempt_at, :utc_datetime_usec, public?: true)
     attribute(:last_error, :string, public?: true)
-    # No action in this preparatory stage can certify CI or set a provider head.
+    # Passing still requires the repository-policy stage.
     attribute(:ci_state, :string, default: "unknown", allow_nil?: false, public?: true)
     attribute(:observed_at, :utc_datetime_usec, public?: true)
     attribute(:head_sha, :string, public?: true)
+    attribute(:base_sha, :string, public?: true)
+    attribute(:snapshot_id, :uuid, public?: true)
+    attribute(:lifecycle, :string, public?: true)
   end
 end

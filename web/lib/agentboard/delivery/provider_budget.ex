@@ -11,7 +11,7 @@ defmodule Agentboard.Delivery.ProviderBudget do
     defaults([:read])
 
     update :consume do
-      accept([:remaining, :reset_at])
+      accept([:remaining, :reset_at, :blocked_until])
     end
   end
 
@@ -20,6 +20,7 @@ defmodule Agentboard.Delivery.ProviderBudget do
     attribute(:capacity, :integer, allow_nil?: false, constraints: [min: 1, max: 1000])
     attribute(:remaining, :integer, allow_nil?: false, constraints: [min: 0])
     attribute(:reset_at, :utc_datetime_usec, allow_nil?: false)
+    attribute(:blocked_until, :utc_datetime_usec)
   end
 end
 

@@ -48,6 +48,8 @@ defmodule Agentboard.MixProject do
       {:oban, "== 2.24.1"},
       {:simple_sat, "== 0.1.4"},
       {:castore, "== 1.0.21"},
+      {:mint, "== 1.11.0"},
+      {:hpax, "== 1.1.0"},
       {:bandit, "== 1.12.5"},
       {:ecto_sql, "== 3.14.0"},
       {:jason, "== 1.4.5"},
