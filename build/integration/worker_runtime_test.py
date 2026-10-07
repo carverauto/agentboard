@@ -1,10 +1,13 @@
 """Execute the remote-built public CLI against invented HTTP/session contracts."""
+import configparser
 import contextlib
 import hashlib
 import http.server
 import json
 import os
 import pathlib
+import plistlib
+import shlex
 import signal
 import socket
 import socketserver
@@ -47,6 +50,7 @@ class Fixture:
         self.lose_reserve_response = False
         self.extra_pending = []
         self.contract = {}
+        self.historical = {}
         fixture = self
         class Handler(http.server.BaseHTTPRequestHandler):
             def log_message(self, *_): pass
@@ -92,7 +96,10 @@ class Fixture:
                     value['attempt'] = body
                 elif action[-1:] == ['reconcile']:
                     fixture.posts.append((name, 'reconcile', body))
-                    if fixture.contract: value.update(fixture.contract['reconcile'])
+                    attempt = action[1] if len(action) == 3 else ''
+                    if attempt in fixture.historical:
+                        value.update(fixture.historical[attempt])
+                    elif fixture.contract: value.update(fixture.contract['reconcile'])
                     else: value.update(batch=state['active_batch'], resolved=state.get('resolved', False), replay_allowed=False, deliveries=[], receipts=[], source_state={})
                 elif action == ['receipts']:
                     fixture.posts.append((name, 'receipts', body))
@@ -334,24 +341,91 @@ class WorkerRuntime(unittest.TestCase):
         self.assertFalse(any(p[1] == 'receipts' for p in f.posts))
         self.assertFalse((self.root/'journal/worker-a.json').exists())
 
+    def old_journal(self, f, attempt='attempt-old'):
+        payload = json.dumps({'source': 'old-alert', 'summary': 'orphan attempt'})
+        batch = {'batch_id': 'batch-old', 'attempt_id': attempt, 'worker_id': 'worker-a', 'binding_epoch': 1, 'dispatch_generation': 1, 'payload_hash': hashlib.sha256(payload.encode()).hexdigest(), 'payload': payload, 'delivery_ids': ['delivery-old'], 'lease_expires_at': '2030-01-01T00:00:00Z', 'more': False}
+        old = dict(f.bindings[0]); old.update(binding_epoch=1, session_id='session-old', adapter_generation='generation-old')
+        journal = {'version': 1, 'reservation_key': 'key-old', 'phase': 'awaiting_receipt', 'batch': batch, 'outcome': 'uncertain', 'reason': 'old uncertainty', 'binding': {'agent_id': 'worker-a', 'model': 'fixture-model', 'harness': 'pi', 'host_id': 'fixture-host', 'server_id': 'fixture-server', 'session_id': 'session-old', 'adapter_generation': 'generation-old', 'adapter': 'pi-native-v1', 'socket_path': old['socket_path'], 'token_file': old['token_file'], 'binding_epoch': 1}}
+        (pathlib.Path(f.config['journal_dir'])/'worker-a.json').parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        protected(pathlib.Path(f.config['journal_dir'])/'worker-a.json', journal)
+        f.bindings[0].update(binding_epoch=2, session_id='session-worker-a', adapter_generation='generation-worker-a')
+        f.states['worker-a']['binding'] = {'binding_epoch': 2, 'session_id': 'session-worker-a', 'pane_id': 'generation-worker-a'}
+        f.states['worker-a']['active_batch'] = None
+        f.adapter_states['worker-a'] = 'occupied'
+        protected(f.config_path, f.config)
+        return batch
+
+    def test_resolved_old_journal_retires_after_rebind_without_adapter_io(self):
+        f = self.fixture(); batch = self.old_journal(f)
+        f.historical[batch['attempt_id']] = {'resolved': True, 'replay_allowed': False}
+        process = f.serve()
+        until(lambda: (self.root/'journal/worker-a.json').exists() and json.loads((self.root/'journal/worker-a.json').read_text())['phase'] == 'complete')
+        output = f.stop(process)
+        self.assertIn('reconciled', output)
+        self.assertEqual(f.submissions, [])
+        self.assertFalse(any(p[1] == 'result' for p in f.posts))
+        reconciles = [p for p in f.posts if p[1] == 'reconcile']
+        self.assertTrue(reconciles)
+        self.assertEqual(reconciles[0][2]['binding_epoch'], 1)
+        self.assertEqual(reconciles[0][2]['payload_hash'], batch['payload_hash'])
+
+    def test_unresolved_old_journal_stays_blocked_without_adapter_io(self):
+        f = self.fixture(); batch = self.old_journal(f)
+        f.historical[batch['attempt_id']] = {'resolved': False, 'replay_allowed': False}
+        process = f.serve(); time.sleep(0.7)
+        output = f.stop(process)
+        self.assertIn('old binding', output)
+        self.assertEqual(json.loads((self.root/'journal/worker-a.json').read_text())['phase'], 'awaiting_receipt')
+        self.assertEqual(f.submissions, [])
+        self.assertFalse(any(p[1] == 'result' for p in f.posts))
+        self.assertFalse(any(p[1] == 'receipts' for p in f.posts))
+
     def test_install_preview_idempotence_owned_uninstall_and_foreign_preservation(self):
         f=self.fixture()
         for platform in ['darwin','linux']:
             home=self.root/platform; home.mkdir(mode=0o700)
+            owned_name = 'dev.carverauto.agentboard.worker.plist' if platform == 'darwin' else 'agentboard-worker.service'
+            owned_dir = home/'Library'/'LaunchAgents' if platform == 'darwin' else home/'.config'/'systemd'/'user'
+            collision = owned_dir/owned_name
+            collision.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            collision.write_text('foreign unit')
+            before = collision.read_bytes()
+            self.assertNotEqual(f.run('install','--home',str(home),'--platform',platform,'--apply',success=False).returncode, 0)
+            self.assertEqual(collision.read_bytes(), before)
+            collision.unlink()
             foreign=home/'foreign-hooks.json'; foreign.write_text('{"firstmate":"retained"}')
             args=['--home',str(home),'--platform',platform]
             preview=f.run('install',*args)
-            self.assertFalse(preview['applied']); self.assertFalse((home/'.config').exists())
+            self.assertFalse(preview['applied']); self.assertFalse((home/'.config'/'agentboard'/'worker'/'install.json').exists())
             installed=f.run('install',*args,'--apply')
             for file in installed['files']:
                 data=pathlib.Path(file['path']).read_bytes()
                 self.assertEqual(hashlib.sha256(data).hexdigest(),file['sha256'])
                 self.assertNotIn(b'invented-host',data)
+                self.assertNotIn(b'invented-receipt',data)
                 if file['path'].endswith('.plist'):
-                    ET.fromstring(data)
+                    info=plistlib.loads(data)
+                    self.assertEqual(info['Label'],'dev.carverauto.agentboard.worker')
+                    argv=info['ProgramArguments']
+                    self.assertTrue(argv[0].endswith('.local/bin/agentboard'))
+                    self.assertEqual(argv[1:3],['worker','serve'])
+                    self.assertEqual(argv[3],'--config')
+                    self.assertTrue(os.path.isabs(argv[4]))
+                    self.assertTrue(info['KeepAlive'])
+                    self.assertTrue(info['RunAtLoad'])
+                    self.assertEqual(info['Umask'],63)
+                    self.assertEqual(info['ThrottleInterval'],30)
                 if file['path'].endswith('.service'):
-                    self.assertIn(b'Restart=on-failure',data)
-                    self.assertIn(b'.local/bin/agentboard',data)
+                    parser=configparser.ConfigParser(interpolation=None)
+                    parser.read_string(data.decode())
+                    self.assertEqual(parser['Service']['Restart'],'on-failure')
+                    self.assertEqual(parser['Service']['UMask'],'0077')
+                    self.assertEqual(parser['Service']['NoNewPrivileges'].lower(),'true')
+                    argv=shlex.split(parser['Service']['ExecStart'])
+                    self.assertTrue(argv[0].endswith('.local/bin/agentboard'))
+                    self.assertEqual(argv[1:3],['worker','serve'])
+                    self.assertEqual(argv[3],'--config')
+                    self.assertTrue(os.path.isabs(argv[4]))
             f.run('install',*args,'--apply')
             owned=pathlib.Path(installed['files'][0]['path']); original=owned.read_bytes(); owned.write_bytes(original+b'foreign edit')
             self.assertNotEqual(f.run('uninstall',*args,'--apply',success=False).returncode,0)

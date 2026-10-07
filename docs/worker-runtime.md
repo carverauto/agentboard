@@ -149,6 +149,13 @@ timeout and unknown results remain uncertain. Restart reconciles server current
 sources/receipts and native evidence before any new batch. Submitted and uncertain
 attempts never become replayable merely because a lease expires or Pi is idle.
 Unreconciled old-generation journals remain visible and block new dispatch.
+A rebinding host may read the old owned attempt once through the current host
+credential (`POST attempts/:attempt/reconcile` with the frozen epoch, generation
+and hash, no adapter I/O, no result write, no receipt credential). Only an
+explicit resolved or replay_allowed answer retires that journal; anything else,
+a missing route, an identifier mismatch or an empty journal keeps the visible
+block. Server health reports deferred, paused and uncertain adapter states as
+busy, blocked and unknown while keeping the explicit reason text.
 Captain resolution of orphan uncertainty is an explicit server decision that
 records possible duplicate effects; it is never a host retry heuristic.
 

@@ -79,7 +79,7 @@ func Step(ctx context.Context, cfg Config, b Binding) (Report, error) {
 	}
 	if j != nil && j.Phase != "complete" {
 		if j.Binding.Epoch != b.Epoch || j.Binding.Generation != b.Generation {
-			return report, errors.New("old binding crash journal retained; reconcile old external effects before dispatch")
+			return reconcileHistorical(ctx, cfg, b, a, j, report)
 		}
 		return recoverAttempt(ctx, cfg, b, a, j, report)
 	}
@@ -263,6 +263,42 @@ func recoverAttempt(ctx context.Context, cfg Config, b Binding, a *API, j *Journ
 	return commitResult(ctx, cfg, b, a, j, r)
 }
 
+func reconcileHistorical(ctx context.Context, cfg Config, b Binding, a *API, j *Journal, r Report) (Report, error) {
+	if j.Batch == nil {
+		return r, errors.New("old binding crash journal retained; historical reconcile requires a frozen attempt")
+	}
+	if err := j.Batch.Validate(j.Binding); err != nil {
+		return r, err
+	}
+	raw, err := a.Call(ctx, http.MethodPost, "attempts/"+url.PathEscape(j.Batch.Attempt)+"/reconcile", nil, j.Batch.Fences())
+	if err != nil {
+		return r, err
+	}
+	var e struct {
+		Resolved bool   `json:"resolved"`
+		Replay   bool   `json:"replay_allowed"`
+		Batch    *Batch `json:"batch"`
+	}
+	if json.Unmarshal(raw, &e) != nil {
+		return r, errors.New("invalid historical reconciliation")
+	}
+	if e.Batch != nil {
+		if e.Batch.Attempt != j.Batch.Attempt || e.Batch.ID != j.Batch.ID || e.Batch.Hash != j.Batch.Hash {
+			return r, errors.New("historical reconcile identifier mismatch; journal retained")
+		}
+		if err := e.Batch.Validate(j.Binding); err != nil {
+			return r, errors.New("historical reconcile frozen batch mismatch; journal retained")
+		}
+	}
+	if e.Resolved || e.Replay {
+		j.Phase = "complete"
+		r.State = "reconciled"
+		r.Attempt = j.Batch.Attempt
+		return r, WriteProtected(JournalPath(cfg, b), j)
+	}
+	return r, errors.New("old binding crash journal retained; historical reconcile did not resolve the frozen attempt")
+}
+
 // maxHostDeferral is the 24-hour safety ceiling for one host poll deferral.
 // Longer server Retry-After values are still respected up to this ceiling;
 // anything beyond it sleeps 24 hours while the report keeps the raw value.
@@ -349,10 +385,19 @@ func reportHealth(ctx context.Context, cfg Config, b Binding, r Report) {
 	}
 	defer a.Close()
 	adapter := "ready"
-	if r.State == "deferred" || r.State == "paused" || r.State == "uncertain" {
-		adapter = r.State
+	switch r.State {
+	case "deferred":
+		adapter = "busy"
+	case "paused":
+		adapter = "blocked"
+	case "uncertain":
+		adapter = "unknown"
 	}
-	_, _ = a.Call(ctx, http.MethodPost, "state", nil, map[string]any{"binding_epoch": b.Epoch, "connector_state": "healthy", "adapter_state": adapter, "reason": r.State})
+	reason := r.State
+	if r.Reason != "" {
+		reason = r.State + ": " + r.Reason
+	}
+	_, _ = a.Call(ctx, http.MethodPost, "state", nil, map[string]any{"binding_epoch": b.Epoch, "connector_state": "healthy", "adapter_state": adapter, "reason": reason})
 }
 
 // Ack is an explicit exact-ID operation. It never acknowledges an entire turn.

@@ -236,7 +236,11 @@ func retryDelay(value string, attempt int, now time.Time) time.Duration {
 			delay = 0
 		}
 	}
-	return delay + time.Duration(rand.IntN(250)+1)*time.Millisecond
+	jitter := time.Duration(rand.IntN(250)+1) * time.Millisecond
+	if delay > time.Duration(1<<63-1)-jitter {
+		return time.Duration(1<<63 - 1)
+	}
+	return delay + jitter
 }
 
 func wait(ctx context.Context, delay time.Duration) error {
