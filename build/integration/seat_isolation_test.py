@@ -83,6 +83,12 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
         result = command([sys.executable, launcher, "--repo", source, "--check"], cwd, check_env, ok=False)
         assert result.returncode == 2 and "STOP" in result.stderr and expected_reason in result.stderr, result.stderr
 
+    stale = root / "stale-sibling"
+    command(["git", "worktree", "add", "--detach", stale], repo)
+    command(["rm", "-rf", stale], repo)
+    assert str(stale) in command(["git", "worktree", "list", "--porcelain"], repo).stdout
+    command([sys.executable, launcher, "--repo", repo, "--check"], seats[0], dict(env, AGENTBOARD_SEAT_WORKTREE=str(seats[0])))
+
     # Malformed acquisition must stop before metadata or the native process writes.
     fake = root / "bad-treehouse"
     fake.write_text(f'#!/bin/sh\nif [ "$1" = --version ]; then echo v2.0.1; else echo "{repo}"; fi\n')

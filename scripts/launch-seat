@@ -41,7 +41,13 @@ def isolated(candidate, source, common):
         raise RuntimeError("primary checkout or spawning checkout is forbidden")
     if own_common != common:
         raise RuntimeError("worktree belongs to another repository")
-    registered = [Path(line[9:]).resolve(strict=True) for line in git(source, "worktree", "list", "--porcelain").splitlines() if line.startswith("worktree ")]
+    registered = []
+    for line in git(source, "worktree", "list", "--porcelain").splitlines():
+        if line.startswith("worktree "):
+            try:
+                registered.append(Path(line[9:]).resolve(strict=True))
+            except OSError:
+                continue
     if candidate not in registered:
         raise RuntimeError("worktree is not registered with the source repository")
     return physical
