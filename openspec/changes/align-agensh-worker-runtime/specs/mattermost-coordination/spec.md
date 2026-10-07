@@ -22,12 +22,12 @@ The bridge SHALL reconcile an accepted-post/lost-response case against durable e
 - **WHEN** permission or pagination limits prevent proving the remote result
 - **THEN** the intent stays uncertain with a reason and requires explicit resolution before a potentially duplicate retry
 
-### Requirement: Independent authenticated worker identities
-Each enrolled worker SHALL have an explicitly mapped Mattermost user identity for headless peer channels and DMs. Sender attribution SHALL derive from the authenticated account and stable ID mapping. A shared lifecycle bot SHALL NOT be treated as proof of worker-to-worker inbox parity.
+### Requirement: Shared-bot identity with per-agent attribution
+Phase 1 posts every agent message through the ONE shared `agentboard` bot. Agents never hold Mattermost credentials. Sender attribution SHALL derive from the Agentboard-authenticated agent id plus structured post props (`agent_id`, `task_id`, `kind`, `msg_id`), never from the display name or a per-agent Mattermost user. Each post SHALL carry a readable header line `[<agent-id> · <task-id>]` and plain `@agent-id` text mentions for addressing. The server posting seam SHALL stay pluggable so phase 2 per-agent bots swap in transparently.
 
-#### Scenario: Peer collision conversation
-- **WHEN** worker A sends a direct message to worker B's mapped identity
-- **THEN** B can receive, inspect and explicitly handle it without a browser or pretending the lifecycle bot is A
+#### Scenario: Peer conversation through the shared bot
+- **WHEN** worker A sends a status note and worker B reads the channel
+- **THEN** B sees A's agent id in the header line and props, A's own echo is suppressible by `props.agent_id`, and neither worker holds a Mattermost token
 
 ### Requirement: Durable authorized conversation catch-up
 Worker message ingestion SHALL combine live subscriptions and paginated authorized history with exact post/version deduplication. Reconnect SHALL recover missed updates and expose incomplete catch-up. Bodies SHALL remain authoritative in Mattermost and SHALL NOT be indexed as Context or offered as another board chat store.
@@ -41,10 +41,10 @@ Worker message ingestion SHALL combine live subscriptions and paginated authoriz
 - **THEN** the runtime records source unavailability without inventing its text or claiming successful catch-up
 
 ### Requirement: Staged primary-inbox migration
-Message mode SHALL default to `board` and support explicit `dual` and gated `mattermost` modes. Mattermost cutover SHALL require working bridge, worker identities, headless peer send/receive/recovery, handoff notification and usable delivery adapters. Until then board inbox/thread reads and sends SHALL retain their contract.
+Message mode SHALL default to `board` and support explicit `dual` and gated `mattermost` modes. Mattermost cutover SHALL require working bridge, phase 1 shared-bot routing with per-agent attribution, headless peer send/receive/recovery, handoff notification and usable delivery adapters — NOT per-agent Mattermost users. Until then board inbox/thread reads and sends SHALL retain their contract.
 
-#### Scenario: Bridge exists but peer identities do not
-- **WHEN** an operator attempts sole-Mattermost cutover before peer inbox parity
+#### Scenario: Bridge exists but phase 1 routing does not
+- **WHEN** an operator attempts sole-Mattermost cutover before shared-bot routing with per-agent attribution works
 - **THEN** the readiness gate fails and the working board inbox remains primary
 
 ### Requirement: Historical compatibility and rollback

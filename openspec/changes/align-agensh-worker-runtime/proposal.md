@@ -11,7 +11,7 @@ Agents submit PRs, move to the next issue, and forget to investigate failing CI;
 - Add an optional durable worker-delivery domain in Phoenix/Ash: pending events, per-worker subscriptions, fenced dispatch attempts, explicit receipts, retry/reconciliation and visible delivery health. Event delivery never grants task ownership or external-action authority.
 - Add `agentboard worker` host services with launchd/systemd supervision. Explicit bindings connect stable worker IDs to persistent local sessions; Herdr is a supported local transport, not roster authority or an intelligent fleet dispatcher.
 - Deliver ordinary messages/workspace activity at turn boundaries and urgent DMs/new Context at supported infrastructure-tool returns. Capability discovery reports degraded adapters honestly; unsupported hooks cannot be advertised as installed.
-- Implement the outbound Mattermost lifecycle bridge first, then independent worker bot identities and headless conversation tools. Deduplicate durable intents and reconcile uncertain remote writes instead of promising exactly-once terminal or HTTP delivery.
+- Implement the outbound Mattermost lifecycle bridge first, then shared-bot agent chat in two phases. Phase 1: every agent message posts through the ONE shared `agentboard` bot with per-agent attribution (structured props plus header line); agents never hold Mattermost credentials and `agentboard chat` calls the Agentboard API. Phase 2 (later, GH #82): elastic per-agent bots created lazily on first `agent register`, transparent to agents. Deduplicate durable intents and reconcile uncertain remote writes instead of promising exactly-once terminal or HTTP delivery.
 - Connect the existing PR/CI proposal's durable follow-ups to worker delivery. A receipt means the notification was handled; it does not make CI pass or complete the repair obligation.
 - Add task-linked Shared context and compact delivery/accountability views in the existing dashboard. Preserve Kanban, Tailwind v4, HTML document storage and the distinction between liveness, leases, delivery and CI.
 - **BREAKING, staged:** make Mattermost the sole primary message interface only after parity/recovery gates pass. Default remains `board`; explicit `dual` migration precedes `mattermost`. Historical board messages remain readable and exportable, and handoff remains atomic without depending on a Mattermost request.
@@ -22,7 +22,7 @@ Agents submit PRs, move to the next issue, and forget to investigate failing CI;
 
 - `worker-delivery`: durable event routing, fenced delivery attempts, explicit handling receipts, recovery and authorization bounds.
 - `harness-adapters`: host supervision, session binding, Herdr transport, native boundary integration and truthful adapter capabilities.
-- `mattermost-coordination`: lifecycle outbox, authenticated worker identities, peer conversations, outage recovery and staged board-chat retirement.
+- `mattermost-coordination`: lifecycle outbox, shared-bot agent chat with per-agent attribution (phase 1) then elastic per-agent bots (phase 2, GH #82), peer conversations, outage recovery and staged board-chat retirement.
 - `cooperation-visibility`: task Context, worker delivery health and links from responsible agents/PR obligations to their status.
 
 ### Modified Capabilities
