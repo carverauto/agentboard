@@ -2,6 +2,15 @@ defmodule Agentboard.Repo.Migrations.CooperationRuntime do
   use Ecto.Migration
 
   def up do
+    drop(constraint(:delivery_ci_snapshots, :valid_observation))
+
+    create(
+      constraint(:delivery_ci_snapshots, :valid_observation,
+        check:
+          "generation>0 AND ci_state IN ('unknown','pending','failing','passing') AND lifecycle IN ('open','closed','merged') AND head_sha ~ '^[0-9a-f]{40}$' AND base_sha ~ '^[0-9a-f]{40}$' AND octet_length(payload::text)<=262144 AND (ci_state != 'passing' OR ((payload->>'policy'='verified' AND payload->>'coverage'='complete_head' AND payload->>'tested_ref'='head') IS TRUE))"
+      )
+    )
+
     execute(
       "INSERT INTO agents(id,name,model,harness,capabilities,metadata,created_at,updated_at) VALUES ('ci-accountability','CI accountability (server)','system','ash','{}','{}',transaction_timestamp(),transaction_timestamp()) ON CONFLICT DO NOTHING"
     )
@@ -121,7 +130,7 @@ defmodule Agentboard.Repo.Migrations.CooperationRuntime do
       add(:repair_task_id, :text, null: false)
       add(:responsible_id, :text)
       add(:state, :text, null: false)
-      add(:snapshot_id, :uuid)
+      add(:snapshot_id, references(:delivery_ci_snapshots, type: :uuid, on_delete: :restrict))
       add(:evidence_urls, {:array, :text}, null: false)
       add(:head_sha, :text, null: false)
       add(:last_progress_at, :timestamptz, null: false)

@@ -264,7 +264,7 @@ defmodule AgentboardWeb.BoardLive do
     assigns = assign(assigns, symbol: symbol, title: title, tone: tone)
 
     ~H"""
-    <div class="review-ci"><span class={"flag " <> @tone}><span aria-hidden="true">{@symbol}</span> {@title}</span><span :if={@state && @state[:draft] == true && !@unavailable} class="flag"><span aria-hidden="true">◇</span> Draft</span><time :if={@state && @state[:observed_at]} datetime={to_string(@state.observed_at)} title={to_string(@state.observed_at)}>{AgentboardWeb.RelativeTime.age(to_string(@state.observed_at))}</time></div>
+    <div class="review-ci"><span class={"flag " <> @tone}><span aria-hidden="true">{@symbol}</span> {@title}</span><span :if={@state && @state[:draft] == true && !@unavailable} class="flag"><span aria-hidden="true">◇</span> {if @state[:fresh], do: "Draft", else: "Draft (last observed)"}</span><time :if={@state && @state[:observed_at]} datetime={to_string(@state.observed_at)} title={to_string(@state.observed_at)}>{AgentboardWeb.RelativeTime.age(to_string(@state.observed_at))}</time></div>
     """
   end
 

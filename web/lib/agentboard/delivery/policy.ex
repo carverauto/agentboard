@@ -22,7 +22,8 @@ defmodule Agentboard.Delivery.Policy do
         end) and
         Enum.all?(
           latest,
-          &(field(&1, :conclusion) in (config["accepted_conclusions"] || ["success"]))
+          &(field(&1, :status) == "completed" and
+              field(&1, :conclusion) in (config["accepted_conclusions"] || ["success"]))
         )
 
     if qualified and result.ci_state != "failing" do
@@ -32,7 +33,11 @@ defmodule Agentboard.Delivery.Policy do
           payload: Map.merge(result.payload, %{"policy" => "verified", "policy_config" => config})
       }
     else
-      result
+      %{
+        result
+        | ci_state: if(result.ci_state == "passing", do: "unknown", else: result.ci_state),
+          payload: Map.put(result.payload, "policy", "unknown")
+      }
     end
   end
 

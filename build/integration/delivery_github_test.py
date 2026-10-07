@@ -157,7 +157,11 @@ class Provider(http.server.BaseHTTPRequestHandler):
             metadata_reads += 1
             head = OLD if mode == 'changed-head' and metadata_reads > 1 else HEAD
             base = OLD if mode == 'changed-base' and metadata_reads > 1 else BASE
-            body = dict(number=601, head=dict(sha=head), base=dict(sha=base), state='open', merged=False)
+            body = dict(number=601, head=dict(sha=head), base=dict(sha=base), state='open', merged=False, draft=mode == 'draft' or (mode == 'changed-draft' and metadata_reads > 1))
+            if mode == 'missing-draft':
+                body.pop('draft')
+            if mode == 'malformed-draft':
+                body['draft'] = 'untrusted'
         elif u.path.endswith('/check-suites'):
             if mode == 'request-cap':
                 body = dict(total_count=101, check_suites=[dict(id=i, head_sha=HEAD) for i in range((page-1)*100+1, min(page*100+1,102))])
@@ -288,7 +292,7 @@ with tempfile.TemporaryDirectory() as temp:
     link_rejections = {'hostile-link', 'malformed-link', 'suffix-link', 'query-link', 'page-link', 'id-link', 'status-on-runs'}
     status_rejections = {'status-sha', 'status-suffix', 'status-origin', 'status-query', 'status-page'}
     for scenario, reason in [('old-head','incomplete'), ('changed-head','incomplete'),
-                             ('changed-base','incomplete'), ('partial','unavailable'),
+                             ('changed-base','incomplete'), ('changed-draft','incomplete'), ('partial','unavailable'),
                              ('hostile-link','incomplete'), ('malformed-link','incomplete'),
                              ('suffix-link','incomplete'), ('query-link','incomplete'),
                              ('page-link','incomplete'), ('id-link','incomplete'),
@@ -351,8 +355,21 @@ with tempfile.TemporaryDirectory() as temp:
     payload = json.loads(sql('SELECT payload FROM delivery_ci_snapshots ORDER BY generation DESC LIMIT 1'))
     assert next(a for a in payload['attempts'] if a['name'] == 'failed-build')['details_url'] is None
     assert 'invented-fixture-token' not in json.dumps(payload)
+    for scenario, draft in [('draft', True), ('missing-draft', None), ('malformed-draft', None), ('normal', False)]:
+        poll(scenario, 'pending')
+        payload = json.loads(sql('SELECT payload FROM delivery_ci_snapshots ORDER BY generation DESC LIMIT 1'))
+        assert payload['draft'] is draft, (scenario, payload)
     poll('clean', 'unknown')
     assert sql('SELECT ci_state FROM delivery_poll_states') == 'unknown'
+    # The same actual HTTP evidence is certified only under explicit head policy.
+    assert sql('SELECT resolved_at IS NULL FROM delivery_obligations') == 't'
+    rpc('Application.put_env(:agentboard, :ci_policies, %{"fixture/repo" => %{"tested_ref" => "head", "required" => ["check:1:security-only"]}})')
+    poll('clean', 'passing')
+    assert sql("SELECT ci_state||','||(last_error IS NULL) FROM delivery_poll_states") == 'passing,true'
+    assert sql('SELECT state FROM delivery_obligations') == 'resolved'
+    assert sql("SELECT status FROM tasks WHERE 'ci-repair'=ANY(labels)") == 'assigned'
+    rpc('Application.put_env(:agentboard, :ci_policies, %{})')
+    poll('clean', 'unknown')
     # A late response may not append a snapshot after generation replacement.
     before = sql('SELECT count(*) FROM delivery_ci_snapshots')
     with concurrent.futures.ThreadPoolExecutor() as pool:

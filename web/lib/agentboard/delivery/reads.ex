@@ -1,6 +1,6 @@
 defmodule Agentboard.Delivery.Reads do
   @moduledoc "Bounded dashboard reads; a last-known projection is never fresh verified green."
-  alias Agentboard.Delivery.{PullRequest, PollState, Obligation}
+  alias Agentboard.Delivery.{PullRequest, PollState, Obligation, CISnapshot}
   alias Agentboard.Board.Operations, as: Ops
   require Ash.Query
 
@@ -165,6 +165,12 @@ defmodule Agentboard.Delivery.Reads do
         true -> s.ci_state
       end
 
-    %{ci_state: state, fresh: !!fresh, observed_at: if(s, do: s.observed_at), draft: nil}
+    snapshot = if s && s.snapshot_id, do: Ash.get!(CISnapshot, s.snapshot_id)
+
+    draft =
+      if snapshot && snapshot.head_sha == s.head_sha && snapshot.observed_at == s.observed_at &&
+           is_boolean(snapshot.payload["draft"]), do: snapshot.payload["draft"]
+
+    %{ci_state: state, fresh: !!fresh, observed_at: if(s, do: s.observed_at), draft: draft}
   end
 end

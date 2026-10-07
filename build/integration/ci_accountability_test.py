@@ -72,16 +72,43 @@ api('/tasks', {'id': 'ci-source', 'title': 'Submitted work', 'repo': 'fixture/re
 pr = sql("SELECT id FROM delivery_pull_requests WHERE number='101'")
 
 
-def observe(state='failing', expected='ok', policy='unknown'):
-    expression = ('result = %{ci_state: ' + json.dumps(state) + ', head_sha: ' + json.dumps(HEAD) +
-                  ', base_sha: ' + json.dumps(BASE) + ', payload: %{"policy" => ' + json.dumps(policy) + ', "attempts" => [%{latest: true, source_url: "https://github.com/fixture/repo/actions/runs/1"}]}}; '
-                  'r = Agentboard.Board.Operations.transaction(fn -> Agentboard.Delivery.Accountability.observe(%{pull_request_id: ' + json.dumps(pr) + '}, result, Agentboard.Board.Operations.now()); true end); IO.puts(inspect(r))')
+def reserve():
+    sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 second' WHERE id='" + pr + "'")
+    output = rpc('{:ok, [r]} = Agentboard.Delivery.Polling.reserve_pr(' + json.dumps(pr) + '); IO.puts("RESERVATION:" <> Jason.encode!(r))')
+    return json.loads(output.split('RESERVATION:', 1)[1].strip())
+
+
+def observe(state='failing', expected='ok', policy='unknown', reservation=None, attempts=None, tested_ref='head', draft=None):
+    reservation = reservation or reserve()
+    config = '%{"fixture/repo" => %{"tested_ref" => "head", "required" => ["check:1:required"]}}' if policy == 'verified' else '%{}'
+    check = dict(identity='check:1:required', latest=True, status='completed',
+                 conclusion='failure' if state == 'failing' else 'success',
+                 source_url='https://github.com/fixture/repo/actions/runs/1')
+    payload = dict(policy='unknown', coverage='complete_head', tested_ref=tested_ref,
+                   attempts=[check] if attempts is None else attempts)
+    payload['draft'] = draft
+    encoded = base64.b64encode(json.dumps(payload).encode()).decode()
+    expression = ('Application.put_env(:agentboard, :ci_policies, ' + config + '); '
+                  'result = %{ci_state: ' + json.dumps('unknown' if state == 'passing' else state) +
+                  ', lifecycle: "open", head_sha: ' + json.dumps(HEAD) + ', base_sha: ' + json.dumps(BASE) +
+                  ', payload: Jason.decode!(Base.decode64!("' + encoded + '"))}; '
+                  'reservation = %{id: ' + json.dumps(reservation['id']) +
+                  ', attempt_id: ' + json.dumps(reservation['attempt_id']) +
+                  ', generation: ' + str(reservation['generation']) + '}; '
+                  'IO.puts(inspect(Agentboard.Delivery.Polling.commit_observation(reservation, result)))')
     output = rpc(expression)
-    assert ('{:ok, true}' in output) == (expected == 'ok'), output
+    success = '{:ok,' in output
+    if expected is not None:
+        assert success == (expected == 'ok'), output
+    return success
 
 
+rpc(':ok = Oban.pause_queue(queue: :delivery_scheduler); :ok = Oban.pause_queue(queue: :delivery_polling); Application.put_env(:agentboard, :pr_observation_enabled, true)')
+reservation = reserve()
 with concurrent.futures.ThreadPoolExecutor(4) as pool:
-    list(pool.map(lambda _: observe(), range(4)))
+    results = list(pool.map(lambda _: observe(reservation=reservation, expected=None), range(4)))
+assert results.count(True) == 1, results
+assert sql('SELECT count(*) FROM delivery_ci_snapshots') == '1'
 assert sql('SELECT count(*) FROM delivery_obligations') == '1'
 assert sql("SELECT responsible_id FROM delivery_obligations") == 'ci-owner'
 assert sql("SELECT count(*) FROM tasks WHERE 'ci-repair'=ANY(labels)") == '1'
@@ -99,16 +126,25 @@ assert api('/tasks/ci-source')['task']['status'] == 'done'
 # Atomic episode/task/source rollback on a new episode after qualifying recovery.
 observe('passing', policy='unknown')
 assert sql('SELECT resolved_at IS NULL FROM delivery_obligations') == 't'
+observe('passing', policy='verified', attempts=[])
+assert sql('SELECT resolved_at IS NULL FROM delivery_obligations') == 't'
+observe('passing', policy='verified', tested_ref='merge')
+assert sql('SELECT resolved_at IS NULL FROM delivery_obligations') == 't'
 observe('passing', policy='verified')
 assert sql('SELECT state FROM delivery_obligations') == 'resolved'
 assert api('/tasks/' + repair)['task']['status'] == 'assigned', 'Recovery completed repair silently'
 sql("CREATE FUNCTION reject_ci_source() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture source error'; END $$")
 sql('CREATE TRIGGER reject_ci_source BEFORE INSERT ON cooperation_events FOR EACH ROW EXECUTE FUNCTION reject_ci_source()')
-observe(expected='error')
+reservation = reserve()
+snapshot_count = sql('SELECT count(*) FROM delivery_ci_snapshots')
+projection_before = sql('SELECT to_jsonb(s) FROM delivery_poll_states s')
+observe(expected='error', reservation=reservation)
+assert sql('SELECT count(*) FROM delivery_ci_snapshots') == snapshot_count
+assert sql('SELECT to_jsonb(s) FROM delivery_poll_states s') == projection_before
 assert sql('SELECT count(*) FROM delivery_obligations') == '1'
 assert sql("SELECT count(*) FROM tasks WHERE 'ci-repair'=ANY(labels)") == '1'
 sql('DROP TRIGGER reject_ci_source ON cooperation_events')
-observe()
+observe(reservation=reservation)
 assert sql('SELECT max(episode) FROM delivery_obligations') == '2'
 repair2 = sql('SELECT repair_task_id FROM delivery_obligations WHERE resolved_at IS NULL')
 api('/tasks/' + repair2 + '/claim', {})
@@ -126,17 +162,6 @@ api('/tasks', {'id': 'ci-conflict', 'title': 'Other submitter', 'repo': 'fixture
 observe('passing', policy='verified')
 observe()
 assert sql('SELECT responsible_id IS NULL FROM delivery_obligations WHERE resolved_at IS NULL') == 't'
-
-# Explicit policy is required; unrelated green or missing expected checks cannot resolve.
-expr = '''pr = %{owner: "fixture", repo: "repo"};
-result = %{ci_state: "unknown", payload: %{"coverage" => "complete_head", "tested_ref" => "head", "attempts" => [%{identity: "check:1:required", latest: true, status: "completed", conclusion: "success"}]}};
-Application.put_env(:agentboard, :ci_policies, %{});
-"unknown" = Agentboard.Delivery.Policy.classify(pr, result).ci_state;
-Application.put_env(:agentboard, :ci_policies, %{"fixture/repo" => %{"tested_ref" => "head", "required" => ["check:1:required"]}});
-"passing" = Agentboard.Delivery.Policy.classify(pr, result).ci_state;
-"unknown" = Agentboard.Delivery.Policy.classify(pr, %{result | payload: Map.put(result.payload, "attempts", [])}).ci_state;
-"failing" = Agentboard.Delivery.Policy.classify(pr, %{result | ci_state: "failing"}).ci_state; IO.puts("POLICY_OK")'''
-assert 'POLICY_OK' in rpc(expr)
 
 # Real scheduler decisions, rolling bounds and duplicate-job fences across pods.
 rpc('Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-32-characters")')
@@ -228,9 +253,9 @@ api('/tasks', {'id': 'ci-review-without-pr', 'title': 'Review without PR', 'repo
 api('/tasks/ci-review-without-pr/claim', {})
 api('/tasks/ci-review-without-pr/update', {'status': 'review'})
 
-def export_review(state):
+def export_review(state, filename=None):
     view = LiveView(URL, '/?status=review')
-    page = export_page('/?status=review', 'board-ci-' + state + '.html', view.initial)
+    page = export_page('/?status=review', filename or 'board-ci-' + state + '.html', view.initial)
     view.close()
     assert 'CI ' + state in page, page
     cards = re.findall(r'<article[^>]*class="task-card"[^>]*>(.*?)</article>', page, re.S)
@@ -250,6 +275,23 @@ export_review('stale')
 sql("UPDATE delivery_poll_states SET observed_at=clock_timestamp(),last_error='policy_unknown' WHERE id='" + pr + "'")
 page = export_review('unknown')
 assert 'CI passing' not in page
+
+# Draft is read from the exact current head snapshot; stale metadata is labelled.
+observe('pending', draft=True)
+page = export_review('pending', 'board-draft-fresh.html')
+assert '◇' in page and '> Draft</span>' in page
+sql("UPDATE delivery_poll_states SET observed_at=clock_timestamp()-interval '1 hour' WHERE id='" + pr + "'")
+# Ageing the projection without the immutable snapshot cannot certify draft.
+page = export_review('stale')
+assert 'Draft' not in page
+sql("UPDATE delivery_poll_states SET observed_at=s.observed_at FROM delivery_ci_snapshots s WHERE delivery_poll_states.snapshot_id=s.id")
+sql("UPDATE delivery_poll_states SET last_error='unauthorized' WHERE id='" + pr + "'")
+page = export_review('stale', 'board-draft-stale.html')
+assert 'Draft (last observed)' in page
+sql("UPDATE delivery_poll_states SET head_sha='" + BASE + "' WHERE id='" + pr + "'")
+assert 'Draft' not in export_review('stale')
+observe('pending', draft=False)
+assert 'Draft' not in export_review('pending')
 
 
 api('/workers/ci-peer/resume', {'binding_epoch': 1}, token=host)

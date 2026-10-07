@@ -45,7 +45,7 @@ defmodule Agentboard.Delivery.Scheduling do
     case Github.collect(reservation) do
       {:ok, observation} ->
         case Polling.commit_observation(reservation, observation) do
-          {:ok, _} -> {:ok, %{observed: observation.ci_state}}
+          {:ok, projection} -> {:ok, %{observed: projection["ci_state"]}}
           {:error, "disabled", _} -> snooze()
           {:error, "conflict", _} -> {:ok, %{superseded: true}}
           {:error, _code, message} -> {:error, message}

@@ -89,12 +89,30 @@ before_poll="$(inventory_psql "SELECT to_jsonb(s)-'base_sha'-'snapshot_id'-'life
 [[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 9 ]]
 inventory_psql "UPDATE delivery_provider_budgets SET remaining=17,reset_at=clock_timestamp()+interval '1 hour' WHERE id='github'" >/dev/null
 before_budget="$(inventory_psql "SELECT jsonb_agg(to_jsonb(s)-'blocked_until' ORDER BY id) FROM delivery_provider_budgets s")"
+"$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261007000400) end)'
+[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 10 ]]
+[[ "$(inventory_psql "SELECT to_jsonb(s)-'base_sha'-'snapshot_id'-'lifecycle' FROM delivery_poll_states s")" == "$before_poll" ]]
+inventory_psql "INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES ('11111111-1111-4111-8111-111111111111',repeat('d',64),1,clock_timestamp(),repeat('a',40),repeat('b',40),'open','failing','{\"coverage\":\"complete_head\",\"policy\":\"unknown\",\"tested_ref\":\"head\",\"attempts\":[]}');
+UPDATE delivery_poll_states SET generation=1,head_sha=repeat('a',40),base_sha=repeat('b',40),lifecycle='open',ci_state='failing',snapshot_id=s.id,observed_at=s.observed_at FROM delivery_ci_snapshots s WHERE delivery_poll_states.id=s.pull_request_id;" >/dev/null
+before_snapshot="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_ci_snapshots s')"
+before_projection="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_poll_states s')"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 [[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 11 ]]
 [[ "$(inventory_psql "$history_query")" == "$before_inventory" ]]
-[[ "$(inventory_psql "SELECT to_jsonb(s)-'base_sha'-'snapshot_id'-'lifecycle' FROM delivery_poll_states s")" == "$before_poll" ]]
+[[ "$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_poll_states s')" == "$before_projection" ]]
+[[ "$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_ci_snapshots s')" == "$before_snapshot" ]]
 [[ "$(inventory_psql 'SELECT count(*) FROM delivery_poll_states_versions')" == 0 ]]
 [[ "$(inventory_psql "SELECT jsonb_agg(to_jsonb(s)-'blocked_until' ORDER BY id) FROM delivery_provider_budgets s")" == "$before_budget" ]]
-[[ "$(inventory_psql 'SELECT count(*) FROM delivery_ci_snapshots')" == 0 ]]
+[[ "$(inventory_psql 'SELECT count(*) FROM delivery_ci_snapshots')" == 1 ]]
 echo 'Schema-7 to 8 seeds unknown state; schema-8 to 9 to 10 and repeat retain inventory, history, poll backoff and provider budget bytes.'
+
+# Schema 11 admits only explicitly verified complete-head passing snapshots.
+for payload in '{}' '{"policy":"unknown","coverage":"complete_head","tested_ref":"head"}' '{"policy":"verified","coverage":"complete_head","tested_ref":"merge"}'; do
+  if inventory_psql "INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES (gen_random_uuid(),repeat('d',64),2,clock_timestamp(),repeat('a',40),repeat('b',40),'open','passing','$payload')" >/dev/null 2>&1; then
+    echo 'Unverified passing snapshot accepted' >&2; exit 1
+  fi
+done
+inventory_psql "INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES (gen_random_uuid(),repeat('d',64),2,clock_timestamp(),repeat('a',40),repeat('b',40),'open','passing','{\"policy\":\"verified\",\"coverage\":\"complete_head\",\"tested_ref\":\"head\"}')" >/dev/null
+[[ "$(inventory_psql 'SELECT count(*) FROM delivery_ci_snapshots')" == 2 ]]
+echo 'Schema-10 to 11 preserves immutable snapshot/projection bytes and rejects missing or unverified passing evidence.'

@@ -1,7 +1,7 @@
 defmodule Agentboard.Delivery.Polling do
   @moduledoc "Brief per-PR reservations. Provider I/O belongs after the reservation commits."
   alias Agentboard.Board.Operations
-  alias Agentboard.Delivery.{CISnapshot, PollState, PullRequest}
+  alias Agentboard.Delivery.{Policy, Accountability, CISnapshot, PollState, PullRequest}
   alias Agentboard.Repo
   require Ash.Expr
 
@@ -112,6 +112,14 @@ defmodule Agentboard.Delivery.Polling do
 
         assert_reservation!(state, reservation.attempt_id, reservation.generation, stamp)
 
+        pr = Operations.fetch!(PullRequest, state.id, "PR not found")
+        result = Policy.classify(pr, result)
+
+        policy_error =
+          if result.ci_state == "passing" and result.payload["policy"] == "verified",
+            do: nil,
+            else: "policy_unknown"
+
         snapshot =
           Operations.create(
             CISnapshot,
@@ -133,30 +141,33 @@ defmodule Agentboard.Delivery.Polling do
         changed? =
           state.head_sha != result.head_sha or state.base_sha != result.base_sha or
             state.ci_state != result.ci_state or state.lifecycle != result.lifecycle or
-            state.last_error != "policy_unknown"
+            state.last_error != policy_error
 
         action = if changed?, do: :observe_change, else: :observe
 
-        Operations.update(
-          state,
-          action,
-          %{
-            expected_generation: reservation.generation,
-            expected_attempt_id: reservation.attempt_id,
-            head_sha: result.head_sha,
-            base_sha: result.base_sha,
-            ci_state: result.ci_state,
-            lifecycle: result.lifecycle,
-            observed_at: stamp,
-            snapshot_id: snapshot.id,
-            last_error: "policy_unknown",
-            attempt_id: nil,
-            lease_expires_at: nil,
-            next_poll_at: DateTime.add(stamp, 60)
-          },
-          @actor
-        )
-        |> Operations.public()
+        projection =
+          Operations.update(
+            state,
+            action,
+            %{
+              expected_generation: reservation.generation,
+              expected_attempt_id: reservation.attempt_id,
+              head_sha: result.head_sha,
+              base_sha: result.base_sha,
+              ci_state: result.ci_state,
+              lifecycle: result.lifecycle,
+              observed_at: stamp,
+              snapshot_id: snapshot.id,
+              last_error: policy_error,
+              attempt_id: nil,
+              lease_expires_at: nil,
+              next_poll_at: DateTime.add(stamp, 60)
+            },
+            @actor
+          )
+
+        Accountability.observe(snapshot, result, stamp)
+        Operations.public(projection)
       end)
     else
       {:error, "disabled", "PR observation is disabled"}
@@ -202,4 +213,3 @@ defmodule Agentboard.Delivery.Polling do
 
   defp enabled?, do: Application.get_env(:agentboard, :pr_observation_enabled, false)
 end
-
