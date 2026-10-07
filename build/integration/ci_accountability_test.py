@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 import re
+from html.parser import HTMLParser
 from liveview_client import LiveView, contains
 
 URL = os.environ['AGENTBOARD_URL']
@@ -45,13 +46,48 @@ def api(path, body=None, agent='ci-owner', status=200, method=None, captain=Fals
     return data
 
 
+def _strip_scripts(html):
+    # Remove script elements with a real parser so variants like
+    # `</script >` cannot slip through a filtering regexp.
+    class Stripper(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=False)
+            self.parts = []
+            self.depth = 0
+        def handle_starttag(self, tag, attrs):
+            if tag.lower() == 'script':
+                self.depth += 1
+            elif self.depth == 0:
+                self.parts.append(self.get_starttag_text())
+        def handle_startendtag(self, tag, attrs):
+            if tag.lower() != 'script' and self.depth == 0:
+                self.parts.append(self.get_starttag_text())
+        def handle_endtag(self, tag):
+            if tag.lower() == 'script':
+                self.depth = max(0, self.depth - 1)
+            elif self.depth == 0:
+                self.parts.append('</' + tag + '>')
+        def handle_data(self, data):
+            if self.depth == 0:
+                self.parts.append(data)
+        def handle_comment(self, data):
+            if self.depth == 0:
+                self.parts.append('<!--' + data + '-->')
+        def handle_decl(self, decl):
+            if self.depth == 0:
+                self.parts.append('<!' + decl + '>')
+    stripper = Stripper()
+    stripper.feed(html)
+    return ''.join(stripper.parts)
+
+
 def export_page(path, filename, rendered=None):
     # Preserve real packaged SSR and its exact CSS for separate browser inspection.
     page = urllib.request.urlopen(URL + path, timeout=10).read().decode()
     stylesheet = re.search(r'<link rel="stylesheet"[^>]*href="([^"]+)"', page).group(1)
     css = urllib.request.urlopen(URL + stylesheet, timeout=10).read().decode()
     page = re.sub(r'<link rel="stylesheet"[^>]+>', lambda _: '<style>' + css + '</style>', page)
-    page = re.sub(r'<script[^>]+></script>', '', page)
+    page = _strip_scripts(page)
     if rendered is not None:
         # Convert the actual full websocket render with the pinned Phoenix consumer.
         encoded = base64.b64encode(json.dumps(rendered).encode()).decode()
