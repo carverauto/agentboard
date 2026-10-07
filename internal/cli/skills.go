@@ -111,10 +111,10 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 			fragmentBody, err := fs.ReadFile(payload.Skills, "skills/"+name+"/"+fragment)
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
-		}
+			}
 			if err != nil {
 				return result, err
-		}
+			}
 			files["skills/"+name+"/"+fragment] = fragmentBody
 		}
 		if name == "agentboard" || name == "agentboard-captain" {
