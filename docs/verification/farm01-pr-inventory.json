@@ -83,6 +83,6 @@
   },
   "automatic_pr_discovery_enabled": false,
   "whitespace_attribution_events_before_rollout": 0,
-  "scope": "Canonical PR submission inventory; worker attribution fix/catch-up awaits PR36 release; CI polling, followups, completion guard and Mattermost bridge remain pending",
+  "scope": "Canonical PR submission inventory; worker attribution fix/catch-up in merged PR36 awaits rollout; CI polling, followups, completion guard and Mattermost bridge remain pending",
   "local_application_builds": false
 }

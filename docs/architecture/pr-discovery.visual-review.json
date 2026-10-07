@@ -1,0 +1,18 @@
+{
+  "artifact_sha256": "c24a2b3b3ba4ec62a3f3f2de343374d12164c0815b1cbdfb7925f9cf0dbd833c",
+  "artifact_bytes": 706292,
+  "visual_review": "passed",
+  "reviewer": "codex image-capable review",
+  "scope": [
+    "1440x900 light and dark",
+    "2048x1320 light and dark"
+  ],
+  "observations": [
+    "The Cron \u2192 durable jobs \u2192 Ash action \u2192 canonical links path is distinct and readable.",
+    "Both themes retain clear route labels and cards without clipping.",
+    "The large desktop uses the diagram and conclusion cards as a balanced first screen."
+  ],
+  "browser_evidence": "passed",
+  "browser_receipt": "pr-discovery.visual-check.json",
+  "correction_rounds": 1
+}

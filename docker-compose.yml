@@ -24,6 +24,7 @@ x-db-env: &db-env
   AGENTBOARD_CAPTAIN_TOKEN: ${AGENTBOARD_CAPTAIN_TOKEN:-}
   PHX_HOST: ${PHX_HOST:-localhost}
   POOL_SIZE: ${POOL_SIZE:-10}
+  AGENTBOARD_PR_DISCOVERY_ENABLED: ${AGENTBOARD_PR_DISCOVERY_ENABLED:-false}
 
 services:
   # Issues the private CA and server certificate for Postgres TLS (once).

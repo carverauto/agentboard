@@ -125,7 +125,43 @@ runs. Record that gap and fix forward. Do not drop immutable PR/link/version
 history or run a down migration.
 
 This stage establishes inventory for the next scheduler. CI polling, provider
-credentials, CI verdicts, scheduled reconciliation, the PR dashboard/API/CLI,
-completion guard and follow-ups remain pending in the approved OpenSpec change.
+credentials, CI verdicts, provider observation scheduling, the PR dashboard/API/CLI,
+completion guard and follow-ups remain pending in the approved OpenSpec change
+(opt-in inventory catch-up is described in the next section).
 An inventory record alone makes no assertion about CI health. See the
 [Archify submission and discovery diagram](architecture/pr-inventory.html).
+
+## Inventory catch-up worker
+
+Set `AGENTBOARD_PR_DISCOVERY_ENABLED=true` on the server to enable one-minute
+AshOban reconciliation of current task PR links. It defaults to false. The
+stable worker is `Agentboard.Delivery.ReconcileLinks`, on the separate
+`delivery_discovery` queue with concurrency **one per pod**; housekeeping
+keeps its own queue. Recompute total database demand when increasing replicas.
+This worker discovers links; GitHub/BuildBuddy polls, CI state and follow-up
+creation remain separate unfinished stages of the approved change.
+
+Each job scans at most 100 linked tasks in keyset order, including Done,
+Cancelled and archived tasks. If another page exists, it persists a cursor-only
+continuation before completing. Every task is reconciled in its own short
+transaction, using the same task/PR locks and Ash actions as live submissions.
+A crash before or after continuation insertion can replay a page safely;
+canonical identity and immutable task-link uniqueness provide correctness.
+Oban's incomplete-job uniqueness bounds duplicate scheduling, and the next
+minute's root sweep recovers missing or exhausted page jobs. New submissions
+already record inventory in their task transaction.
+
+Jobs survive worker restarts in PostgreSQL. Failures enter Oban's normal
+five-attempt retry/backoff path, and failed/discarded jobs remain inspectable
+until the configured Pruner retention. The feature switch also fences the action
+itself: an existing queued job snoozes for 60 seconds while disabled, without
+writing inventory or falsely completing. Queue pause/resume and explicit retry
+use normal Oban operations; an operator-paused queue must be deliberately
+resumed. Disabling catch-up does not disable housekeeping or Board/API queries.
+There is no extra migration beyond schema 7 and no provider credential in job
+arguments. Retain additive inventory/audit tables during an image rollback.
+
+Historical submitting model/harness values are copied exactly, including
+whitespace; normalization is never evidence of a different agent identity.
+This fixes the initial inventory resource's inherited Ash string trimming
+without rewriting previously retained immutable links.

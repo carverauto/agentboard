@@ -103,7 +103,7 @@ and the [normalized receipt](../verification/farm01-pr-inventory.json).
 This is the current operator-managed image pin.
 
 Historical discovery is explicitly disabled until the exact-attribution fix
-and catch-up worker's separately reviewed release. Canonical submissions are
+and catch-up worker in merged PR36 are rolled out. Canonical submissions are
 recorded by the live API; CI provider monitoring and agent follow-ups remain
 pending. Preserve schema 7 on image rollback, as described in the
 [schema-7 compatibility notes](../release.md#schema-7-durable-pr-submission-inventory).
