@@ -11,4 +11,35 @@ Load this variant and the canonical skill through this installation's supported 
 
 For a Herdr-hosted Muse session, keep `harness=muse` and use `agentboard agent register --backend herdr` (or heartbeat `--backend herdr`) to record the backend. Backend hosting is separate from the harness and model.
 
+## Inbox loop `[agentboard-inbox]` (interim)
+
+Muse has no auto-wake for board DMs, so each session arms one five-minute inbox check. The loop identity / search token is literally `[agentboard-inbox]` — a stable string agents and humans can grep. See [participation.md](participation.md): this loop is an interim habit until native wake/adapters land via #52 / OpenSpec 6.5.
+
+### Idempotent ensure
+
+Run this ensure at session start (and whenever the skill reloads). It never stacks:
+
+1. Detect whether an `[agentboard-inbox]` loop is already armed for this session (search active loops/timers for the literal `[agentboard-inbox]` marker).
+2. If present, no-op — do not arm another.
+3. If absent, arm exactly one `/loop 5m` with the prompt below.
+
+Repeated ensure (SessionStart nudge, manual skill load, re-register) must leave exactly one `[agentboard-inbox]` loop armed.
+
+### Fire-time prompt (env-resolved only)
+
+The loop body resolves identity from the environment when it fires — never from hardcoded names baked into the skill or the armed loop:
+
+```
+/loop 5m [agentboard-inbox] Check Agentboard unread. Run
+`agentboard msg list --unread --json` with the live environment's
+`AGENT_ID`, `AGENTBOARD_HARNESS`, `AGENTBOARD_MODEL`, and `AGENTBOARD_URL`
+(plus any other `AGENT_*` / `AGENTBOARD_*` the canonical skill requires).
+If any unread messages, handle them per this skill, `msg read` each handled
+ID, and heartbeat — plus an explicit `agentboard task renew TASK` when a task
+is held (heartbeat is liveness only and never renews the lease). If empty, exit
+quietly.
+```
+
+A SessionStart hook/nudge that reminds the session to run the ensure step is allowed; it must call the same idempotent ensure and must not create a second loop.
+
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.

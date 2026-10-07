@@ -105,6 +105,18 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 			files["skills/"+name+"/references/GROK_BOT.md"] = []byte(charterText)
 		}
 		files["skills/"+name+"/SKILL.md"] = body
+		// Ship skill-local fragments referenced by relative Markdown links so the
+		// installed bundle keeps those links resolvable.
+		for _, fragment := range []string{"ask-user-escalation.md", "participation.md"} {
+			fragmentBody, err := fs.ReadFile(payload.Skills, "skills/"+name+"/"+fragment)
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return result, err
+			}
+			files["skills/"+name+"/"+fragment] = fragmentBody
+		}
 		if name == "agentboard" || name == "agentboard-captain" {
 			for _, doc := range []string{"api.md", "quota.md", "participation.md", "context.md"} {
 				body, err := fs.ReadFile(payload.Skills, "docs/"+doc)

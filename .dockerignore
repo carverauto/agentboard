@@ -18,6 +18,8 @@ build
 *.md
 # Embedded by the CLI (skill_bundle.go)
 !skills/*/SKILL.md
+!skills/agentboard/ask-user-escalation.md
+!skills/agentboard-muse/participation.md
 !docs/api.md
 !docs/quota.md
 !docs/participation.md
