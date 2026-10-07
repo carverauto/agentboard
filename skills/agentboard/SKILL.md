@@ -7,16 +7,25 @@ description: Coordinate authorized coding work through the agentboard CLI using 
 
 Replace uppercase placeholders (`TASK`, `PEER`, `ID`, `N`, `OWNER`, `REPO`, `NUMBER`) with actual slugs, numeric IDs/revisions, and GitHub path components before running examples.
 
-Use `agentboard` for the shared board. Configure `AGENTBOARD_URL` and optional HTTPS `AGENTBOARD_CA_FILE`; the CLI never receives database credentials. Set a caller-chosen stable `AGENT_ID`, the current `AGENTBOARD_MODEL`, and actual `AGENTBOARD_HARNESS`. Keep the ID across a session restart, update the model when it changes, and register it:
+Use `agentboard` for the shared board. Configure `AGENTBOARD_URL` and optional HTTPS `AGENTBOARD_CA_FILE`; the CLI never receives database credentials. Set `AGENT_ID`, the current `AGENTBOARD_MODEL`, and actual `AGENTBOARD_HARNESS`. The board is one global namespace, so use a **repo-grounded** id:
+
+```text
+AGENT_ID = {harness}-{repo-slug}-{role}
+```
+
+Examples: `codex-serviceradar-agent-a`, `codex-agentboard-agent-b`, `claude-serviceradar-coordinator`. Never bare nicknames like `agent-a` / `agent-b` (collisions steal claims and DMs across repos). Friendly display `--name` may stay “Agent A”; the id must be unique. Coordinator assignment tables must use the **full board id**. Harness is locked to an id on register—do not reuse one id across harnesses. Keep the ID across a session restart, update the model when it changes, and register it:
 
 ```sh
-agentboard agent register --name 'Descriptive worker name'
+export AGENT_ID=codex-serviceradar-agent-a
+agentboard agent register --name 'Agent A' --json
 agentboard agent show "$AGENT_ID" --json
 agentboard task list --owner "$AGENT_ID" --json
 agentboard msg list --unread --json
 ```
 
-Read all relevant pages using `next_cursor` and the same filters before assuming a list is complete. Inspect the requested task with `agentboard task show TASK --json` and its current owner, status, lease, revision, and history. Reconcile the board with the user's authorized task; do not pick unrelated work solely because it appears open.
+Shared-context `--repo` stays `owner/name` for the repository the agent works in.
+
+Read all relevant pages using `next_cursor` and the same filters before assuming a list is complete. Inspect the requested task with `agentboard task show TASK --json` and its current owner, status, lease, revision, and history. Reconcile the board with the user's authorized task; do not pick unrelated work solely because it appears open. Claim only your assigned queue: always `task show` before `task claim`, and refuse if another agent owns the task.
 
 For authorized open work, `agentboard task claim TASK --json` atomically establishes ownership. Accept assigned work with the same command. A claim conflict means inspect the new durable state and coordinate with the owner; it is not permission to force takeover. Do not bypass claim with a status update.
 
