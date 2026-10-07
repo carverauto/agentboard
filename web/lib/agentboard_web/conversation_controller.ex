@@ -17,6 +17,7 @@ defmodule AgentboardWeb.ConversationController do
             case Conversations.enroll(agent_id, user_id, params["mm_username"], params["credential_ref"]) do
               {:ok, identity} -> json(conn, identity)
               {:error, "conflict", message} -> conn |> put_status(409) |> json(%{error: %{code: "conflict", message: message}})
+              {:error, code, message} when code in ~w(invalid_input invalid_context) -> conn |> put_status(422) |> json(%{error: %{code: code, message: message}})
               {:error, _code, message} -> conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
             end
 
@@ -32,7 +33,13 @@ defmodule AgentboardWeb.ConversationController do
         conn |> put_status(422) |> json(%{error: %{code: "invalid_context", message: "Agent revocation requires a captain token"}})
 
       _proof ->
-        reply(conn, Conversations.revoke(agent_id, params["reason"] || "revoked"))
+        case Conversations.revoke(agent_id, params["reason"] || "revoked") do
+          {:ok, value} -> json(conn, value)
+          {:error, "not_found", message} -> conn |> put_status(404) |> json(%{error: %{code: "not_found", message: message}})
+          {:error, code, message} when code in ~w(invalid_input invalid_context) -> conn |> put_status(422) |> json(%{error: %{code: code, message: message}})
+          {:error, "conflict", message} -> conn |> put_status(409) |> json(%{error: %{code: "conflict", message: message}})
+          {:error, _code, message} -> conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
+        end
     end
   end
 
@@ -63,8 +70,8 @@ defmodule AgentboardWeb.ConversationController do
         {:error, "not_found", message} ->
           conn |> put_status(404) |> json(%{error: %{code: "not_found", message: message}})
 
-        {:error, _message} ->
-          conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: "Board database is unavailable"}})
+        {:error, message} ->
+          conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
 
         {:error, _code, message} ->
           conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
@@ -105,9 +112,4 @@ defmodule AgentboardWeb.ConversationController do
     end
   end
 
-  defp reply(conn, {:ok, value}), do: json(conn, value)
-
-  defp reply(conn, {:error, message}) do
-    conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
-  end
 end

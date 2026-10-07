@@ -52,7 +52,6 @@ defmodule Agentboard.Mattermost.Conversations do
       )
       |> Operations.public()
     end)
-    |> unwrap()
   end
 
   # Server-side attribution: resolve the authenticated worker to its
