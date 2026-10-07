@@ -13,12 +13,17 @@ defmodule AgentboardWeb.ConversationController do
 
       _proof ->
         case params do
-          %{"agent_id" => agent_id, "mm_user_id" => user_id} ->
-            case Conversations.enroll(agent_id, user_id, params["mm_username"], params["credential_ref"]) do
-              {:ok, identity} -> json(conn, identity)
-              {:error, "conflict", message} -> conn |> put_status(409) |> json(%{error: %{code: "conflict", message: message}})
-              {:error, code, message} when code in ~w(invalid_input invalid_context) -> conn |> put_status(422) |> json(%{error: %{code: code, message: message}})
-              {:error, _code, message} -> conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
+          %{"agent_id" => agent_id, "mm_user_id" => user_id}
+          when is_binary(agent_id) and is_binary(user_id) ->
+            if String.trim(agent_id) == "" or String.trim(user_id) == "" do
+              conn |> put_status(422) |> json(%{error: %{code: "invalid_input", message: "agent_id and mm_user_id must be non-blank"}})
+            else
+              case Conversations.enroll(agent_id, user_id, params["mm_username"], params["credential_ref"]) do
+                {:ok, identity} -> json(conn, identity)
+                {:error, "conflict", message} -> conn |> put_status(409) |> json(%{error: %{code: "conflict", message: message}})
+                {:error, code, message} when code in ~w(invalid_input invalid_context) -> conn |> put_status(422) |> json(%{error: %{code: code, message: message}})
+                {:error, _code, message} -> conn |> put_status(503) |> json(%{error: %{code: "unavailable", message: message}})
+              end
             end
 
           _ ->

@@ -55,13 +55,16 @@ On the worker host (token file mounted from the Secret):
 ```bash
 export AGENTBOARD_MATTERMOST_BASE_URL=https://mattermost.k8s-farm.carverauto.dev
 export AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE=/etc/agentboard/mattermost/worker-token
+export AGENT_ID=<agent-id>
 agentboard chat identity --agent <agent-id>
 agentboard chat send --channel <agents-channel-id> --body "smoke <date>" --retry-key "smoke-<date>"
 agentboard chat read --channel <agents-channel-id> --limit 5 --since <previous-post-id>
 ```
 
 Re-running a send with the same `--retry-key` adopts the existing post
-(`duplicate: true`) instead of posting twice. Deletes or revocations
+(`duplicate: true`) instead of posting twice. The lookup scopes the match
+to your own `agent_id` and scans the last 5 pages (300 posts); older
+posts are posted anew. Deletes or revocations
 surface as explicit `cursor_not_found` / suspended states, never silent
 catch-up.
 

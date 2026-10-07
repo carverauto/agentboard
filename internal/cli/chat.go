@@ -220,6 +220,9 @@ func (c *commands) chatSend() *cobra.Command {
 	cmd.Flags().StringVar(&retryKey, "retry-key", "", "Client idempotency key; a matching post from the last 5 pages (300 posts) is adopted, never duplicated")
 	cmd.Flags().BoolVar(&noCoverage, "no-coverage", false, "Skip reporting the send as a coverage receipt")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if err := c.cfg.Actor.Validate(); err != nil {
+			return err
+		}
 		if body == "" || (channel == "" && dm == "") {
 			return errors.New("--body and --channel or --dm are required")
 		}
@@ -311,7 +314,7 @@ func mustJSON(value any) json.RawMessage {
 }
 
 func (c *commands) chatRead() *cobra.Command {
-	channel, since, selfOverride, incompleteReason := "", "", "", ""
+	channel, since, incompleteReason := "", "", ""
 	limit := 50
 	includeOwn := false
 	noCoverage := false
@@ -319,7 +322,6 @@ func (c *commands) chatRead() *cobra.Command {
 	cmd.Flags().StringVar(&channel, "channel", "", "Channel ID to read (required)")
 	cmd.Flags().IntVar(&limit, "limit", 50, "Newest posts to fetch, 1-200")
 	cmd.Flags().StringVar(&since, "since", "", "Exclusive cursor: stop at this post ID")
-	cmd.Flags().StringVar(&selfOverride, "self", "", "Mattermost user ID treated as self (defaults to the token owner)")
 	cmd.Flags().BoolVar(&includeOwn, "include-own", false, "Include the worker's own posts in the output")
 	cmd.Flags().StringVar(&incompleteReason, "incomplete-reason", "", "Explicit reason to record when catch-up is incomplete")
 	cmd.Flags().BoolVar(&noCoverage, "no-coverage", false, "Skip reporting the read as a coverage receipt")
@@ -334,11 +336,9 @@ func (c *commands) chatRead() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		self := selfOverride
-		if self == "" {
-			if self, err = mm.me(); err != nil {
-				return err
-			}
+		self, err := mm.me()
+		if err != nil {
+			return err
 		}
 		order, posts, err := mm.channelPosts(channel, limit)
 		if err != nil {
