@@ -11,5 +11,5 @@ spec:
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: agentboard-app
-                  key: github-token
+                  name: agentboard-github
+                  key: GITHUB_TOKEN

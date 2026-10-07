@@ -14,7 +14,7 @@ This is the maintainers' own deployment of agentboard on their private `farm01` 
 | Hostname | `agentboard.farm01.carverauto.dev` (`PHX_HOST` in the overlay) |
 | Edge | `HTTPRoute`s in `k8s/overlays/farm01/httproute.yaml` attached to `farm01-edge/farm01-gateway` listeners `agentboard-https` / `agentboard-http` (301 redirect to HTTPS) |
 | TLS and DNS | Dedicated exact-host cert-manager Certificate `agentboard-tls` (DNS01), external-dns publishing a private, DNS-only Cloudflare record |
-| Out-of-band Secrets | `agentboard-db-credentials`, `agentboard-app`, `agentboard-registry` (Kubernetes pull-only robot), `agentboard-mattermost` (bot token, mounted as a file; never committed) |
+| Out-of-band Secrets | `agentboard-db-credentials`, `agentboard-app`, `agentboard-github` (org-owned read-only `GITHUB_TOKEN`; never committed), `agentboard-registry` (Kubernetes pull-only robot), `agentboard-mattermost` (bot token, mounted as a file; never committed) |
 
 The Gateway listeners, Certificate, solver, and external-dns filters live in the maintainers' private GitOps repository (companion change for this host). Preserve unrelated listeners, solvers, filters, ACME credentials, the TXT owner, and the upsert-only policy when editing it. DNS01 works without public HTTP reachability; the shared Gateway's address is discovered from its status.
 
@@ -53,9 +53,21 @@ When configured, Argo CD applies the overlay ([continuous delivery](#continuous-
 
 The farm01 overlay persists the already-enabled PR discovery and observation
 switches. `dashboard-github-token.yaml` injects `GITHUB_TOKEN` from the required
-`agentboard-app` Secret key `github-token`; provision or rotate that read-only
-GitHub credential out of band. The overlay contains only its name/key reference.
-Cooperation and the Mattermost bridge remain explicitly disabled.
+`agentboard-github` Secret key `GITHUB_TOKEN`, a read-only token owned by the
+carverauto organization so private repositories such as `carverauto/gitops` are
+readable (the earlier personal-owner `agentboard-app`/`github-token` reference
+returned 404 for them); provision or rotate that credential out of band. The overlay contains only its name/key reference.
+Cooperation remains explicitly disabled. The outbound Mattermost bridge is
+enabled (captain-approved 2026-10-07, image 7dfd031 carries the CA-file TLS fix);
+pause it by setting `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false` and restarting.
+
+`AGENTBOARD_CI_POLICIES` configures only `carverauto/serviceradar`: head-tested
+required identities `status:BazelCI`, `check:15368:lint`, `check:15368:gitleaks`,
+`check:46505:GitGuardian Security Checks` and `status:license/cla`, taken from
+provider evidence on serviceradar PR 5516. Accepted conclusions are `success` and
+`skipped`, so path-filtered checks do not block. Every latest check on the head,
+required or not, must still be completed with an accepted conclusion before a
+row is `passing`. Other repositories stay `policy_unknown` until configured.
 
 Provider admission budgets live in PostgreSQL's `delivery_provider_budgets`,
 independently of these switches and GitHub's hourly token quota. The current
