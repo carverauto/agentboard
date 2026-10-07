@@ -19,7 +19,7 @@ const connections = new Set();
 const capabilities = {
   idle_wake: { supported: false, reason: 'No proven atomic composer/wake-owner guard; next prompt or explicit check-in required' },
   turn_start: { supported: true, reason: 'Native prompt.submit context; original prompt and foreign middleware retained' },
-  tool_return: { supported: true, reason: 'Only dedicated Agentboard MCP check-in; original result retained' },
+  tool_return: { supported: false, reason: 'Automatic tool-return frame disabled; explicit check-in result only' },
   receipt: { supported: true, reason: 'Explicit exact-ID ack through protected epoch receipt capability' },
   recovery: { supported: true, reason: 'Protected attempt journal; native session.end retires generation; verified rebind required' },
 };
@@ -56,7 +56,8 @@ function save(file, value) {
 function live(current) { return current && current === owner && !current.retired && !closing; }
 function identity(current) { return { protocol: 1, adapter_version: version, session_id: current.session_id, generation: current.generation, socket_path: socket }; }
 function probe(outcome) {
-  return { ...identity(owner || { session_id: '', generation: '' }), state: live(owner) ? 'boundary' : 'unsupported', reason: live(owner) ? 'Native boundary only; no idle wake' : 'Native hook has not verified this session', capabilities: live(owner) ? capabilities : Object.fromEntries(Object.keys(capabilities).map(k => [k, { supported: false, reason: 'Native generation unavailable' }])), outcome };
+  const usable = live(owner) && owner.autoValid === true;
+  return { ...identity(owner || { session_id: '', generation: '' }), state: usable ? 'boundary' : 'unsupported', reason: usable ? 'Native boundary only; no idle wake' : (live(owner) ? 'Automatic delivery invalidated; explicit check-in only' : 'Native hook has not verified this session'), capabilities: usable ? capabilities : Object.fromEntries(Object.keys(capabilities).map(k => [k, { supported: false, reason: 'Native generation unavailable' }])), outcome };
 }
 function matches(current, request) { return live(current) && request.session_id === current.session_id && request.generation === current.generation; }
 function evidencePath(batch) {
@@ -81,7 +82,7 @@ function submit(current, batch) {
     if (previous.generation !== current.generation || previous.payload_hash !== batch.payload_hash || previous.binding_epoch !== batch.binding_epoch) return 'uncertain';
     return ['accepted', 'boundary_received'].includes(previous.phase) ? 'submitted' : 'uncertain';
   }
-  if (!live(current) || current.pending) return 'not_submitted';
+  if (!live(current) || current.autoValid !== true || current.pending) return 'not_submitted';
   record(current, batch, 'submitting');
   current.pending = { batch, body };
   record(current, batch, 'accepted');
@@ -104,7 +105,7 @@ async function take(current, original) {
     const check = original || await execute(current, 'check-in');
     const state = JSON.parse(check.content[0].text).state;
     const pending = current.pending;
-    if (!live(current) || check.isError || !pending || state?.worker?.enabled !== true || state.worker.paused !== false || state.binding?.session_id !== current.session_id || state.binding?.pane_id !== current.generation || state.binding?.binding_epoch !== pending.batch.binding_epoch) return { original: check };
+    if (!live(current) || current.autoValid !== true || check.isError || !pending || state?.worker?.enabled !== true || state.worker.paused !== false || state.binding?.session_id !== current.session_id || state.binding?.pane_id !== current.generation || state.binding?.binding_epoch !== pending.batch.binding_epoch) return { original: check };
     record(current, pending.batch, 'boundary_received');
     current.pending = null;
     return { original: check, body: pending.body };
@@ -122,13 +123,18 @@ async function hook(route, request) {
   if (route === '/bind') {
     if (typeof request.session_id !== 'string' || !request.session_id || request.session_id.length > 128) throw new Error('Native session ID required');
     retire(owner);
-    owner = { session_id: request.session_id, generation: randomUUID(), pending: null, retired: false, taking: false, controller: new AbortController() };
+    owner = { session_id: request.session_id, generation: randomUUID(), pending: null, retired: false, taking: false, autoValid: true, controller: new AbortController() };
     save(socket + '.identity.json', identity(owner));
     return identity(owner);
   }
   const current = owner;
   if (!matches(current, request)) throw new Error('Native generation mismatch');
   if (route === '/retire') { retire(current); return { retired: true }; }
+  if (route === '/invalidate') {
+    if (!matches(current, request)) throw new Error('Native generation mismatch');
+    current.autoValid = false;
+    return { invalidated: true };
+  }
   if (route === '/take') return take(current);
   throw new Error('Unknown native event');
 }

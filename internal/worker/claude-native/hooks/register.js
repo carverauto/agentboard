@@ -33,8 +33,15 @@ async function bind($) {
   if (owner?.session_id === session) return owner;
   // No inherited generation. Resume/fork/reload always requires explicit API bind.
   const identity = await request($, 'bind', { session_id: session });
-  if (identity && revision === lifecycle && await $.session.id() === session && revision === lifecycle) owner = identity;
-  else if (identity) await request($, 'retire', identity).catch(() => undefined);
+  let adopted = false;
+  try {
+    if (identity && revision === lifecycle && await $.session.id() === session && revision === lifecycle) {
+      owner = identity;
+      adopted = true;
+    }
+  } finally {
+    if (identity && !adopted) await request($, 'retire', identity).catch(() => undefined);
+  }
   return revision === lifecycle && owner?.session_id === session ? owner : undefined;
 }
 
@@ -44,6 +51,14 @@ async function refuse($, current) {
   eligible = false;
   eligibleSession = undefined;
   try { if (current) await request($, 'retire', current); } catch { /* inert */ }
+}
+
+async function invalidate($, current) {
+  lifecycle += 1;
+  eligible = false;
+  eligibleSession = undefined;
+  if (!current || owner === current) owner = current;
+  try { if (current) await request($, 'invalidate', current); } catch { /* inert */ }
 }
 
 export function register(on) {
@@ -72,12 +87,7 @@ export function register(on) {
     return next(event);
   });
   on('session.attach', async ($, event, next) => {
-    const retired = owner;
-    lifecycle += 1;
-    owner = undefined;
-    eligible = false;
-    eligibleSession = undefined;
-    try { if (retired) await request($, 'retire', retired); } catch { /* inert */ }
+    await invalidate($, owner);
     return next(event);
   });
   on('session.end', async ($, event, next) => {
@@ -91,24 +101,24 @@ export function register(on) {
   });
   on('prompt.submit', async ($, event, next) => {
     const revision = lifecycle;
-    if (!eligible) { if (owner) await refuse($, owner); return next(event); }
+    if (!eligible) return next(event);
     let current;
     try {
-      if (!(await headless($, revision))) { await refuse($, owner); return next(event); }
+      if (!(await headless($, revision))) { await invalidate($, owner); return next(event); }
       if (revision !== lifecycle || !eligible) return next(event);
       current = await bind($).catch(() => undefined);
       if (!current || revision !== lifecycle || !eligible || current.session_id !== eligibleSession) {
         if (current && current.session_id !== eligibleSession) await refuse($, current).catch(() => undefined);
         return next(event);
       }
-      if (!(await headless($, revision))) { await refuse($, current); return next(event); }
+      if (!(await headless($, revision))) { await invalidate($, current); return next(event); }
       if (revision !== lifecycle || !eligible || owner !== current) return next(event);
     } catch { return next(event); }
     try {
       const result = await request($, 'take', current);
       if (owner !== current || next.signal.aborted || await $.session.id() !== current.session_id) return next(event);
       if (revision !== lifecycle || !eligible) return next(event);
-      if (!(await headless($, revision))) { await refuse($, current); return next(event); }
+      if (!(await headless($, revision))) { await invalidate($, current); return next(event); }
       if (revision !== lifecycle || !eligible || owner !== current) return next(event);
       if (result?.body) return next({ ...event, context: [...(event.context ?? []), result.body] });
     } catch { /* Delivery failure must never block or rewrite the user's prompt. */ }

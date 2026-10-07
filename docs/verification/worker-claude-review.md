@@ -11,3 +11,13 @@ replacement session start retires the previous generation before fallible
 inspection, and every start exception path retires all held references.
 Remote conformance now proves explicit-only MCP results, silent-attachment
 preservation of pending evidence, and stale generation rejection.
+
+Addendum, automatic versus explicit identity: observed attachment or unknown
+surfaces invalidate automatic submit/take/inspect while the same live
+binding keeps exact explicit check-in and ack; only end, replacement, or
+stale identity retire. Bridge bind failures after identity creation retire
+the fresh identity in a finally step. Tool-return automatic delivery is
+reported unsupported with an explicit-only reason. A fresh isolated live
+attempt could not load the adapter (profile not logged in); the historical
+installed proof is not new-revision validation. Verified clear retirement
+remains pending fresh verified rebind proof; full 6.3/6.4/6.5 stay open.

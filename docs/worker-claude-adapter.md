@@ -52,12 +52,14 @@ enabling host dispatch. Binding does not silently enable the worker.
 
 The descriptor is local native identity evidence, not server authorization.
 Each prompt delivery rechecks durable enabled/paused state, epoch, session,
-generation, and fresh headless proof through the scoped API. An interactive,
-surface-attached, or otherwise unproven session retires automatic delivery
-on observation: a replacement start retires the previous generation before
-any fallible inspection, an attach event retires immediately, and an attach
-observed at a prompt retires the generation. Missing or unreadable surface
-evidence fails closed. Explicit check-in stays available in every profile. A successful native submission or a model
+generation, and fresh headless proof through the scoped API. Automatic
+eligibility and the live explicit identity are distinct: an interactive,
+surface-attached, or otherwise unproven session invalidates automatic
+submit/take/inspect on observation while the same live binding keeps serving
+exact explicit check-in and ack with no append, consumption, or receipt. A
+replacement start or session end retires the previous generation before any
+fallible inspection; a stale generation or epoch is refused everywhere.
+Missing or unreadable surface evidence fails closed. A successful native submission or a model
 turn ending never records received/handled. Those receipts require exact IDs
 and a stable key through the dedicated ack tool or explicit CLI.
 
@@ -99,9 +101,12 @@ callback entry points, protected evidence, pause checks, exact receipt calls,
 retirement during an in-flight guard, explicit-only MCP results, silent
 surface attachment with pending preserved, and stale generation rejection.
 The installed headless proof is historical: it predates the explicit-only MCP
-policy and proves prompt delivery in the headless profile only. UI-attached,
-unknown, and unsupported sessions receive explicit results without automatic
-frames or implicit receipts. The invented engine/API fixture is distinct
+policy and proves prompt delivery in the headless profile only, not this
+revision. A fresh isolated live attempt could not load the adapter because
+the profile is not logged in; no credentials were copied and no login,
+enrollment, or global settings change was performed. UI-attached, unknown,
+and unsupported sessions receive explicit results without automatic frames
+or implicit receipts. The invented engine/API fixture is distinct
 from installed-Claude proof and published-server interoperability.
 
 - [Remote adapter and worker tests](https://carverauto.buildbuddy.io/invocation/a05541bd-476c-4610-8ae2-ff9c80c020e3)
