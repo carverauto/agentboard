@@ -120,3 +120,6 @@ A delayed-bind regression first failed remotely because an old prompt consumed a
 replacement's pending frame. The fix pins the bind callback to its original
 lifecycle revision and recipient; the replacement retains its own source.
 [Pre-fix reproduction](https://carverauto.buildbuddy.io/invocation/58e70254-6dfe-4ac2-bf64-08ca4a91f31d).
+A follow-up fences every asynchronous negative proof the same way: a stale
+surface, bind, or start callback that resolves after a replacement never
+invalidates or retires the new owner's automatic eligibility.
