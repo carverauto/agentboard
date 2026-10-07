@@ -2,6 +2,8 @@
 // The MCP child owns transport, never a detached shell or a model watcher.
 let owner;
 let lifecycle = 0;
+let eligible = false;
+let eligibleSession;
 
 async function request($, route, body) {
   const socket = await $.env.get('AGENTBOARD_CLAUDE_SOCKET');
@@ -14,13 +16,12 @@ async function request($, route, body) {
   return JSON.parse(response.text);
 }
 
-async function proven($, event) {
-  if (event?.isInteractive) return false;
-  if (typeof $.session?.surfaces !== 'function') return false;
+async function headless($, revision) {
   try {
+    if (typeof $.session?.surfaces !== 'function') return false;
     const surfaces = await $.session.surfaces();
-    if (Array.isArray(surfaces)) return surfaces.length === 0;
-    return !surfaces;
+    if (revision !== lifecycle) return false;
+    return Array.isArray(surfaces) && surfaces.length === 0;
   } catch {
     return false;
   }
@@ -41,33 +42,69 @@ async function bind($) {
 async function refuse($, current) {
   lifecycle += 1;
   owner = undefined;
+  eligible = false;
+  eligibleSession = undefined;
   try { if (current) await request($, 'retire', current); } catch { /* inert */ }
 }
 
 export function register(on) {
   on('session.start', async ($, event, next) => {
     lifecycle += 1;
-    try { owner = undefined; if (await proven($, event)) await bind($); } catch { owner = undefined; }
+    const revision = lifecycle;
+    owner = undefined;
+    eligible = false;
+    eligibleSession = undefined;
+    try {
+      const session = await $.session.id();
+      if (revision !== lifecycle) return next(event);
+      if (event?.isInteractive !== false || !(await headless($, revision))) return next(event);
+      if (revision !== lifecycle) return next(event);
+      const fresh = await bind($);
+      if (revision !== lifecycle) return next(event);
+      if (!(await headless($, revision))) { await refuse($, fresh ?? owner); return next(event); }
+      if (revision !== lifecycle) return next(event);
+      if (fresh && fresh.session_id === session) { eligible = true; eligibleSession = session; }
+      else { owner = undefined; eligible = false; eligibleSession = undefined; }
+    } catch { if (revision === lifecycle) { owner = undefined; eligible = false; eligibleSession = undefined; } }
+    return next(event);
+  });
+  on('session.attach', async ($, event, next) => {
+    const retired = owner;
+    lifecycle += 1;
+    owner = undefined;
+    eligible = false;
+    eligibleSession = undefined;
+    try { if (retired) await request($, 'retire', retired); } catch { /* inert */ }
     return next(event);
   });
   on('session.end', async ($, event, next) => {
     const retired = owner;
     lifecycle += 1;
     owner = undefined; // Invalidate before awaiting any foreign middleware or I/O.
+    eligible = false;
+    eligibleSession = undefined;
     try { if (retired) await request($, 'retire', retired); } catch { /* inert */ }
     return next(event);
   });
   on('prompt.submit', async ($, event, next) => {
+    const revision = lifecycle;
+    if (!eligible) { if (owner) await refuse($, owner); return next(event); }
     let current;
     try {
-      if (!(await proven($, event))) { await refuse($, owner); return next(event); }
+      if (!(await headless($, revision))) { await refuse($, owner); return next(event); }
+      if (revision !== lifecycle || !eligible) return next(event);
       current = await bind($).catch(() => undefined);
     } catch { return next(event); }
-    if (!current) return next(event);
+    if (!current || revision !== lifecycle || !eligible || current.session_id !== eligibleSession) {
+      if (current && current.session_id !== eligibleSession) await refuse($, current).catch(() => undefined);
+      return next(event);
+    }
     try {
       const result = await request($, 'take', current);
       if (owner !== current || next.signal.aborted || await $.session.id() !== current.session_id) return next(event);
-      if (!(await proven($, event).catch(() => false))) { await refuse($, current); return next(event); }
+      if (revision !== lifecycle || !eligible) return next(event);
+      if (!(await headless($, revision))) { await refuse($, current); return next(event); }
+      if (revision !== lifecycle || !eligible || owner !== current) return next(event);
       if (result?.body) return next({ ...event, context: [...(event.context ?? []), result.body] });
     } catch { /* Delivery failure must never block or rewrite the user's prompt. */ }
     return next(event);

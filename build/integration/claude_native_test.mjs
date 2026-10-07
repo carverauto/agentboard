@@ -114,6 +114,7 @@ try {
     if (reason === 'clear') session = 'invented-claude-clear';
     else if (session.includes('fork')) session = 'invented-claude-resumed';
     else session = 'invented-claude-fork';
+    await event('session.start', {isInteractive:false});
     assert.deepEqual(await event('prompt.submit', original), original);
     id = identity(); state(id); assert.notEqual(id.generation, old.generation);
     assert.equal((await native(old, 'submit', batch('retired-'+reason))).outcome, 'not_submitted');
@@ -127,7 +128,7 @@ try {
   await event('session.end',{reason:'resume'});
   assert.deepEqual(await inFlight, original);
   assert.equal((await native(id,'inspect')).state, 'unsupported');
-  // A delayed old prompt's bind must not consume a replacement's pending source.
+  // A stale session.start bind must not clobber a replacement's eligibility or source.
   let releaseBind, bindArrived;
   const held = new Promise(resolve => { releaseBind = resolve; });
   const arrived = new Promise(resolve => { bindArrived = resolve; });
@@ -139,8 +140,8 @@ try {
     }
     return response;
   };
-  session = 'invented-delayed-old-prompt';
-  const oldPrompt = event('prompt.submit', original);
+  session = 'invented-delayed-old-start';
+  const oldStart = event('session.start', {isInteractive:false});
   await arrived;
   await event('session.end', {reason:'resume'});
   session = 'invented-replacement';
@@ -148,10 +149,39 @@ try {
   id = identity(); state(id);
   assert.equal((await native(id,'submit',batch('replacement'))).outcome,'submitted');
   releaseBind();
-  assert.deepEqual(await oldPrompt, original, 'retired bind callback cannot consume replacement source');
+  await oldStart;
   const replacement = await event('prompt.submit', original);
   assert.equal(replacement.context.length, 2);
-  assert.ok(replacement.context[1].includes('"attempt_id":"replacement"'));
+  assert.ok(replacement.context[1].includes('"attempt_id":"replacement"')); 
+  // A delayed old take must not consume a replacement's pending source.
+  session = 'invented-delayed-old-prompt';
+  await event('session.start', {isInteractive:false});
+  const oldId = identity(); state(oldId);
+  assert.equal((await native(oldId,'submit',batch('delayedold'))).outcome,'submitted');
+  let releaseTake, takeArrived;
+  const takeHeld = new Promise(resolve => { releaseTake = resolve; });
+  const takeReached = new Promise(resolve => { takeArrived = resolve; });
+  let holdTake = true;
+  engine.http.fetch = async (url, init) => {
+    const response = await fetch(url, init);
+    if (url.endsWith('/take') && holdTake) {
+      holdTake = false; takeArrived(); await takeHeld;
+    }
+    return response;
+  };
+  const oldPrompt = event('prompt.submit', original);
+  await takeReached;
+  await event('session.end', {reason:'resume'});
+  session = 'invented-replacement-take';
+  await event('session.start', {isInteractive:false});
+  id = identity(); state(id);
+  assert.equal((await native(id,'submit',batch('replacement-take'))).outcome,'submitted');
+  releaseTake();
+  assert.deepEqual(await oldPrompt, original, 'retired take callback cannot consume replacement source');
+  const replacementTake = await event('prompt.submit', original);
+  assert.equal(replacementTake.context.length, 2);
+  assert.ok(replacementTake.context[1].includes('"attempt_id":"replacement-take"'));
+  engine.http.fetch = fetch;
   session = 'invented-headless-attach';
   await event('session.start', {isInteractive:false});
   id = identity(); state(id);
@@ -161,11 +191,21 @@ try {
   assert.equal((await native(id,'inspect')).state, 'unsupported');
   assert.equal((await native(id,'submit',batch('attached-again'))).outcome,'not_submitted');
   surfaces = [];
+  session = 'invented-attach-alone';
+  await event('session.start', {isInteractive:false});
+  id = identity(); state(id);
+  assert.equal((await native(id,'submit',batch('attachalone'))).outcome,'submitted');
+  await event('session.attach', {});
+  assert.equal((await native(id,'inspect')).state, 'unsupported');
+  assert.equal((await native(id,'submit',batch('attachalone-again'))).outcome,'not_submitted');
+  assert.deepEqual(await event('prompt.submit', original), original);
   await event('session.end', {reason:'resume'});
   session = 'invented-interactive-start';
   await event('session.start', {isInteractive:true});
   assert.equal((await native({session_id:'invented-interactive-start', generation:'unbound'},'inspect')).state, 'unsupported');
-  assert.deepEqual(await event('prompt.submit', {...original, isInteractive:true}), original, 'interactive prompt refuses automatic delivery');
+  assert.ok(!fs.existsSync(socket + '.identity.json'));
+  assert.deepEqual(await event('prompt.submit', original), original, 'interactive start leaves no eligibility for later prompts');
+  assert.ok(!fs.existsSync(socket + '.identity.json'));
   session = 'invented-headless-race';
   await event('session.start', {isInteractive:false});
   id = identity(); state(id, false, 400);
@@ -177,6 +217,27 @@ try {
   assert.deepEqual(await surfacing, original, 'surface attaching in flight refuses delivery');
   assert.equal((await native(id,'inspect')).state, 'unsupported');
   surfaces = [];
+  let releaseBind2, bindArrived2;
+  const held2 = new Promise(resolve => { releaseBind2 = resolve; });
+  const arrived2 = new Promise(resolve => { bindArrived2 = resolve; });
+  let hold2 = true;
+  engine.http.fetch = async (url, init) => {
+    const response = await fetch(url, init);
+    if (url.endsWith('/bind') && hold2) {
+      hold2 = false; bindArrived2(); await held2;
+    }
+    return response;
+  };
+  session = 'invented-attach-during-bind';
+  const attaching = event('session.start', {isInteractive:false});
+  await arrived2;
+  surfaces = ['desktop'];
+  releaseBind2();
+  await attaching;
+  surfaces = [];
+  engine.http.fetch = fetch;
+  assert.equal((await native({session_id:'invented-attach-during-bind', generation:'unbound'},'inspect')).state, 'unsupported');
+  assert.deepEqual(await event('prompt.submit', original), original, 'surface attaching during bind refuses eligibility');
   assert.ok((await rpc('tools/list')).result.tools.some(t=>t.name==='agentboard_ack'));
   console.log('Claude native protocol: generation retirement, pause, preserved prompt/tool result, exact receipts, bounded frames and uncertain recovery passed; invented API and engine fixture.');
 } finally {
