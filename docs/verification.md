@@ -141,7 +141,7 @@ The [normalized receipt](verification/farm01-ash-foundation.json) records unchan
 
 The installed CLI watched the live API through the Gateway for 45 seconds, receiving ten valid NDJSON snapshots with no stderr and clean cancellation. BM25 search returned a positive score using `pg_textsearch-1.5.1`. CNPG remains healthy with two instances, the application roles remain nonsuperuser, and Mattermost HTTPS ping reports database and filestore OK. Its configuration and storage were not changed. No application compilation or tests ran locally.
 
-This is the first bounded Ash Board/Evidence stage. The full delivery task remains in Review: PR inventory/providers/AshOban monitoring, CI dashboard/API/CLI, completion guard, durable followups, Mattermost bridge and wakeup integration remain pending. An older schema-5 image can read the additive data after rollback but resumes legacy writes without the new audit coverage; preserve schema 6 and fix forward for an audited writer.
+This is the first bounded Ash Board/Evidence stage. At that rollout the full delivery change was still in Review, including PR inventory. Canonical submission inventory is recorded in the next section and is not part of this deployed image. Providers, AshOban monitoring, CI dashboard/API/CLI, completion guard, durable followups, Mattermost bridge and wakeup integration remain pending. An older schema-5 image can read the additive schema-6 data after rollback but resumes legacy writes without the new audit coverage; preserve schema 6 and fix forward for an audited writer.
 
 ## Durable PR inventory acceptance (2026-10-06)
 

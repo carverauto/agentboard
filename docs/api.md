@@ -106,10 +106,12 @@ The server subscribes before reading initial state, then re-reads after committe
 
 The CLI reconnects with bounded backoff, reloads durable state, and labels the first new snapshot reconnect. Stream handshake 429 responses use the same Retry-After policy; a delay beyond the bounded handshake budget ends the watch rather than retrying early. SIGINT/SIGTERM cancels promptly. This is a snapshot subscription, not a replayable durable event stream or a guarantee to emit every intermediate mutation. Task history remains independently readable.
 
-From schema 7, existing task create/edit/link requests containing `pr_url`
-atomically retain a canonical Delivery PR and its first task submission.
+From schema 7, task create/edit/link requests that set an admitted `pr_url`
+atomically retain a canonical Delivery PR and that task's first submission.
+Clearing the URL does not create a submission or delete an existing one.
 The task response and watch payloads are unchanged. Submitted agent/model/
-harness attribution survives later handoff or URL replacement. Historical
+harness attribution survives later handoff or URL replacement; a later actor
+relinking the same URL does not replace the earliest submitter. Historical
 links without an introducing timeline event remain unknown; current task
 ownership is not evidence of PR submission. Exact URL admission, discovery,
 and image rollback are in [schema 7 compatibility](release.md#schema-7-durable-pr-submission-inventory).
