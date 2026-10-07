@@ -14,6 +14,18 @@ async function request($, route, body) {
   return JSON.parse(response.text);
 }
 
+async function proven($, event) {
+  if (event?.isInteractive) return false;
+  if (typeof $.session?.surfaces !== 'function') return false;
+  try {
+    const surfaces = await $.session.surfaces();
+    if (Array.isArray(surfaces)) return surfaces.length === 0;
+    return !surfaces;
+  } catch {
+    return false;
+  }
+}
+
 async function bind($) {
   const revision = lifecycle;
   const session = await $.session.id();
@@ -26,10 +38,16 @@ async function bind($) {
   return revision === lifecycle && owner?.session_id === session ? owner : undefined;
 }
 
+async function refuse($, current) {
+  lifecycle += 1;
+  owner = undefined;
+  try { if (current) await request($, 'retire', current); } catch { /* inert */ }
+}
+
 export function register(on) {
   on('session.start', async ($, event, next) => {
     lifecycle += 1;
-    try { owner = undefined; await bind($); } catch { owner = undefined; }
+    try { owner = undefined; if (await proven($, event)) await bind($); } catch { owner = undefined; }
     return next(event);
   });
   on('session.end', async ($, event, next) => {
@@ -40,11 +58,16 @@ export function register(on) {
     return next(event);
   });
   on('prompt.submit', async ($, event, next) => {
-    const current = await bind($).catch(() => undefined);
+    let current;
+    try {
+      if (!(await proven($, event))) { await refuse($, owner); return next(event); }
+      current = await bind($).catch(() => undefined);
+    } catch { return next(event); }
     if (!current) return next(event);
     try {
       const result = await request($, 'take', current);
       if (owner !== current || next.signal.aborted || await $.session.id() !== current.session_id) return next(event);
+      if (!(await proven($, event).catch(() => false))) { await refuse($, current); return next(event); }
       if (result?.body) return next({ ...event, context: [...(event.context ?? []), result.body] });
     } catch { /* Delivery failure must never block or rewrite the user's prompt. */ }
     return next(event);
