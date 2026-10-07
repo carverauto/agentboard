@@ -50,3 +50,6 @@ npm-debug.log
 # Python helper bytecode
 __pycache__/
 *.pyc
+
+# Private task briefs written only inside leased seat worktrees.
+.agentboard-seat/

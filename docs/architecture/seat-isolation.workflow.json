@@ -1,0 +1,135 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Agentboard seat isolation",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "lanes": [
+    {
+      "id": "launch",
+      "label": "Explicit seat launch"
+    },
+    {
+      "id": "recovery",
+      "label": "Isolation failure",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "brief",
+    "lease",
+    "gate",
+    "harness",
+    "ci"
+  ],
+  "nodes": [
+    {
+      "id": "brief",
+      "lane": "launch",
+      "col": 0,
+      "type": "external",
+      "label": "Assigned brief",
+      "sublabel": "Stable worker identity",
+      "width": 150
+    },
+    {
+      "id": "lease",
+      "lane": "launch",
+      "col": 1,
+      "type": "backend",
+      "label": "Treehouse v2.0.1",
+      "sublabel": "Persistent lease",
+      "width": 150
+    },
+    {
+      "id": "gate",
+      "lane": "launch",
+      "col": 2,
+      "type": "security",
+      "label": "Physical cwd gate",
+      "sublabel": "Linked root; same repository",
+      "width": 150
+    },
+    {
+      "id": "harness",
+      "lane": "launch",
+      "col": 3,
+      "type": "backend",
+      "label": "Native harness",
+      "sublabel": "STOP brief + startup check",
+      "width": 150
+    },
+    {
+      "id": "ci",
+      "lane": "launch",
+      "col": 4,
+      "type": "cloud",
+      "label": "Review and green CI",
+      "sublabel": "Retain lease; do not merge",
+      "width": 150
+    },
+    {
+      "id": "stop",
+      "lane": "recovery",
+      "col": 2,
+      "type": "security",
+      "label": "STOP and report",
+      "sublabel": "Preserve leased worktree",
+      "width": 150
+    }
+  ],
+  "edges": [
+    {
+      "id": "request-lease",
+      "from": "brief",
+      "to": "lease",
+      "label": "explicit launch"
+    },
+    {
+      "id": "check-root",
+      "from": "lease",
+      "to": "gate",
+      "label": "leased path"
+    },
+    {
+      "id": "launch-native",
+      "from": "gate",
+      "to": "harness",
+      "label": "settled cwd"
+    },
+    {
+      "id": "verify-delivery",
+      "from": "harness",
+      "to": "ci",
+      "label": "submit PR"
+    },
+    {
+      "id": "reject-cwd",
+      "from": "gate",
+      "to": "stop",
+      "label": "mismatch",
+      "role": "error",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Two required boundaries",
+      "items": [
+        "Launcher verifies physical cwd before native launch",
+        "Harness rechecks the expected root before editing"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Recovery remains explicit",
+      "items": [
+        "Hosting metadata and hooks do not establish isolation",
+        "Keep failed leases; preserve work before returning your seat"
+      ]
+    }
+  ]
+}

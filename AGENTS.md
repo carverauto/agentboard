@@ -43,3 +43,29 @@ the branch from that freshly fetched ref. Before publishing, check it still
 merges cleanly with current `main`. Preserve pipeline-owned fixes through the
 reported No-mistakes custody flow; let its active CI monitor resolve conflicts
 and revalidate rather than hand-rebasing an active run.
+
+## Agentboard seat isolation
+
+Every implementation seat must use a disposable, persistently leased **Treehouse
+v2.0.1** linked worktree. The primary checkout is for inspection and explicit
+launcher invocation only. A branch, Herdr pane, container, or backend tag does not
+establish worktree isolation. Do not implement, branch, commit or push from the
+primary checkout. Start seats with [scripts/launch-seat](scripts/launch-seat);
+install the checksum-pinned tool with [scripts/install-treehouse](scripts/install-treehouse).
+
+Before editing, and again in each ship brief, require `pwd -P` and
+`git rev-parse --show-toplevel` to resolve to the exact expected disposable
+worktree root in `AGENTBOARD_SEAT_WORKTREE`. The launcher also checks the common
+Git directory, linked-worktree registration and a settled cwd before delivering
+the brief and starting the native harness. Primary, source, foreign-repository,
+subdirectory, missing or mismatched cwd means **STOP**: report the isolation
+failure and mark the owned task blocked after verifying the current claim.
+Resume only in a correctly leased task worktree. Keep the lease through PR review
+and green CI; return it explicitly only after preserving all work and coordinating
+cleanup. Never prune or return another seat's worktree.
+
+The launcher gate and the generated STOP brief both remain mandatory. Optional
+SessionStart/turn-end checks are structural backstops, not replacements, and are
+not installed automatically. See [seat isolation setup](docs/setup/seat-isolation.md)
+for native argv, versioned pool, lease and recovery details. No fleet automation,
+Herdr prompt delivery or merge authorization is implied.

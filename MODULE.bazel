@@ -141,3 +141,11 @@ http_archive(
 
 include("//build/integration:postgres.MODULE.bazel")
 include("//build/release:runtime.MODULE.bazel")
+
+# Exercise the actual v2 CLI; no local Go compilation or floating tool install.
+http_archive(
+    name = "seat_treehouse_linux_amd64",
+    urls = ["https://github.com/kunchenguid/treehouse/releases/download/v2.0.1/treehouse-v2.0.1-linux-amd64.tar.gz"],
+    sha256 = "1d5a32751ab921670103fd201ddb2b91b47338cb13976f45642b827cf8976af2",
+    build_file_content = "exports_files([\"treehouse\"])\n",
+)
