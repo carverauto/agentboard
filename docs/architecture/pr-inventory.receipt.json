@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Volumes/Build/agentboard-ash-delivery-inventory/docs/architecture/pr-inventory.architecture.json",
+  "output": "/Volumes/Build/agentboard-ash-delivery-inventory/docs/architecture/pr-inventory.html",
+  "specification": {
+    "sha256": "98bddc22813ea211f621608e4b0f1003aeae225fb5b5371cf3a6fa90802adc56",
+    "bytes": 3257
+  },
+  "artifact": {
+    "sha256": "59cef5571288096788365f02c59b159f6eb337f557720d49dde5ca114e681761",
+    "bytes": 706602
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

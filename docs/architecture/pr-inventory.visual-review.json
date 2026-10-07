@@ -1,0 +1,18 @@
+{
+  "artifact_sha256": "59cef5571288096788365f02c59b159f6eb337f557720d49dde5ca114e681761",
+  "artifact_bytes": 706602,
+  "visual_review": "passed",
+  "reviewer": "codex image-capable review",
+  "scope": [
+    "1440x900 light and dark",
+    "2048x1320 light and dark"
+  ],
+  "observations": [
+    "Main submission path and discovery/audit branches are distinct; labels do not cross unrelated nodes or routes.",
+    "Both themes have visible text, contained cards and unobstructed reader/navigation controls.",
+    "The larger viewport uses the available height without a large empty lower band."
+  ],
+  "browser_evidence": "passed",
+  "browser_receipt": "pr-inventory.visual-check.json",
+  "correction_rounds": 2
+}

@@ -97,3 +97,13 @@ sh_test(
     size = "large",
     timeout = "long",
 )
+
+sh_test(
+    name = "delivery_inventory_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "delivery_inventory_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["delivery_inventory_test.py", "//testdata/quota:fixtures", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)

@@ -79,3 +79,49 @@ This stage does not add PR polling, CI verdicts, follow-up tasks, a completion
 gate, or the Mattermost bridge. Those remain in
 `openspec/changes/adopt-ash-and-monitor-pr-ci/tasks.md`. The operation boundary
 is documented in [the Archify diagram](architecture/ash-board-actions.html).
+
+## Schema 7: durable PR submission inventory
+
+This additive stage introduces the `Agentboard.Delivery` domain with canonical
+`PullRequest` and immutable `TaskLink` resources. GitHub owner/repository case
+aliases resolve to one PR identity. PR inputs must be an exact HTTPS GitHub
+URL of at most 2048 bytes, without trailing newlines. Multiple tasks can link the same PR; each
+link retains its first submitting agent, model, harness and source timeline
+event. Handoff, reassignment, terminal status, clearing a URL or replacing it
+cannot erase that submission or rewrite its attribution.
+
+Explicit task create/edit/link requests that contain a PR write the task,
+PaperTrail versions, AshEvents, compatible timeline and inventory in one
+transaction. Failures leave none of those writes committed. The task row is
+locked before the canonical PR identity; audit locks stay scoped to their
+resource/record. There is no actor-wide lock, shared SQL GenServer or provider
+request inside this transaction.
+
+`Agentboard.Delivery.discover(after_task_id, limit)` reconciles one keyset page
+of current task PR URLs, including Done, Cancelled and archived tasks. Its
+limit is 1–100, default 100; callers continue `next_cursor` until nil and start
+from the beginning on the next sweep. Every task is re-read under its own row
+lock, and uniqueness makes retries and overlapping sweeps idempotent. Failed
+pages return an error so callers must retry rather than advance a cursor.
+The earliest timeline event that introduced that canonical URL supplies
+historical attribution; later ownership/status snapshots do not. Links lacking
+that evidence remain explicitly unknown, with no inferred submission time or
+borrowed current owner.
+Historical task and timeline records are never modified or synthesized into
+Ash audit records. URLs replaced before this stage are not reconstructed from
+all historical task events; existing current links and subsequent submissions
+are the inventory cutoff.
+
+Migrate and run the same immutable schema-7 image. The migration adds three
+Delivery tables and raises the readiness requirement to schema 7. Repeat
+migration preserves inventory and historical data. Roll back only the image,
+retaining the additive tables and schema version: a schema-6 writer remains
+compatible but omits new PR submissions from the inventory until reconciliation
+runs. Record that gap and fix forward. Do not drop immutable PR/link/version
+history or run a down migration.
+
+This stage establishes inventory for the next scheduler. CI polling, provider
+credentials, CI verdicts, scheduled reconciliation, the PR dashboard/API/CLI,
+completion guard and follow-ups remain pending in the approved OpenSpec change.
+An inventory record alone makes no assertion about CI health. See the
+[Archify submission and discovery diagram](architecture/pr-inventory.html).
