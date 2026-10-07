@@ -319,6 +319,21 @@ class WorkerRuntime(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertNotIn('invented-host',result.stdout+result.stderr)
 
+    def test_invalid_json_payload_rejected_before_adapter_call(self):
+        f = self.fixture()
+        payload = 'plain text, not JSON'
+        f.states['worker-a']['active_batch'] = {'batch_id': 'batch-bad', 'attempt_id': 'attempt-bad', 'worker_id': 'worker-a', 'binding_epoch': 1, 'dispatch_generation': 1, 'payload_hash': hashlib.sha256(payload.encode()).hexdigest(), 'payload': payload, 'delivery_ids': ['delivery-1'], 'lease_expires_at': '2030-01-01T00:00:00Z', 'more': False}
+        process = f.serve()
+        line = process.stdout.readline()
+        self.assertIn('degraded', line)
+        time.sleep(0.5)
+        output = f.stop(process)
+        self.assertIn('invalid frozen', output)
+        self.assertEqual(f.submissions, [])
+        self.assertFalse(any(p[1] == 'result' for p in f.posts))
+        self.assertFalse(any(p[1] == 'receipts' for p in f.posts))
+        self.assertFalse((self.root/'journal/worker-a.json').exists())
+
     def test_install_preview_idempotence_owned_uninstall_and_foreign_preservation(self):
         f=self.fixture()
         for platform in ['darwin','linux']:

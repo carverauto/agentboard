@@ -263,6 +263,11 @@ func recoverAttempt(ctx context.Context, cfg Config, b Binding, a *API, j *Journ
 	return commitResult(ctx, cfg, b, a, j, r)
 }
 
+// maxHostDeferral is the 24-hour safety ceiling for one host poll deferral.
+// Longer server Retry-After values are still respected up to this ceiling;
+// anything beyond it sleeps 24 hours while the report keeps the raw value.
+const maxHostDeferral = 24 * time.Hour
+
 func delay(ctx context.Context, d time.Duration) bool {
 	t := time.NewTimer(d)
 	defer t.Stop()
@@ -298,6 +303,10 @@ func Serve(ctx context.Context, cfg Config, out io.Writer) error {
 					var e *client.Error
 					if errors.As(err, &e) && e.RetryAfter > d {
 						d = e.RetryAfter
+						if d > maxHostDeferral {
+							d = maxHostDeferral
+							r.Reason = "server Retry-After " + e.RetryAfter.String() + " exceeds 24h host ceiling; deferring 24h: " + r.Reason
+						}
 					}
 				} else {
 					failures = 0

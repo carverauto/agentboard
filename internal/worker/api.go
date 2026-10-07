@@ -30,7 +30,7 @@ type Batch struct {
 
 func (b Batch) Validate(binding Binding) error {
 	h := sha256.Sum256([]byte(b.Payload))
-	if b.ID == "" || b.Attempt == "" || b.Agent != binding.Agent || b.Epoch != binding.Epoch || b.Generation < 1 || len(b.Payload) > MaxFrameBytes || len(b.IDs) == 0 || len(b.IDs) > 20 || hex.EncodeToString(h[:]) != b.Hash {
+	if b.ID == "" || b.Attempt == "" || b.Agent != binding.Agent || b.Epoch != binding.Epoch || b.Generation < 1 || len(b.Payload) > MaxFrameBytes || len(b.IDs) == 0 || len(b.IDs) > 20 || hex.EncodeToString(h[:]) != b.Hash || !json.Valid([]byte(b.Payload)) {
 		return errors.New("invalid frozen worker batch")
 	}
 	seen := map[string]bool{}
