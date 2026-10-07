@@ -30,7 +30,7 @@ defmodule Agentboard.Mattermost.TaskThread do
     end
 
     update :mark_rooted do
-      accept([:root_post_id, :expected_marker, :uncertain_reason, :updated_at])
+      accept([:channel_id, :root_post_id, :expected_marker, :uncertain_reason, :updated_at])
       change(set_attribute(:state, "rooted"))
     end
 

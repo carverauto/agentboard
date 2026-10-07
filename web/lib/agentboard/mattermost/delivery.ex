@@ -88,7 +88,7 @@ defmodule Agentboard.Mattermost.Delivery do
   defp deliver_root(cfg, intent, thread, text) do
     case Transport.post(cfg, cfg.channel_id, text, intent.event_marker) do
       {:ok, 201, %{"id" => post_id}} ->
-        commit_root(intent, thread, post_id)
+        commit_root(cfg, intent, thread, post_id)
 
       {:ok, status, body} when status in [401, 403] ->
         park_failed(intent, "unauthorized:#{status}:#{error_hint(body)}")
@@ -144,10 +144,16 @@ defmodule Agentboard.Mattermost.Delivery do
   defp reconcile_root(cfg, intent, thread) do
     case Transport.find_by_marker(cfg, cfg.channel_id, intent.event_marker) do
       {:ok, %{"id" => post_id}} ->
-        commit_root(intent, thread, post_id)
+        commit_root(cfg, intent, thread, post_id)
 
       {:ok, nil} ->
         retry_or_park(intent, thread)
+
+      {:error, :unauthorized} ->
+        park_failed(intent, "unauthorized")
+
+      {:error, :not_found} ->
+        park_failed(intent, "not_found:channel")
 
       {:error, _} ->
         retry_or_park(intent, thread)
@@ -162,6 +168,12 @@ defmodule Agentboard.Mattermost.Delivery do
       {:ok, nil} ->
         retry_or_park(intent, thread)
 
+      {:error, :unauthorized} ->
+        park_failed(intent, "unauthorized")
+
+      {:error, :not_found} ->
+        park_failed(intent, "not_found:channel")
+
       {:error, _} ->
         retry_or_park(intent, thread)
     end
@@ -175,7 +187,7 @@ defmodule Agentboard.Mattermost.Delivery do
     end
   end
 
-  defp commit_root(intent, thread, post_id) do
+  defp commit_root(cfg, intent, thread, post_id) do
     Operations.transaction(fn ->
       lock_intent(intent.id)
       current = Operations.fetch!(Outbox, intent.id, "Outbox intent not found")
@@ -201,6 +213,7 @@ defmodule Agentboard.Mattermost.Delivery do
         thread_row,
         :mark_rooted,
         %{
+          channel_id: cfg.channel_id,
           root_post_id: thread_row.root_post_id || post_id,
           expected_marker: intent.event_marker,
           uncertain_reason: uncertain,
