@@ -172,7 +172,16 @@ defmodule Agentboard.Mattermost.Bridge do
     end)
   end
 
-  defp unique_conflict?(%Postgrex.Error{postgres: %{code: :unique_violation}}), do: true
+  defp unique_conflict?(%Postgrex.Error{postgres: %{code: :unique_violation} = pg} = err) do
+    constraint = Map.get(pg, :constraint) || Map.get(pg, "constraint")
+
+    cond do
+      constraint == "mattermost_outbox_source_uniq" -> true
+      is_binary(err.message) and String.contains?(err.message, "mattermost_outbox_source_uniq") -> true
+      true -> false
+    end
+  end
+
   defp unique_conflict?(_), do: false
 
   defp truncate(text) when byte_size(text) > @max_body_chars do

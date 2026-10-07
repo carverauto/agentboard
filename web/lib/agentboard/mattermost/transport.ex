@@ -26,14 +26,69 @@ defmodule Agentboard.Mattermost.Transport do
   # Reconciliation: find a post we may have created before losing the
   # response. Channel history is authoritative; a client-sent idempotency
   # key alone never proves the remote accepted anything.
-  def find_by_marker(cfg, channel_id, marker) do
-    with {:ok, 200, posts} <- request(cfg, :get, "/api/v4/channels/#{channel_id}/posts?page=0&per_page=60", nil) do
-      match =
-        (posts["posts"] || %{})
-        |> Map.values()
-        |> Enum.find(fn post -> get_in(post, ["props", "agentboard_event_marker"]) == marker end)
+  @history_per_page 60
+  @history_max_pages 5
 
-      {:ok, match}
+  def find_by_marker(cfg, channel_id, marker) do
+    search_channel(cfg, channel_id, marker, 0)
+  end
+
+  def find_reply_by_marker(cfg, channel_id, root_id, marker) do
+    case request(cfg, :get, "/api/v4/posts/#{root_id}/thread", nil) do
+      {:ok, 200, posts} ->
+        case find_in_posts(posts, marker) do
+          nil -> search_channel(cfg, channel_id, marker, 0)
+          match -> {:ok, match}
+        end
+
+      {:ok, status, _} when status in [401, 403] ->
+        {:error, :unauthorized}
+
+      {:ok, _status, _} ->
+        search_channel(cfg, channel_id, marker, 0)
+
+      {:error, _} ->
+        search_channel(cfg, channel_id, marker, 0)
+    end
+  end
+
+  defp search_channel(cfg, channel_id, marker, page) when page < @history_max_pages do
+    case request(cfg, :get, "/api/v4/channels/#{channel_id}/posts?page=#{page}&per_page=#{@history_per_page}", nil) do
+      {:ok, 200, posts} ->
+        case find_in_posts(posts, marker) do
+          nil ->
+            if has_more?(posts), do: search_channel(cfg, channel_id, marker, page + 1), else: {:ok, nil}
+
+          match ->
+            {:ok, match}
+        end
+
+      {:ok, status, _} when status in [401, 403] ->
+        {:error, :unauthorized}
+
+      {:ok, 404, _} ->
+        {:error, :not_found}
+
+      {:ok, _status, _} ->
+        {:error, :unconfirmed}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp search_channel(_cfg, _channel_id, _marker, _page), do: {:ok, nil}
+
+  defp find_in_posts(posts, marker) do
+    (posts["posts"] || %{})
+    |> Map.values()
+    |> Enum.find(fn post -> get_in(post, ["props", "agentboard_event_marker"]) == marker end)
+  end
+
+  defp has_more?(posts) do
+    case posts["order"] do
+      order when is_list(order) -> length(order) >= @history_per_page
+      _ -> false
     end
   end
 

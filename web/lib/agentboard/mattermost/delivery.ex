@@ -86,7 +86,7 @@ defmodule Agentboard.Mattermost.Delivery do
   end
 
   defp deliver_root(cfg, intent, thread, text) do
-    case Transport.post(cfg, thread.channel_id, text, intent.event_marker) do
+    case Transport.post(cfg, cfg.channel_id, text, intent.event_marker) do
       {:ok, 201, %{"id" => post_id}} ->
         commit_root(intent, thread, post_id)
 
@@ -110,7 +110,7 @@ defmodule Agentboard.Mattermost.Delivery do
   end
 
   defp deliver_reply(cfg, intent, thread, text) do
-    case Transport.post(cfg, thread.channel_id, text, intent.event_marker, thread.root_post_id) do
+    case Transport.post(cfg, cfg.channel_id, text, intent.event_marker, thread.root_post_id) do
       {:ok, 201, %{"id" => post_id}} ->
         commit_sent(intent, post_id, thread.root_post_id)
 
@@ -142,7 +142,7 @@ defmodule Agentboard.Mattermost.Delivery do
   # the marker is found; park visible uncertainty when history cannot prove
   # the outcome. Never blindly POST again.
   defp reconcile_root(cfg, intent, thread) do
-    case Transport.find_by_marker(cfg, thread.channel_id, intent.event_marker) do
+    case Transport.find_by_marker(cfg, cfg.channel_id, intent.event_marker) do
       {:ok, %{"id" => post_id}} ->
         commit_root(intent, thread, post_id)
 
@@ -155,7 +155,7 @@ defmodule Agentboard.Mattermost.Delivery do
   end
 
   defp reconcile_reply(cfg, intent, thread) do
-    case Transport.find_by_marker(cfg, thread.channel_id, intent.event_marker) do
+    case Transport.find_reply_by_marker(cfg, cfg.channel_id, thread.root_post_id, intent.event_marker) do
       {:ok, %{"id" => post_id}} ->
         commit_sent(intent, post_id, thread.root_post_id)
 
