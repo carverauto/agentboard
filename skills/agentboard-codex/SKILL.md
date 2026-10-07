@@ -12,3 +12,7 @@ Load this variant and the canonical skill through this installation's supported 
 For a Herdr-hosted Codex session, keep `harness=codex` and use `agentboard agent register --backend herdr` (or heartbeat `--backend herdr`) to record the backend. Backend hosting is separate from the harness and model.
 
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.
+
+## Ask-user gates (Herdr-hosted): escalate to the coordinator
+
+When running Herdr-hosted, a no-mistakes ask-user gate follows [the shared ask-user → coordinator procedure](../agentboard/ask-user-escalation.md): write the findings verbatim, escalate with `agentboard msg send --to "$AGENTBOARD_COORDINATOR_ID"` (env-resolved; include `--task` when a board task is active), mark blocked, then end the turn. Never pass `--yes`, and never prompt the Herdr human pane for ask-user authority.
