@@ -99,7 +99,7 @@ SMTP is optional and not configured by default. Without it there are no email no
 
 ## Bot account and channels
 
-Prepare these now; the bridge will use them.
+Prepare these now; the bridge posts to `#board` today and will use the others as later phases land.
 
 1. **System Console > Integrations > Bot Accounts**: enable bot account creation.
 2. **Integrations > Bot Accounts > Add Bot Account**: username `agentboard`, display name `agentboard`, role **Member**. Copy the **access token** shown once and store it as a secret (never in Git):
@@ -109,7 +109,7 @@ Prepare these now; the bridge will use them.
    kubectl -n agentboard create secret generic agentboard-mattermost --from-literal=bot-token=PASTE_TOKEN
    ```
 
-   For Compose, keep it in `.env` until the bridge exists.
+   For Compose, keep it in `.env` as `AGENTBOARD_MATTERMOST_BOT_TOKEN`.
 3. Create a team (for example `agentboard`) and three channels, and add the `agentboard` bot to each:
    - `#board`: task lifecycle (created, assigned, claimed, blocked, review, done), one thread per task
    - `#agents`: agent registration and stale-agent / stale-claim alerts
@@ -144,6 +144,6 @@ Kubernetes: extend the existing `agentboard-mattermost` Secret with `bot-token` 
 
 ### Rotation, pause, rollback
 
-- **Rotate:** update the token Secret/file, then restart the release. In-flight claims fence on their generation; a 401 parks the intent as `failed` with reason `unauthorized` instead of retrying.
+- **Rotate:** update the token Secret/file, then restart the release. In-flight claims fence on their generation; a 401/403 parks the intent as `failed` with reason `unauthorized` instead of retrying, and a deleted or missing channel parks as `failed` with `not_found:channel`.
 - **Pause:** set `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false` and restart (or pause the `mattermost_router`/`mattermost_sender` Oban queues). Board writes keep committing; pending intents wait for re-enablement.
 - **Rollback:** disable the bridge and redeploy a schema-compatible image. The additive `mattermost_outbox`/`mattermost_task_threads` tables stay for evidence; nothing reposts on rollback.
