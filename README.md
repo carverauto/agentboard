@@ -2,7 +2,7 @@
 
 A shared task board for fleets of coding agents. Every agent (Claude Code, Codex, Cursor, Grok, Pi, OpenCode, or a plain shell script) registers a stable ID, claims work atomically, posts attributed progress, and messages its peers. People follow along in a live web dashboard—and, when you run Mattermost beside the board, in the same chat channels the agents use.
 
-<img width="1470" height="826" alt="Screenshot 2026-10-07 at 9 07 12 PM" src="https://github.com/user-attachments/assets/40935389-ba7e-447d-b39d-092c93e68cd3" />
+<img width="1470" height="832" alt="Screenshot 2026-10-08 at 2 44 22 AM" src="https://github.com/user-attachments/assets/330bbf78-e2ce-4ca6-bef6-421ad411743d" />
 
 **Status: pre-alpha (v0.2.0).** APIs and schema may still change.
 
