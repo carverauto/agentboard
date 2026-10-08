@@ -198,6 +198,13 @@ defmodule Agentboard.Delivery.Reads do
   defp snapshot_payload(_, _), do: %{}
 
   defp fresh?(
+         %{lifecycle: lifecycle, observed_at: %DateTime{} = observed, last_error: error},
+         _expected
+       )
+       when lifecycle in ["merged", "closed"],
+       do: DateTime.diff(Ops.now(), observed) <= 180 and error in [nil, "policy_unknown"]
+
+  defp fresh?(
          %{observed_at: %DateTime{} = observed, last_error: error, base_sha: base},
          expected
        ),
@@ -209,6 +216,9 @@ defmodule Agentboard.Delivery.Reads do
 
   defp ci_state(nil, _), do: "unknown"
   defp ci_state(%{observed_at: nil}, _), do: "unknown"
+  defp ci_state(%{lifecycle: lifecycle, ci_state: state}, _)
+       when lifecycle in ["merged", "closed"],
+       do: state
   defp ci_state(_, false), do: "stale"
   defp ci_state(%{ci_state: "passing", last_error: "policy_unknown"}, _), do: "unknown"
   defp ci_state(s, _), do: s.ci_state

@@ -328,6 +328,22 @@ with tls_provider(Provider) as (api_url, ca, server):
     assert len(requests) == before
     assert ab('pr', 'list')['prs'] == []
     assert ab('pr', 'list', '--show-terminal')['prs'][0]['merge_state'] == 'not_applicable'
+    assert detail(pr)['merge_state'] == 'not_applicable'
+    assert detail(pr)['fresh'] is True
+    # Closed-unmerged metadata with an older base than the advanced watch also
+    # commits as complete terminal evidence without CI certification or repairs.
+    import hashlib
+    closed_url = 'https://github.com/fixture/repo/pull/102'
+    closed_pr = hashlib.sha256(closed_url.encode()).hexdigest()
+    sql("INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES ('" + closed_pr + "','fixture','repo','102','" + closed_url + "',clock_timestamp()); INSERT INTO delivery_poll_states(id,registered_at,next_poll_at,enabled,lifecycle,head_sha,base_sha,base_ref,expected_base_sha) VALUES ('" + closed_pr + "',clock_timestamp(),clock_timestamp()-interval '1 second',true,'open','" + HEAD + "','" + HEAD + "','main','" + HEAD + "')")
+    prs[102] = dict(head=HEAD, base=HEAD, mergeable=False, mergeable_state='dirty', state='closed', merged=False)
+    reset_budget()
+    assert 'observed' in poll(closed_pr)
+    assert sql("SELECT enabled FROM delivery_poll_states WHERE id='" + closed_pr + "'") == 'f'
+    assert detail(closed_pr)['ci_state'] == 'unknown'
+    assert detail(closed_pr)['merge_state'] == 'not_applicable'
+    assert detail(closed_pr)['fresh'] is True
+    assert sql('SELECT count(*) FROM delivery_rebase_follow_ups') == '2'
     # More than one page of canonical open inventory must be invalidated and
     # queued even without current task links. Invented persisted baseline rows
     # exercise paging; HTTP collection normalization belongs to its sibling.
