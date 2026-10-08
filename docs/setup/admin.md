@@ -71,8 +71,9 @@ recorded)) → migration Job rewritten to
 the same digest → roll (overlay edit + `kubectl apply -k`, compose
 `up -d`, or `kubectl set image` with `--direct`) → verify (rollout status,
 readiness, `meta` schema, smoke read, soak window, default 300s) → automatic
-rollback to the previous pin on failure (exit `3`). Tags are rejected; only
-immutable digests roll. The record matches the `docs/verification/*-rollout.json`
+rollback to the previous pin on failure (exit `3`). Tags are rejected —
+including tag-qualified `name:tag@sha256:...` refs; only bare
+`name@sha256:...` digests roll. The record matches the `docs/verification/*-rollout.json`
 shape with no secret values. Compose targets support file edits plus
 `up`/verify; migration Jobs and CNPG backups are kubectl paths.
 
@@ -86,7 +87,11 @@ agentboard admin apply -f agentboard-admin.yaml [--dry-run]
 
 `doctor` is read-only: board reachability, agent presence, token-file
 presence/mode (never content), config values, file pins, and optionally the
-live deployment image. `apply -f` converges an `AdminConfig` file
+live deployment image. `doctor --overlay`/`--compose` require `-f`; a file
+section that needs a target errors instead of silently passing (config
+needs overlay or compose; `pins.images` needs exactly one of
+`pins.overlay`/`pins.compose`, and setting both errors, mirroring `apply`).
+`apply -f` converges an `AdminConfig` file
 (`apiVersion: agentboard.carverauto.dev/v1`) through the same code paths as
 the subcommands — workers (create/enroll/revoke; `rotate` is CLI-only),
 agents, config sets, and file pins. It never runs kubectl/docker; cluster
