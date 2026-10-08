@@ -120,7 +120,7 @@ def api(method, path, body=None, headers=None):
         return e.code, json.loads(e.read() or b'null')
 
 
-cli_env = {k: v for k, v in os.environ.items() if not k.startswith(('DATABASE_', 'PG'))}
+cli_env = {k: v for k, v in os.environ.items() if not k.startswith(('DATABASE_', 'PG', 'AGENTBOARD_MATTERMOST'))}
 cli_env.update(AGENT_ID='worker-a', AGENTBOARD_MODEL='fixture', AGENTBOARD_HARNESS='codex')
 # Deliberately NO Mattermost variables in the worker environment: agents
 # hold no MM credentials in Phase 1.
@@ -177,11 +177,24 @@ assert stored['props']['task_id'] == 'task-9', stored['props']
 assert stored['props']['kind'] == 'status', stored['props']
 assert stored['props']['msg_id'] == body['msg_id'], stored['props']
 assert stored['props']['agentboard_retry_key'] == 'key-1', stored['props']
+first_msg_id = body['msg_id']
 
-# Retry with the same key adopts the post instead of duplicating.
+# task_id values carrying header-forging newlines or brackets are rejected.
+status, _ = api('POST', '/api/v1/conversations/send',
+                {'channel_id': 'chan-1', 'body': 'hi', 'task_id': 't\nforged line'}, WA)
+assert status == 422, status
+status, _ = api('POST', '/api/v1/conversations/send',
+                {'channel_id': 'chan-1', 'body': 'hi', 'task_id': 't[evil]'}, WA)
+assert status == 422, status
+with state['lock']:
+    assert len(state['posts']) == 1, len(state['posts'])
+
+# Retry with the same key adopts the post instead of duplicating, and the
+# duplicate path returns the adopted post's msg_id for contract parity.
 status, body = api('POST', '/api/v1/conversations/send',
                    {'channel_id': 'chan-1', 'body': 'hello again', 'retry_key': 'key-1'}, WA)
 assert status == 200 and body['duplicate'] is True and body['post']['id'] == 'post-1', (status, body)
+assert body['msg_id'] == first_msg_id, (body, first_msg_id)
 with state['lock']:
     assert len(state['posts']) == 1, len(state['posts'])
 
@@ -209,4 +222,21 @@ out = ab('chat', 'send', '--channel', 'chan-1', '--body', 'cli hello', '--task',
 assert out['duplicate'] is False, out
 out = ab('chat', 'read', '--channel', 'chan-1', '--since', 'post-1')
 assert out['caught_up'] is True and out['incomplete_reason'] is None, out
+
+# A stale cursor that was never in the delivered window must not advance
+# coverage past it: worker-b's receipt stays at post-1 with cursor_not_found.
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=post-999&limit=50', None, WB)
+assert status == 200 and body['caught_up'] is False, (status, body)
+assert body['incomplete_reason'] == 'cursor_not_found', body
+assert sql("SELECT last_post_id FROM conversation_coverage WHERE agent_id='worker-b' AND channel_id='chan-1'") == 'post-1'
+assert sql("SELECT caught_up FROM conversation_coverage WHERE agent_id='worker-b' AND channel_id='chan-1'") == 'f'
+# The next read from the kept cursor still delivers everything after it.
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=post-1&limit=50', None, WB)
+assert status == 200 and [p['id'] for p in body['posts']] == ['post-2'], (status, body)
+assert body['caught_up'] is True and body['incomplete_reason'] is None, body
+
+# A blank cursor is normalized to no cursor: bounded snapshot, not a miss.
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=%20&limit=50', None, WB)
+assert status == 200 and body['caught_up'] is False, (status, body)
+assert body['incomplete_reason'] == 'bounded_snapshot', body
 print('Phase 1 shared-bot chat: API send with props/header/override, retry-key adoption, echo-suppressed reads and explicit coverage passed')

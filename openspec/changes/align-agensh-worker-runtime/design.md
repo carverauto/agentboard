@@ -68,7 +68,7 @@ Names describe proposed boundaries, not generated migration/module names to copy
 | DispatchBatch / Attempt | Immutable selected delivery IDs and payload hash; random batch/attempt IDs; binding epoch; dispatch fencing generation; transport/receipt state; timestamps/errors |
 | DeliveryReceipt | Exact agent, delivery, batch, epoch and attribution; first received/handled time; idempotency key; optional board progress/blocker references |
 | MattermostOutbox / TaskThread | Unique lifecycle event/destination intent; durable root-post mapping; expected event marker; remote result or uncertainty; independent retry state |
-| ConversationIdentity | Stable agent -> Mattermost user ID; membership verification; status and credential reference only |
+| SharedBotAttribution / ConversationCoverage | ONE shared bot posts; per-agent attribution from structured post props (`agent_id`, `task_id`, `kind`, `msg_id` plus retry key) and header line; exact post/version coverage receipts per agent per channel (phase 1; phase 2 elastic bots swap in transparently) |
 
 Task events and Context publications insert a source intent in the same transaction as their canonical write. A failure to insert rolls back both. The routing worker selects pending source intents by state and unique recipient ledger, not solely `id > cursor`. Persist bounded continuations and a pinned audience/routing revision; restart completes unfinished fan-out rather than skipping it. Joining workers receive a bounded bootstrap of current owned/assigned tasks, unresolved PR obligations and recent scoped Context, with explicit truncation/fetch links. They do not receive every historical channel post as fresh work.
 
