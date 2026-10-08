@@ -315,8 +315,8 @@ sh_test(
     name = "availability_api_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "availability_api_test.py"},
     srcs = ["board_api_test.sh"],
-    data = ["availability_api_test.py", "liveview_client.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
-    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    data = [":liveview_rendered", "@worker_node_linux_x64//:bin/node", "availability_api_test.py", "liveview_client.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)", "$(rlocationpath :liveview_rendered)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
     size = "medium",
     timeout = "long",
 )
@@ -335,8 +335,8 @@ sh_test(
     name = "board_paging_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "board_paging_test.py"},
     srcs = ["board_api_test.sh"],
-    data = ["board_paging_test.py", "liveview_client.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
-    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    data = [":liveview_rendered", "@worker_node_linux_x64//:bin/node", "board_paging_test.py", "liveview_client.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)", "$(rlocationpath :liveview_rendered)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
     size = "medium",
     timeout = "long",
 )
@@ -393,6 +393,27 @@ sh_test(
     name = "details_hook_test",
     srcs = ["details_hook_test.sh"],
     data = ["details_hook_test.mjs", "//web:assets/app.js", "@worker_node_linux_x64//:bin/node"],
+    args = ["$(rlocationpath //web:assets/app.js)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
+    size = "small",
+)
+
+genrule(
+    name = "liveview_rendered",
+    srcs = ["liveview_render.mjs", "@hex_phoenix_live_view//:sources", "@hex_phoenix_live_view//:browser_js"],
+    outs = ["liveview-render.mjs"],
+    cmd = """
+      set -euo pipefail
+      sdk_root=$$(dirname "$(location @hex_phoenix_live_view//:browser_js)")/../..
+      "$(location @esbuild_linux_x86_64//:bin)" build/integration/liveview_render.mjs --bundle --platform=node --format=esm --outfile=$@ \
+        --alias:liveview-rendered="$$PWD/$$sdk_root/assets/js/phoenix_live_view/rendered.js"
+    """,
+    tools = ["@esbuild_linux_x86_64//:bin"],
+)
+
+sh_test(
+    name = "dialog_hook_test",
+    srcs = ["dialog_hook_test.sh"],
+    data = ["dialog_hook_test.mjs", "//web:assets/app.js", "@worker_node_linux_x64//:bin/node"],
     args = ["$(rlocationpath //web:assets/app.js)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
     size = "small",
 )

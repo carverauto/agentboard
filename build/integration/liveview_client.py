@@ -85,3 +85,43 @@ def contains(value,text):
     if isinstance(value,list):return any(contains(v,text) for v in value)
     if isinstance(value,dict):return any(contains(v,text) for v in value.values())
     return False
+
+
+class RenderedView:
+    """Real LiveView transport plus the pinned SDK's rendered-wire consumer."""
+    def __init__(self, base, path, cookie_header=''):
+        self.live = LiveView(base, path, cookie_header)
+        self.initial = self.live.initial
+        self.diffs = []
+        self.ref = 1
+        self.live.events.clear()
+        self.document = self.render()
+
+    def render(self):
+        import subprocess
+        result = subprocess.run([os.environ['FIXTURE_RENDERED_NODE'],
+                                 os.environ['FIXTURE_RENDERED_BUNDLE']],
+                                input=json.dumps({'initial': self.initial, 'diffs': self.diffs}),
+                                capture_output=True, text=True, timeout=15)
+        assert result.returncode == 0, result.stderr
+        return result.stdout
+
+    def request(self, event, payload):
+        self.ref += 1
+        ref = str(self.ref)
+        self.live.send(['1', ref, self.live.topic, event, payload])
+        response = self.live.wait(lambda e: e[1] == ref and e[3] == 'phx_reply')
+        assert response and response[4]['status'] == 'ok', response
+        for received in self.live.events:
+            if received[3] == 'diff':
+                self.diffs.append(received[4])
+        self.live.events.clear()
+        diff = response[4]['response'].get('diff', {})
+        if diff:
+            self.diffs.append(diff)
+        assert not any(key in response[4]['response'] for key in ('live_redirect', 'redirect'))
+        self.document = self.render()
+        return self.document
+
+    def close(self):
+        self.live.close()

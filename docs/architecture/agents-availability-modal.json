@@ -1,0 +1,33 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {"title": "Agent availability controls", "quality_profile": "showcase"},
+  "lanes": [
+    {"id": "captain-ui", "label": "Captain on /agents"},
+    {"id": "availability-domain", "label": "Existing availability domain"},
+    {"id": "modal-recovery", "label": "Cancel and correction", "variant": "exception"}
+  ],
+  "mainPath": ["agent-roster", "availability-dialog", "validate-save", "audited-policy", "roster-refresh"],
+  "nodes": [
+    {"id": "agent-roster", "lane": "captain-ui", "col": 0, "type": "frontend", "label": "Agent roster", "sublabel": "Header or row action"},
+    {"id": "availability-dialog", "lane": "captain-ui", "col": 1, "type": "frontend", "label": "Edit policy", "sublabel": "Row prefills agent ID"},
+    {"id": "validate-save", "lane": "availability-domain", "col": 2, "type": "security", "label": "Validate save", "sublabel": "Captain + policy rules"},
+    {"id": "audited-policy", "lane": "availability-domain", "col": 3, "type": "database", "label": "Audited policy", "sublabel": "Ash / PostgreSQL"},
+    {"id": "roster-refresh", "lane": "captain-ui", "col": 4, "type": "frontend", "label": "Updated roster", "sublabel": "Close on success"},
+    {"id": "cancel-dialog", "lane": "modal-recovery", "col": 1, "type": "frontend", "label": "Cancel dialog", "sublabel": "No policy write"},
+    {"id": "correct-draft", "lane": "modal-recovery", "col": 2, "type": "frontend", "label": "Correct draft", "sublabel": "Keep values and error"}
+  ],
+  "edges": [
+    {"id": "open-controls", "from": "agent-roster", "to": "availability-dialog", "label": "Open"},
+    {"id": "submit-policy", "from": "availability-dialog", "to": "validate-save", "label": "set_availability"},
+    {"id": "persist-policy", "from": "validate-save", "to": "audited-policy", "label": "Valid"},
+    {"id": "refresh-roster", "from": "audited-policy", "to": "roster-refresh", "label": "Reload"},
+    {"id": "dismiss-controls", "from": "availability-dialog", "to": "cancel-dialog", "label": "Dismiss", "role": "branch"},
+    {"id": "reject-policy", "from": "validate-save", "to": "correct-draft", "label": "Invalid", "role": "error"},
+    {"id": "retry-policy", "from": "correct-draft", "to": "availability-dialog", "label": "Edit and retry", "role": "return"}
+  ],
+  "cards": [
+    {"dot": "cyan", "title": "LiveView owns the draft", "items": ["Header and row actions use one dialog.", "Escape, backdrop and Cancel discard without writing."]},
+    {"dot": "emerald", "title": "Existing policy safeguards", "items": ["Captain capability is checked before privileged actions.", "Reason and RFC3339 validation remain in the domain; task ownership is retained."]}
+  ]
+}

@@ -3,6 +3,10 @@ set -euo pipefail
 export POSTGRES_RUNTIME_ARCHIVE="$TEST_SRCDIR/$1"
 release_archive="$TEST_SRCDIR/$2"
 export AB_BINARY="$TEST_SRCDIR/$3"
+if [[ $# -ge 5 ]]; then
+  export FIXTURE_RENDERED_BUNDLE="$TEST_SRCDIR/$4"
+  export FIXTURE_RENDERED_NODE="$TEST_SRCDIR/$5"
+fi
 source "$TEST_SRCDIR/$TEST_WORKSPACE/build/integration/postgres_fixture.sh"
 release_root="$TEST_TMPDIR/release"
 mkdir -p "$release_root"
