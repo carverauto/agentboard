@@ -203,7 +203,7 @@ duplicate PR and delegates to the existing live-owner decision contract. It
 returns the usual decision envelope and idempotently parks the owned card.
 It cannot create a system decision, host it on the original Done card, or close
 a GitHub PR. The CLI command is `agentboard pr duplicate-decision ID --task TASK`.
-Its schema floor is24; ordinary PR reads retain their existing floor.
+It requires schema 24; PR list/detail reads require schema 27 once they carry the additive health field below.
 
 ## Agent API credentials (observe phase)
 
@@ -227,3 +227,7 @@ API returns its honest error and a future enforce mode fails closed.
 recent secret-free observations. Read access follows the existing read model.
 Enforcement is a separate captain-approved follow-up; see the credential setup
 guide for protected custody, rollback and scope boundaries.
+
+## Default-branch workflow health (schema 27)
+
+`GET /api/v1/prs` list reads carry an additive `default_branch_health` array of retained unresolved default-branch run obligations (oldest red first), alongside the existing `prs` page. Each entry retains `repository`, `workflow_name`, `branch`, `head_sha`, `run_id`, `run_attempt`, `conclusion`, `failed_at`, `responsible_id`, `source_tasks`, failing `jobs` (name, failed steps, log URL), `source_url`, and any `last_error` deferral note. An empty array means no retained red runs, not verified-green coverage. Intake, routing, recovery, and operator setup live in [default-branch workflow accountability](default-branch-workflows.md), not here. Per-PR detail shape is otherwise unchanged.
