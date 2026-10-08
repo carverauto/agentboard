@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"unicode"
 
 	"github.com/carverauto/agentboard/internal/cli"
 )
@@ -78,8 +79,17 @@ func TestSkillsInstallOfflineAndRepeat(t *testing.T) {
 				if strings.HasPrefix(link, "https:") {
 					continue
 				}
-				if _, err := os.Stat(filepath.Join(dir, name, link)); err != nil {
+				// A '#fragment' names a heading, not part of the file path.
+				target, anchor, _ := strings.Cut(link, "#")
+				path := filepath.Join(dir, name, "SKILL.md")
+				if target != "" {
+					path = filepath.Join(dir, name, target)
+				}
+				if _, err := os.Stat(path); err != nil {
 					t.Fatalf("broken installed documentation link %s/%s: %v", name, link, err)
+				}
+				if anchor != "" && !markdownHasAnchor(t, path, anchor) {
+					t.Fatalf("broken installed documentation anchor %s/%s: no heading #%s in %s", name, link, anchor, path)
 				}
 			}
 		}
@@ -132,4 +142,33 @@ func TestSkillsInstallPreservesConflictingOrEditedContent(t *testing.T) {
 			}
 		})
 	}
+}
+
+// markdownHasAnchor reports whether a Markdown heading in path renders to the
+// GitHub-style anchor: lowercase, spaces become hyphens, other punctuation drops.
+func markdownHasAnchor(t *testing.T, path, anchor string) bool {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(body), "\n") {
+		heading := strings.TrimLeft(line, "#")
+		if heading == line || !strings.HasPrefix(heading, " ") {
+			continue
+		}
+		var slug strings.Builder
+		for _, r := range strings.ToLower(strings.TrimSpace(heading)) {
+			switch {
+			case r == ' ':
+				slug.WriteRune('-')
+			case r == '-' || r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r):
+				slug.WriteRune(r)
+			}
+		}
+		if slug.String() == anchor {
+			return true
+		}
+	}
+	return false
 }
