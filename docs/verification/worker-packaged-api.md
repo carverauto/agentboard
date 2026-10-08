@@ -2,7 +2,8 @@
 
 The remote-built public host CLI now passes against the packaged Phoenix release
 and real PostgreSQL. Only the native socket recipient is invented in this test.
-The host receives no database credentials; fixture setup uses the release RPC,
+Host CLI/serve children explicitly exclude DATABASE_* and PG* environment
+inputs. Fixture setup uses the release RPC,
 while host commands use the public API.
 
 [Fresh five-suite acceptance](https://carverauto.buildbuddy.io/invocation/43d0c2e6-3ab7-4292-be09-27c771ad62a2)
@@ -48,3 +49,7 @@ proof. Production enrollment/assets/activation/rollback in 3.4 require captain
 inputs, and the controlled real failing-PR/reminder/restart/repaired-head
 demonstration in 3.2–3.3 remains open. No global host service, automation,
 production rollout or merge is authorized by these receipts.
+
+The fixture-only follow-up removes DATABASE_* and PG* inputs from the host
+child environment while retaining server/RPC setup. Both packaged host/API and
+shared host conformance passed again remotely: [53d8b620](https://carverauto.buildbuddy.io/invocation/53d8b620-0966-419e-b86a-ce09317f6ff2).
