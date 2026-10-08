@@ -267,12 +267,12 @@ Behavior, bounds and operation live in the
 Roll back by retaining the schema-12 tables and deploying a compatible prior
 digest. No down migration or coverage deletion is permitted.
 
-## Schema 13: agent availability and assignment provenance
+## Schema 15: agent availability and assignment provenance
 
-Migrate and serve the same schema-13 image. Migration `20261008000100`
+Migrate and serve the same schema-15 image. Migration `20261008000300`
 adds the `availability_policies` table with immutable version history, the
 `tasks.assignment_authorized` grant flag, and the `task_order` message kind;
-readiness now requires schema 13. Existing tasks keep their history with no
+readiness now requires schema 15. Existing tasks keep their history with no
 grant, no availability policy is seeded, and repeat migration is harmless.
 
 Behavior, precedence, expiry, and routing eligibility live in

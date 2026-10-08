@@ -16,7 +16,7 @@ Board.Operations owns locked task transitions and Ash audit provenance. Captain 
 
 ## Migration and operational rollout
 
-Schema 13 creates empty availability policies, audited version history and explicit task assignment authorization/message kinds. Existing task histories, claims and message bodies are retained. No fleet availability values are seeded. The PR description proposes captain commands for Claude reservation and Pi unavailability after deployment. Main may advance via parallel #86; native custody refreshes main and renumbers if required, then reruns remote proof.
+Schema 15 (migration 20261008000300, above main schema 14) creates empty availability policies, audited version history and explicit task assignment authorization/message kinds. Existing task histories, claims and message bodies are retained. No fleet availability values are seeded. The PR description proposes captain commands for Claude reservation and Pi unavailability after deployment.
 
 ## Validation
 

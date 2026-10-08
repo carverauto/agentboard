@@ -127,7 +127,7 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 		required = 14
 	}
 	if strings.HasPrefix(path, "availability") || path == "messages/task-orders" {
-		required = 13
+		required = 15
 	}
 	if strings.HasPrefix(path, "conversations") {
 		required = 12
@@ -136,10 +136,10 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 		required = 4
 	}
 	if captain || query.Get("availability") != "" {
-		required = 13
+		required = 15
 	}
 	if fields, ok := payload.(map[string]any); ok && fields["kind"] == "task_order" {
-		required = 13
+		required = 15
 	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}

@@ -3,7 +3,7 @@ defmodule Agentboard.Delivery.Rebase do
   alias Agentboard.Board.Operations, as: Ops
   alias Agentboard.Board.Resources.{Agent, Task}
   alias Agentboard.Delivery.{RebaseFollowUp, PullRequest, TaskLink}
-  alias Agentboard.{Repo, Cooperation.Runtime}
+  alias Agentboard.{Availability, Repo, Cooperation.Runtime}
   require Ash.Query
   @actor %{"agent" => "ci-accountability", "model" => "system", "harness" => "ash"}
 
@@ -57,6 +57,7 @@ defmodule Agentboard.Delivery.Rebase do
            do: hd(owners)
 
       follow_id = Ash.UUID.generate()
+      Availability.lock_admission()
 
       task =
         Ops.create(
@@ -79,22 +80,34 @@ defmodule Agentboard.Delivery.Rebase do
           @actor
         )
 
-      task =
+      {task, responsible} =
         if owner do
-          Ops.update(
-            task,
-            :assign,
-            %{
-              status: "assigned",
-              assignee_id: owner,
-              assigner_id: @actor["agent"],
-              revision: 2,
-              updated_at: stamp
-            },
-            @actor
-          )
+          try do
+            grant = Availability.admit(task, "assign", @actor, %{"to" => owner})
+
+            assigned =
+              Ops.update(
+                task,
+                :assign,
+                Map.merge(
+                  %{
+                    status: "assigned",
+                    assignee_id: owner,
+                    assigner_id: @actor["agent"],
+                    revision: 2,
+                    updated_at: stamp
+                  },
+                  grant
+                ),
+                @actor
+              )
+
+            {assigned, owner}
+          rescue
+            _ in Agentboard.Board.OperationError -> {task, nil}
+          end
         else
-          task
+          {task, nil}
         end
 
       f =
@@ -108,7 +121,7 @@ defmodule Agentboard.Delivery.Rebase do
             base_sha: result.base_sha,
             snapshot_id: snapshot.id,
             repair_task_id: task.id,
-            responsible_id: owner,
+            responsible_id: responsible,
             created_at: stamp
           },
           @actor

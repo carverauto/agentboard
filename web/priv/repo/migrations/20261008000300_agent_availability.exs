@@ -90,7 +90,7 @@ defmodule Agentboard.Repo.Migrations.AgentAvailability do
     $$
     """)
 
-    execute("UPDATE board_schema SET version=13 WHERE id=1")
+    execute("UPDATE board_schema SET version=15 WHERE id=1")
   end
 
   def down, do: raise("Preserve availability and audit history; use a compatible image")

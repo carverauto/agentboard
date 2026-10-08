@@ -1,5 +1,5 @@
 defmodule Agentboard.SchemaVersion do
-  @required 14
+  @required 15
   def required, do: @required
 
   def current do
