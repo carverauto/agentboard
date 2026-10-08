@@ -5,6 +5,26 @@ server path. Its integration contract is in
 [conflict-routing-contract.v1.md](architecture/conflict-routing-contract.v1.md).
 Do not treat a wake or repair assignment as native branch-write custody.
 
+## Durable binding API
+
+`agentboard publication bind TASK --repo OWNER/REPO --branch BRANCH` creates
+retained exact branch/card attribution through `POST /api/v1/publications/bind`
+(schema32). For forks, use `--head-repo HEAD_OWNER/HEAD_REPO`; it defaults to
+the target repository. The task must name that target repository and have
+this actor's live claim with no decision hold.
+
+The response contains `binding` and `idempotent`. Repeating the same mapping
+does not create another Ash event/version. Another card cannot take the same
+head-repository/branch mapping, even when both cards share an owner. Releasing
+the claim preserves attribution but authorizes no publication. A new live
+owner can reuse the same card's binding without rewriting the original binder.
+Binding changes neither source-task ownership nor lease/status/history.
+
+This API records attribution; it grants no provider or branch-write capability.
+The native publication wrapper's server-backed admission/completion adapter
+remains a separate implementation task. Until that adapter is proved, the
+wrapper's existing local registry and pre-push fence are its supported path.
+
 ## Exact-head pre-push check
 
 The outer driver runs `scripts/publish-seat TASK -- run|respond|rerun ...` from

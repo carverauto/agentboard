@@ -173,6 +173,9 @@ else:
     save()
     result = push(base)
     assert result.returncode != 0 and 'decision' in result.stderr and absent(), result.stderr
+    result = run(['git', 'push', target, base+':refs/heads/unbound-evidence'], private, env, ok=False)
+    assert result.returncode == 0, 'Unrelated evidence ref was subjected to a task-bound publication check'
+    run(['git', '--git-dir', target, 'update-ref', '-d', 'refs/heads/unbound-evidence'], source)
     data['task']['held_by_decision'] = False
     save()
     # Unknown/default fetch failure must refuse and redact provider stderr.

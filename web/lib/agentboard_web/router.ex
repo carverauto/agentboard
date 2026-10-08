@@ -123,6 +123,7 @@ defmodule AgentboardWeb.Router do
     get("/decisions/:id", DecisionController, :show)
     post("/decisions/:id/:action", DecisionController, :mutate)
     get("/prs", APIController, :prs)
+    post("/publications/bind", APIController, :bind_publication)
     get("/prs/:id", APIController, :pr)
     post("/prs/:id/duplicate-decision", APIController, :duplicate_decision)
     get("/quota", APIController, :quota)

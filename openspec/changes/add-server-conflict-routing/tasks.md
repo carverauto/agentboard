@@ -5,7 +5,7 @@ This checklist is implementation work after proposal review. No runtime task is 
 ## 1. Durable contracts and migration
 
 - [ ] 1.1 Reconcile the #170 shared eligibility and #156/#150 wake/custody envelopes against their current portable proposals; publish agreed typed contracts and verify both consumers reference one version, without enabling host delivery.
-- [ ] 1.2 Recheck the schema reservation against current main and add schema32 migration `20261008003200` with binding, current-order/history and publication-grant Ash resources, constraints, AshEvents and mutable AshPaperTrail; verify remote migration from the actual preceding schema preserves old follow-ups and is idempotent.
+- [x] 1.2 Recheck the schema reservation against current main and add schema32 migration `20261008003200` with binding, current-order/history and publication-grant Ash resources, constraints, AshEvents and mutable AshPaperTrail; verify remote migration from the actual preceding schema preserves old follow-ups and is idempotent.
 - [ ] 1.3 Implement order/binding/grant public serialization and auth policies; verify remote API tests reject cross-owner, expired-claim, ambiguous binding and wrong-repository writes and never serialize credentials; document response and permission contracts alongside this group.
 
 ## 2. Publication admission and link recovery

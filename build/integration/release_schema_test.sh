@@ -144,11 +144,11 @@ INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head
 INSERT INTO delivery_rebase_follow_ups(id,pull_request_id,head_sha,base_sha,snapshot_id,repair_task_id,responsible_id,created_at) VALUES ('33333333-3333-4333-8333-333333333333',repeat('e',64),repeat('a',40),repeat('b',40),'22222222-2222-4222-8222-222222222222','retained-repair','retained-avail',clock_timestamp());" >/dev/null
 avail_psql "INSERT INTO delivery_obligations(id,pull_request_id,episode,repair_task_id,responsible_id,state,head_sha,snapshot_id,evidence_urls,last_progress_at,next_reminder_at,reminder_generation,window_at,reminders,resolved_at,created_at) VALUES ('44444444-4444-4444-8444-444444444444',repeat('e',64),1,'retained-repair','retained-avail','resolved',repeat('a',40),'22222222-2222-4222-8222-222222222222','{}',clock_timestamp(),clock_timestamp(),0,clock_timestamp(),0,clock_timestamp(),clock_timestamp()), ('55555555-5555-4555-8555-555555555555',repeat('e',64),2,'retained-repair','retained-avail','unresolved',repeat('a',40),'22222222-2222-4222-8222-222222222222','{}',clock_timestamp(),clock_timestamp(),0,clock_timestamp(),0,NULL,clock_timestamp());" >/dev/null
 before_obligations="$(avail_psql 'SELECT jsonb_agg(to_jsonb(o) ORDER BY episode) FROM delivery_obligations o')"
-before_avail="$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f) ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")"
+before_avail="$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 [[ "$(avail_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
-[[ "$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t)-'assignment_authorized' ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f) ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")" == "$before_avail" ]]
+[[ "$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t)-'assignment_authorized' ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")" == "$before_avail" ]]
 [[ "$(avail_psql 'SELECT count(*) FROM availability_policies')" == 0 ]]
 [[ "$(avail_psql 'SELECT count(*) FROM tasks WHERE assignment_authorized')" == 0 ]]
 [[ "$(avail_psql "SELECT status||','||coalesce(assignee_id,'') FROM tasks WHERE id='retained-repair'")" == 'assigned,retained-avail' ]]
@@ -420,7 +420,6 @@ for initial_marker in 35 99; do
   [[ "$(triage_psql "$triage_history_query")" == "$before_triage" ]]
   echo "Schema35 to triage migration preserves marker $expected_marker and canonical inbox/history without backfill."
 done
-
 # Schema36 -> 37 stores display-only pins. No row is backfilled, historical
 # evidence and operational state are byte-preserved, and marker99 stays ahead.
 for initial_marker in 36 99; do
@@ -476,3 +475,40 @@ for initial_marker in 36 99; do
   [[ "$(pins_psql "$pins_history_query")" == "$before_pins" ]]
   echo "Schema36 to pin settings migration preserves marker $expected_marker and operational history, with no backfill and immutable receipts."
 done
+# Upgrade the actual schema31 boundary, preserving legacy conflict records and
+# every pre-existing attributed board/document prefix. No synthetic deadline.
+"$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_conflict_upgrade
+export DATABASE_NAME=agentboard_conflict_upgrade
+conflict_psql() {
+  PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=agentboard_conflict_upgrade user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -Atc "$1"
+}
+conflict_psql "CREATE EXTENSION pg_textsearch VERSION '1.5.1'" >/dev/null
+"$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261008003100) end)'
+[[ "$(conflict_psql 'SELECT version FROM board_schema WHERE id=1')" == 31 ]]
+conflict_psql "INSERT INTO agents(id,name,model,harness) VALUES ('conflict-retained','Invented retained','fixture','codex');
+INSERT INTO tasks(id,title) VALUES ('conflict-source','Retained source'),('conflict-repair','Retained repair');
+INSERT INTO task_events(task_id,actor_id,model,harness,kind,new_revision) VALUES ('conflict-source','conflict-retained','fixture','codex','created',1);
+INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html,digest) VALUES ('conflict-source','conflict-retained','fixture','codex','archify','Retained diagram','<!doctype html><p>Retained conflict prefix</p>',repeat('a',64));
+INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES (repeat('a',64),'fixture','project','701','https://github.com/fixture/project/pull/701',clock_timestamp());
+INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES ('77777777-7777-4777-8777-777777777777',repeat('a',64),1,clock_timestamp(),repeat('a',40),repeat('b',40),'open','failing','{\"coverage\":\"complete_head\",\"policy\":\"unknown\",\"tested_ref\":\"head\",\"attempts\":[]}');
+INSERT INTO delivery_rebase_follow_ups(id,pull_request_id,head_sha,base_sha,snapshot_id,repair_task_id,responsible_id,created_at) VALUES ('88888888-8888-4888-8888-888888888888',repeat('a',64),repeat('a',40),repeat('b',40),'77777777-7777-4777-8777-777777777777','conflict-repair','conflict-retained',clock_timestamp());" >/dev/null
+conflict_history="SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))"
+before_conflict="$(conflict_psql "$conflict_history")"
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+[[ "$(conflict_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
+[[ "$(conflict_psql "$conflict_history")" == "$before_conflict" ]]
+[[ "$(conflict_psql 'SELECT count(*) FROM delivery_publication_bindings')" == 0 ]]
+[[ "$(conflict_psql 'SELECT count(*) FROM delivery_publication_bindings_versions')" == 0 ]]
+[[ "$(conflict_psql 'SELECT bool_and(current_order_id IS NULL) FROM delivery_rebase_follow_ups')" == t ]]
+for source in delivery_conflict_orders delivery_publication_grants; do
+  [[ "$(conflict_psql "SELECT count(*) FROM $source")" == 0 ]]
+  [[ "$(conflict_psql "SELECT count(*) FROM ${source}_versions")" == 0 ]]
+done
+for history in delivery_publication_bindings_versions delivery_conflict_orders_versions delivery_publication_grants_versions; do
+  if conflict_psql "TRUNCATE $history" >/dev/null 2>&1; then
+    echo "Conflict/publication history is not append-only: $history" >&2; exit 1
+  fi
+done
+echo 'Schema31 upgrade is idempotent and preserves legacy conflict/board/document evidence without invented bindings.'
+

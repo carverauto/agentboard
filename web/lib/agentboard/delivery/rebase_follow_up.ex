@@ -33,6 +33,10 @@ defmodule Agentboard.Delivery.RebaseFollowUp do
     update :resolve do
       accept([:resolved_at, :resolution_snapshot_id])
     end
+
+    update :set_order do
+      accept([:current_order_id])
+    end
   end
 
   attributes do
@@ -46,5 +50,6 @@ defmodule Agentboard.Delivery.RebaseFollowUp do
     attribute(:created_at, :utc_datetime_usec, allow_nil?: false)
     attribute(:resolved_at, :utc_datetime_usec)
     attribute(:resolution_snapshot_id, :uuid)
+    attribute(:current_order_id, :uuid)
   end
 end

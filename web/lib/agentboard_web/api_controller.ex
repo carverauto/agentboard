@@ -24,6 +24,9 @@ defmodule AgentboardWeb.APIController do
   def prs(conn, _),
     do: reply(conn, Agentboard.Delivery.Reads.list(fetch_query_params(conn).query_params))
 
+  def bind_publication(conn, _),
+    do: reply(conn, Agentboard.Delivery.Publication.bind(actor(conn), conn.body_params))
+
   def pr(conn, %{"id" => id}), do: reply(conn, Agentboard.Delivery.Reads.detail(id))
 
   def duplicate_decision(conn, %{"id" => id}),
