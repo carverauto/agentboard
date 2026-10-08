@@ -8,7 +8,7 @@ defmodule Agentboard.Mattermost.Conversations do
   2 per-agent bots swap in transparently.
   """
   alias Agentboard.Board.Operations
-  alias Agentboard.Mattermost.{ConversationCoverage, Delivery, Transport}
+  alias Agentboard.Mattermost.{ConversationCoverage, Delivery, ElasticBots, Transport}
   require Ash.Query
 
   @actor %{"agent" => "mattermost-conversations", "model" => "system", "harness" => "ash"}
@@ -57,14 +57,20 @@ defmodule Agentboard.Mattermost.Conversations do
     end
   end
 
-  # Pluggable posting seam: shared bot now, per-agent bot later. Override
-  # fields are sent only while the server is observed (or assumed) to
-  # apply them; header plus props carry identity either way.
+  # Pluggable posting seam: the agent's own bot when active, the shared
+  # bot otherwise. Props and header are identical either way; override
+  # fields follow the cached server observation. A revoked bot token
+  # re-provisions in the background and the same send falls back once.
   def post_as(cfg, agent_id, channel_id, message, props, root_id \\ nil, icon_url \\ nil, msg_id \\ nil) do
+    {send_cfg, via_bot} = send_config(cfg, agent_id)
+    do_post_as(send_cfg, via_bot, cfg, agent_id, channel_id, message, props, root_id, icon_url, msg_id)
+  end
+
+  defp do_post_as(send_cfg, via_bot, shared_cfg, agent_id, channel_id, message, props, root_id, icon_url, msg_id) do
     {username_opt, icon_opt} = override_opts(agent_id, icon_url)
     opts = [root_id: root_id, override_username: username_opt, override_icon_url: icon_opt]
 
-    case Transport.post_agent(cfg, channel_id, message, props, opts) do
+    case Transport.post_agent(send_cfg, channel_id, message, props, opts) do
       {:ok, 201, %{"id" => _} = post} ->
         observe_overrides(post, username_opt, icon_opt)
         {:ok, %{"duplicate" => false, "post" => post, "msg_id" => msg_id}}
@@ -75,6 +81,11 @@ defmodule Agentboard.Mattermost.Conversations do
       {:ok, 400, _} ->
         {:error, "invalid_input", "Mattermost rejected the post"}
 
+      {:ok, status, _} when status in [401, 403] and via_bot ->
+        ElasticBots.note_revoked(agent_id)
+
+        do_post_as(shared_cfg, false, shared_cfg, agent_id, channel_id, message, props, root_id, icon_url, msg_id)
+
       {:ok, _status, _} ->
         {:error, "unavailable", "Mattermost did not acknowledge the post"}
 
@@ -83,6 +94,13 @@ defmodule Agentboard.Mattermost.Conversations do
 
       {:error, _} ->
         {:error, "unavailable", "Mattermost post failed"}
+    end
+  end
+
+  defp send_config(cfg, agent_id) do
+    case ElasticBots.token_for(agent_id) do
+      {:ok, token} -> {%{cfg | token: token}, true}
+      _ -> {cfg, false}
     end
   end
 
@@ -156,7 +174,7 @@ defmodule Agentboard.Mattermost.Conversations do
   # Each field carries its own observed_at/stale/source; a stale field
   # is re-observed by the next send that actually carries it.
   def diagnostics(caller) do
-    with {:ok, _agent_id} <- registered_agent(caller) do
+    with {:ok, agent_id} <- registered_agent(caller) do
       support = override_support()
 
       {:ok,
@@ -170,7 +188,8 @@ defmodule Agentboard.Mattermost.Conversations do
            "icon_observed_at" => support[:icon_observed_at],
            "icon_stale" => not override_fresh?(support[:icon_observed_at]),
            "icon_source" => if(is_nil(support[:icon_observed_at]), do: "unobserved", else: "observed")
-         }
+         },
+         "bot" => ElasticBots.bot_info(agent_id)
        }}
     end
   end

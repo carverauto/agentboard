@@ -45,6 +45,8 @@ defmodule Agentboard.MixProject do
       {:ash_events, "== 0.8.2"},
       {:ash_paper_trail, "== 0.7.0"},
       {:ash_oban, "== 0.8.14"},
+      {:ash_cloak, "== 0.4.0"},
+      {:cloak, "== 1.1.4"},
       {:oban, "== 2.24.1"},
       {:simple_sat, "== 0.1.4"},
       {:castore, "== 1.0.21"},

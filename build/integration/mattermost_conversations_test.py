@@ -15,12 +15,15 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 TOKEN = 'fixture-bot-token'
+PROVISION_TOKEN = 'fixture-provisioner-token'
 
 state = {
     'posts': {},
     'order': [],
     'received': [],
     'overrides': True,
+    'bots': {},
+    'token_owner': {},
     'lock': threading.Lock(),
 }
 
@@ -39,22 +42,96 @@ class Stub(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _bearer(self):
+        auth = self.headers.get('Authorization', '')
+        return auth[7:] if auth.startswith('Bearer ') else ''
+
     def _authed(self):
-        return self.headers.get('Authorization') == f'Bearer {TOKEN}'
+        bearer = self._bearer()
+        if bearer in (TOKEN, PROVISION_TOKEN):
+            return True
+        with state['lock']:
+            return bearer in state['token_owner']
+
+    def _provisioned(self):
+        return self._bearer() == PROVISION_TOKEN
 
     def do_POST(self):
-        if not self._authed():
-            return self._json(401, {'message': 'invalid credentials'})
         length = int(self.headers.get('Content-Length', 0))
         payload = json.loads(self.rfile.read(length) or b'{}')
         parts = self.path.strip('/').split('/')
+        # Phase 2 elastic bot admin endpoints require the provisioner token.
+        if len(parts) >= 4 and parts[:3] == ['api', 'v4', 'bots']:
+            if not self._provisioned():
+                return self._json(401, {'message': 'invalid credentials'})
+            with state['lock']:
+                if parts == ['api', 'v4', 'bots']:
+                    uid = f"bot-{len(state['bots']) + 1}"
+                    state['bots'][uid] = {'username': payload.get('username'),
+                                          'display_name': payload.get('display_name'),
+                                          'disabled': False, 'tokens': {},
+                                          'teams': [], 'channels': []}
+                    return self._json(201, {'user_id': uid, 'username': payload.get('username'),
+                                            'display_name': payload.get('display_name')})
+                uid = parts[3]
+                if uid not in state['bots']:
+                    return self._json(404, {'message': 'unknown bot'})
+                bot = state['bots'][uid]
+                if len(parts) == 5 and parts[4] == 'token':
+                    tok = f"tok-{uid}-{len(bot['tokens']) + 1}"
+                    bot['tokens'][tok] = True
+                    state['token_owner'][tok] = uid
+                    return self._json(200, {'token': tok})
+                if len(parts) == 5 and parts[4] in ('enable', 'disable'):
+                    bot['disabled'] = parts[4] == 'disable'
+                    return self._json(200, {'status': 'OK'})
+            return self._json(404, {'message': 'unknown fixture path'})
+        if len(parts) == 6 and parts[:3] == ['api', 'v4', 'users'] and parts[5] == 'revoke':
+            if not self._provisioned():
+                return self._json(401, {'message': 'invalid credentials'})
+            with state['lock']:
+                uid = parts[3]
+                tid = payload.get('token_id', '')
+                tok = tid[4:] if tid.startswith('tid-') else tid
+                if uid in state['bots'] and tok in state['bots'][uid]['tokens']:
+                    state['bots'][uid]['tokens'][tok] = False
+                    return self._json(200, {'status': 'OK'})
+            return self._json(404, {'message': 'unknown token'})
+        if len(parts) == 5 and parts[:3] == ['api', 'v4', 'teams'] and parts[4] == 'members':
+            if not self._provisioned():
+                return self._json(401, {'message': 'invalid credentials'})
+            with state['lock']:
+                uid = payload.get('user_id')
+                if uid in state['bots'] and payload.get('team_id') == parts[3]:
+                    state['bots'][uid]['teams'].append(parts[3])
+                    return self._json(201, {})
+            return self._json(400, {'message': 'bad membership'})
+        if len(parts) == 5 and parts[:3] == ['api', 'v4', 'channels'] and parts[4] == 'members':
+            if not self._provisioned():
+                return self._json(401, {'message': 'invalid credentials'})
+            with state['lock']:
+                uid = payload.get('user_id')
+                if uid in state['bots']:
+                    state['bots'][uid]['channels'].append(parts[3])
+                    return self._json(201, {})
+            return self._json(400, {'message': 'bad membership'})
+        if not self._authed():
+            return self._json(401, {'message': 'invalid credentials'})
         # /api/v4/posts
         if parts == ['api', 'v4', 'posts']:
+            bearer = self._bearer()
+            with state['lock']:
+                owner = state['token_owner'].get(bearer)
+                if owner is not None and not state['bots'][owner]['tokens'].get(bearer, False):
+                    return self._json(401, {'message': 'revoked token'})
+                if owner is not None and state['bots'][owner]['disabled']:
+                    return self._json(403, {'message': 'bot disabled'})
+                sender = owner or 'shared-bot'
             pid = f"post-{len(state['order']) + 1}"
             post = {
                 'id': pid,
                 'channel_id': payload.get('channel_id'),
-                'user_id': 'shared-bot',
+                'user_id': sender,
                 'message': payload.get('message'),
                 'root_id': payload.get('root_id'),
                 'props': payload.get('props', {}),
@@ -63,7 +140,7 @@ class Stub(BaseHTTPRequestHandler):
                 'create_at': 1000 + len(state['order']),
             }
             with state['lock']:
-                state['received'].append(dict(payload))
+                state['received'].append(dict(payload, _posted_with=bearer, _sender=sender))
                 if not state['overrides']:
                     post.pop('override_username', None)
                     post.pop('override_icon_url', None)
@@ -76,6 +153,13 @@ class Stub(BaseHTTPRequestHandler):
         if not self._authed():
             return self._json(401, {'message': 'invalid credentials'})
         parts = self.path.strip('/').split('?')[0].strip('/').split('/')
+        # GET /api/v4/users/<id>/tokens (provisioner only)
+        if len(parts) == 5 and parts[:3] == ['api', 'v4', 'users'] and parts[4] == 'tokens':
+            if not self._provisioned():
+                return self._json(401, {'message': 'invalid credentials'})
+            with state['lock']:
+                toks = [{'id': f"tid-{t}"} for t in state['bots'].get(parts[3], {}).get('tokens', {})]
+            return self._json(200, toks)
         # /api/v4/channels/<id>/posts?page=&per_page=
         if len(parts) == 5 and parts[:3] == ['api', 'v4', 'channels'] and parts[4] == 'posts':
             from urllib.parse import urlparse, parse_qs
@@ -332,3 +416,102 @@ assert diag['overrides']['icon_source'] == 'unobserved', diag
 status, _ = api('GET', '/api/v1/conversations/diagnostics', None, GHOST)
 assert status == 422, status
 print('Phase 1 shared-bot chat: API send with props/header/override, retry-key adoption, echo-suppressed reads, explicit coverage and override diagnostics passed')
+
+# Phase 2 elastic per-agent bots. The release boots with a fixture cloak
+# key and provisioner token (BUILD env); the stub mimics the bot admin
+# endpoints. Provisioning runs in Oban, so activation is polled.
+WBOT = {'X-Agentboard-Agent': 'worker-bot', 'X-Agentboard-Model': 'fixture', 'X-Agentboard-Harness': 'codex'}
+
+
+def wait_bot(headers, want_active, tries=45):
+    for _ in range(tries):
+        s, d = api('GET', '/api/v1/conversations/diagnostics', None, headers)
+        assert s == 200, (s, d)
+        if d['bot']['active'] == want_active:
+            return d
+        time.sleep(2)
+    raise AssertionError(('bot never reached', want_active, d))
+
+
+# Short-name mapping is deterministic and fits 22 chars.
+out = rpc('Agentboard.Mattermost.ElasticBots.short_name("abc") |> IO.inspect()').strip()
+assert out == '"ab-abc"', out
+out = rpc('Agentboard.Mattermost.ElasticBots.short_name("codex-agent-b-worker") |> IO.inspect()').strip()
+assert out.startswith('"ab-') and len(out) == 24, out
+
+# First register provisions exactly one bot; a racing second register adopts.
+out = ab('agent', 'register', agent_id='worker-bot')
+assert out['agent']['id'] == 'worker-bot', out
+diag = wait_bot(WBOT, True)
+assert diag['bot']['state'] == 'active' and diag['bot']['username'].startswith('ab-'), diag
+out = ab('agent', 'register', agent_id='worker-bot')
+with state['lock']:
+    mine = [u for u, b in state['bots'].items() if b['display_name'] == 'worker-bot']
+assert len(mine) == 1, mine
+bot_uid = mine[0]
+with state['lock']:
+    assert state['bots'][bot_uid]['teams'] == ['fixture-team'], state['bots'][bot_uid]
+    assert 'chan-1' in state['bots'][bot_uid]['channels'], state['bots'][bot_uid]
+
+# Sends post as the bot with identical props/header shape.
+status, body = api('POST', '/api/v1/conversations/send',
+                   {'channel_id': 'chan-1', 'body': 'bot hello',
+                    'task_id': 'task-9', 'kind': 'status', 'retry_key': 'key-bot-1'}, WBOT)
+assert status == 200 and body['duplicate'] is False, (status, body)
+with state['lock']:
+    bot_post = state['posts'][body['post']['id']]
+assert bot_post['user_id'] == bot_uid, bot_post
+assert bot_post['message'].startswith('[worker-bot · task-9]\nbot hello'), bot_post['message']
+assert bot_post['props']['agent_id'] == 'worker-bot', bot_post['props']
+
+# Tokens never surface in DB rows, API output, or CLI output.
+row = sql("SELECT row_to_json(m)::text FROM mattermost_agent_bots m WHERE agent_id='worker-bot'")
+assert 'tok-' not in row, row
+assert 'tok-' not in json.dumps(diag), diag
+out = ab('chat', 'read', '--channel', 'chan-1', '--since', body['post']['id'], agent_id='worker-bot')
+assert 'tok-' not in json.dumps(out), out
+
+# Revoked token falls back to the shared bot for that send, then re-provisions.
+with state['lock']:
+    old_tok = next(t for t, ok in state['bots'][bot_uid]['tokens'].items() if ok)
+    state['bots'][bot_uid]['tokens'][old_tok] = False
+status, body = api('POST', '/api/v1/conversations/send',
+                   {'channel_id': 'chan-1', 'body': 'after revoke',
+                    'task_id': 'task-9', 'kind': 'note', 'retry_key': 'key-bot-2'}, WBOT)
+assert status == 200 and body['duplicate'] is False, (status, body)
+with state['lock']:
+    fb_post = state['posts'][body['post']['id']]
+assert fb_post['user_id'] == 'shared-bot', fb_post
+diag = wait_bot(WBOT, True)
+with state['lock']:
+    new_tok = next(t for t, ok in state['bots'][bot_uid]['tokens'].items() if ok)
+assert new_tok != old_tok, (new_tok, old_tok)
+
+# Retire disables plus revokes; re-register reactivates with a fresh token.
+rpc('Agentboard.Mattermost.ElasticBots.retire("worker-bot")')
+with state['lock']:
+    assert state['bots'][bot_uid]['disabled'] is True, state['bots'][bot_uid]
+    assert not any(state['bots'][bot_uid]['tokens'].values()), state['bots'][bot_uid]
+    assert sql("SELECT state FROM mattermost_agent_bots WHERE agent_id='worker-bot'") == 'retired'
+diag = wait_bot(WBOT, False)
+assert diag['bot']['state'] == 'retired', diag
+out = ab('agent', 'register', agent_id='worker-bot')
+diag = wait_bot(WBOT, True)
+with state['lock']:
+    fresh_tok = next(t for t, ok in state['bots'][bot_uid]['tokens'].items() if ok)
+assert fresh_tok != new_tok, (fresh_tok, new_tok)
+
+# Collision-checked mapping: a colliding handle resolves deterministically elsewhere.
+out = rpc('Agentboard.Mattermost.ElasticBots.unique_username("Worker Bot") |> IO.inspect()').strip()
+assert out.startswith('"ab-') and out != '"ab-worker-bot"', out
+
+# Mattermost down at register time: registration still succeeds, row waits pending.
+rpc('Application.put_env(:agentboard, :mattermost_base_url, "http://127.0.0.1:9")')
+WDOWN = {'X-Agentboard-Agent': 'worker-down', 'X-Agentboard-Model': 'fixture', 'X-Agentboard-Harness': 'codex'}
+out = ab('agent', 'register', agent_id='worker-down')
+assert out['agent']['id'] == 'worker-down', out
+status, diag = api('GET', '/api/v1/conversations/diagnostics', None, WDOWN)
+assert status == 200 and diag['bot']['active'] is False, (status, diag)
+assert diag['bot']['state'] == 'pending', diag
+rpc(f'Application.put_env(:agentboard, :mattermost_base_url, "http://127.0.0.1:{port}")')
+print('Phase 2 elastic bots: lazy provision, short-name mapping, encrypted tokens, fallback, retire/reactivate passed')

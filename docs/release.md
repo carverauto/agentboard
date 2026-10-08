@@ -279,6 +279,21 @@ Behavior, precedence, expiry, and routing eligibility live in
 [agent availability](setup/availability.md), not here. The upgrade proof
 checks retained history alongside the empty-policy default.
 
+## Schema 17: Mattermost elastic per-agent bots
+
+Migrate and serve the same schema-17 image. Migration `20261008001700`
+adds the `mattermost_agent_bots` mapping table (agent id unique,
+Mattermost user id unique, AshCloak-encrypted token, lifecycle state);
+readiness now requires schema 17. Without a provisioner credential or
+cloak key everything stays on the phase 1 shared bot, so existing chat
+behavior is unchanged; repeat migration is harmless.
+
+Behavior, provisioning, rotation, and disable procedures live in the
+[agent-chat runbook](setup/mattermost-agent-chat-runbook.md), not here.
+
+Roll back by retaining the schema-17 table and deploying a compatible
+prior digest. No down migration or bot-mapping deletion is permitted.
+
 ## Schema 14: PR mergeability and base watch
 
 Migrate and serve the same schema-14 image. Migration `20261008000200` adds

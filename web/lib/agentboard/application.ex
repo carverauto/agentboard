@@ -9,7 +9,9 @@ defmodule Agentboard.Application do
 
     children = [
       Agentboard.Repo,
+      Agentboard.Vault,
       {Phoenix.PubSub, name: Agentboard.PubSub},
+
       Agentboard.RateLimits.Owner,
       Agentboard.Notifications,
       {Oban,
@@ -25,7 +27,8 @@ defmodule Agentboard.Application do
            delivery_scheduler: [limit: 1, paused: not observation_enabled?()],
            delivery_polling: [limit: 4, paused: not observation_enabled?()],
            mattermost_router: [limit: 1, paused: not bridge_enabled?()],
-           mattermost_sender: [limit: 2, paused: not bridge_enabled?()]
+           mattermost_sender: [limit: 2, paused: not bridge_enabled?()],
+           mattermost_provision: [limit: 1]
          ],
          plugins: [Oban.Plugins.Cron, Oban.Plugins.Pruner]
        )},
