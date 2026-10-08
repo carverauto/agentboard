@@ -339,7 +339,7 @@ defmodule Agentboard.Mattermost.ElasticBots do
       AgentBot,
       :open,
       Map.merge(
-        %{agent_id: agent_id, mm_user_id: "pending:#{agent_id}", mm_username: short_name(agent_id), display_name: agent_id, state: "pending"},
+        %{id: Ash.UUID.generate(), agent_id: agent_id, mm_user_id: "pending:#{agent_id}", mm_username: short_name(agent_id), display_name: agent_id, state: "pending"},
         created_stamps()
       ),
       @actor

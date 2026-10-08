@@ -302,9 +302,14 @@ defmodule Agentboard.Mattermost.Transport do
       body |> IO.iodata_to_binary() |> Jason.decode()
 
     # Retry-After rides along regardless of body shape; callers match on it.
+    # Lists pass through untouched (e.g. token listings); maps carry the
+    # header along for callers that match on it.
     case parsed do
       {:ok, json} when is_map(json) ->
         Map.put(json, "_retry_after", retry_after(headers))
+
+      {:ok, json} when is_list(json) ->
+        json
 
       _ ->
         %{"_raw_status" => status, "_retry_after" => retry_after(headers)}

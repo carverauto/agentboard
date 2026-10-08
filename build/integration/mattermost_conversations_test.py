@@ -61,7 +61,7 @@ class Stub(BaseHTTPRequestHandler):
         payload = json.loads(self.rfile.read(length) or b'{}')
         parts = self.path.strip('/').split('/')
         # Phase 2 elastic bot admin endpoints require the provisioner token.
-        if len(parts) >= 4 and parts[:3] == ['api', 'v4', 'bots']:
+        if len(parts) >= 3 and parts[:3] == ['api', 'v4', 'bots']:
             if not self._provisioned():
                 return self._json(401, {'message': 'invalid credentials'})
             with state['lock']:
@@ -237,6 +237,9 @@ WB = {'X-Agentboard-Agent': 'worker-b', 'X-Agentboard-Model': 'fixture', 'X-Agen
 GHOST = {'X-Agentboard-Agent': 'ghost', 'X-Agentboard-Model': 'f', 'X-Agentboard-Harness': 'c'}
 
 rpc(f'Application.put_env(:agentboard, :mattermost_base_url, "http://127.0.0.1:{port}")')
+# Phase 1 runs with provisioning held off so the shared-bot shape is
+# deterministic; Phase 2 restores the provisioner token below.
+rpc('Application.put_env(:agentboard, :mattermost_provisioner_token, nil)')
 ab('agent', 'register')
 ab('agent', 'register', agent_id='worker-b')
 
@@ -420,6 +423,8 @@ print('Phase 1 shared-bot chat: API send with props/header/override, retry-key a
 # Phase 2 elastic per-agent bots. The release boots with a fixture cloak
 # key and provisioner token (BUILD env); the stub mimics the bot admin
 # endpoints. Provisioning runs in Oban, so activation is polled.
+# Re-enable provisioning held off for the deterministic Phase 1 above.
+rpc('Application.put_env(:agentboard, :mattermost_provisioner_token, "fixture-provisioner-token")')
 WBOT = {'X-Agentboard-Agent': 'worker-bot', 'X-Agentboard-Model': 'fixture', 'X-Agentboard-Harness': 'codex'}
 
 
