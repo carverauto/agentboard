@@ -83,6 +83,7 @@ defmodule AgentboardWeb.ContextLiveTest do
 
       socket = %Phoenix.LiveView.Socket{
         assigns: %{
+          __changed__: %{},
           param_error: nil,
           error: nil,
           filters: %{"repo" => "a/b"},
@@ -108,6 +109,7 @@ defmodule AgentboardWeb.ContextLiveTest do
 
       socket = %Phoenix.LiveView.Socket{
         assigns: %{
+          __changed__: %{},
           param_error: message,
           error: nil,
           filters: %{},
