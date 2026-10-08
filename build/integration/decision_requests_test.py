@@ -200,6 +200,42 @@ api("decisions/promote",lost,actor="decision-coordinator",captain=True,status=40
 assert api("tasks/promotion-ownership")["task"]["assignee_id"] == "decision-other"
 assert sql("SELECT count(*) FROM decision_requests WHERE task_id='promotion-ownership'") == "0"
 
+# Connected board Promote keeps the selected non-default kind/options: the same
+# reducer the CLI promote path proves, driven through the real LiveView form.
+create_task("board-promote-task")
+api("tasks/board-promote-task/update",{"status":"blocked","note":"CAPTAIN DECISION: board scope ask"})
+board_source=ab("decision","waiting","--task","board-promote-task")["decisions"][0]
+assert board_source["status"] == "unfiled"
+# Current revision with no qualifying source refuses with conflict, never a crash.
+create_task("board-promote-nonsource")
+current_revision=api("tasks/board-promote-nonsource")["task"]["revision"]
+api("decisions/promote",{"task":"board-promote-nonsource","source_type":"message","source_id":"00000000-0000-4000-8000-000000000000","revision":current_revision,"kind":"scope","question":"No qualifying source"},actor="decision-coordinator",captain=True,status=409)
+assert sql("SELECT count(*) FROM decision_requests WHERE task_id='board-promote-nonsource'") == "0"
+# An observer browser session cannot promote through the board form.
+observer_view=LiveView(URL,"/tasks/board-promote-task")
+observer_view.send(["1","observer-promote",observer_view.topic,"event",{"type":"form","event":"decision_promote","value":urllib.parse.urlencode({"task":"board-promote-task","source_type":board_source["source_type"],"source_id":board_source["source_id"],"revision":str(board_source["revision"]),"question":"Board promote scope question?","kind":"scope","options":"Proceed\nDefer"})}])
+observer_reply=observer_view.wait(lambda e:e[3] == "phx_reply" and e[1] == "observer-promote")
+assert observer_reply and contains(observer_reply,"Unlock captain controls before promotion")
+assert sql("SELECT count(*) FROM decision_requests WHERE task_id='board-promote-task'") == "0"
+observer_view.close()
+board_jar=http.cookiejar.CookieJar()
+board_browser=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(board_jar))
+board_settings=Page();board_settings.feed(board_browser.open(URL+"/settings",timeout=10).read().decode())
+board_unlock=urllib.request.Request(URL+"/settings/unlock",data=urllib.parse.urlencode({"token":CAPTAIN,"_csrf_token":board_settings.csrf}).encode(),headers={"Content-Type":"application/x-www-form-urlencoded","Origin":URL})
+assert board_browser.open(board_unlock,timeout=10).status == 200
+board_cookie='; '.join(c.name+'='+c.value for c in board_jar)
+board_view=LiveView(URL,"/tasks/board-promote-task",board_cookie)
+board_view.send(["1","board-promote",board_view.topic,"event",{"type":"form","event":"decision_promote","value":urllib.parse.urlencode({"task":"board-promote-task","source_type":board_source["source_type"],"source_id":board_source["source_id"],"revision":str(board_source["revision"]),"question":"Board promote scope question?","kind":"scope","options":"Proceed\nDefer"})}])
+assert board_view.wait(lambda e:e[3] == "phx_reply" and e[1] == "board-promote")
+board_view.close()
+board_promoted=ab("decision","list","--task","board-promote-task")["decisions"][0]
+assert board_promoted["kind"] == "scope" and board_promoted["options"] == ["Proceed","Defer"]
+assert board_promoted["question"] == "Board promote scope question?"
+assert board_promoted["findings"] == "CAPTAIN DECISION: board scope ask"
+assert board_promoted["requester_id"] == "decision-seat" and board_promoted["promoted_by"] == "captain"
+assert board_promoted["source_type"] == board_source["source_type"] and board_promoted["source_id"] == board_source["source_id"]
+print("Board LiveView promote preserves selected kind/options with provenance proof passed")
+
 # Default-off cleanup and explicit TTL retirement retain audit and emit no
 # answer/inbox/wake. Expiry payload changes conflict instead of mutating history.
 create_task("expiry-task")
