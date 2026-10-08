@@ -13,13 +13,14 @@ defmodule Agentboard.Delivery.PollState do
   paper_trail do
     change_tracking_mode(:changes_only)
     store_action_name?(true)
-    ignore_actions([:reserve, :defer, :observe, :invalidate_base])
+    ignore_actions([:reserve, :defer, :observe, :invalidate_base, :save_cache])
+    ignore_attributes([:github_cache])
     metadata(:provenance, :map, allow_nil?: false)
   end
 
   events do
     event_log(Agentboard.Board.AuditEvent)
-    ignore_actions([:reserve, :defer, :observe, :invalidate_base])
+    ignore_actions([:reserve, :defer, :observe, :invalidate_base, :save_cache])
   end
 
   actions do
@@ -33,12 +34,25 @@ defmodule Agentboard.Delivery.PollState do
       accept([:generation, :attempt_id, :lease_expires_at, :last_attempt_at])
     end
 
+    update :save_cache do
+      accept([:github_cache])
+    end
+
+    update :request_poll do
+      accept([:generation, :next_poll_at])
+      change(set_attribute(:attempt_id, nil))
+      change(set_attribute(:lease_expires_at, nil))
+      change(set_attribute(:unchanged_polls, 0))
+      change(set_attribute(:check_fingerprint, nil))
+    end
+
     update :defer do
-      accept([:attempt_id, :lease_expires_at, :next_poll_at, :last_error])
+      accept([:attempt_id, :lease_expires_at, :next_poll_at, :last_error, :budget_deferred_at])
     end
 
     update :invalidate_base do
       accept([:generation, :expected_base_sha, :next_poll_at, :last_error])
+      change(set_attribute(:unchanged_polls, 0))
       change(set_attribute(:attempt_id, nil))
       change(set_attribute(:lease_expires_at, nil))
     end
@@ -82,7 +96,10 @@ defmodule Agentboard.Delivery.PollState do
           :base_ref,
           :expected_base_sha,
           :snapshot_id,
-          :lifecycle
+          :lifecycle,
+          :unchanged_polls,
+          :check_fingerprint,
+          :budget_deferred_at
         ])
 
         if action == :observe_terminal do
@@ -130,6 +147,17 @@ defmodule Agentboard.Delivery.PollState do
     attribute(:lease_expires_at, :utc_datetime_usec, public?: true)
     attribute(:last_attempt_at, :utc_datetime_usec, public?: true)
     attribute(:last_error, :string, public?: true)
+    attribute(:budget_deferred_at, :utc_datetime_usec, public?: true)
+
+    attribute(:unchanged_polls, :integer,
+      default: 0,
+      allow_nil?: false,
+      constraints: [min: 0, max: 2],
+      public?: true
+    )
+
+    attribute(:check_fingerprint, :string)
+    attribute(:github_cache, :map, default: %{}, allow_nil?: false, sensitive?: true)
     # Passing still requires the repository-policy stage.
     attribute(:ci_state, :string, default: "unknown", allow_nil?: false, public?: true)
     attribute(:observed_at, :utc_datetime_usec, public?: true)

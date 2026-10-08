@@ -48,7 +48,10 @@ defmodule Agentboard.Delivery.Scheduling do
           {:ok, projection} ->
             # Enrollment uses a separate transaction, preserving branch -> PR order.
             with {:ok, _} <- Agentboard.Delivery.BaseMonitor.enroll(reservation, observation),
-                 {:ok, _} <- Operations.transaction(fn -> Agentboard.Delivery.Duplicates.reconcile(reservation.id) end) do
+                 {:ok, _} <-
+                   Operations.transaction(fn ->
+                     Agentboard.Delivery.Duplicates.reconcile(reservation.id)
+                   end) do
               {:ok, %{observed: projection["ci_state"]}}
             else
               {:error, _code, message} -> {:error, message}
@@ -112,7 +115,7 @@ defmodule Agentboard.Delivery.Scheduling do
     Operations.transaction(fn ->
       %{rows: rows} =
         Repo.statement!(
-          "SELECT s.id FROM delivery_poll_states s WHERE enabled AND next_poll_at<=clock_timestamp() AND (lease_expires_at IS NULL OR lease_expires_at<=clock_timestamp()) AND NOT EXISTS (SELECT 1 FROM oban_jobs j WHERE j.worker='Agentboard.Delivery.PollWorker' AND j.args->>'id'=s.id AND j.state IN ('available','scheduled','executing','retryable')) ORDER BY next_poll_at,s.id LIMIT 100",
+          "SELECT s.id FROM delivery_poll_states s WHERE enabled AND next_poll_at<=clock_timestamp() AND (lease_expires_at IS NULL OR lease_expires_at<=clock_timestamp()) AND NOT EXISTS (SELECT 1 FROM oban_jobs j WHERE j.worker='Agentboard.Delivery.PollWorker' AND j.args->>'id'=s.id AND j.state IN ('available','scheduled','executing','retryable')) ORDER BY COALESCE(s.observed_at,s.registered_at),next_poll_at,s.id LIMIT 100",
           []
         )
 

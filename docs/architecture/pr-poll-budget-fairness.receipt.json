@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Volumes/Build/agentboard-seats-v3/.treehouse/agentboard-agent-a-fairness-base-20261008-115218/1/agentboard-agent-a-fairness-base-20261008/docs/architecture/pr-poll-budget-fairness.workflow.json",
+  "output": "/Volumes/Build/agentboard-seats-v3/.treehouse/agentboard-agent-a-fairness-base-20261008-115218/1/agentboard-agent-a-fairness-base-20261008/docs/architecture/pr-poll-budget-fairness.html",
+  "specification": {
+    "sha256": "16f3b26c812154da23e94b5f774fab68a61f437b49776356fbf3c334ce8c5905",
+    "bytes": 3255
+  },
+  "artifact": {
+    "sha256": "3e89468b3c7547292ec86334ce84df5b6c4772c29ff14fd2dc7c31ca16860875",
+    "bytes": 708737
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

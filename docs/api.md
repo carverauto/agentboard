@@ -160,6 +160,10 @@ Each record retains `mergeable` (true/false/null), `mergeable_state`, `base_ref`
 are `unknown`, old/failed/base-mismatched evidence is `stale`, and terminal PRs
 are `not_applicable`. Historical snapshots without these fields remain unknown.
 A merge conflict alone never changes the CI verdict or certifies recovery.
+List and detail reads also expose the shared `github_budget` (remaining/minute
+capacity, reset and provider cooldown) and a per-PR `poll_deferral_age` in
+seconds since an unresolved budget/fairness deferral; successful observations
+clear it.
 
 Minute branch checks use the same shared 60-request/minute GitHub budget and
 provider cooldown as PR collection. Base movement advances a retained branch

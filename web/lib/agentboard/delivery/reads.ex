@@ -28,9 +28,34 @@ defmodule Agentboard.Delivery.Reads do
 
       %{
         prs: Enum.map(selected, &record/1),
+        github_budget: budget(),
         next_cursor: if(length(rows) > 20, do: List.last(selected).id, else: nil)
       }
     end)
+  end
+
+  defp budget do
+    b = Ash.get!(Agentboard.Delivery.ProviderBudget, "github")
+    stamp = Ops.now()
+    capacity = min(b.capacity, 60)
+
+    %{rows: [[carried]]} =
+      Agentboard.Repo.statement!(
+        "SELECT COALESCE(sum(remaining),0)::bigint FROM delivery_poll_credits WHERE expires_at>clock_timestamp()",
+        []
+      )
+
+    %{
+      capacity: capacity,
+      remaining:
+        if(DateTime.compare(b.reset_at, stamp) != :gt,
+          do: max(0, capacity - carried),
+          else: min(b.remaining, capacity)
+        ),
+      reset_at: b.reset_at,
+      blocked_until: b.blocked_until,
+      provider_blocked: !!b.blocked_until and DateTime.compare(b.blocked_until, stamp) == :gt
+    }
   end
 
   def review(urls) when is_list(urls) and length(urls) <= 20 do
@@ -50,7 +75,14 @@ defmodule Agentboard.Delivery.Reads do
         |> Ash.Query.filter(id in ^ids)
         |> Ash.Query.limit(20)
         |> Ash.read!()
-        |> Map.new(fn pr -> {pr.id, Map.put(ci_projection(pr), :duplicate_of, Agentboard.Delivery.Duplicates.projection(pr.id))} end)
+        |> Map.new(fn pr ->
+          {pr.id,
+           Map.put(
+             ci_projection(pr),
+             :duplicate_of,
+             Agentboard.Delivery.Duplicates.projection(pr.id)
+           )}
+        end)
 
       Map.new(identities, fn {url, id} -> {url, states[id]} end)
     end)
@@ -91,7 +123,7 @@ defmodule Agentboard.Delivery.Reads do
           []
         end
 
-      Map.merge(base, %{sources: sources, observations: history})
+      Map.merge(base, %{sources: sources, observations: history, github_budget: budget()})
     end)
   end
 
@@ -177,7 +209,12 @@ defmodule Agentboard.Delivery.Reads do
       duplicate_of: Agentboard.Delivery.Duplicates.projection(pr.id),
       decisions: waiting_decisions(pr.id),
       pr: Ops.public(pr),
-      poll: if(s, do: Ops.public(s)),
+      poll: if(s, do: Agentboard.Delivery.Polling.public_state(s)),
+      poll_deferral_age:
+        if(s && s.budget_deferred_at,
+          do: max(0, DateTime.diff(Ops.now(), s.budget_deferred_at)),
+          else: 0
+        ),
       overdue:
         !!o and is_nil(o.resolved_at) and DateTime.compare(o.next_reminder_at, Ops.now()) != :gt,
       obligation: if(o, do: Ops.public(o)),

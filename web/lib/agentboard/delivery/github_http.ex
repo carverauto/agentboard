@@ -4,11 +4,11 @@ defmodule Agentboard.Delivery.GithubHTTP do
 
   @body_limit 1_048_576
 
-  def get(path, timeout) do
+  def get(path, timeout, options \\ []) do
     config = Application.get_env(:agentboard, :github, [])
 
     with {:ok, base, token} <- destination(config),
-         {:ok, %{allowed: true}} <- ProviderAdmission.acquire("github") do
+         {:ok, %{allowed: true} = admission} <- admit(options[:credit]) do
       headers = [
         {"accept", "application/vnd.github+json"},
         {"accept-encoding", "identity"},
@@ -17,6 +17,7 @@ defmodule Agentboard.Delivery.GithubHTTP do
         {"x-github-api-version", "2022-11-28"}
       ]
 
+      headers = headers ++ Keyword.get(options, :conditional, [])
       deadline = System.monotonic_time(:millisecond) + min(timeout, 10_000)
       ssl = [verify: :verify_peer, timeout: min(timeout, 5_000)]
 
@@ -43,6 +44,13 @@ defmodule Agentboard.Delivery.GithubHTTP do
                   bytes: 0,
                   done: false
                 })
+                |> then(fn
+                  {:not_modified, headers} ->
+                    {:not_modified, headers, Map.get(admission, :window_end)}
+
+                  response ->
+                    response
+                end)
 
               {:error, _, _} ->
                 {:error, "unavailable", 60}
@@ -61,6 +69,9 @@ defmodule Agentboard.Delivery.GithubHTTP do
       {:error, reason} -> {:error, reason, 60}
     end
   end
+
+  defp admit(nil), do: ProviderAdmission.acquire("github")
+  defp admit(credit), do: ProviderAdmission.spend(credit)
 
   defp receive_response(conn, ref, deadline, result) do
     remaining = deadline - System.monotonic_time(:millisecond)
@@ -148,6 +159,9 @@ defmodule Agentboard.Delivery.GithubHTTP do
         limited? ->
           {:error, "rate_limited", min(retry_seconds(headers), 604_800)}
 
+        status == 304 ->
+          {:not_modified, headers}
+
         status in [401, 403] ->
           {:error, "unauthorized", 300}
 
@@ -201,4 +215,3 @@ defmodule Agentboard.Delivery.GithubHTTP do
 
   defp integer(_), do: 0
 end
-

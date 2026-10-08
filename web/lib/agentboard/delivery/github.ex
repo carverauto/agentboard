@@ -1,6 +1,6 @@
 defmodule Agentboard.Delivery.Github do
   @moduledoc "Bounded complete head-check collection; repository policies and merge-ref verdicts are a later gate."
-  alias Agentboard.Delivery.GithubHTTP
+  alias Agentboard.Delivery.{GithubHTTP, ProviderAdmission}
 
   @max_requests 32
   @max_pages 10
@@ -8,27 +8,54 @@ defmodule Agentboard.Delivery.Github do
   @failures ~w(failure error timed_out cancelled action_required startup_failure)
 
   def collect(pr) do
-    ctx = %{deadline: System.monotonic_time(:millisecond) + 90_000, requests: 0}
+    with {:ok, %{allowed: true, credit: credit}} <-
+           ProviderAdmission.reserve_poll(pr, @max_requests) do
+      cache = Map.get(pr, :github_cache, %{})
+      scope = cache_scope()
+      responses = if cache["scope"] == scope, do: cache["responses"] || %{}, else: %{}
 
-    with {:ok, root} <- root(pr),
-         {:ok, before, ctx} <- metadata(root, pr, ctx),
-         {:ok, result} <- collect_head(root, pr, before, ctx) do
-      {:ok, result}
+      ctx = %{
+        deadline: System.monotonic_time(:millisecond) + 90_000,
+        requests: 0,
+        credit: credit,
+        cache: responses,
+        saved: %{},
+        scope: scope
+      }
+
+      try do
+        with {:ok, root} <- root(pr),
+             {:ok, before, ctx} <- metadata(root, pr, ctx),
+             {:ok, result} <- collect_head(root, pr, before, ctx) do
+          {:ok, result}
+        else
+          false -> {:error, "incomplete", 60}
+          {:error, reason, seconds} -> {:error, reason, seconds}
+          {:error, reason} -> {:error, reason, 60}
+        end
+      after
+        # Durable consumption occurs before each TLS request. This refunds only
+        # unused credit; expiry recovery does the same after a killed worker.
+        ProviderAdmission.release(credit)
+      end
     else
-      false -> {:error, "incomplete", 60}
-      {:error, reason, seconds} -> {:error, reason, seconds}
-      {:error, reason} -> {:error, reason, 60}
+      {:ok, %{allowed: false, retry_after: seconds, reason: reason}} ->
+        {:error, reason, seconds}
+
+      {:error, reason, _} ->
+        {:error, reason, 60}
     end
   end
 
   # A terminal lifecycle is a complete metadata observation, not CI evidence.
   # Avoid suites/runs/status requests after merge/close. Reconciliation only
   # re-enables closed rows hourly (or on a new explicit link) to detect reopen.
-  defp collect_head(_root, _pr, %{lifecycle: lifecycle} = before, _ctx)
+  defp collect_head(_root, _pr, %{lifecycle: lifecycle} = before, ctx)
        when lifecycle in ["merged", "closed"] do
     {:ok,
      Map.merge(before, %{
        ci_state: "unknown",
+       github_cache: saved_cache(ctx),
        payload: %{
          "draft" => before.draft,
          "mergeable" => before.mergeable,
@@ -52,7 +79,7 @@ defmodule Agentboard.Delivery.Github do
          {:ok, statuses, ctx} <-
            pages(root <> "/commits/" <> before.head_sha <> "/statuses", nil, ctx),
          {:ok, attempts} <- normalize(runs, statuses, before.head_sha),
-         {:ok, after_read, _ctx} <- metadata(root, pr, ctx),
+         {:ok, after_read, ctx} <- metadata(root, pr, ctx),
          true <- revision(before) == revision(after_read) do
       # A clean set is not policy-verified green. No expected checks, required
       # rules, merge/test-ref association or BuildBuddy correlation are inferred.
@@ -66,6 +93,7 @@ defmodule Agentboard.Delivery.Github do
       {:ok,
        Map.merge(after_read, %{
          ci_state: state,
+         github_cache: saved_cache(ctx),
          payload: %{
            "draft" => after_read.draft,
            "mergeable" => after_read.mergeable,
@@ -105,7 +133,16 @@ defmodule Agentboard.Delivery.Github do
   end
 
   defp revision(metadata),
-    do: Map.take(metadata, [:head_sha, :base_sha, :base_ref, :head_ref, :head_repo, :lifecycle, :draft])
+    do:
+      Map.take(metadata, [
+        :head_sha,
+        :base_sha,
+        :base_ref,
+        :head_ref,
+        :head_repo,
+        :lifecycle,
+        :draft
+      ])
 
   defp bounded_state(value)
        when value in ~w(clean dirty unstable behind blocked unknown draft has_hooks), do: value
@@ -146,7 +183,10 @@ defmodule Agentboard.Delivery.Github do
          mergeable: if(is_boolean(data["mergeable"]), do: data["mergeable"], else: nil),
          mergeable_state: bounded_state(data["mergeable_state"]),
          base_ref: if(ref?(data["base"]["ref"]), do: data["base"]["ref"]),
-         head_ref: if(ref?(data["head"]["ref"]) and not contains_token?(data["head"]["ref"]), do: data["head"]["ref"]),
+         head_ref:
+           if(ref?(data["head"]["ref"]) and not contains_token?(data["head"]["ref"]),
+             do: data["head"]["ref"]
+           ),
          head_repo: head_repository(data["head"]["repo"])
        }, ctx}
     else
@@ -237,13 +277,90 @@ defmodule Agentboard.Delivery.Github do
     remaining = ctx.deadline - System.monotonic_time(:millisecond)
 
     if remaining > 0 and ctx.requests < @max_requests do
-      case GithubHTTP.get(path, remaining) do
-        {:ok, data, headers} -> {:ok, data, headers, %{ctx | requests: ctx.requests + 1}}
-        {:error, _, _} = error -> error
+      cached = ctx.cache[path]
+      conditional = conditional_headers(cached)
+      result = GithubHTTP.get(path, remaining, credit: ctx.credit, conditional: conditional)
+
+      case result do
+        {:ok, data, headers} ->
+          {:ok, data, headers, cache_response(path, data, headers, ctx)}
+
+        {:not_modified, headers, charged_window} when is_map(cached) ->
+          with {:ok, :ok} <- ProviderAdmission.not_modified(ctx.credit, charged_window) do
+            # Keep the cached pagination Link; a 304 need not repeat it.
+            headers =
+              Map.merge(cached["headers"], Map.take(headers, ["etag", "last-modified", "link"]))
+
+            {:ok, cached["data"], headers, cache_response(path, cached["data"], headers, ctx)}
+          else
+            _ -> {:error, "incomplete", 60}
+          end
+
+        {:not_modified, _, _} ->
+          {:error, "incomplete", 60}
+
+        {:error, _, _} = error ->
+          error
       end
     else
       {:error, "incomplete", 60}
     end
+  end
+
+  defp cache_scope do
+    config = Application.get_env(:agentboard, :github, [])
+
+    :crypto.hash(
+      :sha256,
+      (config[:api_url] || "https://api.github.com") <> "\0" <> (config[:token] || "")
+    )
+    |> Base.encode16(case: :lower)
+  end
+
+  defp conditional_headers(%{"headers" => headers}) do
+    cond do
+      safe_validator?(headers["etag"]) ->
+        [{"if-none-match", headers["etag"]}]
+
+      safe_validator?(headers["last-modified"]) ->
+        [{"if-modified-since", headers["last-modified"]}]
+
+      true ->
+        []
+    end
+  end
+
+  defp conditional_headers(_), do: []
+
+  defp safe_validator?(value), do: bounded_text?(value, 512)
+
+  defp cache_response(path, data, headers, ctx) do
+    entry = %{"data" => data, "headers" => Map.take(headers, ["etag", "last-modified", "link"])}
+    encoded = Jason.encode!(entry)
+
+    saved =
+      if conditional_headers(entry) != [] and byte_size(encoded) <= 65_536 and
+           cache_safe?(entry),
+         do: Map.put(ctx.saved, path, entry),
+         else: ctx.saved
+
+    %{ctx | saved: saved, requests: ctx.requests + 1}
+  end
+
+  defp cache_safe?(value) when is_binary(value),
+    do: String.valid?(value) and not String.contains?(value, "\0") and not contains_token?(value)
+
+  defp cache_safe?(value) when is_map(value),
+    do: Enum.all?(value, fn {k, v} -> cache_safe?(k) and cache_safe?(v) end)
+
+  defp cache_safe?(value) when is_list(value), do: Enum.all?(value, &cache_safe?/1)
+  defp cache_safe?(_), do: true
+
+  defp saved_cache(ctx) do
+    # Only routes sampled by this complete poll survive a changed head.
+    if byte_size(Jason.encode!(ctx.saved)) <= 524_288,
+      do: %{"scope" => ctx.scope, "responses" => ctx.saved},
+      else: %{}
   end
 
   defp next?(link), do: is_binary(link) and Regex.match?(~r/rel="next"/, link)
@@ -407,10 +524,12 @@ defmodule Agentboard.Delivery.Github do
 
   defp status(_), do: nil
 
-  defp text?(name),
+  defp text?(name), do: bounded_text?(name, 256)
+
+  defp bounded_text?(value, limit),
     do:
-      is_binary(name) and byte_size(name) in 1..256 and String.valid?(name) and
-        not String.contains?(name, ["\0", "\r", "\n"]) and not contains_token?(name)
+      is_binary(value) and byte_size(value) in 1..limit and String.valid?(value) and
+        not String.contains?(value, ["\0", "\r", "\n"]) and not contains_token?(value)
 
   defp contains_token?(text) do
     token = Application.get_env(:agentboard, :github, [])[:token]

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "perceptual-review",
+  "status": "pass",
+  "artifactSha256": "3e89468b3c7547292ec86334ce84df5b6c4772c29ff14fd2dc7c31ca16860875",
+  "reviewer": "codex-agent-a-server",
+  "correctionRounds": 0,
+  "screenshots": [
+    "pr-poll-budget-fairness.visual-check.1440x900.dark.png",
+    "pr-poll-budget-fairness.visual-check.1440x900.light.png",
+    "pr-poll-budget-fairness.visual-check.2048x1320.dark.png",
+    "pr-poll-budget-fairness.visual-check.2048x1320.light.png"
+  ],
+  "observations": [
+    "Inspected all four light/dark endpoint screenshots at1440x900 and2048x1320.",
+    "Labels and route endpoints are legible; branches do not cross labels or nodes.",
+    "Diagram, title and conclusion cards fit a balanced first screen in both themes."
+  ],
+  "limitations": [
+    "Diagram review only; dashboard behavior is covered separately by packaged SSR integration assertions."
+  ]
+}
