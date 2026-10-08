@@ -47,6 +47,10 @@ config :agentboard,
        String.to_integer(System.get_env("AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS", "10000"))
 
 config :agentboard,
+       :mattermost_channel_allowlist,
+       System.get_env("AGENTBOARD_MATTERMOST_CHANNEL_ALLOWLIST", "")
+
+config :agentboard,
        :public_board_url,
        System.get_env("AGENTBOARD_PUBLIC_BOARD_URL")
 

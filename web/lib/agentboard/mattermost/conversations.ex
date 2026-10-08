@@ -24,6 +24,7 @@ defmodule Agentboard.Mattermost.Conversations do
   def send_as(caller, params) when is_map(params) do
     with {:ok, agent_id} <- registered_agent(caller),
          {:ok, channel_id, body, task_id, kind, root_id, retry_key, icon_url} <- send_params(params),
+         {:ok, channel_id} <- check_channel_scope(channel_id),
          {:ok, cfg} <- Delivery.bot_config() do
       msg_id = Ash.UUID.generate()
       header = "[#{agent_id} · #{task_id}]"
@@ -89,7 +90,8 @@ defmodule Agentboard.Mattermost.Conversations do
   # explicit with a reason.
   def reads(caller, channel_id, since, limit) do
     with {:ok, agent_id} <- registered_agent(caller),
-         {:ok, channel_id} <- present(channel_id, "channel_id is required"),
+         {:ok, channel_id} <- channel_param(channel_id),
+         {:ok, channel_id} <- check_channel_scope(channel_id),
          {:ok, limit} <- read_limit(limit),
          {:ok, cfg} <- Delivery.bot_config(),
          {:ok, order, posts} <- channel_history(cfg, channel_id, limit) do
@@ -101,7 +103,17 @@ defmodule Agentboard.Mattermost.Conversations do
         if since in [nil, ""] do
           {:ok, %{"channel_id" => channel_id, "posts" => [], "caught_up" => false, "incomplete_reason" => "no_posts"}}
         else
-          {:ok, %{"channel_id" => channel_id, "posts" => [], "caught_up" => caught_up, "incomplete_reason" => reason}}
+          if found_since do
+            case record_coverage(agent_id, channel_id, since, true, nil) do
+              {:ok, _} ->
+                {:ok, %{"channel_id" => channel_id, "posts" => [], "caught_up" => caught_up, "incomplete_reason" => reason}}
+
+              {:error, _code, _message} = error ->
+                error
+            end
+          else
+            {:ok, %{"channel_id" => channel_id, "posts" => [], "caught_up" => caught_up, "incomplete_reason" => reason}}
+          end
         end
       else
         {cover_id, cover_version} = coverage_target(agent_id, channel_id, order, posts, newest, since, found_since)
@@ -122,11 +134,11 @@ defmodule Agentboard.Mattermost.Conversations do
   # path/header match before this runs.
   def report_coverage(caller, channel_id, last_post_id, last_version, opts \\ []) do
     with {:ok, agent_id} <- registered_agent(caller),
-         {:ok, channel_id} <- present(channel_id, "channel_id is required"),
+         {:ok, channel_id} <- channel_param(channel_id),
          {:ok, last_post_id} <- present(last_post_id, "last_post_id is required"),
-         {:ok, last_version} <- non_negative(last_version) do
+         {:ok, last_version} <- non_negative(last_version),
+         {:ok, reason} <- optional_text(opts[:incomplete_reason], 512) do
       caught_up = Keyword.get(opts, :caught_up, false) == true
-      reason = opts[:incomplete_reason]
       record_coverage(agent_id, channel_id, last_post_id, last_version, caught_up, reason)
     end
   end
@@ -152,6 +164,7 @@ defmodule Agentboard.Mattermost.Conversations do
   defp send_params(params) do
     with {:ok, channel_id} <- present(params["channel_id"], "channel_id is required"),
          {:ok, channel_id} <- capped(channel_id, 128, "channel_id exceeds 128 characters"),
+         {:ok, channel_id} <- channel_shape(channel_id),
          {:ok, body} <- present(params["body"], "body is required"),
          {:ok, body} <- capped(body, 16_383, "body exceeds 16383 characters"),
          {:ok, kind} <- send_kind(params["kind"]),
@@ -257,6 +270,48 @@ defmodule Agentboard.Mattermost.Conversations do
     if String.length(value) > max, do: {:error, "invalid_input", message}, else: {:ok, value}
   end
 
+  defp channel_param(value) do
+    with {:ok, channel_id} <- present(value, "channel_id is required"),
+         {:ok, channel_id} <- capped(channel_id, 128, "channel_id exceeds 128 characters"),
+         {:ok, channel_id} <- channel_shape(channel_id) do
+      {:ok, channel_id}
+    end
+  end
+
+  defp channel_shape(channel_id) do
+    if Regex.match?(~r/\A[A-Za-z0-9_-]+\z/, channel_id),
+      do: {:ok, channel_id},
+      else: {:error, "invalid_input", "channel_id uses an unexpected shape"}
+  end
+
+  defp check_channel_scope(channel_id) do
+    case channel_allowlist() do
+      :any -> {:ok, channel_id}
+      listed when is_list(listed) ->
+        if channel_id in listed,
+          do: {:ok, channel_id},
+          else: {:error, "invalid_context", "channel is not allowlisted for agent chat"}
+    end
+  end
+
+  defp channel_allowlist do
+    configured =
+      case Application.get_env(:agentboard, :mattermost_channel_allowlist) do
+        nil -> System.get_env("AGENTBOARD_MATTERMOST_CHANNEL_ALLOWLIST") || ""
+        "" -> ""
+        value when is_binary(value) -> value
+        values when is_list(values) -> Enum.join(values, ",")
+      end
+
+    listed =
+      configured |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+
+    case listed do
+      [] -> :any
+      _ -> listed
+    end
+  end
+
   defp read_limit(nil), do: {:ok, 50}
   defp read_limit(""), do: {:ok, 50}
 
@@ -345,6 +400,9 @@ defmodule Agentboard.Mattermost.Conversations do
     %{
       "id" => post["id"],
       "channel_id" => post["channel_id"],
+      # Real Mattermost authorship is preserved: shared-bot posts carry
+      # props.agent_id attribution while human posts keep their user id.
+      "user_id" => post["user_id"],
       "root_id" => post["root_id"],
       "create_at" => post["create_at"],
       "update_at" => post["update_at"],
@@ -365,6 +423,16 @@ defmodule Agentboard.Mattermost.Conversations do
   end
 
   defp record_coverage(agent_id, channel_id, last_post_id, last_version, caught_up, reason) do
+    case do_record_coverage(agent_id, channel_id, last_post_id, last_version, caught_up, reason) do
+      {:error, "conflict", _} ->
+        do_record_coverage(agent_id, channel_id, last_post_id, last_version, caught_up, reason)
+
+      result ->
+        result
+    end
+  end
+
+  defp do_record_coverage(agent_id, channel_id, last_post_id, last_version, caught_up, reason) do
     Operations.transaction(fn ->
       stamp = Operations.now()
 

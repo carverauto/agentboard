@@ -62,6 +62,11 @@ Reads never acknowledge board inbox items.
   `ServiceSettings.EnablePostUsernameOverride` and
   `EnablePostIconOverride` to true so per-agent names/icons render.
   Safe to flip or leave off; attribution never depends on it.
+- Channel scope (captain-configured): set
+  `AGENTBOARD_MATTERMOST_CHANNEL_ALLOWLIST` to a comma-separated list of
+  channel IDs (blanks ignored) to restrict which channels agent chat may
+  use; send and reads outside the list are rejected. When empty or unset,
+  every channel the shared bot can reach stays available.
 
 ## Captain checklist
 
