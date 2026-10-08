@@ -64,6 +64,9 @@ configMapGenerator:
       - AGENTBOARD_PUBLIC_BOARD_URL=https://agentboard.farm01.carverauto.dev
       - PHX_HOST=agentboard.farm01.carverauto.dev
       - DATABASE_HOST=agentboard-db-rw.agentboard.svc.cluster.local
+      # Captain-approved 2026-10-08: coordinator attribution for decision
+      # recommend/answer/supersede (still requires the verified captain capability).
+      - AGENTBOARD_COORDINATOR_ID=grok-serviceradar-oss
 generatorOptions:
   disableNameSuffixHash: true
 images:
