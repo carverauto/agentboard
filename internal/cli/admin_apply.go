@@ -739,7 +739,8 @@ func (c *commands) runDoctor(cmd *cobra.Command, applyFile, overlay, compose str
 					if err != nil {
 						return errors.New("cannot read policies file: " + af.Config.CIPoliciesFile)
 					}
-					if cur, _, found := findEnv(lines, "AGENTBOARD_CI_POLICIES"); !found || cur != string(praw) {
+					want, nerr := normalizePoliciesFile(praw)
+					if cur, _, found := findEnv(lines, "AGENTBOARD_CI_POLICIES"); nerr != nil || !found || cur != want {
 						drift = append(drift, adminDiff{Scope: "config", Field: "AGENTBOARD_CI_POLICIES", Current: currentMarker(cur, found), Desired: "policies file content"})
 					}
 				}
@@ -902,7 +903,11 @@ func (c *commands) runApply(cmd *cobra.Command, af adminFile, dryRun bool) error
 			if !json.Valid(raw) {
 				return errors.New("policies file is not valid JSON; nothing was written")
 			}
-			diff, err := convergeConfigSet(t.path, t.anchor, "AGENTBOARD_CI_POLICIES", string(raw), dryRun)
+			desired, err := normalizePoliciesFile(raw)
+			if err != nil {
+				return err
+			}
+			diff, err := convergeConfigSet(t.path, t.anchor, "AGENTBOARD_CI_POLICIES", desired, dryRun)
 			if err != nil {
 				return &adminExit{code: 1, msg: name + ": config: " + err.Error()}
 			}

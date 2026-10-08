@@ -854,6 +854,38 @@ func TestAdminConfigQuotedValueConverges(t *testing.T) {
 	}
 }
 
+func TestAdminConfigPoliciesTrailingNewlineConverges(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	overlay := filepath.Join(dir, "kustomization.yaml")
+	if err := os.WriteFile(overlay, []byte("configMapGenerator:\n- name: cfg\n  literals:\n  - FOO=bar\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	policies := filepath.Join(dir, "policies.json")
+	if err := os.WriteFile(policies, []byte("{\"a\": 1}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	set := []string{"admin", "config", "ci-policies", "set", "--file", policies, "--overlay", overlay}
+	if _, _, err := runAdm(t, set...); err != nil {
+		t.Fatalf("set with trailing newline failed: %v", err)
+	}
+	out, _, err := runAdm(t, set...)
+	if err != nil {
+		t.Fatalf("second set failed: %v", err)
+	}
+	if !strings.Contains(out, "converged") {
+		t.Fatalf("trailing-newline value must converge on second run: %s", out)
+	}
+	multi := filepath.Join(dir, "multi.json")
+	if err := os.WriteFile(multi, []byte("{\n  \"a\": 1\n}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	mset := []string{"admin", "config", "ci-policies", "set", "--file", multi, "--overlay", overlay}
+	if _, _, err := runAdm(t, mset...); err == nil || !strings.Contains(err.Error(), "single-line") {
+		t.Fatalf("multi-line policies must fail fast, got %v", err)
+	}
+}
+
 func TestAdminDoctorSkipsWorkerAgentCheck(t *testing.T) {
 	f := newAdmBoard(t)
 	dir := admEnv(t, f)

@@ -50,7 +50,8 @@ agentboard admin config set ci-policies --file policies.json --overlay ...
 state. `config` edits the ConfigMap `literals:` (kustomize) or
 `environment:` (compose) entries in place, preserving comments; exactly one
 of `--overlay`/`--compose` is required. `ci-policies` input is validated as
-JSON before any write.
+JSON before any write; a single trailing newline in the file is ignored,
+but multi-line JSON is rejected because one env entry holds one line.
 
 ## Safe rollouts
 

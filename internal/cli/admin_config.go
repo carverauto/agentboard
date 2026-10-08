@@ -48,6 +48,19 @@ func splitEnvLine(line string) (name, value string, quoted bool, ok bool) {
 	return name, value, quoted, true
 }
 
+func normalizePoliciesFile(raw []byte) (string, error) {
+	s := string(raw)
+	if strings.HasSuffix(s, "\r\n") {
+		s = s[:len(s)-2]
+	} else {
+		s = strings.TrimSuffix(s, "\n")
+	}
+	if strings.ContainsAny(s, "\r\n") {
+		return "", errors.New("policies file must be single-line JSON; multi-line values cannot be stored in one env entry")
+	}
+	return s, nil
+}
+
 func quoteEnvValue(v string) string {
 	if strings.ContainsAny(v, " \t#{}[]:,\"'") {
 		return "'" + strings.ReplaceAll(v, "'", "''") + "'"
@@ -190,7 +203,10 @@ func (c *commands) adminConfigSet(name string) *cobra.Command {
 			if !json.Valid(raw) {
 				return errors.New("policies file is not valid JSON; nothing was written")
 			}
-			desired = string(raw)
+			desired, err = normalizePoliciesFile(raw)
+			if err != nil {
+				return err
+			}
 		} else {
 			desired = args[0]
 		}
