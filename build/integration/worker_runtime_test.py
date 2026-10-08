@@ -36,6 +36,7 @@ def until(predicate, timeout=8):
 class Fixture:
     def __init__(self, root, names=('worker-a',)):
         self.root = root
+        self.environment = os.environ.copy()
         self.states = {}
         self.calls = []
         self.posts = []
@@ -169,14 +170,14 @@ class Fixture:
         protected(self.config_path, self.config)
 
     def run(self, *args, success=True):
-        result = subprocess.run([BINARY, 'worker', *args, '--config', str(self.config_path), '--json'], capture_output=True, text=True, timeout=10)
+        result = subprocess.run([BINARY, 'worker', *args, '--config', str(self.config_path), '--json'], capture_output=True, text=True, timeout=10, env=self.environment)
         if success:
             assert result.returncode == 0, result.stderr
             return json.loads(result.stdout)
         return result
 
     def serve(self):
-        return subprocess.Popen([BINARY, 'worker', 'serve', '--config', str(self.config_path), '--json'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return subprocess.Popen([BINARY, 'worker', 'serve', '--config', str(self.config_path), '--json'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.environment)
     def stop(self, process):
         process.send_signal(signal.SIGTERM)
         output, error = process.communicate(timeout=4)

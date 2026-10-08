@@ -43,6 +43,9 @@ api('/agents/register',{'name':'Isolated packaged host conformance'})
 host = api('/workers/provision', {'worker_id':WORKER,'host_id':'fixture-host','repos':['fixture/runtime'],'model':'fixture-model','harness':'pi','idempotency_key':'packaged-provision'},captain=True)['host_token']
 with tempfile.TemporaryDirectory(prefix='ab-pack-',dir='/tmp') as directory:
     fixture = Fixture(pathlib.Path(directory),(WORKER,))
+    # Fixture RPC/setup retains SQL inputs; the API-only host child receives none.
+    fixture.environment = {key: value for key, value in os.environ.items()
+                           if not key.startswith(('DATABASE_', 'PG'))}
     # The invented HTTP listener is shut down before any host command; all requests
     # now reach the actual packaged Phoenix endpoint and its scoped capabilities.
     fixture.http.shutdown(); fixture.http.server_close()
