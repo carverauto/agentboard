@@ -73,7 +73,7 @@ func NewRoot() *cobra.Command {
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), Version)
 		return err
 	}})
-	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.chat(), c.prs(), c.decisions(), c.seat())
+	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.chat(), c.prs(), c.decisions(), c.seat(), c.adminCommands())
 	return root
 }
 func env(key, fallback string) string {
