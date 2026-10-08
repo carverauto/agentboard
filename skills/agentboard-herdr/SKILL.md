@@ -23,3 +23,5 @@ enable Herdr automation or automatic prompt delivery.
 ## Ask-user gates: escalate to the coordinator, never the human pane
 
 On a no-mistakes ask-user gate, follow [the shared ask-user → coordinator procedure](../agentboard/ask-user-escalation.md): write the findings verbatim, escalate with `agentboard msg send --to "$AGENTBOARD_COORDINATOR_ID" --task TASK --body '...'` (env-resolved; `--body` is required; include `--task` when a board task is active), mark blocked, then end the turn — only if the escalation went through. Never pass `--yes`, and never prompt the Herdr human pane for ask-user authority — the coordinator (or captain via coordinator) is the only escalation path.
+
+Share cross-agent artifacts per [the canonical procedure](../agentboard/SKILL.md#sharing-artifacts-across-agents): durable PR or HTTPS URL plus a Context FACT with URL and checksum — never a Treehouse-slot-local path.

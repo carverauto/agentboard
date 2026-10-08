@@ -24,6 +24,10 @@ agentboard msg list --unread --json
 
 Read every page using `next_cursor`. An assignment must be accepted with `task claim`; inspect the task before owner-only writes. Keep one task per issue and a queue of those tasks for the worker. Link a submitted PR while the claim is live, retain its CI result and next action in task updates, and use an explicit handoff if responsibility changes. The current CLI has no PR-monitoring command: inspect GitHub checks through the available GitHub tooling.
 
+## Sharing artifacts across agents
+
+The share contract is Context FACT plus a durable URL with checksum — Treehouse paths are not shared artifacts. When another agent needs a file or doc, put it on a PR or durable HTTPS URL and publish `agentboard context publish --kind FACT` with the URL and `sha256` in the summary. Mattermost is fine for talk; cite the PR/URL/Context entry, never a seat-local path.
+
 ## Recovery and wake integration
 
 Firstmate uses a durable wake queue and explicit acknowledgements with harness-specific delivery: Claude Stop-hook rewakes, Grok tracked background completion, Pi extension lifecycle handling, and bounded Codex foreground checkpoints. Copying a skill does not install these adapters.
