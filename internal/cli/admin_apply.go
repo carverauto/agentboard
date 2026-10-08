@@ -713,6 +713,9 @@ func (c *commands) runDoctor(cmd *cobra.Command, applyFile, overlay, compose str
 		if af.Pins.Overlay != "" && af.Pins.Compose != "" {
 			return errors.New("pins takes exactly one of overlay or compose")
 		}
+		if len(af.Pins.Images) > 0 && af.Pins.Overlay == "" && af.Pins.Compose == "" {
+			return errors.New("pins.images requires exactly one of pins.overlay or pins.compose")
+		}
 		if (af.Config.CoordinatorID != "" || af.Config.CIPoliciesFile != "") && t.path == "" {
 			return errors.New("config section needs overlay or compose")
 		}
@@ -908,10 +911,13 @@ func (c *commands) runApply(cmd *cobra.Command, af adminFile, dryRun bool) error
 	} else if af.Config.CoordinatorID != "" || af.Config.CIPoliciesFile != "" {
 		return errors.New("config section needs overlay or compose")
 	}
+	if af.Pins.Overlay != "" && af.Pins.Compose != "" {
+		return errors.New("pins takes exactly one of overlay or compose")
+	}
+	if len(af.Pins.Images) > 0 && af.Pins.Overlay == "" && af.Pins.Compose == "" {
+		return errors.New("pins.images requires exactly one of pins.overlay or pins.compose")
+	}
 	if af.Pins.Overlay != "" || af.Pins.Compose != "" {
-		if af.Pins.Overlay != "" && af.Pins.Compose != "" {
-			return errors.New("pins takes exactly one of overlay or compose")
-		}
 		for _, im := range af.Pins.Images {
 			if af.Pins.Overlay != "" {
 				diff, _, err := convergeOverlayPin(af.Pins.Overlay, im.Name, im.Digest, dryRun)

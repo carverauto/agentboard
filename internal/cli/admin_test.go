@@ -727,6 +727,26 @@ func TestAdminDoctorRejectsBothPinsTargets(t *testing.T) {
 	}
 }
 
+func TestAdminPinsImagesWithoutTargetErrors(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	applyPath := filepath.Join(dir, "admin.yaml")
+	apply := "apiVersion: agentboard.carverauto.dev/v1\nkind: AdminConfig\n" +
+		"pins:\n  images:\n  - name: registry.example.com/agentboard/dashboard\n    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+	if err := os.WriteFile(applyPath, []byte(apply), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, "admin", "apply", "-f", applyPath); err == nil || !strings.Contains(err.Error(), "pins.images requires") {
+		t.Fatalf("orphan pins.images must error on apply, got %v", err)
+	}
+	if _, _, err := runAdm(t, "admin", "doctor", "-f", applyPath); err == nil || !strings.Contains(err.Error(), "pins.images requires") {
+		t.Fatalf("orphan pins.images must error on doctor, got %v", err)
+	}
+	if f.provisions != 0 {
+		t.Fatalf("rejected file must not reach the board")
+	}
+}
+
 func TestAdminDoctorErrorsWithoutConfigTarget(t *testing.T) {
 	f := newAdmBoard(t)
 	dir := admEnv(t, f)
