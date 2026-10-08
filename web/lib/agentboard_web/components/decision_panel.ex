@@ -18,7 +18,6 @@ defmodule AgentboardWeb.DecisionPanel do
       |> assign(:answer_count, assigns.answered_total || length(assigns.answered ++ answered))
 
     ~H"""
-<<<<<<< HEAD
     <section id="captain-waiting" aria-label="Waiting on captain" class="my-6 min-w-0">
       <h2>Waiting on captain <span class="count">{if @unavailable, do: "?", else: @count}</span></h2>
       <p class="text-muted">Oldest first. Formal decisions hold claims; unfiled asks are read only.</p>
