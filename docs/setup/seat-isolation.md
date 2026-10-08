@@ -7,20 +7,38 @@ agent enrollment or merge is enabled by these scripts.
 
 ## Install the pinned tool
 
-With Python 3 and curl installed, run `scripts/install-treehouse` explicitly. It downloads the official **v2.0.1**
+With Python 3 and curl installed, run `scripts/install-treehouse` explicitly. It downloads the official **v3.1.2**
 release for Linux/Darwin AMD64/ARM64, verifies the pinned archive SHA256 and exact
 binary version, and atomically installs it under
-`~/.local/share/agentboard/tools/treehouse/v2.0.1/treehouse`. It leaves the global
+`~/.local/share/agentboard/tools/treehouse/v3.1.2/treehouse`. It leaves the global
 Treehouse executable and its pools alone. An optional argument chooses a different
 installation directory; set `AGENTBOARD_TREEHOUSE_BIN` to that binary. The launcher
-refuses any version other than `v2.0.1`.
+refuses any version other than `v3.1.2`.
 
-The repository's `treehouse.toml` selects a versioned pool rooted under
-`~/.local/share/agentboard/treehouse-v2.0.1`. Treehouse appends `.treehouse` and its
-repository pool name. This separates v2 state from existing newer global pools.
-Changing this config is an explicit operator choice; do not point it at a pool
-managed by another Treehouse version. User-level Treehouse hooks may still run;
-the launcher always checks the resulting checkout after acquisition.
+## Choose an explicit v3 pool root
+
+The launcher never relies on `treehouse.toml` or `TREEHOUSE_ROOT` for the pool.
+Pass an absolute root with `--root PATH`, or set `AGENTBOARD_SEAT_ROOT`; the flag
+wins. The launcher passes it to `treehouse get --root`, which overrides
+`TREEHOUSE_ROOT` and config. Treehouse appends `.treehouse` and the repository
+pool name, so one root holds a separate pool per repository. Before acquiring, the
+launcher reads every `<root>/.treehouse/*/treehouse-state.json` and refuses the
+root (STOP, nothing created) if any pool lacks the integer state `version` that v3
+writes, i.e. a pool managed by Treehouse v2. It also refuses relative or symlinked
+roots and any leased path outside `<root>/.treehouse`. Sharing a root with other
+v3.1.2 seats that use the same explicit root is fine; never point it at a v2 pool.
+
+Migration from v2: existing seats that already hold leases in the legacy v2 pool
+(`~/.local/share/agentboard/treehouse-v2.0.1`, still named by this repository's
+`treehouse.toml`) keep working. `--check` uses only Git and the seat environment,
+so it is unaffected. Do not move, prune or reuse those leases with v3. Keep the old
+v2 binary at `~/.local/share/agentboard/tools/treehouse/v2.0.1/treehouse` until
+every v2 lease is returned with that binary's `return PATH`. Launch new seats with
+an absolute per-repository v3 root (for example `/path/to/agentboard-seats-v3`).
+The maintainers' workstation roots are recorded in
+[reference-farm01.md](../deploy/reference-farm01.md#seat-pool-roots).
+User-level Treehouse hooks may still run; the launcher always checks the resulting
+checkout after acquisition.
 
 ## Launch a native harness
 
@@ -30,16 +48,17 @@ claim your assigned task through Agentboard. Put the authorized task brief in a
 file, then invoke from the source repository root:
 
 ```sh
-scripts/launch-seat --repo "$PWD" --brief "$TASK_BRIEF" -- codex '{brief_text}'
+scripts/launch-seat --repo "$PWD" --root "$AGENTBOARD_SEAT_ROOT" --brief "$TASK_BRIEF" -- codex '{brief_text}'
 # For a native CLI that accepts a prompt file:
-scripts/launch-seat --repo "$PWD" --brief "$TASK_BRIEF" -- "$HARNESS_BIN" --prompt-file '{brief}'
+scripts/launch-seat --repo "$PWD" --root "$AGENTBOARD_SEAT_ROOT" --brief "$TASK_BRIEF" -- "$HARNESS_BIN" --prompt-file '{brief}'
 ```
 
 Arguments after `--` are native argv, never a shell string. Include `{brief_text}`
 or `{brief}` as a whole argument so the generated brief is actually delivered.
 Check your harness's native prompt/file option before choosing argv. The launcher
-calls only the real v2 interface, `treehouse get --lease --lease-holder "$AGENT_ID"`;
-it does not invent the v3 `--root`, `--base`, `--branch` or `--json` flags.
+calls only the real v3 interface,
+`treehouse get --lease --lease-holder "$AGENT_ID" --root "$ROOT"`; it does not pass
+`--base`, `--branch` or `--json`.
 Treehouse chooses the default branch tip for acquisition. Inspect the acquired
 base against freshly fetched `origin/main` before starting a new feature branch;
 do not reuse a stale task or overwrite another seat's work.
@@ -52,7 +71,7 @@ unregistered worktrees, then writes a private brief inside `.agentboard-seat/`
 (directory mode 0700, brief file mode 0600, symlinks and redirected paths rejected).
 It checks again immediately before starting the harness with that exact cwd.
 The child inherits `AGENTBOARD_SEAT_WORKTREE`, `AGENTBOARD_SEAT_SOURCE` and
-`AGENTBOARD_SEAT_BRIEF`. A successful launch does not prove the model followed the
+`AGENTBOARD_SEAT_BRIEF` and `AGENTBOARD_SEAT_ROOT`. A successful launch does not prove the model followed the
 brief; the harness must perform its own startup check before editing.
 
 ## STOP and recovery
@@ -71,7 +90,7 @@ The persistent Treehouse lease stays held after native process exit, including
 launch failures after acquisition. Inspect the reported path, preserve all work,
 and coordinate recovery. Keep it through PR review and green CI. Return only your
 own worktree explicitly using the pinned tool's `return PATH` after cleanup is
-authorized; v2 has no lease-ID-fenced return operation. Never prune another seat.
+authorized (v3 finds the pool from the path; legacy v2 leases use the v2 binary). Never prune another seat.
 A full pool is a blocker, not permission to clear someone else's checkout.
 
 Optional SessionStart or turn-end backstops can invoke the source launcher with
@@ -81,5 +100,5 @@ replace the launcher gate or the STOP brief. This script is a launch boundary, n
 an OS sandbox against a harness that deliberately changes directory later.
 
 The version/API/config behavior is pinned to the upstream
-[v2.0.1 get implementation](https://github.com/kunchenguid/treehouse/blob/v2.0.1/cmd/get.go)
-and [configuration](https://github.com/kunchenguid/treehouse/blob/v2.0.1/internal/config/config.go).
+[v3.1.2 get implementation](https://github.com/kunchenguid/treehouse/blob/v3.1.2/cmd/get.go)
+and [configuration](https://github.com/kunchenguid/treehouse/blob/v3.1.2/internal/config/config.go).

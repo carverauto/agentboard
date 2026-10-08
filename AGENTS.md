@@ -48,7 +48,8 @@ and revalidate rather than hand-rebasing an active run.
 ## Agentboard seat isolation
 
 Every implementation seat must use a disposable, persistently leased **Treehouse
-v2.0.1** linked worktree. The primary checkout is for inspection and explicit
+v3.1.2** linked worktree from an explicit v3 pool root (`--root` or
+`AGENTBOARD_SEAT_ROOT`; never a pool managed by another Treehouse version). The primary checkout is for inspection and explicit
 launcher invocation only. A branch, Herdr pane, container, or backend tag does not
 establish worktree isolation. Do not implement, branch, commit or push from the
 primary checkout. Start seats with [scripts/launch-seat](scripts/launch-seat);

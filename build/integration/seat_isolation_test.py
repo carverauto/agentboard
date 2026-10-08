@@ -23,7 +23,9 @@ with tempfile.TemporaryDirectory(prefix="seat-isolation-") as tmp:
     command(["git", "init", "-b", "main"], repo)
     command(["git", "config", "user.name", "Fixture Seat"], repo)
     command(["git", "config", "user.email", "fixture@example.invalid"], repo)
-    (repo / "treehouse.toml").write_text(f'root = "{root / "pool"}"\nmax_trees = 8\n')
+    # The launcher's explicit --root must win over the repository config.
+    (repo / "treehouse.toml").write_text(f'root = "{root / "config-pool"}"\nmax_trees = 8\n')
+    pool = root / "pool"
     (repo / ".gitignore").write_text('.agentboard-seat/\n')
     command(["git", "add", "."], repo)
     command(["git", "commit", "-m", "invented repository"], repo)
@@ -35,7 +37,8 @@ with tempfile.TemporaryDirectory(prefix="seat-isolation-") as tmp:
 brief=pathlib.Path(sys.argv[2]).read_text() if sys.argv[3]=='file' else sys.argv[2]
 pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os.environ['AGENTBOARD_SEAT_WORKTREE'],'source':os.environ['AGENTBOARD_SEAT_SOURCE'],'brief':brief}))
 ''')
-    env = dict(os.environ, AGENT_ID="codex-fixture-seat", AGENTBOARD_HARNESS="codex", AGENTBOARD_MODEL="fixture-model", AGENTBOARD_TREEHOUSE_BIN=str(treehouse))
+    env = dict(os.environ, AGENT_ID="codex-fixture-seat", AGENTBOARD_HARNESS="codex", AGENTBOARD_MODEL="fixture-model", AGENTBOARD_TREEHOUSE_BIN=str(treehouse), AGENTBOARD_SEAT_ROOT=str(pool), TREEHOUSE_NO_UPDATE_CHECK="1")
+    env.pop("TREEHOUSE_ROOT", None)
     seats = []
     for form in ("text", "file"):
         output = root / f"{form}.json"
@@ -44,6 +47,7 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
         seat = Path(data["cwd"])
         seats.append(seat)
         assert seat != repo and seat == Path(data["expected"])
+        assert seat.is_relative_to(pool.resolve() / ".treehouse"), seat
         assert data["source"] == str(repo)
         assert data["brief"].endswith(task.read_text()) and "STOP" in data["brief"]
         assert "AGENTBOARD_SEAT_WORKTREE" in data["brief"]
@@ -54,7 +58,8 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
         check_env = dict(env, AGENTBOARD_SEAT_WORKTREE=str(seat))
         command([sys.executable, launcher, "--repo", repo, "--check"], seat, check_env)
     assert seats[0] != seats[1], "persistent leases must survive process exit"
-    status = command([treehouse, "status"], repo).stdout
+    assert not (root / "config-pool").exists(), "treehouse.toml root must not be used"
+    status = command([treehouse, "status", "--root", pool], repo, env).stdout
     assert status.count("codex-fixture-seat") >= 2, status
 
     foreign = root / "foreign"
@@ -97,7 +102,7 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
 
     # Malformed acquisition must stop before metadata or the native process writes.
     fake = root / "bad-treehouse"
-    fake.write_text(f'#!/bin/sh\nif [ "$1" = --version ]; then echo v2.0.1; else echo "{repo}"; fi\n')
+    fake.write_text(f'#!/bin/sh\nif [ "$1" = --version ]; then echo v3.1.2; else echo "{repo}"; fi\n')
     fake.chmod(0o755)
     output = root / "must-not-exist.json"
     bad_env = dict(env, AGENTBOARD_TREEHOUSE_BIN=str(fake))
@@ -110,20 +115,46 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
     (reused / "brief.md").unlink()
     os.chmod(reused, 0o755)
     reuse_treehouse = root / "reuse-treehouse"
-    reuse_treehouse.write_text(f'#!/bin/sh\nif [ "$1" = --version ]; then echo v2.0.1; else echo "{seats[0]}"; fi\n')
+    reuse_treehouse.write_text(f'#!/bin/sh\nif [ "$1" = --version ]; then echo v3.1.2; else echo "{seats[0]}"; fi\n')
     reuse_treehouse.chmod(0o755)
     reuse_output = root / "reuse.json"
     reuse_env = dict(env, AGENTBOARD_TREEHOUSE_BIN=str(reuse_treehouse))
     command([sys.executable, launcher, "--repo", repo, "--brief", task, "--", sys.executable, recorder, reuse_output, "{brief}", "file"], repo, reuse_env)
     assert reused.stat().st_mode & 0o777 == 0o700
     assert (reused / "brief.md").stat().st_mode & 0o777 == 0o600
-    fake.write_text('#!/bin/sh\necho v3.1.2\n')
+    fake.write_text('#!/bin/sh\necho v2.0.1\n')
     result = command(argv, repo, bad_env, ok=False)
-    assert result.returncode == 2 and "expected Treehouse 2.0.1" in result.stderr
+    assert result.returncode == 2 and "expected Treehouse 3.1.2" in result.stderr
     assert not output.exists()
     missing_env = dict(env)
     del missing_env["AGENT_ID"]
     result = command(argv, repo, missing_env, ok=False)
     assert result.returncode == 2 and "AGENT_ID" in result.stderr
     assert not output.exists()
-print("real pinned Treehouse acquisition, retained leases, native brief/cwd and STOP cases passed")
+
+    # Pool roots must be explicit, absolute and free of other-version (v2) pool state.
+    recorder_argv = ["--", sys.executable, recorder, output, "{brief_text}", "text"]
+    real = [sys.executable, launcher, "--repo", repo, "--brief", task]
+    no_root = dict(env)
+    del no_root["AGENTBOARD_SEAT_ROOT"]
+    for extra, run_env, reason in (
+        ([], no_root, "pool root is required"),
+        (["--root", "relative-pool"], no_root, "absolute"),
+    ):
+        result = command(real + extra + recorder_argv, repo, run_env, ok=False)
+        assert result.returncode == 2 and "STOP" in result.stderr and reason in result.stderr, result.stderr
+        assert not output.exists()
+    legacy = root / "legacy-v2"
+    (legacy / ".treehouse" / "primary-000000").mkdir(parents=True)
+    (legacy / ".treehouse" / "primary-000000" / "treehouse-state.json").write_text('{"worktrees": {}}')
+    for extra, run_env in (([], dict(env, AGENTBOARD_SEAT_ROOT=str(legacy))), (["--root", str(legacy)], env)):
+        result = command(real + extra + recorder_argv, repo, run_env, ok=False)
+        assert result.returncode == 2 and "another Treehouse version" in result.stderr, result.stderr
+        assert not output.exists()
+        assert sorted(p.name for p in (legacy / ".treehouse").iterdir()) == ["primary-000000"]
+    # An explicit --root overrides AGENTBOARD_SEAT_ROOT.
+    flagged = root / "flag-pool"
+    flag_output = root / "flag.json"
+    command(real + ["--root", str(flagged), "--", sys.executable, recorder, flag_output, "{brief_text}", "text"], repo, dict(env, AGENTBOARD_SEAT_ROOT=str(legacy)))
+    assert Path(json.loads(flag_output.read_text())["cwd"]).is_relative_to(flagged.resolve() / ".treehouse")
+print("real pinned Treehouse v3 acquisition with explicit roots, retained leases, native brief/cwd and STOP cases passed")

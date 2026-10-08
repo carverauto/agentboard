@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Launch an explicitly requested native seat in a leased Treehouse v2 checkout."""
+"""Launch an explicitly requested native seat in a leased Treehouse v3 checkout."""
 import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import time
 
-VERSION = "2.0.1"
+VERSION = "3.1.2"
+STATE_FILE = "treehouse-state.json"
 
 
 def run(argv, cwd, timeout=15):
@@ -53,12 +55,34 @@ def isolated(candidate, source, common):
     return physical
 
 
+def pool_root(value):
+    """Return the explicit absolute v3 pool root, refusing roots that hold other-version pools."""
+    if not value or not value.strip():
+        raise RuntimeError("pool root is required: pass --root or set AGENTBOARD_SEAT_ROOT (absolute path)")
+    root = Path(value).expanduser()
+    if not root.is_absolute():
+        raise RuntimeError(f"pool root must be absolute, got {value!r}")
+    if root.is_symlink():
+        raise RuntimeError("pool root must not be a symlink")
+    pools = root / ".treehouse"
+    if pools.is_dir():
+        for state in sorted(pools.glob(f"*/{STATE_FILE}")):
+            try:
+                data = json.loads(state.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as error:
+                raise RuntimeError(f"cannot verify Treehouse pool state {state}: {error}")
+            # Treehouse v2 state has no version field; v3 writes an integer state version.
+            if not isinstance(data, dict) or not isinstance(data.get("version"), int):
+                raise RuntimeError(f"pool root holds a pool managed by another Treehouse version: {state.parent}")
+    return root
+
+
 def brief(text, worktree, source):
     return f"""# Agentboard seat isolation — check before editing
 
 Expected disposable Treehouse worktree: {worktree}
 Source checkout (do not edit): {source}
-Persistent Treehouse {VERSION} lease holder: $AGENT_ID.
+Persistent Treehouse v{VERSION} lease holder: $AGENT_ID (pool root $AGENTBOARD_SEAT_ROOT).
 
 Run `pwd -P` and `git rev-parse --show-toplevel`. Both physical paths MUST
 match $AGENTBOARD_SEAT_WORKTREE. Run the source repository's
@@ -79,6 +103,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, required=True, help="source repository root")
     parser.add_argument("--brief", type=Path, help="authorized task brief")
+    parser.add_argument("--root", help="absolute Treehouse v3 pool root (default: $AGENTBOARD_SEAT_ROOT)")
     parser.add_argument("--check", action="store_true", help="check current cwd against seat environment; no acquisition or launch")
     parser.add_argument("command", nargs=argparse.REMAINDER, help="native argv after --; use {brief_text} or {brief} as a whole argument")
     args = parser.parse_args()
@@ -104,15 +129,19 @@ def main():
     if not args.brief:
         raise RuntimeError("--brief is required")
     task_brief = args.brief.read_text(encoding="utf-8")
-    binary = os.environ.get("AGENTBOARD_TREEHOUSE_BIN", str(Path.home() / ".local/share/agentboard/tools/treehouse/v2.0.1/treehouse"))
+    root = pool_root(args.root if args.root is not None else os.environ.get("AGENTBOARD_SEAT_ROOT", ""))
+    binary = os.environ.get("AGENTBOARD_TREEHOUSE_BIN", str(Path.home() / f".local/share/agentboard/tools/treehouse/v{VERSION}/treehouse"))
     version = run([binary, "--version"], source)
     if version != f"v{VERSION}":
         raise RuntimeError(f"expected Treehouse {VERSION}, got {version!r}; run scripts/install-treehouse")
-    candidate = Path(run([binary, "get", "--lease", "--lease-holder", os.environ["AGENT_ID"]], source, timeout=90))
+    # The explicit --root overrides TREEHOUSE_ROOT and treehouse.toml, so pools never mix versions.
+    candidate = Path(run([binary, "get", "--lease", "--lease-holder", os.environ["AGENT_ID"], "--root", str(root)], source, timeout=90))
     if not candidate.is_absolute():
         raise RuntimeError("Treehouse did not return one absolute leased path")
     try:
         worktree = isolated(candidate, source, common)
+        if not worktree.is_relative_to(root.resolve(strict=True) / ".treehouse"):
+            raise RuntimeError(f"leased worktree is outside the requested pool root {root}")
         time.sleep(0.1)
         if isolated(candidate, source, common) != worktree:
             raise RuntimeError("worktree cwd did not settle")
@@ -128,12 +157,12 @@ def main():
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
             stream.write(emitted)
         command = [str(brief_path) if arg == "{brief}" else emitted if arg == "{brief_text}" else arg for arg in command]
-        env = dict(os.environ, AGENTBOARD_SEAT_WORKTREE=str(worktree), AGENTBOARD_SEAT_SOURCE=str(source), AGENTBOARD_SEAT_BRIEF=str(brief_path))
+        env = dict(os.environ, AGENTBOARD_SEAT_WORKTREE=str(worktree), AGENTBOARD_SEAT_SOURCE=str(source), AGENTBOARD_SEAT_BRIEF=str(brief_path), AGENTBOARD_SEAT_ROOT=str(root))
         isolated(worktree, source, common)
-        print(f"Seat cwd: {worktree}; retained Treehouse lease holder: {os.environ['AGENT_ID']}", file=sys.stderr)
+        print(f"Seat cwd: {worktree}; retained Treehouse v{VERSION} lease holder: {os.environ['AGENT_ID']} (root {root})", file=sys.stderr)
         return subprocess.call(command, cwd=worktree, env=env)
     except Exception:
-        print(f"Retained lease at {candidate}; inspect before any explicit Treehouse return.", file=sys.stderr)
+        print(f"Retained lease at {candidate}; inspect before any explicit 'treehouse return {candidate}'.", file=sys.stderr)
         raise
 
 
