@@ -7,6 +7,7 @@ import concurrent.futures
 import http.server
 import json
 import os
+from html.parser import HTMLParser
 from pathlib import Path
 import re
 import subprocess
@@ -63,13 +64,48 @@ def api(path, body=None, token=None, captain=False):
         return json.load(response)
 
 
+def _strip_scripts(html):
+    # Remove script elements with a real parser so variants like
+    # `<SCRIPT>` or `</script >` cannot slip through a filtering regexp.
+    class Stripper(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=False)
+            self.parts = []
+            self.depth = 0
+        def handle_starttag(self, tag, attrs):
+            if tag.lower() == 'script':
+                self.depth += 1
+            elif self.depth == 0:
+                self.parts.append(self.get_starttag_text())
+        def handle_startendtag(self, tag, attrs):
+            if tag.lower() != 'script' and self.depth == 0:
+                self.parts.append(self.get_starttag_text())
+        def handle_endtag(self, tag):
+            if tag.lower() == 'script':
+                self.depth = max(0, self.depth - 1)
+            elif self.depth == 0:
+                self.parts.append('</' + tag + '>')
+        def handle_data(self, data):
+            if self.depth == 0:
+                self.parts.append(data)
+        def handle_comment(self, data):
+            if self.depth == 0:
+                self.parts.append('<!--' + data + '-->')
+        def handle_decl(self, decl):
+            if self.depth == 0:
+                self.parts.append('<!' + decl + '>')
+    stripper = Stripper()
+    stripper.feed(html)
+    return ''.join(stripper.parts)
+
+
 def export_page(path, filename):
     # Capture generated public SSR and its release-fingerprinted CSS, never source.
     html = urllib.request.urlopen(URL + path, timeout=10).read().decode()
     stylesheet = re.search(r'<link rel="stylesheet"[^>]*href="([^"]+)"', html).group(1)
     css = urllib.request.urlopen(URL + stylesheet, timeout=10).read().decode()
     html = re.sub(r'<link rel="stylesheet"[^>]+>', lambda _: '<style>' + css + '</style>', html)
-    html = re.sub(r'<script\b.*?</script\s*>', '', html, flags=re.S)
+    html = _strip_scripts(html)
     Path(os.environ['TEST_UNDECLARED_OUTPUTS_DIR'], filename).write_text(html)
 
 
