@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""Workflow fence for a seat and its explicitly bound native gate branch.
+
+Git pre-push is a backstop, not an atomic GitHub merge/publication protocol.
+Never call pipeline control from a hook: the outer driver owns abort/custody.
+"""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+
+
+class Refused(RuntimeError):
+    pass
+
+
+def output(argv, cwd=None):
+    result = subprocess.run(argv, cwd=cwd, text=True, capture_output=True, timeout=25)
+    if result.returncode:
+        raise Refused(f"{Path(argv[0]).name} could not verify publication state")
+    return result.stdout.strip()
+
+
+def record(argv):
+    try:
+        return json.loads(output(argv))
+    except (ValueError, TypeError) as error:
+        raise Refused("Publication evidence is not valid JSON") from error
+
+
+def check(context, branch):
+    task = record(['agentboard', '--url', context['url'], '--agent', context['agent'],
+                   '--model', context['model'], '--harness', context['harness'],
+                   '--json', 'task', 'show', context['task']]).get('task')
+    if not isinstance(task, dict) or task.get('id') != context['task']:
+        raise Refused("Task identity could not be verified")
+    if task.get('status') in ('done', 'cancelled'):
+        raise Refused(f"Task {context['task']} is terminal; stop the native run and coordinate")
+    if task.get('assignee_id') != context['agent'] or task.get('claim_expired') is not False:
+        raise Refused("Publication requires this seat's current task ownership")
+    if not task.get('claim_expires_at'):
+        raise Refused("Publication requires a live task claim")
+    url = task.get('pr_url')
+    if url:
+        if not re.fullmatch(r'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]*', url):
+            raise Refused("Linked PR identity is invalid")
+        pr = record(['gh', 'pr', 'view', url, '--json', 'state,url'])
+        if pr.get('state') == 'MERGED':
+            raise Refused(f"Linked PR {url} merged; stop the native run and coordinate")
+        if pr.get('state') not in ('OPEN', 'CLOSED'):
+            raise Refused("Linked PR state is unknown")
+    # Same head repository as well as branch; do not confuse independent forks.
+    prs = record(['gh', 'pr', 'list', '--repo', context['repo'], '--head', branch,
+                  '--state', 'merged', '--limit', '100', '--json',
+                  'url,headRefName,headRepository,headRepositoryOwner'])
+    if not isinstance(prs, list):
+        raise Refused("Head-branch PR history is unknown")
+    for pr in prs:
+        head = pr.get('headRepository') or {}
+        owner = pr.get('headRepositoryOwner') or {}
+        full_name = head.get('nameWithOwner') or (
+            owner.get('login', '') + '/' + head.get('name', ''))
+        if pr.get('headRefName') == branch and full_name.lower() == context['head_repo'].lower():
+            raise Refused(f"Head branch already merged in {pr.get('url')}; use a fresh branch from main")
+    if len(prs) >= 100:
+        raise Refused("Head-branch history exceeded the verification bound")
+
+
+def atomic(path, data):
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as file:
+        file.write(data)
+        temporary = Path(file.name)
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+
+
+def install_gate(context, branch, cwd):
+    # Only the explicitly configured local no-mistakes bare mirror, never an
+    # arbitrary ~/.no-mistakes repository or another seat's configured hook.
+    remote = output(['git', 'remote', 'get-url', 'no-mistakes'], cwd)
+    gate = Path(remote)
+    if not gate.is_absolute() or not gate.is_dir() or gate.is_symlink():
+        raise Refused("An initialized local native gate is required")
+    gate = gate.resolve(strict=True)
+    if output(['git', '--git-dir', str(gate), 'rev-parse', '--is-bare-repository']) != 'true':
+        raise Refused("Configured native gate is not bare")
+    # init's worktree-scoped hooksPath preserves its existing post-receive hook.
+    configured = subprocess.run(['git', '--git-dir', str(gate), 'config', '--get',
+                                 'core.hooksPath'], text=True, capture_output=True)
+    if configured.returncode not in (0, 1):
+        raise Refused("Could not inspect native gate hook scope")
+    hooks = Path(configured.stdout.strip()) if configured.returncode == 0 else gate / 'hooks'
+    if not hooks.is_absolute():
+        hooks = gate / hooks
+    hooks = hooks.resolve(strict=True)
+    if not hooks.is_relative_to(gate):
+        raise Refused("Native hooks are outside the explicitly configured gate")
+    folder = hooks / 'agentboard-publication'
+    if folder.is_symlink():
+        raise Refused("Native publication metadata is redirected")
+    folder.mkdir(mode=0o700, exist_ok=True)
+    hook = hooks / 'pre-push'
+    marker = '# agentboard-publication-guard-v1\n'
+    if hook.exists() and (hook.is_symlink() or marker not in hook.read_text()):
+        raise Refused("An existing foreign pre-push hook must be preserved")
+    with (folder / 'lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        registry = folder / 'branches.json'
+        bindings = json.loads(registry.read_text()) if registry.exists() else {}
+        previous = bindings.get(branch)
+        if previous and (previous['task'], previous['agent']) != (context['task'], context['agent']):
+            raise Refused("Head branch is already bound to another task; use a fresh branch")
+        bindings[branch] = context
+        atomic(registry, json.dumps(bindings).encode())
+        program = folder / 'guard.py'
+        atomic(program, Path(__file__).read_bytes())
+        script = ('#!/bin/sh\n' + marker + 'exec python3 ' + shlex.quote(str(program)) +
+                  ' hook ' + shlex.quote(str(registry)) + '\n')
+        atomic(hook, script.encode())
+        os.chmod(hook, 0o700)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['check', 'install', 'hook'])
+    parser.add_argument('record', help='task ID, or native hook registry path')
+    args = parser.parse_args()
+    if args.action == 'hook':
+        bindings = json.loads(Path(args.record).read_text())
+        for line in sys.stdin:
+            fields = line.split()
+            if len(fields) != 4:
+                raise Refused("Malformed pre-push ref input")
+            _, sha, ref, _ = fields
+            # Notes/evidence and other unbound historical branches remain outside
+            # this task-scoped guard; ordinary publication must bind first.
+            branch = ref.removeprefix('refs/heads/')
+            if ref.startswith('refs/heads/') and sha != '0' * 40 and branch in bindings:
+                check(bindings[branch], branch)
+        return
+    root = Path.cwd().resolve(strict=True)
+    expected = os.environ.get('AGENTBOARD_SEAT_WORKTREE')
+    if not expected or root != Path(expected).resolve(strict=True):
+        raise Refused("Publication must run from the explicitly leased seat")
+    if Path(output(['git', 'rev-parse', '--show-toplevel'])).resolve(strict=True) != root:
+        raise Refused("Publication cwd is not the exact worktree root")
+    source = os.environ.get('AGENTBOARD_SEAT_SOURCE')
+    if not source:
+        raise Refused("Source checkout identity is required")
+    output([str(Path(source) / 'scripts/launch-seat'), '--repo', source, '--check'])
+    repo = os.environ.get('AGENTBOARD_PUBLICATION_REPO')
+    if not repo:
+        origin = output(['git', 'remote', 'get-url', 'origin'])
+        match = re.fullmatch(r'(?:git@github\.com:|https://github\.com/)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?', origin)
+        if not match:
+            raise Refused("A canonical GitHub publication repository is required")
+        repo = match[1]
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
+        raise Refused("Publication repository is invalid")
+    branch = output(['git', 'symbolic-ref', '--quiet', '--short', 'HEAD'])
+    if branch in ('main', 'master', 'staging'):
+        raise Refused("Publication requires a fresh feature branch")
+    context = dict(task=args.record, repo=repo,
+                   head_repo=os.environ.get('AGENTBOARD_PUBLICATION_HEAD_REPO', repo),
+                   url=os.environ.get('AGENTBOARD_URL', 'http://localhost:4000'),
+                   agent=os.environ['AGENT_ID'], model=os.environ['AGENTBOARD_MODEL'],
+                   harness=os.environ['AGENTBOARD_HARNESS'])
+    check(context, branch)
+    if args.action == 'install':
+        install_gate(context, branch, root)
+    print('Publication state verified for ' + args.record)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (Refused, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        print('STOP: ' + str(error), file=sys.stderr)
+        sys.exit(2)

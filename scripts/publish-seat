@@ -1,0 +1,14 @@
+#!/bin/sh
+# Outer driver only. The native pipeline owns its own fixes and publication.
+set -eu
+[ -z "${NO_MISTAKES_GATE:-}" ] || { echo 'STOP: a validation-step agent cannot drive publication' >&2; exit 2; }
+task=${1:?usage: scripts/publish-seat TASK -- run|respond|rerun ARGS...}
+shift
+[ "${1:-}" = -- ] && shift
+root=$(git rev-parse --show-toplevel)
+"$root/scripts/publication-guard" install "$task"
+case "${1:-}" in
+  run|respond) exec no-mistakes axi "$@" ;;
+  rerun) shift; exec no-mistakes rerun "$@" ;;
+  *) echo 'STOP: expected run, respond or rerun' >&2; exit 2 ;;
+esac

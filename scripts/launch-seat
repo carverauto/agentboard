@@ -196,6 +196,13 @@ configured coordinator, and end the turn only after delivery. Resume by reading
 the canonical answer, applying it through the active no-mistakes gate, explicitly
 renewing the task and acknowledging the decision. Never answer your own gate,
 pass --yes, or bypass a held claim; older APIs use the documented board fallback.
+Before starting/reattaching a publication run or answering a gate, check the task
+and linked/head-branch PR merge state. Use `scripts/publish-seat TASK -- run`
+(or `respond`) to verify state and bind a native pre-push guard. A terminal task
+or merged PR means STOP; inspect native custody and abort its stale active run,
+then report to the coordinator. Do not recreate its branch or a second PR.
+Only an explicitly authorized remaining delta may ship on a new branch from
+fresh main. Hook refusal never authorizes a direct push or --no-verify.
 
 # Assigned brief (verbatim)
 
