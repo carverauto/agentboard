@@ -931,7 +931,14 @@ defmodule Agentboard.Cooperation.Runtime do
   def enabled?(subscription),
     do: Application.get_env(:agentboard, :cooperation_enabled, false) and not subscription.revoked
 
-  defp worker_record(s), do: Ops.public(s) |> Map.put("enabled", enabled?(s)) |> Map.put("mattermost_inbox_supported", true)
+  defp worker_record(s) do
+    agent = Ops.fetch!(Agentboard.Board.Resources.Agent, s.id, "Agent must be registered")
+
+    Ops.public(s)
+    |> Map.put("enabled", enabled?(s))
+    |> Map.put("mattermost_inbox_supported", true)
+    |> Map.put("availability", Agentboard.Availability.effective(agent))
+  end
 
   defp reasons(s, b) do
     []

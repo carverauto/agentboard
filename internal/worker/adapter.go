@@ -28,7 +28,7 @@ type Probe struct {
 
 func AdapterCall(ctx context.Context, b Binding, action string, batch *Batch) (Probe, error) {
 	var p Probe
-	if b.Adapter != AdapterVersion && b.Adapter != ClaudeAdapterVersion {
+	if b.Adapter != AdapterVersion && b.Adapter != ClaudeAdapterVersion && b.Adapter != CodexAdapterVersion {
 		return p, errors.New("automatic adapter unsupported; use explicit check-in")
 	}
 	if err := PrivateDir(filepath.Dir(b.Socket)); err != nil {

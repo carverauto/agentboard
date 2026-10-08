@@ -15,6 +15,7 @@ import (
 const Protocol = 1
 const AdapterVersion = "pi-native-v1"
 const ClaudeAdapterVersion = "claude-hook-v1"
+const CodexAdapterVersion = "codex-app-server-v1"
 const MaxFrameBytes = 16 << 10
 
 type Binding struct {
@@ -62,11 +63,14 @@ func Load(path string) (Config, error) {
 		if !config.ValidID(b.Agent) || b.Host == "" || b.Server == "" || b.Session == "" || b.Generation == "" || b.Model == "" || b.Harness == "" || b.Epoch < 0 || !filepath.IsAbs(b.Socket) || !filepath.IsAbs(b.TokenFile) || seen[b.Agent] {
 			return cfg, errors.New("invalid or duplicate worker binding")
 		}
-		if b.Adapter != AdapterVersion && b.Adapter != ClaudeAdapterVersion && b.Adapter != "manual" && b.Adapter != "herdr" {
+		if b.Adapter != AdapterVersion && b.Adapter != ClaudeAdapterVersion && b.Adapter != CodexAdapterVersion && b.Adapter != "manual" && b.Adapter != "herdr" {
 			return cfg, errors.New("unknown worker adapter")
 		}
 		if b.Adapter == ClaudeAdapterVersion && b.Harness != "claude" {
 			return cfg, errors.New("Claude native adapter requires Claude harness attribution")
+		}
+		if b.Adapter == CodexAdapterVersion && b.Harness != "codex" {
+			return cfg, errors.New("Codex native adapter requires Codex harness attribution")
 		}
 		seen[b.Agent] = true
 	}

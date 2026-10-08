@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Proposed Codex worker boundary",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {"url": "https://github.com/carverauto/agentboard", "revision": "829d468a99b6a707c463b6a3f4c3c5d1aa08a4fb"},
+    "viewBox": [1320, 680]
+  },
+  "components": [
+    {"id":"board-api","type":"backend","label":"Worker API","sublabel":"Existing protocol 1","pos":[40,280],"size":[180,82],"sources":[{"path":"docs/worker-api.md"}]},
+    {"id":"host-loop","type":"backend","label":"Host worker","sublabel":"Reserve and reconcile","pos":[390,280],"size":[180,82],"sources":[{"path":"internal/worker/runtime.go"}]},
+    {"id":"codex-bridge","type":"security","label":"Codex bridge","sublabel":"Proposed single input owner","pos":[740,280],"size":[180,82]},
+    {"id":"native-thread","type":"external","label":"Codex thread","sublabel":"Exclusive stdio child","pos":[1090,280],"size":[180,82]},
+    {"id":"receipt-client","type":"backend","label":"Exact receipts","sublabel":"Explicit model tool only","pos":[40,90],"size":[180,82],"sources":[{"path":"docs/worker-api.md"}]},
+    {"id":"host-journal","type":"database","label":"Host journal","sublabel":"Frozen batch fences","pos":[390,510],"size":[180,82],"sources":[{"path":"internal/worker/runtime.go"}]},
+    {"id":"native-evidence","type":"database","label":"Native evidence","sublabel":"Attempt and turn identity","pos":[740,510],"size":[180,82]}
+  ],
+  "connections": [
+    {"id":"frozen-delivery","from":"board-api","to":"host-loop","label":"Frozen batch","variant":"emphasis"},
+    {"id":"socket-submit","from":"host-loop","to":"codex-bridge","label":"Private socket"},
+    {"id":"native-submit","from":"codex-bridge","to":"native-thread","label":"turn/start","variant":"emphasis"},
+    {"id":"exact-ack","from":"receipt-client","to":"board-api","label":"Epoch-fenced IDs","variant":"security","labelDy":24},
+    {"id":"journal-before-io","from":"host-loop","to":"host-journal","label":"Fsync before I/O","labelDy":24},
+    {"id":"native-proof","from":"codex-bridge","to":"native-evidence","label":"Persist acceptance","labelDy":24}
+  ],
+  "cards": [
+    {"dot":"cyan","title":"Proposed profile","items":["One explicitly enrolled app-server thread","Idle wake after native conformance","Busy work remains pending until idle"]},
+    {"dot":"amber","title":"Fail closed","items":["Uncertain effects are never auto-replayed","Replacement requires a fresh generation and epoch","Approval and user-input waits defer wake"]},
+    {"dot":"rose","title":"Review gate","items":["Proposal only: no adapter code or activation","Herdr and existing interactive panes stay manual","Captain approval precedes implementation"]}
+  ]
+}

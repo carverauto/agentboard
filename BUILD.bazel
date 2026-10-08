@@ -33,6 +33,8 @@ test_suite(
         "//build/integration:seat_isolation_test",
         "//build/integration:seat_attachment_test",
         "//build/integration:claude_native_test",
+        "//build/integration:codex_native_test",
+        "//build/integration:codex_packaged_api_test",
         "//web:rate_limits_test",
         "//web:recovery_machine_test",
         "//build/integration:recovery_checkpoint_test",

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "specification": {
+    "sha256": "0a6e8306f16a712107dbb080f18f5f8ddd78ba104d0e250b7b8a6e20edc64d93",
+    "bytes": 2758
+  },
+  "artifact": {
+    "sha256": "ff6b771b324034e4f26ec2678a73e510761c7de9b5f9a0599dc2d3adbd437da6",
+    "bytes": 709889
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  },
+  "evidence": {
+    "verified": true,
+    "repository": "https://github.com/carverauto/agentboard",
+    "revision": "829d468a99b6a707c463b6a3f4c3c5d1aa08a4fb",
+    "references": 4
+  },
+  "output": "docs/architecture/codex-worker-proposal.html",
+  "browser_evidence": {
+    "status": "pass",
+    "artifact_sha256": "ff6b771b324034e4f26ec2678a73e510761c7de9b5f9a0599dc2d3adbd437da6",
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "ok": true
+      },
+      {
+        "width": 1600,
+        "height": 1000,
+        "theme": "light",
+        "ok": true
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "theme": "light",
+        "ok": true
+      },
+      {
+        "width": 2048,
+        "height": 1320,
+        "theme": "light",
+        "ok": true
+      }
+    ]
+  },
+  "visual_review": {
+    "status": "passed",
+    "reviewer": "image-capable agent",
+    "scope": [
+      "2048x1320 light",
+      "1440x900 dark"
+    ],
+    "notes": "Main path, label clearance, cards, dark/light contrast and viewport balance inspected; no visible defects."
+  }
+}

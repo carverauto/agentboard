@@ -12,6 +12,14 @@ sh_test(
 exports_files(["postgres_fixture.sh", "postgres.MODULE.bazel"])
 
 sh_test(
+    name = "codex_native_test",
+    srcs = ["codex_native_test.sh"],
+    data = ["codex_native_test.mjs", "codex_native_fixture.mjs", "//internal/worker:codex-native.mjs", "@worker_node_linux_x64//:bin/node"],
+    args = ["$(rlocationpath //internal/worker:codex-native.mjs)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
+    size = "small",
+)
+
+sh_test(
     name = "claude_native_test",
     srcs = ["claude_native_test.sh"],
     data = ["claude_native_test.mjs", "//internal/worker:claude_native", "//internal/worker:claude-native/bridge.mjs", "@worker_node_linux_x64//:bin/node"],
@@ -44,6 +52,16 @@ sh_test(
     srcs = ["board_api_test.sh"],
     data = ["worker_packaged_api_test.py", "worker_runtime_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
     args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)
+
+sh_test(
+    name = "codex_packaged_api_test",
+    srcs = ["codex_packaged_api_test.sh"],
+    env = {"FIXTURE_NORMAL_ROLE": "true"},
+    data = ["codex_packaged_api_test.py", "codex_native_fixture.mjs", "board_api_test.sh", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard", "//internal/worker:codex-native.mjs", "@worker_node_linux_x64//:bin/node"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
     size = "medium",
     timeout = "long",
 )

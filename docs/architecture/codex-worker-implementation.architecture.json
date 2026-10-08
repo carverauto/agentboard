@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Dedicated Codex worker boundary",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "viewBox": [
+      1320,
+      680
+    ],
+    "repository": {
+      "url": "https://github.com/carverauto/agentboard",
+      "revision": "1cf5c84d95b127527a7e71220b06931e540a132a"
+    }
+  },
+  "components": [
+    {
+      "id": "board-api",
+      "type": "backend",
+      "label": "Worker API",
+      "sublabel": "Existing protocol 1",
+      "pos": [
+        40,
+        280
+      ],
+      "size": [
+        180,
+        82
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/cooperation/runtime.ex"
+        }
+      ]
+    },
+    {
+      "id": "host-loop",
+      "type": "backend",
+      "label": "Host worker",
+      "sublabel": "Reserve and reconcile",
+      "pos": [
+        390,
+        280
+      ],
+      "size": [
+        180,
+        82
+      ],
+      "sources": [
+        {
+          "path": "internal/worker/runtime.go"
+        }
+      ]
+    },
+    {
+      "id": "codex-bridge",
+      "type": "security",
+      "label": "Codex bridge",
+      "sublabel": "Exclusive input owner",
+      "pos": [
+        740,
+        280
+      ],
+      "size": [
+        180,
+        82
+      ],
+      "sources": [
+        {
+          "path": "internal/worker/codex-native.mjs"
+        }
+      ]
+    },
+    {
+      "id": "native-thread",
+      "type": "external",
+      "label": "Codex thread",
+      "sublabel": "Ephemeral 0.160.1 thread",
+      "pos": [
+        1090,
+        280
+      ],
+      "size": [
+        180,
+        82
+      ]
+    },
+    {
+      "id": "receipt-client",
+      "type": "backend",
+      "label": "Scoped CLI",
+      "sublabel": "State and explicit receipts",
+      "pos": [
+        40,
+        90
+      ],
+      "size": [
+        180,
+        82
+      ],
+      "sources": [
+        {
+          "path": "internal/cli/worker.go"
+        }
+      ]
+    },
+    {
+      "id": "host-journal",
+      "type": "database",
+      "label": "Host journal",
+      "sublabel": "Frozen batch fences",
+      "pos": [
+        390,
+        510
+      ],
+      "size": [
+        180,
+        82
+      ],
+      "sources": [
+        {
+          "path": "internal/worker/runtime.go"
+        }
+      ]
+    },
+    {
+      "id": "native-evidence",
+      "type": "database",
+      "label": "Native evidence",
+      "sublabel": "Attempt and turn identity",
+      "pos": [
+        740,
+        510
+      ],
+      "size": [
+        180,
+        82
+      ],
+      "sources": [
+        {
+          "path": "internal/worker/codex-native.mjs"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "frozen-delivery",
+      "from": "board-api",
+      "to": "host-loop",
+      "label": "Frozen batch",
+      "variant": "emphasis"
+    },
+    {
+      "id": "socket-submit",
+      "from": "host-loop",
+      "to": "codex-bridge",
+      "label": "Private socket"
+    },
+    {
+      "id": "native-submit",
+      "from": "codex-bridge",
+      "to": "native-thread",
+      "label": "turn/start",
+      "variant": "emphasis"
+    },
+    {
+      "id": "exact-ack",
+      "from": "receipt-client",
+      "to": "board-api",
+      "label": "Epoch-fenced IDs",
+      "variant": "security",
+      "labelDy": 24
+    },
+    {
+      "id": "journal-before-io",
+      "from": "host-loop",
+      "to": "host-journal",
+      "label": "Fsync before I/O",
+      "labelDy": 24
+    },
+    {
+      "id": "native-proof",
+      "from": "codex-bridge",
+      "to": "native-evidence",
+      "label": "Persist acceptance",
+      "labelDy": 24
+    },
+    {
+      "id": "explicit-tools",
+      "from": "codex-bridge",
+      "to": "receipt-client",
+      "label": "State and tools",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "right"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Native profile",
+      "items": [
+        "One stdio owner and ephemeral native thread",
+        "Explicit check-in and exact received/handled tools",
+        "Default model; native automation disabled"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Fail closed",
+      "items": [
+        "Absent or unavailable snapshot refuses input",
+        "Correlated acceptance; unknown effects never replay",
+        "Replacement requires fresh identity and verified bind"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Proof boundary",
+      "items": [
+        "Fixture and packaged API proof run remotely",
+        "Installed native exercise uses synthetic scoped API",
+        "Production activation remains a separate gate"
+      ]
+    }
+  ]
+}
