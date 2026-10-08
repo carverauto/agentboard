@@ -175,3 +175,25 @@ echo 'Pending schema-20 migration preserves higher schema21 and seeds no request
 
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 [[ "$(decision_psql 'SELECT version FROM board_schema WHERE id=1')" == 22 ]]
+
+# Older-timestamp 20261008001800 pending over a main-21 database must not lower the marker.
+"$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_backfill_upgrade
+export DATABASE_NAME=agentboard_backfill_upgrade
+PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=$DATABASE_NAME user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION pg_textsearch VERSION '1.5.1'" >/dev/null
+backfill_psql() {
+  PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=agentboard_backfill_upgrade user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -Atc "$1"
+}
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+[[ "$(backfill_psql 'SELECT version FROM board_schema WHERE id=1')" == 21 ]]
+backfill_psql "INSERT INTO agents(id,name,model,harness) VALUES ('retained-backfill','Retained worker','model','codex');
+INSERT INTO tasks(id,title) VALUES ('retained-backfill-task','Retained task');" >/dev/null
+backfill_psql "DELETE FROM schema_migrations WHERE version=20261008001800;
+DROP TABLE mattermost_inbox, mattermost_post_versions, mattermost_channel_recovery, mattermost_inbound_runs;
+UPDATE board_schema SET version=21 WHERE id=1;" >/dev/null
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+[[ "$(backfill_psql 'SELECT version FROM board_schema WHERE id=1')" == 21 ]]
+[[ "$(backfill_psql "SELECT to_regclass('mattermost_inbox')::text||','||to_regclass('mattermost_post_versions')::text||','||to_regclass('mattermost_channel_recovery')::text||','||to_regclass('mattermost_inbound_runs')::text")" == 'mattermost_inbox,mattermost_post_versions,mattermost_channel_recovery,mattermost_inbound_runs' ]]
+[[ "$(backfill_psql "SELECT title FROM tasks WHERE id='retained-backfill-task'")" == 'Retained task' ]]
+[[ "$(backfill_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008001800')" == 1 ]]
+echo 'Backfilled 01800 over marker 21 keeps the higher marker, creates metadata tables and preserves rows.'

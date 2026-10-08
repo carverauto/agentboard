@@ -71,6 +71,8 @@ defmodule Agentboard.Mattermost.Inbound do
       false -> {:error, :invalid_or_disallowed_post}
       error -> error
     end
+  rescue
+    _ in [DBConnection.ConnectionError, Postgrex.Error] -> {:error, :store_unavailable}
   end
 
   def valid_post?(post) when is_map(post) do
@@ -156,6 +158,8 @@ defmodule Agentboard.Mattermost.Inbound do
           end
       end
     end
+  rescue
+    _ in [DBConnection.ConnectionError, Postgrex.Error] -> {:error, :store_unavailable}
   end
 
   defp scan_channel(cfg, channel) do
@@ -263,7 +267,13 @@ defmodule Agentboard.Mattermost.Inbound do
   end
 
   defp verify_missing(cfg, channel, versions) do
-    missing = Enum.reject(InboundStore.known_posts(cfg, channel), &Map.has_key?(versions, &1))
+    with {:ok, known} <- InboundStore.known_posts(cfg, channel) do
+      missing = Enum.reject(known, &Map.has_key?(versions, &1))
+      verify_list(cfg, channel, versions, missing)
+    end
+  end
+
+  defp verify_list(cfg, channel, versions, missing) do
     if length(missing) > 500 do
       {:error, :missing_post_budget_exhausted}
     else

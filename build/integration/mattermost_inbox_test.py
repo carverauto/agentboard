@@ -450,6 +450,26 @@ assert 'store_unavailable' in store, 'store failure must normalize to store_unav
 sql("UPDATE mattermost_inbound_runs SET expires_at = clock_timestamp()")
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, true)')
 wait(lambda: any(c['live_connected'] for c in inbox()[1]))
+# Transient read failure during a scan disconnects cleanly instead of crashing the task.
+kill_reads = ("SELECT coalesce(sum(CASE WHEN pg_terminate_backend(pid) THEN 1 ELSE 0 END),0) FROM pg_stat_activity "
+               "WHERE datname=current_database() AND pid <> pg_backend_pid() AND state='active' AND (" +
+               "query ILIKE '%mattermost_inbox%' OR query ILIKE '%mattermost_post_versions%' OR " +
+               "query ILIKE '%FROM tasks%' OR query ILIKE '%cooperation_subscriptions%' OR " +
+               "query ILIKE '%mattermost_channel_recovery%')")
+hits, reason, seen = 0, 'live', set()
+deadline = time.monotonic() + 60
+while time.monotonic() < deadline:
+    hits += int(sql(kill_reads))
+    reason = sql("SELECT reason FROM mattermost_inbound_runs")
+    seen.add(reason)
+    if reason in ('store_unavailable', 'owner_expired'):
+        break
+    emit('direct_added', {'channel_id': 'new-dm'})
+    time.sleep(0.3)
+assert hits >= 1, 'never landed a read failure on an in-flight scan statement'
+assert 'catch_up_failed' not in seen, 'scan-task crash instead of clean disconnect, saw ' + repr(seen)
+assert reason in ('store_unavailable', 'owner_expired'), 'read failure must disconnect cleanly, got ' + reason
+wait(lambda: any(c['live_connected'] for c in inbox()[1]))
 assert not FAILURES, FAILURES
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
 server.shutdown()
