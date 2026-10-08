@@ -396,7 +396,7 @@ durable per-agent availability, PR101/PR105/PR106/PR108/PR109) was rolled to
 farm01 using dashboard digest
 `sha256:a71479ebe17c6fa6d5ece1a78e7226886ed739eb04a6bd4e783a48c3b0426a8c`
 from [Container images run 37723289797](https://github.com/carverauto/agentboard/actions/runs/37723289797).
-This is the current operator image pin. Every Container images run between
+This was the operator image pin before 4f8821d (below). Every Container images run between
 PR106 and PR112 failed `//internal/cli:cli_test` (skill links with `#fragment`)
 and published nothing. PR113 fixed it.
 
@@ -438,3 +438,41 @@ the deployment). The overlay commit flips only that flag in
 `k8s/overlays/farm01/kustomization.yaml` so git matches the cluster; the image
 pin (`sha256:a71479eb...`), schema 15 and all other config are unchanged.
 Roll back by setting the flag back to `false` and restarting.
+
+## Decisions, inbox catch-up and agent-bot image rollout (4f8821d)
+
+On 2026-10-08 UTC, merged main `4f8821d` (PR126 shared-bot inbox catch-up,
+PR129 gated Treehouse slot return, PR125 durable captain decisions, PR118
+elastic per-agent bots, PR121 column pagination, PR117 terminal CI obligations)
+was rolled to farm01 using dashboard digest
+`sha256:cc19bca4d46a894139cbe2139cb07115d3c4f63d0e144b9ee661ad44e89fca40`
+from [Container images run 37742789560](https://github.com/carverauto/agentboard/actions/runs/37742789560).
+This is the current operator image pin. PR130 (`e3bef1b`) was docs-only and
+published no image. Container images runs for `6ead87f`, `21e907c` and
+`302f63b` failed and published nothing; `4f8821d` is the first green build
+after them.
+
+Before migrating, the whole `agentboard` database was dumped with
+`pg_dump -Fc` (16.1 MB, 53 table-data entries), along with schema-only SQL for
+`tasks`, `messages`, `board_schema` and `delivery_obligations`, and SHA256SUMS,
+at `/var/lib/postgresql/data/agentboard-backups/pre-4f8821d-20261008/` on the
+CNPG primary (mode 2700). Job `agentboard-migrate-4f8821d` (flags forced false
+in the Job, plus `AGENTBOARD_MATTERMOST_INBOUND_ENABLED=false`) ran
+`20261008000800_decision_requests`, `20261008001800_mattermost_inbound_metadata`,
+`20261008002100_terminal_ci_obligations` and `20261008002200_mattermost_agent_bots`.
+All are additive, except that resolved `delivery_obligations` rows get
+`resolution_reason='legacy'`. They upgraded schema 15 to 22. Meta reports
+schema 22/API 1/required 22.
+
+The ConfigMap was unchanged. Discovery, observation, cooperation and the
+outbound bridge stay enabled. Shared-bot inbound (`AGENTBOARD_MATTERMOST_INBOUND_ENABLED`)
+stays off by default. No new secret is required: the phase-2 provisioner token
+and cloak key are optional, and while they are absent the board stays on the
+phase-1 shared bot. `AGENTBOARD_COORDINATOR_ID` is unset, so only the captain
+can answer decisions. The dashboard is Ready with zero restarts on the exact
+image ID. `/health/live`, `/health/ready`, `/`, `/prs` and `/api/v1/meta`
+return 200, and the bridge delivered new board events to `#board` after the
+roll. See the [rollout receipt](../verification/farm01-4f8821d-rollout.json).
+Keep schema 22 if an older image must be restored. The migrations' `down`
+raises, and images before 4f8821d accept schema 22 (they require 15 or lower
+and check `>=`), so the 1bf92ae image can be restored without a schema change.

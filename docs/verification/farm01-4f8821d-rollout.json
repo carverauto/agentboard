@@ -1,0 +1,99 @@
+{
+  "verified_at": "2026-10-08T07:35:00Z",
+  "commit": "4f8821d",
+  "source_prs": [
+    "https://github.com/carverauto/agentboard/pull/126",
+    "https://github.com/carverauto/agentboard/pull/129",
+    "https://github.com/carverauto/agentboard/pull/125",
+    "https://github.com/carverauto/agentboard/pull/118",
+    "https://github.com/carverauto/agentboard/pull/121",
+    "https://github.com/carverauto/agentboard/pull/117"
+  ],
+  "docs_only_after_target": {
+    "commit": "e3bef1b",
+    "pr": "https://github.com/carverauto/agentboard/pull/130",
+    "image_published": false
+  },
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37742789560",
+  "failed_prior_builds": {
+    "runs": [
+      "https://github.com/carverauto/agentboard/actions/runs/37740904926",
+      "https://github.com/carverauto/agentboard/actions/runs/37734234090",
+      "https://github.com/carverauto/agentboard/actions/runs/37732015569"
+    ],
+    "commits": [
+      "302f63b",
+      "21e907c",
+      "6ead87f"
+    ],
+    "published": false
+  },
+  "rollout_operator": "grok-serviceradar-oss",
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:cc19bca4d46a894139cbe2139cb07115d3c4f63d0e144b9ee661ad44e89fca40",
+  "cli_image": "registry.carverauto.dev/agentboard/cli@sha256:7b5cee4be0abbca15c764f028e7223081651d1206962bbe34f2836734858580d",
+  "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:a71479ebe17c6fa6d5ece1a78e7226886ed739eb04a6bd4e783a48c3b0426a8c",
+  "pre_migration_backup": {
+    "host": "agentboard-db-2 (CNPG primary)",
+    "path": "/var/lib/postgresql/data/agentboard-backups/pre-4f8821d-20261008/",
+    "format": "full pg_dump -Fc of database agentboard (16.1 MB) + schema-only SQL (tasks, messages, board_schema, delivery_obligations) + SHA256SUMS",
+    "table_data_entries": 53,
+    "board_schema_version": 15
+  },
+  "migration": {
+    "job": "agentboard-migrate-4f8821d",
+    "completed_at": "2026-10-08T07:29:09Z",
+    "succeeded": true,
+    "migrations": [
+      "20261008000800_decision_requests",
+      "20261008001800_mattermost_inbound_metadata",
+      "20261008002100_terminal_ci_obligations",
+      "20261008002200_mattermost_agent_bots"
+    ],
+    "literal_env_overrides": {
+      "PHX_SERVER": "false",
+      "AGENTBOARD_PR_DISCOVERY_ENABLED": "false",
+      "AGENTBOARD_PR_OBSERVATION_ENABLED": "false",
+      "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "false",
+      "AGENTBOARD_COOPERATION_ENABLED": "false",
+      "AGENTBOARD_MATTERMOST_INBOUND_ENABLED": "false"
+    },
+    "completed_before_dashboard_started": true
+  },
+  "schema": {
+    "before": 15,
+    "after": 22,
+    "api_version": 1,
+    "required_schema_version": 22
+  },
+  "dashboard": {
+    "pod": "agentboard-dashboard-7db897d974-k6bj9",
+    "started_at": "2026-10-08T07:29:17Z",
+    "ready": true,
+    "restarts": 0,
+    "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:cc19bca4d46a894139cbe2139cb07115d3c4f63d0e144b9ee661ad44e89fca40"
+  },
+  "flags": {
+    "AGENTBOARD_PR_DISCOVERY_ENABLED": "true",
+    "AGENTBOARD_PR_OBSERVATION_ENABLED": "true",
+    "AGENTBOARD_COOPERATION_ENABLED": "true",
+    "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "true",
+    "AGENTBOARD_MATTERMOST_INBOUND_ENABLED": "unset (default false)",
+    "AGENTBOARD_COORDINATOR_ID": "unset (captain-only decisions)",
+    "AGENTBOARD_CI_POLICIES": "carverauto/serviceradar, carverauto/agentboard"
+  },
+  "configmap_changed": false,
+  "new_secrets_required": [],
+  "optional_unset_secrets": [
+    "AGENTBOARD_MATTERMOST_PROVISIONER_TOKEN(_FILE)",
+    "AGENTBOARD_MATTERMOST_CLOAK_KEY(_FILE)"
+  ],
+  "http": {
+    "/health/live": 200,
+    "/health/ready": 200,
+    "/": 200,
+    "/prs": 200,
+    "/api/v1/meta": 200
+  },
+  "mattermost_bridge": "#board received new board events from the new pod at 07:29:42Z, 07:30:18Z and 07:31:05Z",
+  "rollback_performed": false
+}

@@ -379,5 +379,15 @@ Merged main `1bf92ae` (PR113 on top of PR111/PR112/PR95) rolled the dashboard to
 after a full pre-migration `pg_dump`. serviceradar #4995 was polled fresh again
 (the #102 fix). Full results are in the
 [rollout receipt](verification/farm01-1bf92ae-rollout.json). The
-[current rollout record](deploy/reference-farm01.md#availability-and-base-fence-fix-image-rollout-1bf92ae)
+[1bf92ae rollout record](deploy/reference-farm01.md#availability-and-base-fence-fix-image-rollout-1bf92ae)
+is in the operator runbook.
+
+## Decisions, inbox catch-up and agent-bot rollout (4f8821d, 2026-10-08 UTC)
+
+Merged main `4f8821d` (PR126 on top of PR129/PR125/PR118/PR121/PR117) rolled the
+dashboard to `sha256:cc19bca4d46a894139cbe2139cb07115d3c4f63d0e144b9ee661ad44e89fca40`
+through Job `agentboard-migrate-4f8821d`, upgrading schema 15 to 22 after a full
+pre-migration `pg_dump`. Full results are in the
+[rollout receipt](verification/farm01-4f8821d-rollout.json). The
+[current rollout record](deploy/reference-farm01.md#decisions-inbox-catch-up-and-agent-bot-image-rollout-4f8821d)
 is in the operator runbook.
