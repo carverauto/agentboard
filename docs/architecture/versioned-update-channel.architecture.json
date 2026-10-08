@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Proposed versioned update channel",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "components": [
+    {
+      "id": "release",
+      "type": "external",
+      "label": "Release assets",
+      "sublabel": "Proposed GitHub authority",
+      "pos": [
+        40,
+        220
+      ],
+      "size": [
+        180,
+        80
+      ]
+    },
+    {
+      "id": "observer",
+      "type": "backend",
+      "label": "AshOban observer",
+      "sublabel": "Bounded HTTPS fetch",
+      "pos": [
+        420,
+        220
+      ],
+      "size": [
+        180,
+        80
+      ]
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Snapshot + notice receipts",
+      "pos": [
+        800,
+        220
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "cli",
+      "type": "external",
+      "label": "CLI + skill installer",
+      "sublabel": "Explicit local upgrades",
+      "pos": [
+        40,
+        490
+      ],
+      "size": [
+        200,
+        80
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Phoenix / Ash API",
+      "sublabel": "Reports + update reads",
+      "pos": [
+        420,
+        490
+      ],
+      "size": [
+        180,
+        80
+      ]
+    },
+    {
+      "id": "readers",
+      "type": "frontend",
+      "label": "Dashboard + inbox",
+      "sublabel": "Actionable version notices",
+      "pos": [
+        800,
+        490
+      ],
+      "size": [
+        200,
+        80
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "fetch",
+      "from": "release",
+      "to": "observer",
+      "label": "Validated manifest"
+    },
+    {
+      "id": "commit",
+      "from": "observer",
+      "to": "state",
+      "label": "Durable snapshot"
+    },
+    {
+      "id": "report",
+      "from": "cli",
+      "to": "api",
+      "label": "Opt-in installed versions"
+    },
+    {
+      "id": "query",
+      "from": "api",
+      "to": "state",
+      "label": "Ash actions",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "read",
+      "from": "api",
+      "to": "readers",
+      "label": "Status + notices"
+    },
+    {
+      "id": "download",
+      "from": "release",
+      "to": "cli",
+      "label": "Verified assets",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Operator control",
+      "items": [
+        "Check is read-only; upgrades require consent",
+        "No deployment or agent-session restart"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Durable coordination",
+      "items": [
+        "No singleton query or polling process",
+        "Stale provider state stays visibly stale"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Design boundary",
+      "items": [
+        "#127 owns installer + release triggers",
+        "#57 adds manifests, updates and notifications"
+      ]
+    }
+  ]
+}
