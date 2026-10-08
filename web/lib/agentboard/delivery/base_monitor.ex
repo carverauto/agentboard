@@ -29,6 +29,10 @@ defmodule Agentboard.Delivery.BaseMonitor do
   def expected_sha(_, _, fallback), do: fallback
 
   def assert_current!(pr, state, result) do
+    if result.lifecycle != "open", do: :ok, else: fence!(pr, state, result)
+  end
+
+  defp fence!(pr, state, result) do
     ref = result.payload["base_ref"]
 
     if is_binary(ref) do

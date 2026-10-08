@@ -312,9 +312,17 @@ with tls_provider(Provider) as (api_url, ca, server):
     poll(pr)
     # Terminal metadata does not create conflicts, and a branch used by no open PR
     # stops consuming GitHub admission. Historical cards remain available explicitly.
+    # An advanced watch must not fence terminal evidence as superseded.
     prs[101].update(state='closed', merged=True)
+    branch_sha = '9' * 40
     reset_budget()
-    poll(pr)
+    assert 'changed: true' in check_branch(watch)
+    reset_budget()
+    assert 'observed' in poll(pr)
+    assert sql("SELECT enabled FROM delivery_poll_states WHERE id='" + pr + "'") == 'f'
+    assert detail(pr)['ci_state'] == 'unknown'
+    assert sql('SELECT count(*) FROM delivery_rebase_follow_ups') == '2'
+    assert sql('SELECT count(*) FROM delivery_rebase_follow_ups WHERE resolved_at IS NULL') == '1'
     before = len(requests)
     check_branch(watch)
     assert len(requests) == before
@@ -333,12 +341,12 @@ with tls_provider(Provider) as (api_url, ca, server):
     branch_sha = 'f' * 40
     reset_budget()
     check_branch(watch)
-    invalidate(watch, 3)
+    invalidate(watch, 4)
     assert sql("SELECT count(*) FROM delivery_poll_states WHERE enabled AND expected_base_sha='" + branch_sha + "'") == '100'
-    continuation = json.loads(sql("SELECT args FROM oban_jobs WHERE worker='Agentboard.Delivery.BaseInvalidationWorker' AND args->>'revision'='3' AND args->>'cursor'<>'' ORDER BY id DESC LIMIT 1"))
+    continuation = json.loads(sql("SELECT args FROM oban_jobs WHERE worker='Agentboard.Delivery.BaseInvalidationWorker' AND args->>'revision'='4' AND args->>'cursor'<>'' ORDER BY id DESC LIMIT 1"))
     # Simulated discarded continuation is recovered after actual Oban restart;
     # retained base state, not process memory, determines the catch-up revision.
-    sql("UPDATE oban_jobs SET state='discarded',discarded_at=clock_timestamp() WHERE worker='Agentboard.Delivery.BaseInvalidationWorker' AND args->>'revision'='3'")
+    sql("UPDATE oban_jobs SET state='discarded',discarded_at=clock_timestamp() WHERE worker='Agentboard.Delivery.BaseInvalidationWorker' AND args->>'revision'='4'")
     rpc('Application.put_env(:agentboard, :pr_observation_enabled, false); :ok = Supervisor.terminate_child(Agentboard.Supervisor, Oban); {:ok, _} = Supervisor.restart_child(Agentboard.Supervisor, Oban)')
     # Queue startup is asynchronous: first observe real paused producers, then
     # stop them and wait for both process teardown and in-flight jobs to settle.
@@ -359,9 +367,9 @@ with tls_provider(Provider) as (api_url, ca, server):
     rpc('Application.put_env(:agentboard, :pr_observation_enabled, true)')
     assert sql('SELECT invalidated_revision<revision FROM delivery_base_watches') == 't'
     rpc('{:ok, _} = Agentboard.Delivery.BaseMonitor.tick()')
-    assert sql("SELECT count(*)>0 FROM oban_jobs WHERE worker='Agentboard.Delivery.BaseInvalidationWorker' AND state IN ('available','scheduled','retryable') AND args->>'revision'='3' AND args->>'cursor'=''") == 't'
-    invalidate(watch, 3)
-    invalidate(watch, 3, continuation['cursor'])
+    assert sql("SELECT count(*)>0 FROM oban_jobs WHERE worker='Agentboard.Delivery.BaseInvalidationWorker' AND state IN ('available','scheduled','retryable') AND args->>'revision'='4' AND args->>'cursor'=''") == 't'
+    invalidate(watch, 4)
+    invalidate(watch, 4, continuation['cursor'])
     assert sql("SELECT count(*) FROM delivery_poll_states WHERE enabled AND expected_base_sha='" + branch_sha + "'") == '101'
     assert sql("SELECT invalidated_revision=revision FROM delivery_base_watches") == 't'
     assert sql("SELECT count(DISTINCT args->>'id') FROM oban_jobs WHERE worker='Agentboard.Delivery.PollWorker' AND state IN ('available','scheduled','retryable') AND args->>'id'<>'" + pr + "'") == '101'
@@ -370,13 +378,13 @@ with tls_provider(Provider) as (api_url, ca, server):
     reset_budget()
     check_branch(watch)
     before = sql('SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_poll_states s')
-    assert 'superseded' in invalidate(watch, 3, continuation['cursor'])
+    assert 'superseded' in invalidate(watch, 4, continuation['cursor'])
     assert sql('SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_poll_states s') == before
     # Canonical inventory without an immutable task link is explicitly unknown
     # ownership. GitHub's human author must not be guessed as a board seat.
-    invalidate(watch, 4)
-    next_page = json.loads(sql("SELECT args FROM oban_jobs WHERE worker='Agentboard.Delivery.BaseInvalidationWorker' AND args->>'revision'='4' AND args->>'cursor'<>'' ORDER BY id DESC LIMIT 1"))
-    invalidate(watch, 4, next_page['cursor'])
+    invalidate(watch, 5)
+    next_page = json.loads(sql("SELECT args FROM oban_jobs WHERE worker='Agentboard.Delivery.BaseInvalidationWorker' AND args->>'revision'='5' AND args->>'cursor'<>'' ORDER BY id DESC LIMIT 1"))
+    invalidate(watch, 5, next_page['cursor'])
     unknown_pr = hashlib.sha256(b'https://github.com/fixture/repo/pull/202').hexdigest()
     prs[202] = dict(head='1' * 40, base=branch_sha, mergeable=False, mergeable_state='dirty')
     reset_budget()
