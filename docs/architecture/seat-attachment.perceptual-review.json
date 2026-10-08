@@ -1,0 +1,17 @@
+{
+  "artifact_sha256": "2e8bad3a2b20694e5143149b451abe06f751458b528a4528609ea1d083ef9438",
+  "status": "pass",
+  "reviewer": "codex-agentboard-rollout",
+  "method": "image-capable review of actual visual-check captures",
+  "captures": [
+    "1440x900.light",
+    "1440x900.dark",
+    "2048x1320.light",
+    "2048x1320.dark"
+  ],
+  "observations": [
+    "No clipped nodes, route/label collisions or horizontal overflow",
+    "Main recovery path and retained isolation boundary are readable in both themes",
+    "Largest desktop composition fits with diagram and conclusion cards in first screen"
+  ]
+}

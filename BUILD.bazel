@@ -31,6 +31,7 @@ test_suite(
         "//build/integration:worker_packaged_api_test",
         "//build/integration:pi_native_test",
         "//build/integration:seat_isolation_test",
+        "//build/integration:seat_attachment_test",
         "//build/integration:claude_native_test",
         "//web:rate_limits_test",
         "//build/integration:postgres_tls_test",
@@ -62,7 +63,7 @@ test_suite(
 go_library(
     name = "skill_bundle",
     srcs = ["skill_bundle.go"],
-    embedsrcs = glob(["skills/*/SKILL.md"]) + ["skills/agentboard/ask-user-escalation.md", "skills/agentboard-muse/participation.md", "docs/api.md", "docs/quota.md", "docs/participation.md", "docs/context.md", "GROK_BOT.md"],
+    embedsrcs = glob(["skills/*/SKILL.md"]) + ["skills/agentboard/ask-user-escalation.md", "skills/agentboard-muse/participation.md", "docs/api.md", "docs/quota.md", "docs/participation.md", "docs/context.md", "GROK_BOT.md", "//scripts:launch-seat"],
     importpath = "github.com/carverauto/agentboard",
 )
 filegroup(name = "format_srcs", srcs = ["skill_bundle.go"])

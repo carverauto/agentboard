@@ -19,7 +19,7 @@ const seatRecordPrefix = "agentboard-seat "
 
 func (c *commands) seat() *cobra.Command {
 	group := &cobra.Command{Use: "seat", Short: "Leased Treehouse seat slots"}
-	group.AddCommand(c.seatReturn())
+	group.AddCommand(c.seatReturn(), c.seatResolve("ensure"), c.seatResolve("env"), c.seatResolve("check"))
 	return group
 }
 

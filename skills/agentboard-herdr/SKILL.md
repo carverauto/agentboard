@@ -16,9 +16,14 @@ isolation. Every seat still needs a persistently leased Treehouse v3.1.2 linked
 worktree, the launcher's settled physical-cwd gate, and its harness's generated
 STOP brief. Verify `pwd -P` and `git rev-parse --show-toplevel` against the exact
 expected `AGENTBOARD_SEAT_WORKTREE` before editing. A primary or mismatched cwd
-means STOP, report the failure, and mark the owned task blocked after checking
-its live claim. Hooks may be optional backstops only. This requirement does not
-enable Herdr automation or automatic prompt delivery.
+means STOP implementation. Missing environment alone follows the canonical
+[self-heal procedure](../agentboard/SKILL.md#recover-seat-environment-yourself):
+ensure the owned task seat, apply non-secret exports/cd and run `seat check TASK`
+before editing. Persist those values in subsequent harness tool calls; printing
+them does not reconfigure the running Herdr workspace. Real ownership, legacy
+worktree or lease/isolation failures still require blocking and coordination.
+Hooks may be optional backstops only. This requirement does not enable Herdr
+automation or automatic prompt delivery.
 
 ## Ask-user gates: escalate to the coordinator, never the human pane
 

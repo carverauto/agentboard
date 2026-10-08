@@ -76,17 +76,66 @@ The child inherits `AGENTBOARD_SEAT_WORKTREE`, `AGENTBOARD_SEAT_SOURCE` and
 `AGENTBOARD_SEAT_BRIEF` and `AGENTBOARD_SEAT_ROOT`. A successful launch does not prove the model followed the
 brief; the harness must perform its own startup check before editing.
 
-## STOP and recovery
+## Attach and recover without restarting an agent
 
-At startup and in every ship brief, require `pwd -P` and
-`git rev-parse --show-toplevel` to match the expected physical
-`AGENTBOARD_SEAT_WORKTREE`. Run the source checkout's launcher `--check` from the
-seat cwd. Missing metadata or any mismatch means STOP: no branching, editing,
-commit or push. Report the failure to your coordinator; reread the task and mark
-it blocked only if your claim is still live. For a primary launch, report
-`launched in primary checkout, not an isolated worktree` on the task and status
-channel if one exists. Resume only in a correctly leased
-worktree. Do not silently fall back to the primary checkout.
+The installed CLI embeds the same Python isolation engine, so another product
+repository need not contain Agentboard scripts. Install **Python 3**, Git and the
+pinned Treehouse v3.1.2 binary explicitly. `AGENTBOARD_TREEHOUSE_BIN` may name that
+binary; recovery never installs prerequisites or claims/reclaims a task for you.
+
+Read/claim or renew your authorized task first. From the known source repository,
+run recovery only (no implementation in the primary checkout):
+
+```sh
+agentboard seat ensure TASK --repo SOURCE --root POOL
+# Apply the printed export lines and cd command to your own shell/tool environment.
+agentboard seat check TASK --json
+pwd -P
+git rev-parse --show-toplevel
+```
+
+Both physical paths must match `AGENTBOARD_SEAT_WORKTREE`. The output also sets
+`AGENTBOARD_SEAT_SOURCE`, `AGENTBOARD_SEAT_ROOT`, brief path and declared identity.
+`agentboard seat env TASK --repo SOURCE --root POOL` verifies and prints an existing
+seat without acquiring; `--json` on ensure/env emits the selected environment and
+binding for integrations. Source defaults to the explicit seat environment or the
+repository's registered primary checkout. Pool must be explicit or recoverable
+from a retained task record. Conflicting explicit source/root is refused.
+
+Ensure reads all board event pages, checks a live owned claim, and serializes
+same-task local acquisition. It preserves the current lease identity and WIP in a
+private pool registry before recording on the board. If task recording fails,
+retry ensure for the same task: it reuses the preserved lease. An interruption
+between allocation and its local receipt retains a pending marker; inspect and
+coordinate recovery rather than blindly allocating another slot. No automatic task
+claim, worktree reset, branch creation, cleanup or credential replacement occurs.
+A record pointing at a missing path on another host, a different task, stale
+lease, primary or legacy/out-of-pool checkout remains a blocker; coordinate it.
+
+Task-aware fresh native launches and explicit attachment use this same CLI:
+
+```sh
+scripts/launch-seat --repo SOURCE --root POOL --task TASK --brief TASK_BRIEF --attach -- codex '{brief_text}'
+```
+
+The updated CLI must be on PATH. Both forms reuse that task's binding and inject
+all three seat variables before the child runs. Repeat attach preserves the
+private brief and `agent.env`; incompatible retained identity/seat/brief metadata
+fails without overwriting credentials. Legacy files lacking new metadata may need
+explicit coordinated repair. Launches without `--task` remain supported but
+allocate a fresh lease each time and do not provide task-bound attachment.
+
+The commands cannot modify their parent shell or an already-running Herdr pane.
+Apply the emitted exports and cwd to subsequent calls, or launch a new native
+child through the attach helper. Herdr workspace create/attach integrations must
+consume the selected JSON environment and use the verified worktree cwd before
+starting the native agent; no global Herdr reconfiguration is performed here.
+
+Missing environment alone can be self-healed without a coordinator round-trip.
+STOP implementation until the checks pass. Genuine ownership, expiry, lease or
+isolation failures still require preserving work, reporting the blocker and
+coordinating recovery. Do not resume a held captain decision merely because the
+environment is fixed. Never fall back to primary edits or adopt a legacy worktree.
 
 The persistent Treehouse lease stays held after native process exit, including
 launch failures after acquisition. Inspect the reported path, preserve all work,

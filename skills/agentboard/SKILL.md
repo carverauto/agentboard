@@ -67,6 +67,41 @@ is never discarded: push or park it first. Never `--force`, never `rm -rf`,
 never a cross-version return. Never create ad hoc `git worktree` checkouts;
 Treehouse slots only.
 
+### Recover seat environment yourself
+
+STOP implementation when seat variables are missing or cwd is the primary
+checkout. For an owned live task, an environment-only failure is recoverable
+without a coordinator round-trip. Read the task and any decision hold first;
+never resume held work before its canonical answer is applied.
+
+Run the installed CLI from the source repository for recovery only:
+
+```sh
+agentboard seat ensure TASK --repo SOURCE --root POOL
+# Inspect and apply the printed non-secret export lines and cd command.
+agentboard seat env TASK --repo SOURCE --root POOL
+# env verifies an existing seat; it never allocates another one.
+agentboard seat check TASK --json
+pwd -P
+git rev-parse --show-toplevel
+```
+
+Replace SOURCE with the known primary repository and POOL with its explicitly
+configured Treehouse v3.1.2 root. Existing task records can recover these values;
+`ensure` reuses only that task's verified lease and preserves dirty/unpushed
+work. Python 3, Git and the pinned Treehouse binary are required; no Agentboard
+source clone, captain env file or new tool is needed. `--json` prints selected
+paths/identity for launch integrations; default ensure/env output is shell-quoted
+exports plus `cd`. These commands cannot mutate a parent shell or an existing
+Herdr workspace: apply the output and use that cwd/environment in subsequent
+tool calls. Do not merely paste exports into chat and assume they took effect.
+
+Continue only after both physical paths match `AGENTBOARD_SEAT_WORKTREE` and
+`seat check` passes. A primary/legacy/foreign target, conflicting task or lease,
+unreadable board, expired/foreign claim, full pool or redirected metadata remains
+a real blocker: preserve work and coordinate. Never guess another task's seat,
+reset a worktree, replace credentials, auto-reclaim a task or prune a pool.
+
 GitHub links are records only. Creating/commenting/merging a PR, publishing, messaging external people, and deployment still require the user's authorization for that external action.
 
 Communicate durable findings with `agentboard msg send --task TASK --body '...'`. Address a peer with `--to PEER`; a direct message may also include `--task TASK`. Inbox listing does not acknowledge anything. After reading and handling a direct message, mark its numeric ID explicitly with `agentboard msg read ID --json`. Shared task comments have no global read state.

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Launch an explicitly requested native seat in a leased Treehouse v3 checkout."""
 import argparse
+import fcntl
+import hashlib
 import json
 import os
 import shlex
@@ -8,6 +10,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import stat
 import time
 
 VERSION = "3.1.2"
@@ -194,15 +197,198 @@ def lease_identity(candidate, root):
         raise RuntimeError("seat does not have one active persistent Treehouse lease")
     if matches[0].get("lease_holder") != os.environ["AGENT_ID"]:
         raise RuntimeError("AGENT_ID differs from the Treehouse lease holder")
+    return matches[0]["lease_id"]
 
 
-def seat_environment(directory, common):
+def private_directory(path):
+    if path.is_symlink() or (path.exists() and not path.is_dir()):
+        raise RuntimeError("seat metadata directory is redirected")
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(path, 0o700)
+
+
+def private_read(path):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, encoding="utf-8") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077 or info.st_uid != os.getuid():
+            raise RuntimeError("seat metadata must be a private owned regular file")
+        text = stream.read(65537)
+        if len(text) > 65536:
+            raise RuntimeError("seat metadata exceeds its limit")
+        return text
+
+
+def private_json(path):
+    data = json.loads(private_read(path))
+    if not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
+        raise RuntimeError("invalid seat binding")
+    return data
+
+
+def save_binding(path, data):
+    if path.is_symlink():
+        raise RuntimeError("seat binding is redirected")
+    # Atomic replace is safe only after the caller has checked the existing binding.
+    temporary = path.with_name(path.name + f".{os.getpid()}.tmp")
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(data, stream, sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def primary_source(value):
+    if value:
+        source, common = repository(Path(value))
+    else:
+        top = Path(git(Path.cwd(), "rev-parse", "--show-toplevel"))
+        source, common = repository(top)
+        # The first porcelain entry is the primary checkout. Resolve via Git,
+        # never by guessing a pool or another agent's worktree path.
+        first = git(source, "worktree", "list", "--porcelain").splitlines()[0]
+        if not first.startswith("worktree "):
+            raise RuntimeError("cannot discover the primary source checkout")
+        source, common = repository(Path(first[9:]))
+    if Path(git(source, "rev-parse", "--absolute-git-dir")).resolve(strict=True) != common:
+        raise RuntimeError("--repo / seat source must name the primary source checkout")
+    return source, common
+
+
+def verified_binding(record, task, source, common, root):
+    if record.get("treehouse_version") != VERSION or record.get("lease_holder") != os.environ["AGENT_ID"]:
+        raise RuntimeError("task record version or lease holder differs")
+    if record.get("task_id", task) != task:
+        raise RuntimeError("task binding names another task")
+    if Path(record["treehouse_root"]).resolve(strict=True) != root.resolve(strict=True):
+        raise RuntimeError("task binding pool differs from requested pool")
+    if record.get("source") and Path(record["source"]).resolve(strict=True) != source:
+        raise RuntimeError("task binding source differs from requested source")
+    worktree = isolated(Path(record["worktree"]), source, common)
+    lease = lease_identity(worktree, root)
+    if record.get("lease_id", lease) != lease:
+        raise RuntimeError("task binding lease identity differs from the current lease")
+    return {"task_id": task, "source": str(source), "worktree": str(worktree), "treehouse_root": str(root.resolve(strict=True)), "treehouse_version": VERSION, "lease_holder": os.environ["AGENT_ID"], "lease_id": lease}
+
+
+def selected_environment(binding):
+    values = {key: os.environ.get(key, "") for key in ("AGENT_ID", "AGENTBOARD_HARNESS", "AGENTBOARD_MODEL", "AGENTBOARD_URL")}
+    values.update(AGENTBOARD_SEAT_WORKTREE=binding["worktree"], AGENTBOARD_SEAT_SOURCE=binding["source"], AGENTBOARD_SEAT_ROOT=binding["treehouse_root"], AGENTBOARD_SEAT_BRIEF=str(Path(binding["worktree"]) / ".agentboard-seat" / "brief.md"))
+    return values
+
+
+def resolve_seat(mode, task, source_value, root_value, record):
+    source, common = primary_source(source_value or os.environ.get("AGENTBOARD_SEAT_SOURCE") or record.get("source"))
+    root = pool_root(root_value or os.environ.get("AGENTBOARD_SEAT_ROOT") or record.get("treehouse_root", ""))
+    if mode == "ensure":
+        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    elif not root.exists():
+        raise RuntimeError("no existing task seat; run ensure explicitly")
+    root = root.resolve(strict=True)
+    directory = root / ".agentboard-seats"
+    key = hashlib.sha256((str(common) + "\0" + os.environ["AGENT_ID"] + "\0" + task).encode()).hexdigest()
+    if mode == "ensure":
+        private_directory(directory)
+    elif directory.is_symlink():
+        raise RuntimeError("seat registry is redirected")
+    registry = directory / (key + ".json")
+    # Only ensure acquires a lock or creates files. env/check remain read-only.
+    if mode != "ensure":
+        retained = private_json(registry) if registry.exists() or registry.is_symlink() else {}
+        return resolve_bound_seat(mode, task, source, common, root, record, retained, registry)
+    lock = directory / (key + ".lock")
+    fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077 or info.st_uid != os.getuid():
+            raise RuntimeError("seat lock is not a private owned regular file")
+        fcntl.flock(stream, fcntl.LOCK_EX)
+        retained = private_json(registry) if registry.exists() or registry.is_symlink() else {}
+        return resolve_bound_seat(mode, task, source, common, root, record, retained, registry)
+
+
+def resolve_bound_seat(mode, task, source, common, root, record, retained, registry):
+    if retained.get("allocation_pending") == "true":
+        raise RuntimeError("interrupted seat allocation retained; inspect the task/pool before coordinated recovery, never acquire another seat blindly")
+    binding = verified_binding(record, task, source, common, root) if record else None
+    if retained:
+        local = verified_binding(retained, task, source, common, root)
+        if binding and binding != local:
+            raise RuntimeError("board and local task seat bindings conflict")
+        binding = local
+    if not binding:
+        if mode != "ensure":
+            raise RuntimeError("no existing task seat; run ensure explicitly")
+        binary = os.environ.get("AGENTBOARD_TREEHOUSE_BIN", str(Path.home() / f".local/share/agentboard/tools/treehouse/v{VERSION}/treehouse"))
+        if run([binary, "--version"], source) != f"v{VERSION}":
+            raise RuntimeError(f"expected Treehouse {VERSION}; install the pinned tool explicitly")
+        # A process crash can land between Treehouse's durable allocation and our
+        # receipt. Retain a pending marker first, refusing blind reacquisition.
+        save_binding(registry, {"allocation_pending": "true", "task_id": task, "source": str(source), "treehouse_root": str(root), "lease_holder": os.environ["AGENT_ID"]})
+        candidate = Path(run([binary, "get", "--lease", "--lease-holder", os.environ["AGENT_ID"], "--root", str(root)], source, timeout=90))
+        if not candidate.is_absolute():
+            raise RuntimeError("Treehouse did not return one absolute leased path")
+        try:
+            worktree = isolated(candidate, source, common)
+            lease = lease_identity(worktree, root)
+            binding = {"task_id": task, "source": str(source), "worktree": str(worktree), "treehouse_root": str(root), "treehouse_version": VERSION, "lease_holder": os.environ["AGENT_ID"], "lease_id": lease}
+            # Preserve the allocation even if slot metadata or API recording fails.
+            save_binding(registry, binding)
+        except Exception:
+            print("Acquired lease retained; inspect the task/pool before retrying or returning it.", file=sys.stderr)
+            raise
+    seat_dir = Path(binding["worktree"]) / ".agentboard-seat"
+    if seat_dir.is_symlink() or (seat_dir.exists() and not seat_dir.is_dir()):
+        raise RuntimeError("seat metadata directory is redirected")
+    metadata = seat_dir / "seat.json"
+    if metadata.exists() or metadata.is_symlink():
+        if private_json(metadata) != binding:
+            raise RuntimeError("retained slot metadata names another task or lease")
+    if mode == "ensure":
+        private_directory(seat_dir)
+        if not metadata.exists():
+            save_binding(metadata, binding)
+        if retained != binding:
+            save_binding(registry, binding)
+        exclude = common / "info" / "exclude"
+        if exclude.is_symlink():
+            raise RuntimeError("Git exclude file is redirected")
+        exclude.parent.mkdir(exist_ok=True)
+        fd = os.open(exclude, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as stream:
+            stream.write("\n/.agentboard-seat/\n")
+    if mode == "check":
+        if isolated(Path.cwd(), source, common) != Path(binding["worktree"]):
+            raise RuntimeError("cwd differs from the task's seat worktree")
+        for key, value in selected_environment(binding).items():
+            if key in ("AGENTBOARD_SEAT_WORKTREE", "AGENTBOARD_SEAT_SOURCE", "AGENTBOARD_SEAT_ROOT") and os.environ.get(key) != value:
+                raise RuntimeError(f"{key} is missing or differs; apply seat env exports and re-check")
+    verified_binding(binding, task, source, common, root)
+    return {"binding": binding, "environment": selected_environment(binding)}
+
+
+def seat_environment(directory, common, worktree, source, root):
     # The token, when bootstrap supplies one, never enters a brief or stdout.
     keys = ("AGENT_ID", "AGENTBOARD_HARNESS", "AGENTBOARD_MODEL", "AGENTBOARD_URL")
     values = {key: os.environ.get(key, "") for key in keys}
+    values.update(AGENTBOARD_SEAT_WORKTREE=str(worktree), AGENTBOARD_SEAT_SOURCE=str(source), AGENTBOARD_SEAT_ROOT=str(root), AGENTBOARD_SEAT_BRIEF=str(directory / "brief.md"))
     if os.environ.get("AGENTBOARD_TOKEN"):
         values["AGENTBOARD_TOKEN"] = os.environ["AGENTBOARD_TOKEN"]
     path = directory / "agent.env"
+    if path.exists() or path.is_symlink():
+        # Never execute or rewrite a retained credential file. Match all retained
+        # non-secret lines and reject an incompatible/older launch explicitly.
+        old = private_read(path).splitlines()
+        for key, value in values.items():
+            if key != "AGENTBOARD_TOKEN" and f"export {key}={shlex.quote(value)}" not in old:
+                raise RuntimeError("retained agent.env has incompatible identity/seat metadata; preserve credentials and coordinate recovery")
+        return
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as stream:
         for key, value in values.items():
@@ -216,7 +402,8 @@ def seat_environment(directory, common):
         stream.write("\n/.agentboard-seat/\n")
 
 
-def brief(text, worktree, source):
+def brief(text, worktree, source, task=None):
+    gate = f"`agentboard seat check {task} --json`" if task else f'`scripts/launch-seat --repo "{source}" --check`'
     return f"""# Agentboard seat isolation — check before editing
 
 Expected disposable Treehouse worktree: {worktree}
@@ -224,12 +411,14 @@ Source checkout (do not edit): {source}
 Persistent Treehouse v{VERSION} lease holder: $AGENT_ID (pool root $AGENTBOARD_SEAT_ROOT).
 
 Run `pwd -P` and `git rev-parse --show-toplevel`. Both physical paths MUST
-match $AGENTBOARD_SEAT_WORKTREE. Run the source repository's
-`scripts/launch-seat --repo \"$AGENTBOARD_SEAT_SOURCE\" --check` as well.
+match $AGENTBOARD_SEAT_WORKTREE. Run {gate} as well.
 If either check fails, or this is the primary checkout, STOP. Do not branch,
-edit, commit or push here. Report the isolation failure to your coordinator
-and mark your owned task blocked after checking its live claim. Resume only
-in the correctly leased disposable worktree. Backend hosting is not isolation.
+edit, commit or push here. For missing environment alone, read the shipped
+canonical skill: `agentboard seat ensure TASK --repo SOURCE --root POOL`,
+apply the non-secret exports/cd, then `agentboard seat check TASK`. You may
+perform that explicit recovery yourself while owning the live task; never
+resume a held decision. Real ownership/lease/isolation failures still require
+coordination and a blocked task. Backend hosting is not isolation.
 Keep this STOP condition in subsequent ship briefs. Hooks are backstops only.
 Retain the worktree lease through PR review and green CI; do not merge.
 When the task is done or cancelled and its work has landed (pushed, PR
@@ -257,17 +446,29 @@ fresh main. Hook refusal never authorizes a direct push or --no-verify.
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo", type=Path, required=True, help="source repository root")
+    parser.add_argument("--repo", type=Path, help="source repository root (required for native launch/check)")
     parser.add_argument("--brief", type=Path, help="authorized task brief")
     parser.add_argument("--task", help="agentboard task id: record the leased slot on it, and after session exit run the gated return when the task is done/cancelled and landed")
     parser.add_argument("--root", help="absolute Treehouse v3 pool root (default: $AGENTBOARD_SEAT_ROOT)")
     parser.add_argument("--check", action="store_true", help="check current cwd against seat environment; no acquisition or launch")
+    parser.add_argument("--attach", action="store_true", help="reuse the owned task seat through installed agentboard; requires --task")
+    parser.add_argument("--resolve", choices=("ensure", "env", "check"), help=argparse.SUPPRESS)
     parser.add_argument("command", nargs=argparse.REMAINDER, help="native argv after --; use {brief_text} or {brief} as a whole argument")
     args = parser.parse_args()
     tainted = sorted(name for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE") if os.environ.get(name) is not None)
     if tainted:
         raise RuntimeError(f"inherited {'/'.join(tainted)} is forbidden; unset GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR, GIT_INDEX_FILE and retry")
     identity()
+    if args.resolve:
+        if not args.task or args.command or args.brief or args.attach or args.check:
+            raise RuntimeError("invalid local resolution request")
+        record = json.loads(sys.stdin.read(65537))
+        if not isinstance(record, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in record.items()):
+            raise RuntimeError("invalid task seat record")
+        print(json.dumps(resolve_seat(args.resolve, args.task, args.repo, args.root, record)))
+        return 0
+    if not args.repo:
+        raise RuntimeError("--repo is required for native launch/check")
     source, common = repository(args.repo)
     if args.check:
         expected = os.environ.get("AGENTBOARD_SEAT_WORKTREE")
@@ -284,6 +485,8 @@ def main():
         raise RuntimeError("native argv must consume {brief} or {brief_text}")
     if not args.brief:
         raise RuntimeError("--brief is required")
+    if args.attach and not args.task:
+        raise RuntimeError("--attach requires --task")
     task_brief = args.brief.read_text(encoding="utf-8")
     root = pool_root(args.root if args.root is not None else os.environ.get("AGENTBOARD_SEAT_ROOT", ""))
     binary = os.environ.get("AGENTBOARD_TREEHOUSE_BIN", str(Path.home() / f".local/share/agentboard/tools/treehouse/v{VERSION}/treehouse"))
@@ -291,7 +494,17 @@ def main():
     if version != f"v{VERSION}":
         raise RuntimeError(f"expected Treehouse {VERSION}, got {version!r}; run scripts/install-treehouse")
     # The explicit --root overrides TREEHOUSE_ROOT and treehouse.toml, so pools never mix versions.
-    candidate = Path(run([binary, "get", "--lease", "--lease-holder", os.environ["AGENT_ID"], "--root", str(root)], source, timeout=90))
+    if args.task:
+        exe = shutil.which("agentboard")
+        if not exe:
+            raise RuntimeError("task-aware launch/attach requires the updated agentboard CLI on PATH")
+        resolved = json.loads(run([exe, "seat", "ensure", args.task, "--repo", str(source), "--root", str(root), "--json"], source, timeout=180))
+        binding = resolved["binding"]
+        candidate = Path(binding["worktree"])
+        verified_binding(binding, args.task, source, common, root)
+    else:
+        binding = None
+        candidate = Path(run([binary, "get", "--lease", "--lease-holder", os.environ["AGENT_ID"], "--root", str(root)], source, timeout=90))
     if not candidate.is_absolute():
         raise RuntimeError("Treehouse did not return one absolute leased path")
     try:
@@ -309,18 +522,22 @@ def main():
         seat_dir.mkdir(mode=0o700, exist_ok=True)
         os.chmod(seat_dir, 0o700)
         brief_path = seat_dir / "brief.md"
-        emitted = brief(task_brief, worktree, source)
-        fd = os.open(brief_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            stream.write(emitted)
-        seat_environment(seat_dir, common)
+        emitted = brief(task_brief, worktree, source, args.task)
+        if brief_path.exists() or brief_path.is_symlink():
+            if not binding or private_read(brief_path) != emitted:
+                raise RuntimeError("retained brief differs; preserve work and coordinate recovery")
+        else:
+            fd = os.open(brief_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                stream.write(emitted)
+        seat_environment(seat_dir, common, worktree, source, root)
         command = [str(brief_path) if arg == "{brief}" else emitted if arg == "{brief_text}" else arg for arg in command]
         env = dict(os.environ, AGENTBOARD_SEAT_WORKTREE=str(worktree), AGENTBOARD_SEAT_SOURCE=str(source), AGENTBOARD_SEAT_BRIEF=str(brief_path), AGENTBOARD_SEAT_ROOT=str(root))
         isolated(worktree, source, common)
         lease_identity(worktree, root)
         holder = os.environ["AGENT_ID"]
-        if args.task:
-            record_slot(args.task, worktree, root, holder)
+        if binding:
+            verified_binding(binding, args.task, source, common, root)
         print(f"Seat cwd: {worktree}; retained Treehouse v{VERSION} lease holder: {holder} (root {root})", file=sys.stderr)
         code = subprocess.call(command, cwd=worktree, env=env)
         if args.task:
@@ -334,6 +551,6 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError) as error:
         print(f"STOP: seat isolation failed: {error}", file=sys.stderr)
         sys.exit(2)
