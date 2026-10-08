@@ -34,6 +34,8 @@ test_suite(
         "//build/integration:seat_attachment_test",
         "//build/integration:claude_native_test",
         "//web:rate_limits_test",
+        "//web:decision_panel_test",
+        "//build/integration:details_hook_test",
         "//build/integration:postgres_tls_test",
         "//build/integration:db_tls_guard_test",
         "//build/integration:release_schema_test",
