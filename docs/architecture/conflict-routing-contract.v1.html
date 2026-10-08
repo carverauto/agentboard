@@ -120,74 +120,74 @@ Message-envelope ownership agreements are in board messages 1613, 1625, 1628 and
     }
   }
 }
-</pre></details><script type="application/json" id="conflict-order-ref-schema">JSON{
-  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
-  &quot;$id&quot;: &quot;urn:agentboard:conflict-order-ref:v1&quot;,
-  &quot;title&quot;: &quot;Conflict order reference v1&quot;,
-  &quot;type&quot;: &quot;object&quot;,
-  &quot;additionalProperties&quot;: false,
-  &quot;required&quot;: [
-    &quot;kind&quot;,
-    &quot;order_id&quot;,
-    &quot;order_revision&quot;,
-    &quot;repair_task_id&quot;,
-    &quot;pull_request_id&quot;,
-    &quot;default_ref&quot;,
-    &quot;default_tip_sha&quot;,
-    &quot;evaluation_base_ref&quot;,
-    &quot;evaluation_base_sha&quot;,
-    &quot;recipient_id&quot;
+</pre></details><script type="application/json" id="conflict-order-ref-schema">{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agentboard:conflict-order-ref:v1",
+  "title": "Conflict order reference v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "order_id",
+    "order_revision",
+    "repair_task_id",
+    "pull_request_id",
+    "default_ref",
+    "default_tip_sha",
+    "evaluation_base_ref",
+    "evaluation_base_sha",
+    "recipient_id"
   ],
-  &quot;properties&quot;: {
-    &quot;kind&quot;: {
-      &quot;const&quot;: &quot;pr_conflict_order&quot;
+  "properties": {
+    "kind": {
+      "const": "pr_conflict_order"
     },
-    &quot;order_id&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;pattern&quot;: &quot;^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$&quot;
+    "order_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
-    &quot;order_revision&quot;: {
-      &quot;type&quot;: &quot;integer&quot;,
-      &quot;minimum&quot;: 1
+    "order_revision": {
+      "type": "integer",
+      "minimum": 1
     },
-    &quot;repair_task_id&quot;: {
-      &quot;$ref&quot;: &quot;#/$defs/slug&quot;
+    "repair_task_id": {
+      "$ref": "#/$defs/slug"
     },
-    &quot;pull_request_id&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;pattern&quot;: &quot;^[0-9a-f]{64}$&quot;
+    "pull_request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
-    &quot;default_ref&quot;: {
-      &quot;$ref&quot;: &quot;#/$defs/ref&quot;
+    "default_ref": {
+      "$ref": "#/$defs/ref"
     },
-    &quot;default_tip_sha&quot;: {
-      &quot;$ref&quot;: &quot;#/$defs/sha&quot;
+    "default_tip_sha": {
+      "$ref": "#/$defs/sha"
     },
-    &quot;evaluation_base_ref&quot;: {
-      &quot;$ref&quot;: &quot;#/$defs/ref&quot;
+    "evaluation_base_ref": {
+      "$ref": "#/$defs/ref"
     },
-    &quot;evaluation_base_sha&quot;: {
-      &quot;$ref&quot;: &quot;#/$defs/sha&quot;
+    "evaluation_base_sha": {
+      "$ref": "#/$defs/sha"
     },
-    &quot;recipient_id&quot;: {
-      &quot;$ref&quot;: &quot;#/$defs/slug&quot;
+    "recipient_id": {
+      "$ref": "#/$defs/slug"
     }
   },
-  &quot;$defs&quot;: {
-    &quot;slug&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;minLength&quot;: 1,
-      &quot;maxLength&quot;: 128,
-      &quot;pattern&quot;: &quot;^[a-z0-9][a-z0-9_-]*$&quot;
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
     },
-    &quot;ref&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;minLength&quot;: 1,
-      &quot;maxLength&quot;: 255
+    "ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
     },
-    &quot;sha&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;pattern&quot;: &quot;^[0-9a-f]{40}$&quot;
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
     }
   }
 }
