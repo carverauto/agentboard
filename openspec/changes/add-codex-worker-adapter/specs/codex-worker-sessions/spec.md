@@ -5,6 +5,27 @@ delivery while preserving exclusive input, exact receipts, and fenced recovery.
 
 ## ADDED Requirements
 
+### Requirement: Optional effective availability snapshot
+
+Protocol 1 MAY include the additive field `state.worker.availability`. When
+present, the server SHALL return the existing `Availability.effective` map
+computed from the current registered Agent's identity, harness and model using
+the database clock, rather than the enrollment-time subscription model.
+Existing clients SHALL remain compatible without consuming this field.
+The Codex bridge SHALL require `availability.state == "active"` immediately
+before new native input and SHALL refuse when the field is absent or otherwise
+unavailable. This snapshot SHALL NOT be represented as an atomic native I/O
+authorization. Explicit scoped reads and receipts SHALL remain available to
+unavailable workers.
+
+#### Scenario: Older protocol-1 server
+- **WHEN** scoped state omits the optional availability field
+- **THEN** the Codex bridge does not submit new native input while existing clients continue using their established contract
+
+#### Scenario: Availability changes after enrollment
+- **WHEN** the registered Agent's current model or effective policy changes
+- **THEN** fresh scoped state reflects that Agent's effective policy and explicit check-in and exact receipts remain usable
+
 ### Requirement: Explicit Codex session enrollment
 
 The adapter SHALL bind a captain-provisioned worker to an exact native Codex

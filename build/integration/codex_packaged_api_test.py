@@ -22,6 +22,8 @@ def api(path, body=None, token=None, captain=False):
         headers['Authorization'] = 'Bearer ' + token
     if captain:
         headers['x-agentboard-captain-token'] = CAPTAIN
+        if path == '/availability':
+            headers['Authorization'] = 'Bearer ' + CAPTAIN
     if body is not None:
         headers['Content-Type'] = 'application/json'
     request = urllib.request.Request(URL + '/api/v1' + path, headers=headers,
@@ -130,6 +132,19 @@ with tempfile.TemporaryDirectory(prefix='ab-cp-', dir='/tmp') as temporary:
         # absent availability cannot establish the approved pre-write fence.
         state = cli('state')['state']
         assert state['worker'].get('availability', {}).get('state') == 'active', 'scoped state must expose effective availability'
+        # Availability follows the current registered Agent, not its old enrollment.
+        policy = api('/availability', {'harness': 'codex', 'model_pattern': 'fixture-changed-model',
+                     'state': 'reserved', 'reason': 'Invented current-model policy'}, captain=True)['policy']
+        ACTOR['x-agentboard-model'] = 'fixture-changed-model'
+        api('/agents/register', {'name': 'Invented isolated Codex conformance'})
+        ACTOR['x-agentboard-model'] = 'fixture-model'
+        changed = cli('state')['state']['worker']
+        assert changed['model'] == 'fixture-model', 'enrollment model is retained'
+        assert changed['availability']['state'] == 'reserved'
+        assert changed['availability']['source'] == policy['id']
+        assert changed['availability'] == api('/agents/' + WORKER)['agent']['availability'], 'effective map is preserved'
+        api('/agents/register', {'name': 'Invented isolated Codex conformance'})
+        assert cli('state')['state']['worker']['availability']['state'] == 'active'
         rpc('Application.put_env(:agentboard, :cooperation_enabled, true)')
         for task in ['fixture-codex-source-a', 'fixture-codex-source-b']:
             api('/tasks', {'id': task, 'title': 'Invented Codex source', 'repo': 'fixture/codex'})
