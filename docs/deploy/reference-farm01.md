@@ -250,8 +250,9 @@ the dashboard image changed; the ConfigMap, secrets, CNPG and Mattermost were
 not modified. Discovery, observation and the Mattermost bridge stay enabled,
 cooperation stays disabled, and the CI policies are unchanged.
 
-No new secret is required. `AGENTBOARD_MATTERMOST_TEAM_ID` is optional and
-unset; without it identity verification skips the team-membership check.
+No new secret is required. At the time of this rollout `AGENTBOARD_MATTERMOST_TEAM_ID` was
+unset (optional; without it identity verification skips the team-membership check); it
+was set afterwards — see Mattermost team ID below.
 
 The dashboard is Ready with zero restarts on the exact image ID;
 `/health/live`, `/health/ready`, `/`, `/prs` and `/api/v1/meta` return 200,
