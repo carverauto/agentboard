@@ -20,7 +20,7 @@ defmodule Agentboard.Repo.Migrations.RosterIdentityRetire do
 
     create(index(:agents, [:kind], where: "retired_at IS NULL"))
 
-    execute("UPDATE board_schema SET version=GREATEST(version,31) WHERE id=1")
+    execute("UPDATE board_schema SET version=GREATEST(version,30) WHERE id=1")
   end
 
   def down do
