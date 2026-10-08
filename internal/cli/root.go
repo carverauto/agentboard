@@ -147,6 +147,14 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasSuffix(path, "/duplicate-decision") {
 		required = 24
 	}
+	if strings.HasSuffix(path, "/retire") || strings.HasSuffix(path, "/restore") {
+		required = 30
+	}
+	if fields, ok := payload.(map[string]any); ok {
+		if kind, ok := fields["kind"].(string); ok && (kind == "seat" || kind == "human" || kind == "system" || kind == "fixture") {
+			required = 30
+		}
+	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
 	}

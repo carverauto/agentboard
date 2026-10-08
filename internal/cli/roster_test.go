@@ -25,7 +25,7 @@ func newRosterBoard(t *testing.T) (string, *rosterBoard) {
 	f := &rosterBoard{}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"api_version":1,"schema_version":22}`))
+		w.Write([]byte(`{"api_version":1,"schema_version":30}`))
 	})
 	mux.HandleFunc("POST /api/v1/agents/worker-a/retire", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
