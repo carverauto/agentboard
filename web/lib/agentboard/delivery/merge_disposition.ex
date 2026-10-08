@@ -48,46 +48,18 @@ defmodule Agentboard.Delivery.MergeDisposition do
             id
           )
         )
-        |> Ash.Query.sort(id: :asc)
-        |> Ash.Query.limit(101)
 
-      query = if cursor, do: Ash.Query.filter(query, id > ^cursor), else: query
-
-      with {:ok, tasks} <- query |> Repo.read_query() |> Ash.read(),
-           {:ok, counts} <- complete_page(Enum.take(tasks, 100)) do
-        next = if length(tasks) > 100, do: Enum.at(tasks, 99).id
-
-        # Cursor continuation is an Oban job, never volatile process state.
-        # Replaying a partially completed page sees done tasks and does nothing.
-        if next do
+      Agentboard.Delivery.Reconciliation.page(
+        query,
+        cursor,
+        fn next ->
           AshOban.schedule(__MODULE__, :reconcile_merges, action_arguments: %{after_id: next})
-        end
-
-        {:ok, Map.put(counts, :next_cursor, next)}
-      else
-        {:error, _code, message} -> {:error, message}
-        {:error, error} -> {:error, error}
-      end
+        end,
+        &complete_task/1
+      )
     else
       {:error, AshOban.Errors.SnoozeJob.exception(snooze_for: 60)}
     end
-  end
-
-  defp complete_page(tasks) do
-    Enum.reduce_while(tasks, {:ok, %{scanned: 0, completed: 0}}, fn task, {:ok, counts} ->
-      case Operations.transaction(fn -> complete_task(task.id) end) do
-        {:ok, completed?} ->
-          counts = %{
-            scanned: counts.scanned + 1,
-            completed: counts.completed + if(completed?, do: 1, else: 0)
-          }
-
-          {:cont, {:ok, counts}}
-
-        error ->
-          {:halt, error}
-      end
-    end)
   end
 
   defp complete_task(id) do

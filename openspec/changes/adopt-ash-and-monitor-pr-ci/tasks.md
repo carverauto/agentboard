@@ -125,3 +125,9 @@ admission subset is in [polling contracts](../../../docs/ci-polling.md);
 provider collection, CI results, follow-ups, a completion guard and a deployed
 monitor are not implied. The approved change remains 9/37 complete; no
 outstanding requirement has been removed or waived.
+
+## 12. Terminal CI obligation disposition (#103)
+
+- [ ] 12.1 Implement shared reasoned closure for terminal PR and own repair transitions; preserve CI qualification/history and suppress pending notices atomically.
+- [ ] 12.2 Add bounded observation-gated AshOban retained-proof recovery and restart-safe continuation; verify legacy terminal records, disabled cooperation, replay, rollback, mismatch and more than 100 rows remotely.
+- [ ] 12.3 Deliver schema21 upgrade preservation proof, reconciled OpenSpec/Lavish, Archify and native No-mistakes PR; rollout remains captain-owned.

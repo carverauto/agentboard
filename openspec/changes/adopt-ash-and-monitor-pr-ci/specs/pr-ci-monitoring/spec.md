@@ -41,7 +41,7 @@ Polling SHALL use durable jobs, bounded concurrency, network/response limits and
 - **THEN** only applicable current-generation evidence updates the current projection and a single failure obligation is recorded
 
 ### Requirement: Durable follow-up accountability
-A newly observed CI failure SHALL create or update one active board follow-up per PR, referencing source tasks, responsible submitting agent and failure evidence. Original terminal tasks SHALL remain unchanged. Missing responsibility SHALL place work in a visible captain queue. Assignment SHALL NOT claim a lease, execute an agent, merge or change provider checks.
+A newly observed CI failure on an open PR SHALL create or update one active board follow-up per PR, subject to the terminal obligation disposition contract, referencing source tasks, responsible submitting agent and failure evidence. Original terminal tasks SHALL remain unchanged. Missing responsibility SHALL place work in a visible captain queue. Assignment SHALL NOT claim a lease, execute an agent, merge or change provider checks.
 
 #### Scenario: Agent already moved on
 - **WHEN** CI fails after the submitting agent completed its original task
