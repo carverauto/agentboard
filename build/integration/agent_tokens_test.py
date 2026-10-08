@@ -198,11 +198,14 @@ def plug_probe(bearer):
     return rpc_out(expr)
 
 def telemetry_attach():
-    return rpc('try do :telemetry.detach("fixture-auth-degraded") rescue _ -> :ok end; if :ets.whereis(:fixture_auth_events) != :undefined, do: :ets.delete(:fixture_auth_events); :ets.new(:fixture_auth_events, [:named_table, :public, :bag]); :telemetry.attach("fixture-auth-degraded", [:agentboard, :auth, :write], fn event, measurements, metadata, _ -> :ets.insert(:fixture_auth_events, {:event, event, measurements, metadata}) end, nil); IO.puts("telemetry_attached")')
+    return rpc('try do :telemetry.detach("fixture-auth-degraded") rescue _ -> :ok end; :persistent_term.put(:fixture_auth_events, []); :telemetry.attach("fixture-auth-degraded", [:agentboard, :auth, :write], fn event, measurements, metadata, _ -> :persistent_term.put(:fixture_auth_events, [{event, measurements, metadata} | :persistent_term.get(:fixture_auth_events, [])]) end, nil); IO.puts("telemetry_attached")')
 
 def telemetry_detach():
-    return rpc(':telemetry.detach("fixture-auth-degraded"); if :ets.whereis(:fixture_auth_events) != :undefined, do: :ets.delete(:fixture_auth_events); IO.puts("telemetry_detached")')
+    return rpc(':telemetry.detach("fixture-auth-degraded"); :persistent_term.erase(:fixture_auth_events); IO.puts("telemetry_detached")')
 
+# An active fixture credential exercises the verification/update path during both outages.
+# token-other's earlier UI credential was revoked, so issue a fresh one here.
+fresh = api('agents/token-other/tokens/issue', {}, captain=True)['token']
 sql("CREATE FUNCTION fixture_reject_observation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='invalid_input', DETAIL='Synthetic observation rejected'; END $$ ")
 sql('CREATE TRIGGER fixture_observation_guard BEFORE INSERT ON agent_auth_observations FOR EACH ROW EXECUTE FUNCTION fixture_reject_observation()')
 telemetry_attach()
@@ -215,20 +218,22 @@ try:
     assert api('tasks/auth-degraded-invalid')['events'][0]['actor_id']=='token-owner'
     degraded_revoked=api('tasks',{'id':'auth-degraded-revoked','title':'Degraded revoked'},actor='token-owner',token=new)
     assert api('tasks/auth-degraded-revoked')['events'][0]['actor_id']=='token-owner'
+    degraded_active=api('tasks',{'id':'auth-degraded-active','title':'Degraded active'},actor='token-other',token=fresh)
+    assert api('tasks/auth-degraded-active')['events'][0]['actor_id']=='token-other'
     assert sql('SELECT count(*) FROM agent_auth_observations')==obs_before
     api('agents/token-owner/tokens/issue',{},status=403)
     degraded_tokens=api('agents/token-owner/tokens',captain=True)
     assert token not in json.dumps(degraded_tokens) and CAPTAIN not in json.dumps(degraded_tokens)
-    for bearer in (token, 'abt_'+'a'*43, new):
+    for bearer in (token, 'abt_'+'a'*43, new, fresh):
         probe=plug_probe(bearer)
         assert 'plug_degraded: {nil, false}' in probe, probe
         assert bearer not in probe and CAPTAIN not in probe
-    events_out=rpc_out('events = :ets.tab2list(:fixture_auth_events); IO.inspect(events, label: "auth_events")')
+    events_out=rpc_out('events = :persistent_term.get(:fixture_auth_events, []); IO.inspect(events, label: "auth_events")')
     assert 'observation_unavailable' in events_out, events_out
-    assert token not in events_out and new not in events_out and cli_token not in events_out and CAPTAIN not in events_out
-    web_log=(Path(os.environ['TEST_TMPDIR'])/'web.log').read_text()
+    assert token not in events_out and new not in events_out and cli_token not in events_out and fresh not in events_out and CAPTAIN not in events_out
+    web_log=(Path(os.environ['TEST_TMPDIR'])/'web.log').read_bytes().decode('utf-8', errors='replace')
     assert 'observation_unavailable' in web_log
-    assert all(t not in web_log for t in [token, new, cli_token, CAPTAIN])
+    assert all(t not in web_log for t in [token, new, cli_token, fresh, CAPTAIN])
 finally:
     sql('DROP TRIGGER fixture_observation_guard ON agent_auth_observations; DROP FUNCTION fixture_reject_observation()')
     telemetry_detach()
@@ -243,22 +248,29 @@ try:
     assert api('tasks/auth-degraded-verify')['events'][0]['actor_id']=='token-owner'
     unverified_invalid=api('tasks',{'id':'auth-degraded-verify-invalid','title':'Degraded verify invalid'},actor='token-owner',token='abt_'+'b'*43)
     assert api('tasks/auth-degraded-verify-invalid')['events'][0]['actor_id']=='token-owner'
+    unverified_active=api('tasks',{'id':'auth-degraded-verify-active','title':'Degraded verify active'},actor='token-other',token=fresh)
+    assert api('tasks/auth-degraded-verify-active')['events'][0]['actor_id']=='token-other'
     api('agents/token-owner/tokens/issue',{},status=403)
-    for bearer in (token, 'abt_'+'b'*43, new):
+    for bearer in (token, 'abt_'+'b'*43, new, fresh):
         probe=plug_probe(bearer)
         assert 'plug_degraded: {nil, false}' in probe, probe
         assert bearer not in probe and CAPTAIN not in probe
-    events_out=rpc_out('events = :ets.tab2list(:fixture_auth_events); IO.inspect(events, label: "auth_events")')
+    events_out=rpc_out('events = :persistent_term.get(:fixture_auth_events, []); IO.inspect(events, label: "auth_events")')
     assert 'observation_unavailable' in events_out, events_out
-    assert token not in events_out and new not in events_out and CAPTAIN not in events_out
+    assert token not in events_out and new not in events_out and fresh not in events_out and CAPTAIN not in events_out
 finally:
     sql('DROP TRIGGER fixture_credential_use_guard ON agent_api_credentials; DROP FUNCTION fixture_reject_credential_use()')
     telemetry_detach()
 # Report outage alone keeps the roster: rename only for the browser/direct report check.
 sql('ALTER TABLE agent_auth_observations RENAME TO fixture_hidden_observations')
 try:
+    # Compatibility honestly reports the missing required table first; the
+    # report's own unavailable error is exercised directly below.
     honest=api('auth/observations',status=503)
-    assert honest['error']['code']=='unavailable'
+    assert honest['error']['code']=='schema_unavailable'
+    direct=rpc_out('IO.inspect(Agentboard.Auth.report(), label: "direct_report")')
+    assert 'direct_report: {:error, "unavailable"' in direct, direct
+    assert token not in direct and fresh not in direct and CAPTAIN not in direct
     assert token not in json.dumps(honest) and CAPTAIN not in json.dumps(honest)
     degraded_view=LiveView(URL,'/agents')
     assert contains(degraded_view.initial,'token-owner') and contains(degraded_view.initial,'token-other')
@@ -274,7 +286,7 @@ rpc('Application.put_env(:agentboard,:agent_auth_mode,"off")')
 create('auth-off-rollback',cli_token,'token-other')
 assert sql('SELECT count(*) FROM agent_auth_observations')==count
 all_evidence=sql('SELECT row_to_json(o)::text FROM agent_auth_observations o')
-assert all(t not in all_evidence for t in [token,new,cli_token,CAPTAIN]+[item['token'] for item in race])
+assert all(t not in all_evidence for t in [token,new,cli_token,fresh,CAPTAIN]+[item['token'] for item in race])
 # DB immutability is checked by executing mutations, not inspecting migration text.
 for statement in ["UPDATE agent_auth_observations SET outcome='matched'", "DELETE FROM agent_auth_observations", "TRUNCATE agent_auth_observations", "UPDATE agent_api_credentials SET revoked_at=NULL WHERE revoked_at IS NOT NULL"]:
     result=subprocess.run([os.environ['FIXTURE_PSQL'],'-At','-v','ON_ERROR_STOP=1','-c',statement],capture_output=True,text=True)

@@ -301,10 +301,21 @@ defmodule AgentboardWeb.BoardLive do
   end
 
   defp load(:agents, filters) do
-    with {:ok, data} <- Board.page("agents", Map.take(filters, ~w(cursor waiting availability)) |> Map.put("limit", "100")) do
+    with {:ok, data} <-
+           Board.page(
+             "agents",
+             Map.take(filters, ~w(cursor waiting availability)) |> Map.put("limit", "100")
+           ) do
       case Agentboard.Auth.report() do
-        {:ok, report} -> {:ok, Map.put(data, "authentication", report)}
-        {:error, _, _} -> {:ok, Map.put(data, "authentication", %{"status" => "unavailable", "mode" => Agentboard.Auth.mode()})}
+        {:ok, report} ->
+          {:ok, Map.put(data, "authentication", report)}
+
+        {:error, _, _} ->
+          {:ok,
+           Map.put(data, "authentication", %{
+             "status" => "unavailable",
+             "mode" => Agentboard.Auth.mode()
+           })}
       end
     end
   end
