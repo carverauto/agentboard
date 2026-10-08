@@ -1,0 +1,99 @@
+{
+  "verified_at": "2026-10-08T04:00:00Z",
+  "commit": "1bf92ae",
+  "source_prs": [
+    "https://github.com/carverauto/agentboard/pull/113",
+    "https://github.com/carverauto/agentboard/pull/112",
+    "https://github.com/carverauto/agentboard/pull/111",
+    "https://github.com/carverauto/agentboard/pull/109",
+    "https://github.com/carverauto/agentboard/pull/108",
+    "https://github.com/carverauto/agentboard/pull/106",
+    "https://github.com/carverauto/agentboard/pull/105",
+    "https://github.com/carverauto/agentboard/pull/101",
+    "https://github.com/carverauto/agentboard/pull/95"
+  ],
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37723289797",
+  "failed_prior_builds": {
+    "runs": [
+      "https://github.com/carverauto/agentboard/actions/runs/37722442163",
+      "https://github.com/carverauto/agentboard/actions/runs/37722382353"
+    ],
+    "cause": "//internal/cli:cli_test treated skill link #fragment as part of the file name (from PR105); fixed by PR113",
+    "follow_up_issues": [
+      "https://github.com/carverauto/agentboard/issues/97",
+      "https://github.com/carverauto/agentboard/issues/114"
+    ]
+  },
+  "rollout_operator": "grok-serviceradar-oss",
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:a71479ebe17c6fa6d5ece1a78e7226886ed739eb04a6bd4e783a48c3b0426a8c",
+  "cli_image": "registry.carverauto.dev/agentboard/cli@sha256:aa259a6506ac65ff67aa00393c420b4621d6c8d8918f35ec69057cfb8928c22b",
+  "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:c7739931faab0c8fd5c75e232d0f35d6e598a2f1ed8a5e93fd1fcdc2dad73781",
+  "pre_migration_backup": {
+    "host": "agentboard-db-2 (CNPG primary)",
+    "path": "/var/lib/postgresql/data/agentboard-backups/pre-1bf92ae-20261008/",
+    "format": "full pg_dump -Fc of database agentboard + schema-only SQL (tasks, messages, board_schema) + row counts + SHA256SUMS",
+    "row_counts": {
+      "tasks": 173,
+      "messages": 780,
+      "board_schema_version": 14
+    },
+    "table_data_entries": 51
+  },
+  "migration": {
+    "job": "agentboard-migrate-1bf92ae",
+    "completed_at": "2026-10-08T03:51:11Z",
+    "succeeded": true,
+    "migrations": [
+      "20261008000300_agent_availability"
+    ],
+    "literal_env_overrides": {
+      "PHX_SERVER": "false",
+      "AGENTBOARD_PR_DISCOVERY_ENABLED": "false",
+      "AGENTBOARD_PR_OBSERVATION_ENABLED": "false",
+      "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "false",
+      "AGENTBOARD_COOPERATION_ENABLED": "false"
+    },
+    "completed_before_dashboard_started": true
+  },
+  "schema": {
+    "before": 14,
+    "after": 15,
+    "api_version": 1,
+    "required_schema_version": 15
+  },
+  "dashboard": {
+    "pod": "agentboard-dashboard-78d86bbb57-cncng",
+    "started_at": "2026-10-08T03:51:20Z",
+    "ready": true,
+    "restarts": 0,
+    "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:a71479ebe17c6fa6d5ece1a78e7226886ed739eb04a6bd4e783a48c3b0426a8c"
+  },
+  "flags": {
+    "AGENTBOARD_PR_DISCOVERY_ENABLED": "true",
+    "AGENTBOARD_PR_OBSERVATION_ENABLED": "true",
+    "AGENTBOARD_COOPERATION_ENABLED": "false",
+    "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "true",
+    "AGENTBOARD_MATTERMOST_TEAM_ID": "set (unread since PR91)",
+    "AGENTBOARD_MATTERMOST_CHANNEL_ALLOWLIST": "unset (any channel)"
+  },
+  "new_secrets_required": [],
+  "http": {
+    "/health/live": 200,
+    "/health/ready": 200,
+    "/": 200,
+    "/prs": 200,
+    "/api/v1/meta": 200
+  },
+  "mattermost_bridge": "outbox all sent; 12 deliveries in 10 min after roll, latest 2026-10-08T03:56:57Z",
+  "base_fence_fix_102": {
+    "pr": "https://github.com/carverauto/serviceradar/pull/4995",
+    "observed_at": "2026-10-08T03:57:08Z",
+    "previous_observation": "2026-10-08T02:15:07Z",
+    "expected_base_sha_recorded": true
+  },
+  "merge_state_detection": "/prs shows Base staging \u00b7 unstable for open serviceradar PRs (GitHub mergeable=MERGEABLE, failing checks); no conflicting PR open at roll time",
+  "open_findings": [
+    "GitHub local admission (60/min) drained by concurrent partial polls: 5 open serviceradar PRs x ~16 requests/poll; #5523/#5524 stale rate_limited since 03:19-03:25Z (pre-dates roll)"
+  ],
+  "rollback_performed": false
+}
