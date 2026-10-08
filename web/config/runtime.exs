@@ -41,6 +41,14 @@ config :agentboard, :message_mode, System.get_env("AGENTBOARD_MESSAGE_MODE", "bo
 config :agentboard, :coordinator_id, System.get_env("AGENTBOARD_COORDINATOR_ID")
 config :agentboard, :captain_token, System.get_env("AGENTBOARD_CAPTAIN_TOKEN")
 
+# Default-off conflict policy; provider observation remains independently enabled.
+conflict_mode = System.get_env("AGENTBOARD_CONFLICT_ROUTING_MODE", "disabled")
+
+if conflict_mode not in ~w(disabled dry_run apply),
+  do: raise("AGENTBOARD_CONFLICT_ROUTING_MODE must be disabled, dry_run or apply")
+
+config :agentboard, :conflict_routing_mode, conflict_mode
+
 # GitHub hook secret is separate from agent/captain/worker capabilities. Intake
 # and recovery stay behind the existing PR observation flag.
 config :agentboard,

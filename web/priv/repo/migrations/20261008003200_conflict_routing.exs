@@ -3,6 +3,18 @@ defmodule Agentboard.Repo.Migrations.ConflictRouting do
   use Ecto.Migration
 
   def up do
+    alter table(:delivery_poll_states) do
+      add(:default_ref, :text)
+      add(:expected_default_sha, :text)
+    end
+
+    create(
+      constraint(:delivery_poll_states, :poll_default_identity,
+        check:
+          "(default_ref IS NULL)=(expected_default_sha IS NULL) AND (default_ref IS NULL OR (length(default_ref) BETWEEN 1 AND 255 AND expected_default_sha ~ '^[0-9a-f]{40}$'))"
+      )
+    )
+
     create table(:delivery_publication_bindings, primary_key: false) do
       add(:id, :uuid, primary_key: true, null: false)
       add(:repo, :text, null: false)

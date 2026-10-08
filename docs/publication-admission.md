@@ -94,3 +94,28 @@ refusal. Fixtures supply neither admission receipts nor task evidence.
 Run both remotely with `./scripts/bazel test` and the two target names. No
 workstation builds or tests. These tests do not certify native PR-open gating,
 cross-seat custody or host activation.
+
+## Default-watch foundation (routing incomplete)
+
+The proposed conflict policy defaults to `disabled`. In `dry_run` or `apply`,
+the collector additionally reads the repository's actual default identity
+and the current PR target branch through its existing bounded, admitted
+HTTPS transport. Those rollout modes do not yet implement the complete
+order, reassignment or grant policy; keep them disabled in production.
+
+Default ref/tip and evaluation ref/tip remain separate in immutable
+snapshots. The existing BaseMonitor enrolls both, with no second poller.
+A default advance invalidates every open PR enrolled for that repository
+and default ref, including PRs targeting another branch. Persisted
+`expected_default_sha` makes page replay idempotent while
+`expected_base_sha` continues to name the actual target base. Watches are
+locked in sorted ref order before PollState; a changed watch rejects an
+old provider response rather than appending clean evidence.
+
+`//build/integration:conflict_default_watch_test` owns this boundary using
+a packaged release, invented TLS provider and real PostgreSQL. It proves
+`staging` default versus `release` target, all-linked-PR invalidation,
+same-tip replay, stale-response fencing and disabled collector behavior.
+The existing `pr_conflicts_test` remains the owner of actual-target paging,
+restart recovery and ordinary conflict delivery. Neither proves native
+custody, CI green or automatic reassignment.

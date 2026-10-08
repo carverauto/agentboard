@@ -30,7 +30,7 @@ An informational fallback uses `kind=note`. Sending a `task_order` still require
 
 Conflict paths acquire `BaseWatch -&gt; PullRequest -&gt; PollState` before availability admission, candidate agent rows in stable ID order, repair task, current order, source-election/message, and worker/subscription/binding/delivery/intent. Generic source paths begin at their admission/source locks, then message and worker. A caller already holding a worker lock must defer bootstrap or lift it; it must not acquire a source or base lock beneath that worker.
 
-The selector&#x27;s source-election advisory lock precedes its source/message/worker writes and remains held to transaction commit. Both capture and late enrollment use it. Canonical order, message and wake capture commit together; provider and native I/O run outside locks. Tests must exercise both fallback/bootstrap interleavings and retained receipts, not only sequential marker lookups.
+The selector&#x27;s source-election advisory lock precedes its source/message/worker writes and remains held to transaction commit. Producer election uses it. Worker-first late enrollment must not re-elect or take this advisory lock: bootstrap captures the existing immutable source and uses exact-prior ensure_delivery/receipts, as audited in #122 event3058. Canonical order, message and wake capture commit together; provider and native I/O run outside locks. Tests must exercise both fallback/bootstrap interleavings and retained receipts, not only sequential marker lookups.
 
 ## Shared eligibility v1
 
@@ -48,7 +48,7 @@ The server must never mint a supported custody receipt from caller claims or a f
 
 ## Evidence status
 
-Message-envelope ownership agreements are in board messages 1613, 1625, 1628 and 1645. #156 identified and corrected the canonical PR-ID type in 1660/1662. Exact #122 selector API and both consumers&#x27; acknowledgment of this artifact remain pending. Native support is unresolved (coordinator question 1663). Runtime tasks remain unchecked until their actual tests pass.
+Message-envelope ownership agreements are in board messages 1613, 1625, 1628 and 1645. #156 identified and corrected the canonical PR-ID type in 1660/1662. Both consumers acknowledged the exact doc176 download/schema (#156 msg1674; #122 msg1683/event3058). #122 supplied Runtime.fallback/4: worker returns {:worker, Event}, inbox returns {:sent|:adopted, Message}. #156 msg1703 confirms typed capture requires a canonical Message in both modes. #122 msg1711 confirms the Event/Message distinction is deliberate, proposes a coordinated existing-Event contract amendment, and retains its worker-health eligibility fix in native pipeline custody. The source-contract amendment remains unapproved. #169 must not invent another election, Message or delivery to bridge this mismatch. Native support is unresolved (coordinator question 1663). Runtime tasks remain unchecked until their actual tests pass.
 </pre></details><details open><summary>Machine-owned order_ref schema</summary><pre>{
   &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
   &quot;$id&quot;: &quot;urn:agentboard:conflict-order-ref:v1&quot;,

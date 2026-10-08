@@ -101,7 +101,7 @@ before_projection="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_poll_state
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 [[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
 [[ "$(inventory_psql "$history_query")" == "$before_inventory" ]]
-[[ "$(inventory_psql "SELECT to_jsonb(s)-'base_ref'-'expected_base_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' FROM delivery_poll_states s")" == "$before_projection" ]]
+[[ "$(inventory_psql "SELECT to_jsonb(s)-'default_ref'-'expected_default_sha'-'base_ref'-'expected_base_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' FROM delivery_poll_states s")" == "$before_projection" ]]
 [[ "$(inventory_psql 'SELECT base_ref IS NULL AND expected_base_sha IS NULL FROM delivery_poll_states')" == t ]]
 [[ "$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_ci_snapshots s')" == "$before_snapshot" ]]
 [[ "$(inventory_psql 'SELECT count(*) FROM delivery_poll_states_versions')" == 0 ]]
@@ -144,11 +144,11 @@ INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head
 INSERT INTO delivery_rebase_follow_ups(id,pull_request_id,head_sha,base_sha,snapshot_id,repair_task_id,responsible_id,created_at) VALUES ('33333333-3333-4333-8333-333333333333',repeat('e',64),repeat('a',40),repeat('b',40),'22222222-2222-4222-8222-222222222222','retained-repair','retained-avail',clock_timestamp());" >/dev/null
 avail_psql "INSERT INTO delivery_obligations(id,pull_request_id,episode,repair_task_id,responsible_id,state,head_sha,snapshot_id,evidence_urls,last_progress_at,next_reminder_at,reminder_generation,window_at,reminders,resolved_at,created_at) VALUES ('44444444-4444-4444-8444-444444444444',repeat('e',64),1,'retained-repair','retained-avail','resolved',repeat('a',40),'22222222-2222-4222-8222-222222222222','{}',clock_timestamp(),clock_timestamp(),0,clock_timestamp(),0,clock_timestamp(),clock_timestamp()), ('55555555-5555-4555-8555-555555555555',repeat('e',64),2,'retained-repair','retained-avail','unresolved',repeat('a',40),'22222222-2222-4222-8222-222222222222','{}',clock_timestamp(),clock_timestamp(),0,clock_timestamp(),0,NULL,clock_timestamp());" >/dev/null
 before_obligations="$(avail_psql 'SELECT jsonb_agg(to_jsonb(o) ORDER BY episode) FROM delivery_obligations o')"
-before_avail="$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")"
+before_avail="$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'default_ref'-'expected_default_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 [[ "$(avail_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
-[[ "$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t)-'assignment_authorized' ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")" == "$before_avail" ]]
+[[ "$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t)-'assignment_authorized' ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'default_ref'-'expected_default_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")" == "$before_avail" ]]
 [[ "$(avail_psql 'SELECT count(*) FROM availability_policies')" == 0 ]]
 [[ "$(avail_psql 'SELECT count(*) FROM tasks WHERE assignment_authorized')" == 0 ]]
 [[ "$(avail_psql "SELECT status||','||coalesce(assignee_id,'') FROM tasks WHERE id='retained-repair'")" == 'assigned,retained-avail' ]]
@@ -500,6 +500,7 @@ before_conflict="$(conflict_psql "$conflict_history")"
 [[ "$(conflict_psql "$conflict_history")" == "$before_conflict" ]]
 [[ "$(conflict_psql 'SELECT count(*) FROM delivery_publication_bindings')" == 0 ]]
 [[ "$(conflict_psql 'SELECT count(*) FROM delivery_publication_bindings_versions')" == 0 ]]
+[[ "$(conflict_psql 'SELECT count(*) FROM delivery_poll_states WHERE default_ref IS NOT NULL OR expected_default_sha IS NOT NULL')" == 0 ]]
 [[ "$(conflict_psql 'SELECT bool_and(current_order_id IS NULL) FROM delivery_rebase_follow_ups')" == t ]]
 for source in delivery_conflict_orders delivery_publication_grants; do
   [[ "$(conflict_psql "SELECT count(*) FROM $source")" == 0 ]]
