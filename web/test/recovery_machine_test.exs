@@ -255,4 +255,3 @@ defmodule Agentboard.RecoveryMachineTest do
              Machine.transition(overridden, receipt(e, %{status: "known_absent"}), @now)
   end
 end
-

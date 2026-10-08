@@ -73,4 +73,3 @@ defmodule Agentboard.Recovery do
 
   def capture(_, _, _), do: {:error, "invalid_input", "Invalid recovery checkpoint"}
 end
-

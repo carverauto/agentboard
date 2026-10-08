@@ -109,4 +109,3 @@ defmodule Agentboard.Recovery.Episode do
     attribute(:updated_at, :utc_datetime_usec, allow_nil?: false)
   end
 end
-

@@ -390,4 +390,3 @@ defmodule Agentboard.Recovery.Machine do
     end
   end
 end
-

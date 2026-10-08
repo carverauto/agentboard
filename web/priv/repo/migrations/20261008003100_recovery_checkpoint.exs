@@ -120,4 +120,3 @@ defmodule Agentboard.Repo.Migrations.RecoveryCheckpoint do
     raise "Retain recovery evidence; disable reservations instead"
   end
 end
-
