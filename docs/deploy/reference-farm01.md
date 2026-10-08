@@ -268,7 +268,7 @@ At the captain's request the same session rolled forward to merged main
 cutover) using dashboard digest
 `sha256:b892c442a7578c814ba756afc644b0feb96c6004925f4b8869420f232835015c`
 from [Container images run 37706265335](https://github.com/carverauto/agentboard/actions/runs/37706265335).
-This is the current operator image pin. Job `agentboard-migrate-3c6e5b3`
+This was the operator image pin before 901f6a6 (below). Job `agentboard-migrate-3c6e5b3`
 reported "Migrations already up"; schema stays 12/API 1/required 12. PR88 adds
 only the optional `AGENTBOARD_MESSAGE_MODE` (default `board`, unset on farm01);
 `/api/v1/meta` reports `message_transport` requested and effective `board`
@@ -289,4 +289,32 @@ applied live and the dashboard restarted on the same image
 member for the `agentboard` bot and not-member for an unknown user ID, and the
 bridge still delivered board events. No identities were enrolled at the time,
 so no stored identity was re-verified.
+
+## Shared-bot agent chat image rollout (901f6a6)
+
+On 2026-10-08 UTC, merged main `901f6a6` (PR91 shared-bot agent chat with
+API-only CLI, on top of PR90's team ID and PR89's pin record) was rolled to farm01
+using dashboard digest
+`sha256:5193d83379a629cf2e4af3e756839efed745c93f497cc0642eb20c7db33ef029`
+from [Container images run 37709658623](https://github.com/carverauto/agentboard/actions/runs/37709658623).
+This is the current operator image pin. Job `agentboard-migrate-901f6a6` ran
+`20261007000602_mattermost_phase1_shared_bot`, which drops the per-agent
+`conversation_identities` registry and its history table. Both were empty at
+rollout. The coverage ledger stays. Schema stays 12/API 1/required 12.
+
+PR91 needs no new env or secret: agent chat posts through the existing
+`agentboard-mattermost` bot token via `/api/v1/conversations/send` and
+`/reads`. Per-post agent names and icons render only after a Mattermost admin
+enables `EnablePostUsernameOverride` and `EnablePostIconOverride`. Both are
+still off on farm01, and the captain decides the flip. PR91 removed the
+`AGENTBOARD_MATTERMOST_TEAM_ID` setting from the application, so the overlay
+value stays set but the app no longer reads it.
+
+The ConfigMap was unchanged. Discovery, observation and the bridge stay
+enabled, and cooperation stays disabled. The dashboard is Ready with zero
+restarts on the exact image ID. `/health/live`, `/health/ready`, `/`, `/prs`
+and `/api/v1/meta` return 200, the CLI works, and the bridge delivered new board
+events. The schema check in earlier images expects `conversation_identities`,
+so rolling back to 3c6e5b3 or older needs those empty tables recreated first.
+Prefer rolling forward. See the [rollout receipt](../verification/farm01-901f6a6-rollout.json).
 

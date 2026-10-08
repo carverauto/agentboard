@@ -1,0 +1,80 @@
+{
+  "verified_at": "2026-10-08T00:55:00Z",
+  "commit": "901f6a6",
+  "source_prs": [
+    "https://github.com/carverauto/agentboard/pull/91",
+    "https://github.com/carverauto/agentboard/pull/90",
+    "https://github.com/carverauto/agentboard/pull/89"
+  ],
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37709658623",
+  "docker_workflow": "https://github.com/carverauto/agentboard/actions/runs/37709658480",
+  "rollout_operator": "grok-serviceradar-oss",
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:5193d83379a629cf2e4af3e756839efed745c93f497cc0642eb20c7db33ef029",
+  "cli_image": "registry.carverauto.dev/agentboard/cli@sha256:d23728c2a1fcaf00eb22371d9f17e5f0fe08e870084e4959f6f45e7c6c8ad05d",
+  "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:b892c442a7578c814ba756afc644b0feb96c6004925f4b8869420f232835015c",
+  "migration": {
+    "job": "agentboard-migrate-901f6a6",
+    "started_at": "2026-10-08T00:53:20Z",
+    "completed_at": "2026-10-08T00:53:28Z",
+    "succeeded": true,
+    "migrations": [
+      "20261007000602_mattermost_phase1_shared_bot"
+    ],
+    "dropped_tables": {
+      "conversation_identities": 0,
+      "conversation_identities_versions": 0
+    },
+    "literal_env_overrides": {
+      "PHX_SERVER": "false",
+      "AGENTBOARD_PR_DISCOVERY_ENABLED": "false",
+      "AGENTBOARD_PR_OBSERVATION_ENABLED": "false",
+      "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "false",
+      "AGENTBOARD_COOPERATION_ENABLED": "false"
+    },
+    "completed_before_dashboard_started": true
+  },
+  "schema": {
+    "before": 12,
+    "after": 12,
+    "api_version": 1,
+    "required_schema_version": 12
+  },
+  "dashboard": {
+    "pod": "agentboard-dashboard-dcdb89dcd-ksvdl",
+    "started_at": "2026-10-08T00:53:29Z",
+    "ready": true,
+    "restarts": 0,
+    "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:5193d83379a629cf2e4af3e756839efed745c93f497cc0642eb20c7db33ef029"
+  },
+  "flags": {
+    "AGENTBOARD_PR_DISCOVERY_ENABLED": "true",
+    "AGENTBOARD_PR_OBSERVATION_ENABLED": "true",
+    "AGENTBOARD_COOPERATION_ENABLED": "false",
+    "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "true",
+    "AGENTBOARD_MATTERMOST_TEAM_ID": "set (no longer read by the app after PR91)"
+  },
+  "message_transport": {
+    "requested": "board",
+    "effective": "board",
+    "cutover_ready": false
+  },
+  "new_secrets_required": [],
+  "captain_decisions": [
+    "Mattermost EnablePostUsernameOverride / EnablePostIconOverride (currently off)"
+  ],
+  "changed_resources": [
+    "Job/agentboard-migrate-901f6a6",
+    "Deployment/agentboard-dashboard image"
+  ],
+  "http": {
+    "/health/live": 200,
+    "/health/ready": 200,
+    "/": 200,
+    "/prs": 200,
+    "/api/v1/meta": 200
+  },
+  "cli_task_list": "ok",
+  "mattermost_bridge": "new board events delivered (outbox sent with remote post ids) at 2026-10-08T00:54:01Z",
+  "rollback_note": "earlier images' schema check requires conversation_identities; recreate the empty tables before rolling back, or roll forward",
+  "rollback_performed": false
+}

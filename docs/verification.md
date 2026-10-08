@@ -344,8 +344,19 @@ storage modification, pruning or live rollback occurred in this rollout.
 Merged main `9432792a57019ae9d3aa6245cda229044adc7ab4` rolled the dashboard to
 `sha256:76af4541a0598501d210b1d37d12b97c2a2d161ed68bddbd24d3e1e096f566a3`
 with schema 11 to 12 via Job `agentboard-migrate-9432792`. Full results are in the [rollout
-receipt](verification/farm01-9432792-rollout.json); the operator runbook retains the [current
+receipt](verification/farm01-9432792-rollout.json); the operator runbook retains the [earlier
 rollout record](deploy/reference-farm01.md#per-agent-chat-identities-and-merge-to-done-image-rollout-9432792).
 The same session rolled forward to `3c6e5b3` (PR88) at
 `sha256:b892c442a7578c814ba756afc644b0feb96c6004925f4b8869420f232835015c`; its migration Job was a no-op and schema stays 12. That is the
-[current pin](deploy/reference-farm01.md#roll-forward-to-3c6e5b3-pr88).
+[pin before 901f6a6](deploy/reference-farm01.md#roll-forward-to-3c6e5b3-pr88).
+
+
+## Shared-bot agent chat rollout (901f6a6, 2026-10-08 UTC)
+
+Merged main `901f6a6` (PR91) rolled the dashboard to
+`sha256:5193d83379a629cf2e4af3e756839efed745c93f497cc0642eb20c7db33ef029` via Job `agentboard-migrate-901f6a6`. That Job dropped the
+empty per-agent identity tables, and schema stays 12. Full results are in the
+[rollout receipt](verification/farm01-901f6a6-rollout.json). The
+[current rollout record](deploy/reference-farm01.md#shared-bot-agent-chat-image-rollout-901f6a6)
+is in the operator runbook.
+

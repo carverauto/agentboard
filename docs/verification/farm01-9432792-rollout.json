@@ -110,6 +110,7 @@
     },
     "cli_task_list": "ok",
     "mattermost_bridge": "new board event delivered (outbox sent with remote post id) at 2026-10-08T00:16:38Z",
-    "current_pin": true
+    "current_pin": false,
+    "superseded_by": "farm01-901f6a6-rollout.json"
   }
 }
