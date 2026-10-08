@@ -57,7 +57,10 @@ defmodule Agentboard.Mattermost.ElasticBots do
 
       row ->
         Operations.update(row, :retire, Map.merge(%{state: "retired", token: nil, last_error: nil}, touched()), @actor)
-        retire_remote(row)
+        case retire_remote(row) do
+          :ok -> :ok
+          _ -> enqueue_bot_job("retire", row.agent_id)
+        end
         :ok
     end
   rescue
@@ -288,17 +291,14 @@ defmodule Agentboard.Mattermost.ElasticBots do
              :ok <- revoke_all(cfg, row.mm_user_id) do
           :ok
         else
-          _ ->
-            enqueue_bot_job("retire", row.agent_id)
-            :ok
+          _ -> {:error, :unconfirmed}
         end
 
       _ ->
-        enqueue_bot_job("retire", row.agent_id)
-        :ok
+        {:error, :unconfirmed}
     end
   rescue
-    _ -> :ok
+    _ -> {:error, :unconfirmed}
   end
 
   defp revoke_all(cfg, user_id) do

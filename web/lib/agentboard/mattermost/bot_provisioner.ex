@@ -18,8 +18,10 @@ defmodule Agentboard.Mattermost.BotProvisioner do
   end
 
   def perform(%Oban.Job{args: %{"action" => "retire", "agent_id" => agent_id}}) do
-    Agentboard.Mattermost.ElasticBots.retire_job(agent_id)
-    :ok
+    case Agentboard.Mattermost.ElasticBots.retire_job(agent_id) do
+      {:error, reason} -> {:error, reason}
+      _ -> :ok
+    end
   end
 
   def perform(%Oban.Job{}) do

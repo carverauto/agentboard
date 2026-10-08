@@ -103,6 +103,8 @@ class Stub(BaseHTTPRequestHandler):
             with state['lock']:
                 uid = payload.get('user_id')
                 if uid in state['bots'] and payload.get('team_id') == parts[3]:
+                    if parts[3] in state['bots'][uid]['teams']:
+                        return self._json(409, {'message': 'already a member'})
                     state['bots'][uid]['teams'].append(parts[3])
                     return self._json(201, {})
             return self._json(400, {'message': 'bad membership'})
@@ -112,6 +114,8 @@ class Stub(BaseHTTPRequestHandler):
             with state['lock']:
                 uid = payload.get('user_id')
                 if uid in state['bots']:
+                    if parts[3] in state['bots'][uid]['channels']:
+                        return self._json(409, {'message': 'already a member'})
                     state['bots'][uid]['channels'].append(parts[3])
                     return self._json(201, {})
             return self._json(400, {'message': 'bad membership'})

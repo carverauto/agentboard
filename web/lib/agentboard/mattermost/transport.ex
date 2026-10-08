@@ -238,7 +238,7 @@ defmodule Agentboard.Mattermost.Transport do
     body = Jason.encode!(%{team_id: team_id, user_id: user_id})
 
     case request(cfg, :post, "/api/v4/teams/#{team_id}/members", body) do
-      {:ok, 201, _} -> :ok
+      {:ok, status, _} when status in [200, 201, 409] -> :ok
       {:ok, status, _} when status in [401, 403] -> {:error, :unauthorized}
       {:ok, _status, _} -> {:error, :unconfirmed}
       {:error, reason} -> {:error, reason}
@@ -249,7 +249,7 @@ defmodule Agentboard.Mattermost.Transport do
     body = Jason.encode!(%{user_id: user_id})
 
     case request(cfg, :post, "/api/v4/channels/#{channel_id}/members", body) do
-      {:ok, 201, _} -> :ok
+      {:ok, status, _} when status in [200, 201, 409] -> :ok
       {:ok, status, _} when status in [401, 403] -> {:error, :unauthorized}
       {:ok, _status, _} -> {:error, :unconfirmed}
       {:error, reason} -> {:error, reason}
