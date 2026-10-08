@@ -30,12 +30,17 @@ with tempfile.TemporaryDirectory() as directory:
         shutil.copy2(original, source / 'scripts' / name)
         (source / 'scripts' / name).chmod(0o755)
     (source / '.gitignore').write_text('.agentboard-seat/\n')
+    (source / 'conflict.txt').write_text('base\n')
     run(['git', 'add', '.'], source)
     run(['git', 'commit', '-m', 'Invented public fixture'], source)
     for bare in (gate, target):
         run(['git', 'init', '--bare', bare], source)
     run(['git', 'remote', 'add', 'origin', target], source)
     run(['git', 'remote', 'add', 'no-mistakes', gate], source)
+    run(['git', 'push', 'origin', 'HEAD:refs/heads/staging'], source)
+    run(['git', '--git-dir', target, 'symbolic-ref', 'HEAD', 'refs/heads/staging'], source)
+    run(['git', '--git-dir', gate, 'config', 'url.' + str(target) + '.insteadOf',
+         'https://github.com/fixture/project.git'], source)
     run(['git', 'push', 'no-mistakes', 'HEAD:refs/heads/input'], source)
     # Publication requires a real durable Treehouse lease, not merely a linked
     # Git worktree. Exercise the same pinned acquisition as production seats.
@@ -51,8 +56,10 @@ with tempfile.TemporaryDirectory() as directory:
     state = root / 'provider.json'
     data = dict(task=dict(id='guard-fixture', status='review', assignee_id='codex-fixture',
                          claim_expired=False, claim_expires_at='2099-01-01T00:00:00Z',
+                         held_by_decision=False, revision=1,
                          pr_url='https://github.com/fixture/project/pull/1'),
-                pr=dict(state='OPEN', url='https://github.com/fixture/project/pull/1'), merged=[])
+                pr=dict(state='OPEN', url='https://github.com/fixture/project/pull/1'), merged=[],
+                repo=dict(defaultBranchRef=dict(name='staging')))
     def save():
         state.write_text(json.dumps(data))
     save()
@@ -68,7 +75,7 @@ if name=='agentboard' and sys.argv[1:]==['decision','request','--help']:
 elif name=='agentboard' and sys.argv[1:]==['doctor','--json']:
     print(json.dumps({'compatible':True,'cli_capabilities':{'decision_intake':1},'required_decision_intake_version':1,'schema_version':29}))
 else:
-    print(json.dumps({'task':d['task']} if name=='agentboard' else d['pr'] if 'view' in sys.argv else d['merged']))
+    print(json.dumps({'task':d['task']} if name=='agentboard' else d['repo'] if 'repo' in sys.argv else d['pr'] if 'view' in sys.argv else d['merged']))
 '''
     for name in ('agentboard', 'gh'):
         (tools / name).write_text(script)
@@ -79,8 +86,8 @@ else:
                AGENTBOARD_SEAT_SOURCE=str(source), AGENTBOARD_SEAT_WORKTREE=str(seat),
                AGENTBOARD_SEAT_ROOT=str(pool),
                AGENTBOARD_PUBLICATION_REPO='fixture/project', AGENTBOARD_URL='https://fixture.invalid')
-    def push():
-        return run(['git', 'push', target, 'HEAD:refs/heads/feat/replay'], private, env, ok=False)
+    def push(head='HEAD', extra=()):
+        return run(['git', 'push', target, str(head)+':refs/heads/feat/replay', *extra], private, env, ok=False)
     def remove():
         run(['git', '--git-dir', target, 'update-ref', '-d', 'refs/heads/feat/replay'], source)
     def absent():
@@ -127,4 +134,52 @@ else:
     # Isolation remains a mandatory outer-driver boundary, independent of state.
     result = run([guard, 'install', 'guard-fixture'], source, env, ok=False)
     assert result.returncode != 0 and 'explicitly leased' in result.stderr, result.stderr
-    print('Private-gate real push refusal, no branch recreation, same-fork/open controls, fail-closed provider state and preserved native hooks passed')
+
+    # Fresh-base admission owns the exact pre-push SHA, even when a different,
+    # clean commit is checked out. The actual provider default is staging.
+    data['task'].update(status='review', pr_url=None)
+    data['merged'] = []
+    save()
+    base = run(['git', 'rev-parse', 'HEAD'], private).stdout.strip()
+    (private / 'conflict.txt').write_text('feature\n')
+    run(['git', '-c', 'user.name=Invented seat', '-c', 'user.email=fixture@example.invalid',
+         'commit', '-am', 'Invented conflicting head'], private)
+    conflicting = run(['git', 'rev-parse', 'HEAD'], private).stdout.strip()
+    run(['git', 'checkout', '--detach', base], private)
+    upstream = root / 'upstream'
+    run(['git', 'clone', target, upstream], source)
+    (upstream / 'conflict.txt').write_text('upstream\n')
+    run(['git', '-c', 'user.name=Invented upstream', '-c', 'user.email=fixture@example.invalid',
+         'commit', '-am', 'Invented default-tip advance'], upstream)
+    run(['git', 'push', 'origin', 'staging'], upstream)
+    result = push(conflicting, (base+':refs/heads/unbound-evidence',))
+    assert result.returncode != 0 and 'conflict' in result.stderr.lower() and absent(), \
+        ('Conflicting exact SHA was published against advanced staging', result.stdout, result.stderr)
+    assert run(['git', '--git-dir', target, 'show-ref', '--verify', 'refs/heads/unbound-evidence'],
+               source, ok=False).returncode != 0, 'Rejected multi-ref push sent another ref'
+    # A behind head can still merge cleanly; warn without claiming a rebase.
+    result = push(base)
+    assert result.returncode == 0 and 'behind' in result.stderr.lower(), result.stderr
+    remove()
+    current = run(['git', 'rev-parse', 'HEAD'], upstream).stdout.strip()
+    result = push(current)
+    assert result.returncode == 0 and 'behind' not in result.stderr.lower(), result.stderr
+    remove()
+    (gate / 'shallow').write_text(base+'\n')
+    result = push(base)
+    assert result.returncode != 0 and 'unavailable' in result.stderr and absent(), result.stderr
+    (gate / 'shallow').unlink()
+    data['task']['held_by_decision'] = True
+    save()
+    result = push(base)
+    assert result.returncode != 0 and 'decision' in result.stderr and absent(), result.stderr
+    data['task']['held_by_decision'] = False
+    save()
+    # Unknown/default fetch failure must refuse and redact provider stderr.
+    run(['git', '--git-dir', gate, 'config', 'url.' + str(target) + '.insteadOf',
+         'https://unused.invalid/'], source)
+    run(['git', '--git-dir', gate, 'config', 'url.' + str(root / 'missing-secret-path') + '.insteadOf',
+         'https://github.com/fixture/project.git'], source)
+    result = push(base)
+    assert result.returncode != 0 and absent() and 'missing-secret-path' not in result.stderr, result.stderr
+    print('Real native-gate pushes: ownership/history guards, exact-head conflict refusal, staging default advance, behind-clean warning and unknown refusal passed')

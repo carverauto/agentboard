@@ -46,6 +46,8 @@ def check(context, branch):
         raise Refused("Publication requires this seat's current task ownership")
     if not task.get('claim_expires_at'):
         raise Refused("Publication requires a live task claim")
+    if task.get('held_by_decision') is not False:
+        raise Refused("Publication cannot bypass an unresolved task decision")
     url = task.get('pr_url')
     if url:
         if not re.fullmatch(r'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]*', url):
@@ -70,6 +72,86 @@ def check(context, branch):
             raise Refused(f"Head branch already merged in {pr.get('url')}; use a fresh branch from main")
     if len(prs) >= 100:
         raise Refused("Head-branch history exceeded the verification bound")
+    return task
+
+
+def fresh_base(context, head):
+    """Read the exact Git input; never rebase or move a native branch/ref.
+
+    Fetch objects without FETCH_HEAD/ref updates. Double-read the provider tip
+    to refuse a moving base instead of presenting mixed evidence as current.
+    """
+    if not re.fullmatch(r'[0-9a-f]{40}', head):
+        raise Refused("Exact publication head is invalid")
+    if output(['git', 'rev-parse', '--is-shallow-repository']) != 'false':
+        raise Refused("Fresh-base evidence unavailable: shallow history")
+    if output(['git', 'cat-file', '-t', head]) != 'commit':
+        raise Refused("Exact publication head is not a commit")
+    metadata = record(['gh', 'repo', 'view', context['repo'], '--json', 'defaultBranchRef'])
+    default = metadata.get('defaultBranchRef') if isinstance(metadata, dict) else None
+    branch = default.get('name') if isinstance(default, dict) else None
+    if not isinstance(branch, str) or len(branch) > 255:
+        raise Refused("Repository default branch is unknown")
+    ref = 'refs/heads/' + branch
+    output(['git', 'check-ref-format', ref])
+    remote = 'https://github.com/' + context['repo'] + '.git'
+
+    def tip():
+        rows = output(['git', 'ls-remote', '--exit-code', '--refs', remote, ref]).splitlines()
+        if len(rows) != 1:
+            raise Refused("Fresh default tip is unknown")
+        fields = rows[0].split()
+        if len(fields) != 2 or fields[1] != ref or not re.fullmatch(r'[0-9a-f]{40}', fields[0]):
+            raise Refused("Fresh default tip is invalid")
+        return fields[0]
+
+    base = tip()
+    output(['git', 'fetch', '--no-tags', '--no-write-fetch-head', '--no-auto-maintenance', remote, ref])
+    after = record(['gh', 'repo', 'view', context['repo'], '--json', 'defaultBranchRef'])
+    after_default = after.get('defaultBranchRef') if isinstance(after, dict) else None
+    if not isinstance(after_default, dict) or after_default.get('name') != branch:
+        raise Refused("Repository default branch changed during admission; reobserve and retry")
+    if tip() != base or output(['git', 'cat-file', '-t', base]) != 'commit':
+        raise Refused("Default tip changed during admission; reobserve and retry")
+    ancestor = subprocess.run(['git', 'merge-base', '--is-ancestor', base, head],
+                              capture_output=True, timeout=25)
+    if ancestor.returncode == 0:
+        return 'current', branch, base
+    if ancestor.returncode != 1:
+        raise Refused("Fresh-base ancestry is unavailable")
+    # No common history is not a proven mergeable head.
+    output(['git', 'merge-base', head, base])
+    merged = subprocess.run(['git', 'merge-tree', '--write-tree', head, base],
+                            capture_output=True, timeout=25)
+    if merged.returncode == 0:
+        return 'behind_clean', branch, base
+    if merged.returncode == 1:
+        return 'conflicting', branch, base
+    raise Refused("Fresh-base merge evidence is unavailable")
+
+
+def admit_head(context, branch, head):
+    task = check(context, branch)
+    try:
+        verdict, default, base = fresh_base(context, head)
+        evidence = f'publication-base: {verdict}; head={head}; default_ref={default}; default_tip={base}'
+    except Refused:
+        # Retain a bounded disposition, never raw provider stderr/URLs/tokens.
+        evidence = f'publication-base: unavailable; head={head}; fresh evidence required'
+        verdict = 'unavailable'
+    revision = task.get('revision')
+    if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
+        raise Refused("Publication needs a canonical task revision")
+    if verdict != 'current':
+        output(['agentboard', '--url', context['url'], '--agent', context['agent'],
+                '--model', context['model'], '--harness', context['harness'], '--json',
+                'task', 'update', context['task'], '--revision', str(revision), '--body', evidence])
+    if verdict == 'conflicting':
+        raise Refused("Exact publication head conflicts with the fresh default tip; use native rebase and remote revalidation")
+    if verdict == 'unavailable':
+        raise Refused("Fresh-base admission unavailable; no publication, reobserve and retry")
+    if verdict == 'behind_clean':
+        print('WARNING: publication is behind the fresh default tip but merges cleanly; ' + evidence, file=sys.stderr)
 
 
 def atomic(path, data):
@@ -142,7 +224,7 @@ def main():
             # this task-scoped guard; ordinary publication must bind first.
             branch = ref.removeprefix('refs/heads/')
             if ref.startswith('refs/heads/') and sha != '0' * 40 and branch in bindings:
-                check(bindings[branch], branch)
+                admit_head(bindings[branch], branch, sha)
         return
     root = Path.cwd().resolve(strict=True)
     expected = os.environ.get('AGENTBOARD_SEAT_WORKTREE')
