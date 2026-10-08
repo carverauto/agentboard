@@ -71,6 +71,14 @@ test:
     Targeted validation only: exercise the smallest relevant Go CLI, Elixir,
     or k8s-manifest checks for the change. Broad regression belongs in remote
     CI once those pipelines exist.
+
+    Never write raw Bazel Build Event Protocol or execution-log output
+    (--build_event_json_file, --build_event_text_file,
+    --build_event_binary_file, --execution_log_*) into the evidence
+    directory, and never list such a file as an artifact. It contains
+    rc-expanded flags, including remote auth headers. As evidence, cite the
+    BuildBuddy invocation URL and quote selected fields (target, status,
+    duration) as short artifact content.
 review:
   instructions: |
     REMOTE-ONLY RULE (this machine is a shared, overloaded laptop): every
@@ -112,3 +120,11 @@ ci:
     cannot run remotely, report it as untested instead of running it here. For
     a CI failure, read the BuildBuddy / forge log and fix from the evidence;
     the PR's remote CI rerun is the proof.
+
+    Never write raw Bazel Build Event Protocol or execution-log output
+    (--build_event_json_file, --build_event_text_file,
+    --build_event_binary_file, --execution_log_*) into the evidence
+    directory, and never list such a file as an artifact. It contains
+    rc-expanded flags, including remote auth headers. As evidence, cite the
+    BuildBuddy invocation URL and quote selected fields (target, status,
+    duration) as short artifact content.
