@@ -69,6 +69,19 @@ func NewRuntime(cfg config.Config, token string) (*Client, error) {
 	return c, nil
 }
 
+// NewCaptain reuses the guarded transport without advertising worker runtime protocol.
+func NewCaptain(cfg config.Config, token string) (*Client, error) {
+	if len(token) < 32 || strings.ContainsAny(token, "\r\n\t ") {
+		return nil, errors.New("captain capability is malformed")
+	}
+	c, err := New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	c.token = token
+	return c, nil
+}
+
 func New(cfg config.Config) (*Client, error) {
 	u, err := url.Parse(cfg.URL)
 	if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
@@ -176,7 +189,9 @@ func (c *Client) open(ctx context.Context, method, path string, query url.Values
 		req.Header.Set("User-Agent", "agentboard-cli/0.1")
 		if c.token != "" {
 			req.Header.Set("Authorization", "Bearer "+c.token)
-			req.Header.Set("X-Agentboard-Worker-Protocol", c.workerProtocol)
+			if c.workerProtocol != "" {
+				req.Header.Set("X-Agentboard-Worker-Protocol", c.workerProtocol)
+			}
 		}
 		if body != nil {
 			req.Header.Set("Content-Type", "application/json")

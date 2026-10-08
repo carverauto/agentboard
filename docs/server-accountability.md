@@ -11,7 +11,11 @@ production rollout or universal wake support.
 The collector's fenced transaction creates an immutable snapshot, current
 projection, one active failure episode/repair task and one source intent. Initial
 responsibility uses immutable original task submission links. Missing or
-conflicting provenance goes to the captain queue. Generated repair tasks are
+conflicting provenance goes to the captain queue. A restricted initial owner
+(reserved without a captain grant, or out_of_service) likewise leaves the
+repair task open and unassigned with responsibility in the captain queue, and
+a captain responsibility handoff to an out_of_service agent is refused; see
+[agent availability](setup/availability.md). Generated repair tasks are
 excluded from subsequent submission attribution. Source-task completion,
 archiving, changing current task, heartbeat age and lease expiry don't transfer
 responsibility. An explicit repair/source handoff records a new recipient and

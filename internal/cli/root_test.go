@@ -3,13 +3,17 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 
 	"github.com/carverauto/agentboard/internal/cli"
+	"github.com/carverauto/agentboard/internal/client"
 )
 
 func TestMetaUsesAPIWithoutDatabaseCredentials(t *testing.T) {
@@ -60,5 +64,51 @@ func TestRejectedRequestLeavesCLIStdoutEmpty(t *testing.T) {
 	err := root.Execute()
 	if cli.ExitCode(err) != 1 || stdout.Len() != 0 {
 		t.Fatalf("error %v stdout %q", err, stdout.String())
+	}
+}
+
+// A legacy server accepts assignment and ignores auth headers. New availability
+// commands must fail compatibility before an unsafe legacy mutation or roster read.
+// Both the pre-feature schema and the pre-availability schema 14 stay fenced.
+func TestAvailabilityRequiresCompatibleServer(t *testing.T) {
+	for _, schema := range []string{"12", "14"} {
+		for _, args := range [][]string{
+			{"task", "assign", "fixture-task", "--to", "fixture-agent", "--captain"},
+			{"agent", "list", "--availability", "active"},
+			{"msg", "send", "--to", "fixture-agent", "--kind", "task_order", "--body", "Work order"},
+			{"agent", "availability", "set", "--agent-id", "fixture-agent", "--state", "active"},
+		} {
+			t.Run(schema+"-"+args[0]+"-"+args[1], func(t *testing.T) {
+				var requests atomic.Int32
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					if r.URL.Path == "/api/v1/meta" {
+						io.WriteString(w, `{"api_version":1,"schema_version":`+schema+`}`)
+						return
+					}
+					requests.Add(1)
+					io.WriteString(w, `{"task":{"id":"fixture-task"}}`)
+				}))
+				defer server.Close()
+				tokenPath := filepath.Join(t.TempDir(), "captain-token")
+				if err := os.WriteFile(tokenPath, []byte("fixture-captain-token-0123456789abcdef"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				t.Setenv("AGENTBOARD_CAPTAIN_TOKEN_FILE", tokenPath)
+				t.Setenv("AGENTBOARD_URL", server.URL)
+				t.Setenv("AGENT_ID", "fixture-coordinator")
+				t.Setenv("AGENTBOARD_MODEL", "fixture-model")
+				t.Setenv("AGENTBOARD_HARNESS", "codex")
+				root := cli.NewRoot()
+				var output bytes.Buffer
+				root.SetOut(&output)
+				root.SetArgs(append([]string{"--json"}, args...))
+				err := root.Execute()
+				var apiError *client.Error
+				if !errors.As(err, &apiError) || apiError.Code != "schema_unavailable" || requests.Load() != 0 || output.Len() != 0 {
+					t.Fatalf("legacy availability call not fenced: error=%v requests=%d stdout=%q", err, requests.Load(), output.String())
+				}
+			})
+		}
 	}
 }

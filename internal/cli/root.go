@@ -14,6 +14,7 @@ import (
 
 	"github.com/carverauto/agentboard/internal/client"
 	"github.com/carverauto/agentboard/internal/config"
+	"github.com/carverauto/agentboard/internal/worker"
 	"github.com/spf13/cobra"
 )
 
@@ -88,7 +89,18 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 			return err
 		}
 	}
-	api, err := client.New(c.cfg)
+	var api *client.Client
+	var err error
+	captain, _ := cmd.Flags().GetBool("captain")
+	if captain {
+		secret, readErr := worker.ReadProtected(os.Getenv("AGENTBOARD_CAPTAIN_TOKEN_FILE"), 4096)
+		if readErr != nil {
+			return errors.New("AGENTBOARD_CAPTAIN_TOKEN_FILE must be a protected captain capability file")
+		}
+		api, err = client.NewCaptain(c.cfg, strings.TrimSpace(string(secret)))
+	} else {
+		api, err = client.New(c.cfg)
+	}
 	if err != nil {
 		return err
 	}
@@ -114,11 +126,20 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasPrefix(path, "prs") {
 		required = 14
 	}
+	if strings.HasPrefix(path, "availability") || path == "messages/task-orders" {
+		required = 15
+	}
 	if strings.HasPrefix(path, "conversations") {
 		required = 12
 	}
 	if strings.HasSuffix(path, "/documents") {
 		required = 4
+	}
+	if captain || query.Get("availability") != "" {
+		required = 15
+	}
+	if fields, ok := payload.(map[string]any); ok && fields["kind"] == "task_order" {
+		required = 15
 	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
@@ -139,7 +160,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "entry", "entries", "chat", "post", "posts"} {
+	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue
@@ -155,6 +176,10 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 			}
 			printRecord(table, r)
 		}
+	}
+	if recipients := envelope["recipient_ids"]; recipients != nil {
+		encoded, _ := json.Marshal(envelope)
+		fmt.Fprintln(table, string(encoded))
 	}
 	if next := envelope["next_cursor"]; next != nil {
 		fmt.Fprintf(table, "next_cursor\t%v\n", next)
@@ -203,7 +228,11 @@ func printRecord(table io.Writer, r map[string]any) {
 	} else if r["title"] != nil {
 		fmt.Fprintf(table, "%v\t%v\t%v\texpired=%v\t%v\n", r["id"], r["status"], r["assignee_id"], r["claim_expired"], r["title"])
 	} else if r["name"] != nil {
-		fmt.Fprintf(table, "%v\t%v\t%v\tstale=%v\n", r["id"], r["harness"], r["model"], r["stale"])
+		availability := "active"
+		if policy, ok := r["availability"].(map[string]any); ok {
+			availability, _ = policy["state"].(string)
+		}
+		fmt.Fprintf(table, "%v\t%v\t%v\tstale=%v\tavailability=%s\n", r["id"], r["harness"], r["model"], r["stale"], availability)
 	} else {
 		encoded, _ := json.Marshal(r)
 		fmt.Fprintln(table, string(encoded))

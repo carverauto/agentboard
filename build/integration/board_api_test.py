@@ -320,6 +320,9 @@ for table in ('delivery_ci_snapshots', 'cooperation_receipts', 'delivery_obligat
     sql('ALTER TABLE ' + table + ' RENAME TO fixture_missing_relation')
     ab('task','list',code=1)
     sql('ALTER TABLE fixture_missing_relation RENAME TO ' + table)
+# Only a fully migrated marker satisfies the fence; the stale marker alone stays refused.
+assert ab('task','list',code=1)['code']=='schema_unavailable'
+sql('UPDATE board_schema SET version=15')
 assert ab('task','list')['tasks']
 print('Heartbeats, messages, atomic handoff, commit-only snapshots, listener reconnect and stream cleanup passed')
 

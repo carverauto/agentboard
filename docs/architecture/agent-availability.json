@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Agent availability and new-work admission",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1230,
+      590
+    ]
+  },
+  "components": [
+    {
+      "id": "captain-authority",
+      "type": "security",
+      "label": "Captain capability",
+      "sublabel": "Verified bearer or session",
+      "pos": [
+        65,
+        35
+      ],
+      "size": [
+        230,
+        105
+      ]
+    },
+    {
+      "id": "availability-policies",
+      "type": "database",
+      "label": "Availability policies",
+      "sublabel": "Audited Ash actions",
+      "pos": [
+        500,
+        35
+      ],
+      "size": [
+        230,
+        105
+      ]
+    },
+    {
+      "id": "effective-policy",
+      "type": "backend",
+      "label": "Effective availability",
+      "sublabel": "Agent override + DB time",
+      "pos": [
+        500,
+        220
+      ],
+      "size": [
+        230,
+        105
+      ]
+    },
+    {
+      "id": "task-admission",
+      "type": "backend",
+      "label": "Task admission",
+      "sublabel": "Named grants for reserved",
+      "pos": [
+        65,
+        440
+      ],
+      "size": [
+        230,
+        105
+      ]
+    },
+    {
+      "id": "worker-admission",
+      "type": "backend",
+      "label": "Worker reservation",
+      "sublabel": "Active admission only",
+      "pos": [
+        500,
+        440
+      ],
+      "size": [
+        230,
+        105
+      ]
+    },
+    {
+      "id": "eligible-routing",
+      "type": "frontend",
+      "label": "Eligible routing",
+      "sublabel": "Roster + task orders",
+      "pos": [
+        935,
+        440
+      ],
+      "size": [
+        230,
+        105
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "authorized-policy-write",
+      "from": "captain-authority",
+      "to": "availability-policies",
+      "label": "Capability proof",
+      "variant": "security"
+    },
+    {
+      "id": "policy-resolution",
+      "from": "availability-policies",
+      "to": "effective-policy",
+      "label": "DB clock",
+      "labelDy": 80
+    },
+    {
+      "id": "task-policy-admission",
+      "from": "effective-policy",
+      "to": "task-admission",
+      "label": "Claim / assign"
+    },
+    {
+      "id": "worker-policy-admission",
+      "from": "effective-policy",
+      "to": "worker-admission",
+      "label": "New batch",
+      "labelDy": 80
+    },
+    {
+      "id": "roster-policy-routing",
+      "from": "effective-policy",
+      "to": "eligible-routing",
+      "label": "Active filter"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Existing work remains recoverable",
+      "items": [
+        "Availability gates new work; it does not revoke current task leases.",
+        "Owner progress, renewal and frozen attempt receipts remain available."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Empty migration, explicit rollout",
+      "items": [
+        "No matching policy means active; registration preserves policies.",
+        "Captain applies live fleet restrictions after deployment."
+      ]
+    }
+  ]
+}

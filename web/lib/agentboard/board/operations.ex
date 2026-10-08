@@ -90,6 +90,7 @@ defmodule Agentboard.Board.Operations do
          :ok <- Input.task(action, data),
          true <- Input.slug?(id) do
       transaction(fn ->
+        Agentboard.Availability.lock_admission()
         identity!(actor)
 
         if action == "create" do
@@ -121,6 +122,7 @@ defmodule Agentboard.Board.Operations do
           if action in ~w(assign handoff),
             do: fetch!(Agent, data["to"], "Assignment target must be registered", "invalid_input")
 
+          attrs = Map.merge(attrs, Agentboard.Availability.admit(task, action, actor, data))
           changed = update(task, action_name(action), attrs, actor, task.revision)
           result = result(changed, task, action, actor, data, stamp)
 
@@ -225,6 +227,7 @@ defmodule Agentboard.Board.Operations do
          true <-
            Enum.all?(data, fn
              {"body", v} -> Input.text?(v)
+             {"kind", v} -> v in ~w(note task_order)
              {key, v} when key in ~w(to task) -> Input.slug?(v)
              _ -> false
            end) do
@@ -260,7 +263,17 @@ defmodule Agentboard.Board.Operations do
     end
   end
 
-  defp send_message(actor, data, stamp, capture_notice? \\ true) do
+  def send_message(actor, data, stamp, capture_notice? \\ true) do
+    if data["kind"] == "task_order" do
+      Agentboard.Availability.lock_admission()
+
+      unless Input.slug?(data["to"]) and
+               Agentboard.Availability.active?(
+                 Agentboard.Availability.admission_agent(data["to"])
+               ),
+             do: reject("conflict", "Task-order routing requires an active named recipient")
+    end
+
     if data["to"],
       do: fetch!(Agent, data["to"], "Message recipient must be registered", "invalid_input")
 
@@ -276,6 +289,7 @@ defmodule Agentboard.Board.Operations do
           harness: actor["harness"],
           recipient_id: data["to"],
           task_id: data["task"],
+          kind: Map.get(data, "kind", "note"),
           body: data["body"],
           created_at: stamp
         },
@@ -420,6 +434,7 @@ defmodule Agentboard.Board.Operations do
     case Ash.transact(
            [
              Agent,
+             Agentboard.Availability.Policy,
              Task,
              Message,
              TaskEvent,

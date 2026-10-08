@@ -372,6 +372,7 @@ defmodule Agentboard.Cooperation.Runtime do
   defp execute(_, _, _, _, _), do: Ops.reject("not_found", "Worker operation not found")
 
   defp reserve(data, s, b) do
+    Agentboard.Availability.lock_admission()
     epoch!(b, data)
 
     unless key?(data["idempotency_key"]),
@@ -385,6 +386,9 @@ defmodule Agentboard.Cooperation.Runtime do
     cond do
       not enabled?(s) ->
         %{batch: nil, degraded_reasons: reasons(s, b)}
+
+      not Agentboard.Availability.active?(Agentboard.Availability.admission_agent(s.id)) ->
+        %{batch: nil, degraded_reasons: ["agent_unavailable"]}
 
       existing ->
         if existing.epoch != b.epoch,

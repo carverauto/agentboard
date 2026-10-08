@@ -13,7 +13,7 @@ export PHX_SERVER=false
 
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 14 ]]
+[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 15 ]]
 
 fixture_psql "INSERT INTO agents (id, name, model, harness) VALUES ('worker','Worker','model-1','codex')" >/dev/null
 fixture_psql "INSERT INTO tasks (id, title) VALUES ('sample','Sample')" >/dev/null
@@ -55,7 +55,7 @@ INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html
 CREATE EXTENSION pg_textsearch VERSION '1.5.1';" >/dev/null
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 14 ]]
+[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 15 ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM task_events WHERE task_id='retained-task'")" == 1 ]]
 [[ "$(upgrade_psql "SELECT html FROM task_documents WHERE task_id='retained-task'")" == '<!doctype html><p>Retained</p>' ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM pg_indexes WHERE indexname='context_entries_bm25'")" == 1 ]]
@@ -77,7 +77,7 @@ INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html
 INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES (repeat('d',64),'fixture','repo','101','https://github.com/fixture/repo/pull/101',clock_timestamp());
 INSERT INTO delivery_task_links(task_id,pull_request_id,submitted_by_id,model,harness,source_event_id,attribution,linked_at,recorded_at) SELECT 'retained-task',repeat('d',64),'retained','model','codex',id,'submission',created_at,clock_timestamp() FROM task_events;
 INSERT INTO delivery_pull_requests_versions(id,version_source_id,version_action_type,version_action_name,changes,provenance,version_inserted_at,version_updated_at) VALUES (gen_random_uuid(),repeat('d',64),'create','record','{}','{}',clock_timestamp(),clock_timestamp());" >/dev/null
-history_query="SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM task_events t),'documents',(SELECT jsonb_agg(t ORDER BY id) FROM task_documents t),'prs',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests t),'links',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_task_links t),'versions',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests_versions t),'audit',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t))"
+history_query="SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t)-'assignment_authorized' ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM task_events t),'documents',(SELECT jsonb_agg(t ORDER BY id) FROM task_documents t),'prs',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests t),'links',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_task_links t),'versions',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests_versions t),'audit',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t))"
 before_inventory="$(inventory_psql "$history_query")"
 "$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261007000100) end)'
 [[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 8 ]]
@@ -98,7 +98,7 @@ before_snapshot="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_ci_snapshots
 before_projection="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_poll_states s')"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 14 ]]
+[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 15 ]]
 [[ "$(inventory_psql "$history_query")" == "$before_inventory" ]]
 [[ "$(inventory_psql "SELECT to_jsonb(s)-'base_ref'-'expected_base_sha' FROM delivery_poll_states s")" == "$before_projection" ]]
 [[ "$(inventory_psql 'SELECT base_ref IS NULL AND expected_base_sha IS NULL FROM delivery_poll_states')" == t ]]
@@ -116,4 +116,37 @@ for payload in '{}' '{"policy":"unknown","coverage":"complete_head","tested_ref"
 done
 inventory_psql "INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES (gen_random_uuid(),repeat('d',64),2,clock_timestamp(),repeat('a',40),repeat('b',40),'open','passing','{\"policy\":\"verified\",\"coverage\":\"complete_head\",\"tested_ref\":\"head\"}')" >/dev/null
 [[ "$(inventory_psql 'SELECT count(*) FROM delivery_ci_snapshots')" == 2 ]]
+[[ "$(inventory_psql 'SELECT count(*) FROM availability_policies')" == 0 ]]
+[[ "$(inventory_psql "SELECT count(*) FROM tasks WHERE assignment_authorized")" == 0 ]]
+echo 'Schema-15 defaults preserve existing tasks and seed no availability policies.'
 echo 'Schema-10 to 11 preserves immutable snapshot/projection bytes and rejects missing or unverified passing evidence.'
+
+# Schema 14 already carries merge-conflict evidence without availability.
+# Pending migration 20261008000300 must raise it to 15, retaining watches,
+# tasks and history while seeding neither policies nor assignment grants.
+"$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_availability_upgrade
+export DATABASE_NAME=agentboard_availability_upgrade
+PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=$DATABASE_NAME user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION pg_textsearch VERSION '1.5.1'" >/dev/null
+avail_psql() {
+  PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=agentboard_availability_upgrade user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -Atc "$1"
+}
+"$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261008000200) end)'
+[[ "$(avail_psql 'SELECT version FROM board_schema WHERE id=1')" == 14 ]]
+avail_psql "INSERT INTO agents(id,name,model,harness) VALUES ('retained-avail','Retained worker','model','codex');
+INSERT INTO tasks(id,title,status,assignee_id,assigner_id) VALUES ('retained-repair','Retained repair','assigned','retained-avail','retained-avail');
+INSERT INTO task_events(task_id,actor_id,model,harness,kind,new_revision) VALUES ('retained-repair','retained-avail','model','codex','created',1);
+INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES (repeat('e',64),'fixture','repo','401','https://github.com/fixture/repo/pull/401',clock_timestamp());
+INSERT INTO delivery_task_links(task_id,pull_request_id,submitted_by_id,model,harness,source_event_id,attribution,linked_at,recorded_at) SELECT 'retained-repair',repeat('e',64),'retained-avail','model','codex',id,'submission',created_at,clock_timestamp() FROM task_events;
+INSERT INTO delivery_poll_states(id,registered_at,next_poll_at,enabled,lifecycle,head_sha,base_sha,base_ref,expected_base_sha) VALUES (repeat('e',64),clock_timestamp(),clock_timestamp()+interval '1 hour',true,'open',repeat('a',40),repeat('b',40),'main',repeat('b',40));
+INSERT INTO delivery_base_watches(id,owner,repo,ref,head_sha,next_poll_at) VALUES ('fixture/repo/main','fixture','repo','main',repeat('b',40),clock_timestamp()+interval '1 hour');
+INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES ('22222222-2222-4222-8222-222222222222',repeat('e',64),1,clock_timestamp(),repeat('a',40),repeat('b',40),'open','failing','{\"coverage\":\"complete_head\",\"policy\":\"unknown\",\"tested_ref\":\"head\",\"attempts\":[]}');
+INSERT INTO delivery_rebase_follow_ups(id,pull_request_id,head_sha,base_sha,snapshot_id,repair_task_id,responsible_id,created_at) VALUES ('33333333-3333-4333-8333-333333333333',repeat('e',64),repeat('a',40),repeat('b',40),'22222222-2222-4222-8222-222222222222','retained-repair','retained-avail',clock_timestamp());" >/dev/null
+before_avail="$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f) ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_poll_states p))")"
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+[[ "$(avail_psql 'SELECT version FROM board_schema WHERE id=1')" == 15 ]]
+[[ "$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t)-'assignment_authorized' ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f) ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_poll_states p))")" == "$before_avail" ]]
+[[ "$(avail_psql 'SELECT count(*) FROM availability_policies')" == 0 ]]
+[[ "$(avail_psql 'SELECT count(*) FROM tasks WHERE assignment_authorized')" == 0 ]]
+[[ "$(avail_psql "SELECT status||','||coalesce(assignee_id,'') FROM tasks WHERE id='retained-repair'")" == 'assigned,retained-avail' ]]
+echo 'Schema-14 to 15 retains watches/tasks/history and seeds no availability policies or grants.'
