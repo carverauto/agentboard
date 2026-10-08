@@ -44,6 +44,7 @@ defmodule Agentboard.Mattermost.InboundStream do
         end)
         {:noreply, flush(state)}
       {:live, {:error, {:rate_limited, seconds}}} -> {:noreply, %{disconnect(state, "rate_limited", seconds) | retry_at: now() + seconds * 1000}}
+      {:error, {:rate_limited, seconds}} -> {:noreply, %{disconnect(state, "rate_limited", seconds) | retry_at: now() + seconds * 1000}}
       _ -> {:noreply, disconnect(state, "catch_up_incomplete")}
     end
   end

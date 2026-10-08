@@ -34,6 +34,7 @@ DENIED = set()
 RACE = False
 SEQ = 0
 REQUESTS = []
+RATE429 = False
 
 
 def post(id, message='@worker-b hello', user='human-1', channel='room', root='', props=None):
@@ -94,6 +95,13 @@ class MM(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def rate_limited(self):
+        self.send_response(429)
+        self.send_header('Retry-After', '5')
+        self.send_header('Content-Length', '2')
+        self.end_headers()
+        self.wfile.write(b'{}')
+
     def do_GET(self):
         global RACE, SEQ
         REQUESTS.append(self.path)
@@ -144,6 +152,8 @@ class MM(http.server.BaseHTTPRequestHandler):
             return self.reply([dict(id=id) for id in CHANNELS])
         if path.path.startswith('/api/v4/channels/') and path.path.endswith('/posts'):
             assert AUTHENTICATED.is_set(), 'history preceded authenticated subscription'
+            if RATE429:
+                return self.rate_limited()
             channel = path.path.split('/')[4]
             if channel in DENIED:
                 return self.reply({}, 403)
@@ -371,6 +381,19 @@ wait(lambda: find('allowed-after-deny'))
 assert find('denied-0') is None
 wait(lambda: any(c['channel_id'] == 'late-denied' and ('live_channel_not_authorized' in c['incomplete_reason'] or 'membership_or_allowlist_revoked' in c['incomplete_reason']) for c in inbox()[1]))
 assert any(c['live_connected'] for c in inbox()[1]), 'denied-channel split must not disconnect the stream'
+# Controlled 429 retains Retry-After cooldown instead of immediate reclaim.
+RATE429 = True
+emit('direct_added', {'channel_id': 'new-dm'})
+wait(lambda: any('rate_limited' in c['incomplete_reason'] for c in inbox()[1]))
+takeover = rpc('IO.inspect(case Agentboard.Mattermost.Inbound.base_config() do {:ok, cfg} -> Agentboard.Mattermost.InboundStore.claim(cfg); error -> error end)')
+assert 'another_owner' in takeover, 'takeover=' + takeover + ' lease=' + sql('SELECT reason || chr(58) || expires_at::text FROM mattermost_inbound_runs')
+before = len([r for r in REQUESTS if '/posts?' in r])
+time.sleep(3)
+assert len([r for r in REQUESTS if '/posts?' in r]) == before, 'source requests must not immediately repeat during cooldown'
+row = sql("SELECT reason || ':' || (expires_at > clock_timestamp())::text FROM mattermost_inbound_runs")
+assert row.startswith('rate_limited:true'), 'durable delayed lease expiry required, got ' + row
+RATE429 = False
+wait(lambda: any(c['live_connected'] for c in inbox()[1]))
 # Downtime/reconnect replays missed posts; deletes/retention remain explicit gaps.
 ACCEPT_WS = False
 with LOCK:
