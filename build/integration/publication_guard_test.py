@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 
-guard, launcher, wrapper = [Path(p).resolve() for p in sys.argv[1:]]
+guard, launcher, wrapper, treehouse = [Path(p).resolve() for p in sys.argv[1:]]
 
 
 def run(argv, cwd, env=None, ok=True):
@@ -37,7 +37,12 @@ with tempfile.TemporaryDirectory() as directory:
     run(['git', 'remote', 'add', 'origin', target], source)
     run(['git', 'remote', 'add', 'no-mistakes', gate], source)
     run(['git', 'push', 'no-mistakes', 'HEAD:refs/heads/input'], source)
-    run(['git', 'worktree', 'add', '-b', 'feat/replay', seat, 'main'], source)
+    # Publication requires a real durable Treehouse lease, not merely a linked
+    # Git worktree. Exercise the same pinned acquisition as production seats.
+    pool = root / 'pool'
+    acquisition_env = dict(os.environ, TREEHOUSE_NO_UPDATE_CHECK='1')
+    seat = Path(run([treehouse, 'get', '--lease', '--lease-holder', 'codex-fixture', '--root', pool], source, acquisition_env).stdout.strip())
+    run(['git', 'switch', '-c', 'feat/replay', 'main'], seat)
     run(['git', '--git-dir', gate, 'worktree', 'add', '--detach', private, 'input'], source)
     post = gate / 'hooks/post-receive'
     original_post = b'#!/bin/sh\nexit 0\n'
@@ -67,6 +72,7 @@ print(json.dumps({'task':d['task']} if name=='agentboard' else d['pr'] if 'view'
                FIXTURE_PROVIDER=str(state), AGENT_ID='codex-fixture',
                AGENTBOARD_MODEL='fixture-model', AGENTBOARD_HARNESS='codex',
                AGENTBOARD_SEAT_SOURCE=str(source), AGENTBOARD_SEAT_WORKTREE=str(seat),
+               AGENTBOARD_SEAT_ROOT=str(pool),
                AGENTBOARD_PUBLICATION_REPO='fixture/project', AGENTBOARD_URL='https://fixture.invalid')
     def push():
         return run(['git', 'push', target, 'HEAD:refs/heads/feat/replay'], private, env, ok=False)

@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Recover and attach an isolated task seat",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "viewBox": [
+      1280,
+      640
+    ]
+  },
+  "components": [
+    {
+      "id": "session",
+      "type": "external",
+      "label": "Agent session",
+      "sublabel": "Missing seat environment",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        210,
+        88
+      ]
+    },
+    {
+      "id": "cli",
+      "type": "backend",
+      "label": "agentboard seat",
+      "sublabel": "ensure \u00b7 env \u00b7 check",
+      "pos": [
+        355,
+        260
+      ],
+      "size": [
+        210,
+        88
+      ]
+    },
+    {
+      "id": "board",
+      "type": "database",
+      "label": "Board task",
+      "sublabel": "Live owner + paged records",
+      "pos": [
+        355,
+        40
+      ],
+      "size": [
+        210,
+        88
+      ]
+    },
+    {
+      "id": "engine",
+      "type": "security",
+      "label": "Isolation engine",
+      "sublabel": "Packaged Python launcher",
+      "pos": [
+        685,
+        260
+      ],
+      "size": [
+        210,
+        88
+      ]
+    },
+    {
+      "id": "registry",
+      "type": "database",
+      "label": "Task binding",
+      "sublabel": "Private registry + local lock",
+      "pos": [
+        685,
+        40
+      ],
+      "size": [
+        210,
+        88
+      ]
+    },
+    {
+      "id": "slot",
+      "type": "backend",
+      "label": "Treehouse slot",
+      "sublabel": "Pinned lease \u00b7 WIP preserved",
+      "pos": [
+        1015,
+        260
+      ],
+      "size": [
+        210,
+        88
+      ]
+    },
+    {
+      "id": "native",
+      "type": "frontend",
+      "label": "Native seat",
+      "sublabel": "Verified cwd + exports + brief",
+      "pos": [
+        1015,
+        475
+      ],
+      "size": [
+        210,
+        88
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "session",
+      "to": "cli",
+      "label": "recover",
+      "variant": "emphasis"
+    },
+    {
+      "from": "cli",
+      "to": "board",
+      "label": "HTTPS owner",
+      "variant": "security"
+    },
+    {
+      "from": "cli",
+      "to": "engine",
+      "label": "selected record",
+      "variant": "emphasis"
+    },
+    {
+      "from": "engine",
+      "to": "registry",
+      "label": "lock / reuse"
+    },
+    {
+      "from": "engine",
+      "to": "slot",
+      "label": "Git + lease",
+      "variant": "emphasis"
+    },
+    {
+      "from": "slot",
+      "to": "native",
+      "label": "explicit attach",
+      "variant": "emphasis",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Recovery is explicit",
+      "items": [
+        "Apply non-secret exports and cd",
+        "Re-check before implementation",
+        "Reuse one task-bound lease"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Isolation remains required",
+      "items": [
+        "Primary and legacy edits stay forbidden",
+        "Credentials are never printed or replaced",
+        "Decision holds still require captain answers"
+      ]
+    }
+  ]
+}

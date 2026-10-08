@@ -1,0 +1,315 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agentboard seat attachment — OpenSpec</title><style>
+:root{--ink:#172f48;--muted:#5a6572;--canvas:#edf2f8;--paper:#fff;--line:#cfdae6;--accent:#175bb8;--green:#12694c;--soft:#e6edf6;color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+:root[data-theme=dark]{--ink:#e4edf6;--muted:#a4b5c5;--canvas:#152536;--paper:#203246;--line:#3c5268;--accent:#8ebdff;--green:#a2e7ca;--soft:#334b64;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);line-height:1.6}a{color:var(--accent)}header,main,footer{max-width:1120px;margin:auto;padding:24px}header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}h1{font-size:clamp(1.7rem,4vw,2.7rem);line-height:1.12;letter-spacing:-.035em;margin:16px 0}h2,h3,h4,h5{line-height:1.3;scroll-margin-top:24px}p{margin:.6rem 0 1rem}button{font:inherit;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:5px;padding:8px 14px;cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}.eyebrow{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.badge{display:inline-block;padding:3px 9px;border-radius:4px;background:var(--soft);font-size:.8rem}.good{color:var(--green)}.hero{border-left:4px solid var(--accent);background:var(--paper);padding:24px;border-radius:6px}.intro{max-width:78ch;color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:20px 0}.grid>*{min-width:0;overflow-wrap:anywhere}.card{padding:18px;background:var(--paper);border:1px solid var(--line);border-radius:6px}.card h3{margin:4px 0 8px}.card p{font-size:.9rem;margin:0;color:var(--muted)}.pr-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.diagram{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:16px}.diagram svg{display:block;width:100%;height:auto}.diagram svg .c-grid{fill:none;stroke:var(--line);opacity:.25}.diagram svg .a-default{stroke:var(--muted);fill:none;stroke-width:1.5}.diagram svg .m-default,.diagram svg .m-dashed,.diagram svg .m-emphasis,.diagram svg .m-security{fill:var(--muted)}.diagram svg .c-mask{fill:var(--paper)}.diagram svg .c-backend{fill:var(--soft);stroke:var(--accent)}.diagram svg .c-database{fill:var(--soft);stroke:var(--green)}.diagram svg .c-frontend{fill:var(--soft);stroke:var(--accent)}.diagram svg .c-external{fill:var(--canvas);stroke:var(--muted)}.diagram svg .t-primary{fill:var(--ink)}.diagram svg .t-muted{fill:var(--muted)}.diagram svg .semantic-sigil{stroke:var(--muted);fill:none}.diagram svg .sigil-fill{fill:var(--muted)}.caption,.muted{font-size:.86rem;color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0}nav a{padding:6px 11px;border:1px solid var(--line);background:var(--paper);border-radius:4px;text-decoration:none}details{margin:16px 0;border:1px solid var(--line);background:var(--paper);border-radius:6px;min-width:0}summary{padding:16px;cursor:pointer;font-weight:600}.content{padding:0 24px 24px;overflow-wrap:anywhere;min-width:0}.content h3{margin-top:2rem;border-bottom:1px solid var(--line);padding-bottom:.4rem}.content h4{margin-top:1.5rem}.content h5{color:var(--muted);font-size:.9rem}.content li{margin:.45rem 0}.task{list-style:none;margin-left:-1.2rem!important}.table{min-width:0}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:var(--soft)}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;overflow-wrap:anywhere;word-break:break-word;background:var(--soft);padding:1px 3px;border-radius:3px}.mock table{font-size:.85rem}.mock p{margin:0}.footer{font-size:.85rem;color:var(--muted)}@media(max-width:760px){header,main,footer{padding:16px}.grid,.pr-grid{grid-template-columns:minmax(0,1fr)}.hero{padding:18px}.content{padding:0 16px 16px}th,td{padding:6px}.diagram{padding:6px}.mock table{font-size:.72rem}}@media print{button,nav{display:none}details{break-inside:auto}.content{display:block}}
+pre{background:var(--soft);padding:14px;border-radius:4px;white-space:pre-wrap;overflow-wrap:anywhere}pre code{background:none;padding:0}.diagram svg .c-security{fill:var(--soft);stroke:var(--accent)}.diagram svg .a-security{stroke:var(--accent);fill:none;stroke-width:1.5}.diagram svg .a-emphasis{stroke:var(--green);fill:none;stroke-width:2}.diagram svg .c-grid{fill:none}.diagram svg .t-backend,.diagram svg .t-security{fill:var(--ink)}.proof{padding:12px 0;color:var(--green)}</style></head><body><header><strong>Agentboard / seat recovery</strong><span class="badge good">Captain1255 · implementation approved</span><button id="theme">Switch theme</button></header><main><section class="hero"><div class="eyebrow">GH #141 · add-idempotent-seat-attachment</div><h1>Recover the seat.<br>Keep the work.</h1><p class="intro">A session loses its environment while its task and worktree survive. The packaged CLI verifies the task, reuses its durable lease, and prints safe exports. Apply them, change directory and check before continuing.</p><span class="badge">Implementation + OpenSpec in one PR</span></section><div class="grid"><article class="card"><h3>One task, one lease</h3><p>Same-task retries and concurrent recovery share the binding. Dirty and unpushed work stays in place.</p></article><article class="card"><h3>Explicit environment</h3><p>Worktree, primary source and pool root travel together. Tokens and arbitrary environment never appear in output.</p></article><article class="card"><h3>Check before work</h3><p>Primary, foreign and legacy worktrees remain forbidden. Fixing environment does not answer a captain decision.</p></article></div><section class="diagram"><h2>Owned task → verified binding → isolated session</h2><svg viewBox="0 0 1280 640" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
+        <title id="archify-diagram-title">Recover and attach an isolated task seat</title>
+        <desc id="archify-diagram-description">An architecture diagram generated by Archify.</desc>
+        <!-- Definitions -->
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-default" />
+          </marker>
+          <marker id="arrowhead-emphasis" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-emphasis" />
+          </marker>
+          <marker id="arrowhead-security" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-security" />
+          </marker>
+          <marker id="arrowhead-dashed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-dashed" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" class="c-grid" stroke-width="0.5" />
+          </pattern>
+        </defs>
+
+        <!-- Background Grid -->
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- Boundaries (behind everything) -->
+
+
+        <!-- Connection paths (before components for correct z-order) -->
+        <path data-edge-from="session" data-edge-to="cli" data-edge-label="recover" data-edge-key="0" data-composition-points="250,304;355,304" d="M 250 304 L 355 304" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)" />
+        <path data-edge-from="cli" data-edge-to="board" data-edge-label="HTTPS owner" data-edge-key="1" data-composition-points="460,260;460,128" d="M 460 260 L 460 128" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)" />
+        <path data-edge-from="cli" data-edge-to="engine" data-edge-label="selected record" data-edge-key="2" data-composition-points="565,304;685,304" d="M 565 304 L 685 304" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)" />
+        <path data-edge-from="engine" data-edge-to="registry" data-edge-label="lock / reuse" data-edge-key="3" data-composition-points="790,260;790,128" d="M 790 260 L 790 128" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)" />
+        <path data-edge-from="engine" data-edge-to="slot" data-edge-label="Git + lease" data-edge-key="4" data-composition-points="895,304;1015,304" d="M 895 304 L 1015 304" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)" />
+        <path data-edge-from="slot" data-edge-to="native" data-edge-label="explicit attach" data-edge-key="5" data-composition-points="1120,348;1120,475" d="M 1120 348 L 1120 475" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)" />
+
+        <!-- Components -->
+        <g id="node-session" data-node-id="session" data-node-label="Agent session" tabindex="0" role="button" aria-label="Focus Agent session, Missing seat environment, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="Missing seat environment" data-node-context="Architecture component">
+          <title>Agent session · Missing seat environment · Architecture component</title>
+          <rect x="40" y="260" width="210" height="88" rx="6" class="c-mask" />
+          <rect x="40" y="260" width="210" height="88" rx="6" class="c-external" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(46 266) scale(0.6875)">
+            <rect x="2.5" y="5" width="8.5" height="8" rx="1.5" />
+            <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="145" y="302" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Agent session</text>
+        <text data-detail="context" x="145" y="318" class="t-muted" font-size="9" text-anchor="middle">Missing seat environment</text>
+        </g>
+
+        <g id="node-cli" data-node-id="cli" data-node-label="agentboard seat" tabindex="0" role="button" aria-label="Focus agentboard seat, ensure · env · check, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="ensure · env · check" data-node-context="Architecture component">
+          <title>agentboard seat · ensure · env · check · Architecture component</title>
+          <rect x="355" y="260" width="210" height="88" rx="6" class="c-mask" />
+          <rect x="355" y="260" width="210" height="88" rx="6" class="c-backend" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(361 266) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="460" y="302" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">agentboard seat</text>
+        <text data-detail="context" x="460" y="318" class="t-muted" font-size="9" text-anchor="middle">ensure · env · check</text>
+        </g>
+
+        <g id="node-board" data-node-id="board" data-node-label="Board task" tabindex="0" role="button" aria-label="Focus Board task, Live owner + paged records, Architecture component" aria-pressed="false" data-node-kind="database" data-node-sublabel="Live owner + paged records" data-node-context="Architecture component">
+          <title>Board task · Live owner + paged records · Architecture component</title>
+          <rect x="355" y="40" width="210" height="88" rx="6" class="c-mask" />
+          <rect x="355" y="40" width="210" height="88" rx="6" class="c-database" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(361 46) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2" />
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="460" y="82" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Board task</text>
+        <text data-detail="context" x="460" y="98" class="t-muted" font-size="9" text-anchor="middle">Live owner + paged records</text>
+        </g>
+
+        <g id="node-engine" data-node-id="engine" data-node-label="Isolation engine" tabindex="0" role="button" aria-label="Focus Isolation engine, Packaged Python launcher, Architecture component" aria-pressed="false" data-node-kind="security" data-node-sublabel="Packaged Python launcher" data-node-context="Architecture component">
+          <title>Isolation engine · Packaged Python launcher · Architecture component</title>
+          <rect x="685" y="260" width="210" height="88" rx="6" class="c-mask" />
+          <rect x="685" y="260" width="210" height="88" rx="6" class="c-security" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(691 266) scale(0.6875)">
+            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z" />
+            <path d="m5.8 8 1.5 1.5 3-3" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="790" y="302" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Isolation engine</text>
+        <text data-detail="context" x="790" y="318" class="t-muted" font-size="9" text-anchor="middle">Packaged Python launcher</text>
+        </g>
+
+        <g id="node-registry" data-node-id="registry" data-node-label="Task binding" tabindex="0" role="button" aria-label="Focus Task binding, Private registry + local lock, Architecture component" aria-pressed="false" data-node-kind="database" data-node-sublabel="Private registry + local lock" data-node-context="Architecture component">
+          <title>Task binding · Private registry + local lock · Architecture component</title>
+          <rect x="685" y="40" width="210" height="88" rx="6" class="c-mask" />
+          <rect x="685" y="40" width="210" height="88" rx="6" class="c-database" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(691 46) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2" />
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="790" y="82" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Task binding</text>
+        <text data-detail="context" x="790" y="98" class="t-muted" font-size="9" text-anchor="middle">Private registry + local lock</text>
+        </g>
+
+        <g id="node-slot" data-node-id="slot" data-node-label="Treehouse slot" tabindex="0" role="button" aria-label="Focus Treehouse slot, Pinned lease · WIP preserved, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Pinned lease · WIP preserved" data-node-context="Architecture component">
+          <title>Treehouse slot · Pinned lease · WIP preserved · Architecture component</title>
+          <rect x="1015" y="260" width="210" height="88" rx="6" class="c-mask" />
+          <rect x="1015" y="260" width="210" height="88" rx="6" class="c-backend" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1021 266) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="1120" y="302" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Treehouse slot</text>
+        <text data-detail="context" x="1120" y="318" class="t-muted" font-size="9" text-anchor="middle">Pinned lease · WIP preserved</text>
+        </g>
+
+        <g id="node-native" data-node-id="native" data-node-label="Native seat" tabindex="0" role="button" aria-label="Focus Native seat, Verified cwd + exports + brief, Architecture component" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Verified cwd + exports + brief" data-node-context="Architecture component">
+          <title>Native seat · Verified cwd + exports + brief · Architecture component</title>
+          <rect x="1015" y="475" width="210" height="88" rx="6" class="c-mask" />
+          <rect x="1015" y="475" width="210" height="88" rx="6" class="c-frontend" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(1021 481) scale(0.6875)">
+            <rect x="2" y="3" width="12" height="10" rx="2" />
+            <path d="M2 6.5h12" />
+            <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill" />
+            <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="1120" y="517" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Native seat</text>
+        <text data-detail="context" x="1120" y="533" class="t-muted" font-size="9" text-anchor="middle">Verified cwd + exports + brief</text>
+        </g>
+
+        <!-- Connection labels -->
+        <g data-detail="context" data-edge-from="session" data-edge-to="cli" data-edge-label="recover" data-edge-key="0">
+          <rect x="280.7" y="284" width="43.6" height="14" rx="3" class="c-mask" />
+          <text x="302.5" y="294" class="t-backend" font-size="8" text-anchor="middle">recover</text>
+        </g>
+        <g data-detail="context" data-edge-from="cli" data-edge-to="board" data-edge-label="HTTPS owner" data-edge-key="1">
+          <rect x="428.6" y="240" width="62.8" height="14" rx="3" class="c-mask" />
+          <text x="460" y="250" class="t-security" font-size="8" text-anchor="middle">HTTPS owner</text>
+        </g>
+        <g data-detail="context" data-edge-from="cli" data-edge-to="engine" data-edge-label="selected record" data-edge-key="2">
+          <rect x="584" y="284" width="82" height="14" rx="3" class="c-mask" />
+          <text x="625" y="294" class="t-backend" font-size="8" text-anchor="middle">selected record</text>
+        </g>
+        <g data-detail="context" data-edge-from="engine" data-edge-to="registry" data-edge-label="lock / reuse" data-edge-key="3">
+          <rect x="756.2" y="240" width="67.6" height="14" rx="3" class="c-mask" />
+          <text x="790" y="250" class="t-muted" font-size="8" text-anchor="middle">lock / reuse</text>
+        </g>
+        <g data-detail="context" data-edge-from="engine" data-edge-to="slot" data-edge-label="Git + lease" data-edge-key="4">
+          <rect x="923.6" y="284" width="62.8" height="14" rx="3" class="c-mask" />
+          <text x="955" y="294" class="t-backend" font-size="8" text-anchor="middle">Git + lease</text>
+        </g>
+        <g data-detail="context" data-edge-from="slot" data-edge-to="native" data-edge-label="explicit attach" data-edge-key="5">
+          <rect x="1079" y="352" width="82" height="14" rx="3" class="c-mask" />
+          <text x="1120" y="362" class="t-backend" font-size="8" text-anchor="middle">explicit attach</text>
+        </g>
+
+        <!-- Boundary labels (foreground masks keep routes out of titles) -->
+
+
+        <!-- Legend -->
+        <g data-legend="" data-legend-bridge="">
+          <text x="40" y="604" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="Frontend" data-legend-x="40" data-legend-baseline="624" data-legend-width="83">
+            <rect x="40" y="615" width="16" height="10" rx="2.5" class="c-frontend" stroke-width="1" />
+            <text x="62" y="624" class="t-muted" font-size="10" font-weight="500">Frontend</text>
+          </g>
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Backend" data-legend-x="145" data-legend-baseline="624" data-legend-width="78">
+            <rect x="145" y="615" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1" />
+            <text x="167" y="624" class="t-muted" font-size="10" font-weight="500">Backend</text>
+          </g>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Database" data-legend-x="245" data-legend-baseline="624" data-legend-width="83">
+            <rect x="245" y="615" width="16" height="10" rx="2.5" class="c-database" stroke-width="1" />
+            <text x="267" y="624" class="t-muted" font-size="10" font-weight="500">Database</text>
+          </g>
+          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Security" data-legend-x="350" data-legend-baseline="624" data-legend-width="83">
+            <rect x="350" y="615" width="16" height="10" rx="2.5" class="c-security" stroke-width="1" />
+            <text x="372" y="624" class="t-muted" font-size="10" font-weight="500">Security</text>
+          </g>
+          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="External" data-legend-x="455" data-legend-baseline="624" data-legend-width="83">
+            <rect x="455" y="615" width="16" height="10" rx="2.5" class="c-external" stroke-width="1" />
+            <text x="477" y="624" class="t-muted" font-size="10" font-weight="500">External</text>
+          </g>
+        </g>
+      </svg><p class="caption">Retained inline SVG from the separately validated Archify document. The board is reached through HTTPS; Git and Treehouse verify the local boundary. No direct CLI database access.</p></section><section class="card"><h2>Choose the command by its effect</h2><table><thead><tr><th>Command</th><th>Effect</th><th>Next step</th></tr></thead><tbody><tr><td><code>seat ensure TASK</code></td><td>Acquire once or reuse verified task lease; record binding</td><td>Apply exports and cd</td></tr><tr><td><code>seat env TASK</code></td><td>Verify existing binding; never acquire</td><td>Restore environment in own session</td></tr><tr><td><code>seat check TASK</code></td><td>Verify actual cwd and all three expected paths</td><td>Continue only after success</td></tr><tr><td><code>launch-seat --attach --task TASK</code></td><td>Reuse verified binding and protected brief/credentials</td><td>Start child in isolated cwd</td></tr></tbody></table><p class="caption">POSIX shell exports or selected JSON. A command cannot rewrite its parent shell or running Herdr pane; the session must consume the output explicitly.</p></section><section class="card"><h2>Actual verification</h2><p class="proof">Remote packaged CLI, real pinned Treehouse, isolation and publication checks passed: 4/4.</p><p><a href="https://carverauto.buildbuddy.io/invocation/0b0de86f-9d99-46fe-85e3-5fbcdd83bc06">BuildBuddy proof</a> exercises owned/paginated records, concurrent acquisition, failed recording, interruption refusal, WIP preservation, shell metacharacters, secret-free output, installed workflow payload and repeat native attachment.</p><p><a href="https://carverauto.buildbuddy.io/invocation/86af1222-eeee-4ee6-929d-91e9d72b17a2">Follow-up packaged CLI proof: 2/2</a> after the ownership-reader simplification. Later verification is recorded in the PR receipt.</p><p class="caption">Python 3, Git and pinned Treehouse v3.1.2 are explicit prerequisites. Interrupted allocation, conflicting metadata or a record on another host remains a deliberate recovery blocker. No global Herdr hooks, credential bootstrap, local build, merge or deployment was performed.</p></section><nav><a href="#proposal">Proposal</a><a href="#design">Design</a><a href="#requirements">Requirements</a><a href="#tasks">Tasks</a></nav><details id="proposal" open><summary>Proposal — scope</summary><div class="content"><h2 id="proposal-1">Proposal</h2>
+<h3 id="proposal-2">Why</h3>
+<p>Already-running agent sessions can lose their seat environment and stop even while owning an isolated task worktree. Recovery currently depends on a coordinator supplying paths, and a primary-checkout session has no packaged way to acquire and attach safely.</p>
+<h3 id="proposal-3">What Changes</h3>
+<ul>
+<li>Add packaged <code>agentboard seat ensure|env|check TASK</code> commands using the existing launcher&#x27;s pinned Treehouse and physical Git/lease checks.</li>
+<li>Bind one seat to a task, actor, source, pool and durable lease identity; serialize acquisition and reuse the binding across retries without resetting work.</li>
+<li>Print shell-quoted, non-secret exports and a <code>cd</code> command for an existing session; JSON supports launcher integrations. Commands cannot mutate their caller&#x27;s shell or Herdr workspace.</li>
+<li>Add explicit <code>launch-seat --attach --task TASK</code> reuse and preserve seat variables in the protected launch environment. Fresh task launches use the same resolution contract.</li>
+<li>Teach shipped canonical, Codex, Muse and Herdr skills to self-heal missing environment before escalating genuine ownership or isolation failures.</li>
+<li>Keep primary/source edits forbidden, legacy/out-of-pool worktrees rejected, credentials private and leases retained through delivery.</li>
+</ul>
+<h3 id="proposal-4">Capabilities</h3>
+<h4 id="proposal-5">New Capabilities</h4>
+<ul>
+<li><code>seat-attachment</code>: owned-task seat acquisition, durable reuse, secret-free environment handoff and fail-closed native attachment.</li>
+</ul>
+<h4 id="proposal-6">Modified Capabilities</h4>
+<p>None. No main specification currently owns seat isolation; existing launcher behavior remains the foundation.</p>
+<h3 id="proposal-7">Impact</h3>
+<p>Go CLI packaging, <code>scripts/launch-seat</code>, shipped skills and seat setup documentation. The CLI embeds the existing Python 3 launcher so another repository needs only the installed CLI, Git, Python 3 and the pinned Treehouse binary; no clone of Agentboard is required for recovery. Board access stays API-only and uses existing task events, requiring no server migration or Herdr installation changes. Captain msg1255 authorizes planning and implementation in the same PR; #57 remains an independent update-channel proposal.</p></div></details><details id="design" open><summary>Design — durable binding and recovery</summary><div class="content"><h2 id="design-1">Design</h2>
+<h3 id="design-2">Context</h3>
+<p><code>scripts/launch-seat</code> already verifies physical Git roots, common Git identity, registration, pinned Treehouse version, pool boundaries and durable lease holder. It injects seat variables into a new child only; protected <code>agent.env</code> omits them. <code>agentboard seat return</code> reads paginated task events and applies a landed gate. Codex, Muse and Herdr skills currently escalate even recoverable missing environment. See proposal.md for motivation.</p>
+<h3 id="design-3">Goals / Non-Goals</h3>
+<p><strong>Goals:</strong> Recover from an owned task without resetting a worktree, silently replacing credentials, weakening isolation, or requiring a repository clone of Agentboard. Give launchers and existing sessions one validated environment contract.</p>
+<p><strong>Non-Goals:</strong> Mutate a parent process environment, automate Herdr composers/workspace configuration, migrate legacy worktrees, bootstrap credentials, install Treehouse silently, claim/reclaim tasks implicitly, or change the API/schema. Recovery does not resume work held for a captain decision.</p>
+<h3 id="design-4">Decisions</h3>
+<h4 id="design-5">Shared packaged isolation engine</h4>
+<p>Embed the existing Python launcher in the Go workflow bundle and invoke its local resolution modes through Python 3. The Go command reads the board through the existing authenticated client, verifies an owned live task claim, follows all event pages and passes only selected task-seat metadata to the engine. This avoids independently duplicating the security-sensitive Git/Treehouse checks. A Go-only rewrite would add divergent guards; requiring a source-side script would prevent no-clone CLI use. Python 3, Git and the checksum-pinned Treehouse v3.1.2 remain explicit prerequisites.</p>
+<h4 id="design-6">Task-bound durable reuse</h4>
+<p><code>ensure TASK --repo SOURCE --root POOL</code> can run from the primary checkout for recovery only. Source defaults to the explicit seat source or the repository&#x27;s registered primary checkout. Pool must be explicit, or recoverable from an existing task record; conflicting explicit pool/source is refused. Each task/actor/source has a private registry under the pool with a cross-process advisory lock. A durable binding records task, holder, physical source/root/worktree, pinned version and current lease ID. Persist a pending acquisition marker before invoking Treehouse; if interrupted before the complete binding is saved, retries refuse blind reacquisition and require inspecting the retained pool/task evidence. Persist it before board recording so a failed/ambiguous API write cannot allocate another slot on retry. Existing board records can be adopted only after all physical and holder checks; old records lacking source/lease ID are upgraded from the verified lease. Contradictory, missing, foreign or expired lease evidence is refused rather than discarded.</p>
+<p>The engine keeps <code>.agentboard-seat/seat.json</code> in the verified slot. Unknown/recycled metadata conflicts fail closed; an existing task binding for another lease or task is never overwritten. Metadata is private, bounded and rejects symlinks. The file lock serializes same-task acquisition on one host; it is not a distributed host lock or OS sandbox. A task may have only one authoritative local recorded seat; a record referring to another host is a recovery blocker, not permission to allocate elsewhere.</p>
+<h4 id="design-7">Environment handoff and native attachment</h4>
+<p><code>ensure</code> acquires if necessary; <code>env</code> reads/verifies an existing binding without acquisition; <code>check</code> additionally requires actual cwd and expected environment to match. Default ensure/env output is POSIX shell-quoted <code>export</code> lines plus <code>cd -- ...</code>, containing only seat paths and caller-declared non-secret identity/URL. <code>--json</code> emits the same selected environment plus binding metadata. No token, token-file path, captain env file or arbitrary inherited environment appears in either format. Nothing is executed via a shell internally. <code>check</code> prints a selected JSON receipt or verified path.</p>
+<p>Task-aware fresh launches and <code>--attach</code> use packaged <code>seat ensure --json</code>, recheck physical lease before child start, and require delivered brief argv. Reattachment verifies and reuses an existing private brief; another task or changed brief is refused instead of overwriting it. <code>agent.env</code> is created exclusively on fresh launch, now including seat variables; an existing protected file is preserved and validated for safe reuse. Existing sessions consume printed exports explicitly, change cwd, and run <code>seat check TASK</code>. This is how Herdr sessions recover now; we cannot silently inject environment into a running harness.</p>
+<h4 id="design-8">Skill recovery</h4>
+<p>Canonical workflow gives the three-command recovery procedure. Codex/Muse/Herdr variants and generated briefs link it and distinguish STOP editing from permitted explicit recovery. A missing environment alone does not require a captain question; task ownership, decision holds, genuine Git/lease mismatch, full pool or legacy/out-of-pool work still require appropriate blocking/escalation. Skills ship in the existing embedded installer; no new update daemon or #57 implementation is added.</p>
+<h3 id="design-9">Risks / Trade-offs</h3>
+<ul>
+<li>[Python dependency in CLI recovery] → Document it; fail clearly before acquisition if missing; existing launcher already needs it.</li>
+<li>[Lost response after allocation/recording] → Persist local binding under the lock first; replay identical task record after comparing current events; no worktree reset or automatic release.</li>
+<li>[Lease changes after check] → Verify current lease ID/holder immediately before reuse and child execution. This is a boundary check, not transactional fencing of Git/Treehouse or malicious filesystem actors.</li>
+<li>[Old credential/brief metadata in recycled slots] → Refuse conflicts and preserve work; no credential relocation or wholesale cleanup.</li>
+<li>[Another host&#x27;s task record] → Refuse a missing/foreign local path; explicit coordinated recovery remains necessary.</li>
+<li>[Board outage or ownership change] → No new allocation without successful owned-task read; final task-record mutation uses the ordinary owner API, with failure retaining the local lease for retry.</li>
+</ul>
+<h3 id="design-10">Migration Plan</h3>
+<p>Ship the CLI and updated skills together through existing release packaging. Existing launcher-only calls without a task stay supported; task-aware attach requires the updated CLI. No server migration or rollout. Keep all old leases and credentials in place. Rollback leaves durable bindings/worktrees intact; older tooling can still inspect and explicitly return landed slots, but does not provide the new recovery commands.</p></div></details><details id="requirements" open><summary>Requirements — observable contracts</summary><div class="content"><h2 id="requirements-1">Seat attachment</h2>
+<h3 id="requirements-2">Purpose</h3>
+<p>Let an authorized agent recover its task&#x27;s isolated worktree and environment across session attachment without losing work or weakening the primary-checkout prohibition.</p>
+<h3 id="requirements-3">ADDED Requirements</h3>
+<h4 id="requirements-4">Requirement: Owned task resolution</h4>
+<p>The CLI SHALL resolve a seat only for the caller&#x27;s active, unexpired owned task. It SHALL read all task event pages and refuse terminal tasks, missing ownership, expired claims and unreadable board evidence without allocation.</p>
+<h5 id="requirements-5">Scenario: Foreign or expired claim</h5>
+<ul>
+<li><strong>WHEN</strong> ensure is requested for another actor&#x27;s task or an expired claim</li>
+<li><strong>THEN</strong> it fails before allocating or updating a seat</li>
+</ul>
+<h5 id="requirements-6">Scenario: Seat recorded on a later event page</h5>
+<ul>
+<li><strong>WHEN</strong> the newest task-seat record appears after the first page</li>
+<li><strong>THEN</strong> resolution verifies that record instead of allocating a replacement</li>
+</ul>
+<h4 id="requirements-7">Requirement: Idempotent task seat acquisition</h4>
+<p>Ensure SHALL reuse a verified durable task binding, preserve dirty/unpushed work and serialize concurrent local acquisition. It SHALL persist allocation before recording it on the board so retry after a failed record write reuses the same lease.</p>
+<h5 id="requirements-8">Scenario: Concurrent first ensure</h5>
+<ul>
+<li><strong>WHEN</strong> two local ensure requests target the same owned task, source and pool</li>
+<li><strong>THEN</strong> both resolve the same worktree and one persistent lease</li>
+</ul>
+<h5 id="requirements-9">Scenario: Retry after board record failure</h5>
+<ul>
+<li><strong>WHEN</strong> allocation succeeds but recording fails and ensure is retried</li>
+<li><strong>THEN</strong> it reuses the durable allocated seat without resetting files or acquiring another seat</li>
+</ul>
+<h4 id="requirements-10">Requirement: Physical isolation remains mandatory</h4>
+<p>Resolution SHALL require a registered linked Git worktree in the specified v3 pool, matching source/common Git identity, task binding and current lease holder/identity. It SHALL reject primary, foreign, legacy/out-of-pool, redirected metadata and conflicting bindings.</p>
+<h5 id="requirements-11">Scenario: Primary or legacy target</h5>
+<ul>
+<li><strong>WHEN</strong> a target is the primary checkout or a non-pool legacy worktree</li>
+<li><strong>THEN</strong> no agent is launched and no project files are edited</li>
+</ul>
+<h5 id="requirements-12">Scenario: Task or lease mismatch</h5>
+<ul>
+<li><strong>WHEN</strong> retained metadata names another task or a different current lease</li>
+<li><strong>THEN</strong> reuse fails and preserves the conflicting worktree and metadata</li>
+</ul>
+<h4 id="requirements-13">Requirement: Secret-free shell and JSON handoff</h4>
+<p>Ensure and env SHALL emit only selected non-secret seat/identity values, with shell-safe quoting or JSON. Env SHALL never allocate. Check SHALL verify actual physical cwd and the expected seat environment; neither output SHALL include credentials or arbitrary inherited environment.</p>
+<h5 id="requirements-14">Scenario: Existing session loses environment</h5>
+<ul>
+<li><strong>WHEN</strong> an owner obtains env exports, applies them and changes into the task seat</li>
+<li><strong>THEN</strong> all three seat variables resolve correctly and check succeeds</li>
+</ul>
+<h5 id="requirements-15">Scenario: Paths contain shell metacharacters</h5>
+<ul>
+<li><strong>WHEN</strong> a validated seat path contains spaces, quotes or shell substitutions</li>
+<li><strong>THEN</strong> emitted commands preserve literal values and execute no path text</li>
+</ul>
+<h4 id="requirements-16">Requirement: Native launch and attach handoff</h4>
+<p>Task-aware launch and attach SHALL use the same verified seat, provide the mandatory brief and set worktree, source and pool environment before the child runs. Reattachment SHALL preserve credentials and task work and refuse incompatible retained briefs or protected metadata.</p>
+<h5 id="requirements-17">Scenario: Repeat native attach</h5>
+<ul>
+<li><strong>WHEN</strong> the same task and brief are attached twice</li>
+<li><strong>THEN</strong> both children receive the same three seat variables and isolated cwd without replacing credentials or acquiring another lease</li>
+</ul>
+<h4 id="requirements-18">Requirement: Self-heal instructions are shipped</h4>
+<p>The canonical and applicable harness skills SHALL document owned-task ensure/env/check recovery for missing environment while forbidding implementation in the primary checkout. An environment-only recovery SHALL not require a coordinator round-trip; decision holds and real isolation/ownership failures SHALL retain their escalation rules.</p>
+<h5 id="requirements-19">Scenario: Packaged skill installation</h5>
+<ul>
+<li><strong>WHEN</strong> an agent installs the embedded workflow bundle</li>
+<li><strong>THEN</strong> the canonical recovery procedure is available with the relevant harness instructions</li>
+</ul>
+<h4 id="requirements-20">Requirement: Packaged recovery without repository clone</h4>
+<p>The installed CLI SHALL provide the resolution engine without an Agentboard source checkout, using Git, Python 3 and the pinned Treehouse binary. Missing prerequisites SHALL produce a clear failure without implicit installation.</p>
+<h5 id="requirements-21">Scenario: Different product repository</h5>
+<ul>
+<li><strong>WHEN</strong> the CLI resolves an owned task in another Git repository with prerequisites installed</li>
+<li><strong>THEN</strong> it does not depend on that repository containing Agentboard scripts</li>
+</ul></div></details><details id="tasks" open><summary>Implementation checklist</summary><div class="content"><h2 id="tasks-1">Tasks</h2>
+<h3 id="tasks-2">1. Packaged resolution</h3>
+<ul>
+<li>[x] 1.1 Implement task-bound serialized acquisition/reuse with the existing isolation engine; verify concurrent and failed-record retries keep one lease and preserve WIP through the public CLI remote fixture.</li>
+<li>[x] 1.2 Add API-only owned-task ensure/env/check commands and embed the engine; verify paginated task evidence, ownership/expiry refusal, no-clone operation and secret-free shell/JSON output in the packaged CLI fixture.</li>
+<li>[x] 1.3 Document prerequisites and command contracts in seat setup; execute the documented shell handoff including quoted paths and physical check in the fixture.</li>
+</ul>
+<h3 id="tasks-3">2. Attach and recovery</h3>
+<ul>
+<li>[x] 2.1 Make task-aware launch/attach reuse resolution and protected metadata with all seat variables; verify repeat attachment delivers the same isolated cwd/brief/env without overwriting credentials.</li>
+<li>[x] 2.2 Ship canonical and harness self-heal instructions while retaining primary/legacy/foreign STOP and decision holds; verify installed bundle content as the intentional shipped documentation contract and exercise the referenced recovery commands.</li>
+</ul>
+<h3 id="tasks-4">3. Delivery</h3>
+<ul>
+<li>[x] 3.1 Run remote CLI and real pinned Treehouse isolation/publication sibling checks plus strict OpenSpec validation; retain selected results without raw credential-bearing Bazel evidence.</li>
+<li>[x] 3.2 Author and verify Archify and portable Lavish OpenSpec artifacts with source hashes and actual browser/perceptual receipts.</li>
+</ul>
+<p>Publication acceptance is tracked on the board card: native No-mistakes without --yes, current-head CI, uploaded/linked readable documents, never merge.</p></div></details></main><footer class="footer">Design source: Agentboard’s existing web/assets/app.css light/dark tokens. Full planning text rendered from the canonical OpenSpec files. Portable, no external assets or fonts. Publication and current-head CI remain tracked separately on the board task.</footer><script>const r=document.documentElement;r.dataset.theme=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.getElementById('theme').onclick=()=>r.dataset.theme=r.dataset.theme==='dark'?'light':'dark';document.querySelectorAll('nav a').forEach(a=>a.onclick=()=>document.querySelector(a.getAttribute('href')).open=true);</script></body></html>

@@ -1,0 +1,65 @@
+{
+  "source_hashes": {
+    "changes/add-idempotent-seat-attachment/proposal.md": "8635fe018d05cd2bdd0f28e1eb70a884d602a7939e67cb0af895071abd33f587",
+    "changes/add-idempotent-seat-attachment/design.md": "01e33d752f172e4e68b3714af1411499810bbd6874ba924703422116ac68f810",
+    "changes/add-idempotent-seat-attachment/specs/seat-attachment/spec.md": "de0a8fc3458cde6889e7f14e9c5f61655691be995ba369ddff7ac9afdd2a607d",
+    "changes/add-idempotent-seat-attachment/tasks.md": "706983da2781729ba9088e41b54513e8d26c0e5f8f9a980a606e4e59cffd4712"
+  },
+  "design_system": "Agentboard web/assets/app.css tokens",
+  "implementation_approved": "captain msg1255",
+  "runtime_proof": "remote packaged CLI/Treehouse fixture; live farm01 behavior unchanged",
+  "browser_review": {
+    "reviewer": "codex-agentboard-rollout / gpt-6-astra image-capable",
+    "artifact_sha256": "f02cbe418a36b17facea9c0b483bf495da94045bb9ae43f6cd51133c04e6b6b1",
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "scroll_width": 1440
+      },
+      {
+        "width": 1440,
+        "height": 900,
+        "theme": "dark",
+        "scroll_width": 1440
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "scroll_width": 390
+      }
+    ],
+    "sections": [
+      "proposal",
+      "design",
+      "requirements",
+      "tasks"
+    ],
+    "all_sections_expanded": true,
+    "perceptual_result": "pass: reviewed light/dark diagram and narrow command table screenshots; contained text and readable color contrast",
+    "capture_tool_limitation": "Chrome screenshot command reported missing saved-path acknowledgement; actual PNG files were created, opened and visually inspected. DOM measurements succeeded."
+  },
+  "artifact": {
+    "path": "docs/architecture/seat-attachment.openspec.html",
+    "sha256": "f02cbe418a36b17facea9c0b483bf495da94045bb9ae43f6cd51133c04e6b6b1",
+    "bytes": 42362,
+    "unresolved_local_assets": 0,
+    "remote_assets": 0
+  },
+  "screenshots": [
+    {
+      "path": "docs/architecture/seat-attachment.openspec.light.png",
+      "sha256": "eb0611f8820f876eef8872109176aa082ab00734d29b083211ee1e35de0a6bfe"
+    },
+    {
+      "path": "docs/architecture/seat-attachment.openspec.dark.png",
+      "sha256": "5aec8a48449ba107c3e8e58a66585972eb73899efa564789b1fbd5b9dfeda8fe"
+    },
+    {
+      "path": "docs/architecture/seat-attachment.openspec.narrow.png",
+      "sha256": "7af146d9bcef6092f0b8ffacdf1e1f499315c9574e379c094d99301ba76c44d2"
+    }
+  ]
+}
