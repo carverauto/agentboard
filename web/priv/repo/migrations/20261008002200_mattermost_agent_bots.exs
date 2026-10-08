@@ -1,5 +1,5 @@
 defmodule Agentboard.Repo.Migrations.MattermostAgentBots do
-  @moduledoc "Phase 2 elastic per-agent bots: server-managed bot mapping with encrypted tokens. Stamps schema version 17."
+  @moduledoc "Phase 2 elastic per-agent bots: server-managed bot mapping with encrypted tokens. Stamps schema version 22."
   use Ecto.Migration
 
   def up do
@@ -25,7 +25,7 @@ defmodule Agentboard.Repo.Migrations.MattermostAgentBots do
       )
     )
 
-    execute("UPDATE board_schema SET version=17 WHERE id=1")
+    execute("UPDATE board_schema SET version=GREATEST(version,22) WHERE id=1")
   end
 
   def down, do: raise("Retain bot mapping evidence; roll back a schema-compatible image")
