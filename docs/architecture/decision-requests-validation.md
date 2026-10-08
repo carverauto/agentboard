@@ -2,6 +2,8 @@
 
 Final acceptance including the verbatim-question inbox regression: [26b8190b](https://carverauto.buildbuddy.io/invocation/26b8190b-7c60-4bbf-a932-b4251af5223c), 29 passing targets. The new inbox assertion failed on the omitted-question implementation (cfcced45) and passed after correction.
 
+Combined fresh-main/schema21 remote acceptance: [f0c7ed75](https://carverauto.buildbuddy.io/invocation/f0c7ed75-bd80-4352-9d0f-a5fce4d11707), 30 passing targets.
+
 Earlier remote acceptance: [10a814a5](https://carverauto.buildbuddy.io/invocation/10a814a5-e04d-4888-9c01-9cd59a7473be), 29 passing targets including availability and terminal merge disposition. Final extended decision proof: [2f3777b1](https://carverauto.buildbuddy.io/invocation/2f3777b1-84e6-4bed-b38f-6d22897a0768), including protected captain browser answer/recovery. Final consolidated CLI compatibility table: [84890e3b](https://carverauto.buildbuddy.io/invocation/84890e3b-a26e-45af-925a-e1d7d6cef96e). All Bazel commands use scripts/bazel with remote configuration; assets and release were compiled remotely.
 
 ## Architecture artifact

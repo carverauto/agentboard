@@ -297,6 +297,33 @@ assert sum(code == 0 and body.get("dispatch_allowed") is True for code,body in r
 assert sum(code == 4 for code,_ in racers) == 1
 print("Availability and concurrent fallback reservation proof passed")
 
+create_task("skip-task")
+skip1 = api("decisions", request("skip-task", "skip-gate-1"))["decision"]["id"]
+skip2 = api("decisions", request("skip-task", "skip-gate-2"))["decision"]["id"]
+skip_wake1 = api("decisions/" + skip1 + "/answer", {"answer": "Proceed"}, actor="decision-coordinator", captain=True)["wake"]["id"]
+skip_wake2 = api("decisions/" + skip2 + "/answer", {"answer": "Proceed"}, actor="decision-coordinator", captain=True)["wake"]["id"]
+skip_frames = Path(os.environ["TEST_TMPDIR"]) / "decision-skip-frames.ndjson"
+assert not skip_frames.exists()
+api("availability", {"agent_id": "decision-seat", "state": "out_of_service", "reason": "Fixture skip proof"}, actor="captain", captain=True)
+skip_cmd = ["python3", str(consumer), "--owner", "decision-seat", "--task", "skip-task", "--agentboard", os.environ["AB_BINARY"],
+            "--execute", "--", "python3", str(submitter), str(skip_frames), "0"]
+denied = subprocess.run(skip_cmd, env=dict(BASE, AGENT_ID="decision-coordinator"), capture_output=True, text=True, timeout=30)
+assert denied.returncode == 0, (denied.stdout, denied.stderr)
+assert skip_wake1 in denied.stdout and skip_wake2 in denied.stdout
+assert denied.stdout.count('"skipped"') == 2 and '"accepted"' not in denied.stdout
+assert not skip_frames.exists()
+wakes = {w["id"]: w for w in ab("decision", "wake", "list", "--task", "skip-task")["wakes"]}
+assert wakes[skip_wake1]["status"] == "pending" and wakes[skip_wake2]["status"] == "pending"
+api("availability", {"agent_id": "decision-seat", "state": "active", "reason": "Fixture skip restoration"}, actor="captain", captain=True)
+restored = subprocess.run(skip_cmd, env=dict(BASE, AGENT_ID="decision-coordinator"), capture_output=True, text=True, timeout=30)
+assert restored.returncode == 0, (restored.stdout, restored.stderr)
+assert restored.stdout.count('"accepted"') == 2
+lines = skip_frames.read_text().splitlines()
+assert len(lines) == 2 and {json.loads(line)["wake_id"] for line in lines} == {skip_wake1, skip_wake2}
+wakes = {w["id"]: w for w in ab("decision", "wake", "list", "--task", "skip-task")["wakes"]}
+assert wakes[skip_wake1]["status"] == "accepted" and wakes[skip_wake2]["status"] == "accepted"
+print("Denied first wake skips without suppressing the later eligible wake proof passed")
+
 # Retain actual packaged server HTML/CSS for isolated browser visual review.
 # This is supplemental product evidence, not a hand-authored UI or test seam.
 out=Path(os.environ["TEST_UNDECLARED_OUTPUTS_DIR"])

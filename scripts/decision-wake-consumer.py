@@ -12,10 +12,19 @@ import subprocess
 import sys
 import uuid
 
+class ReservationDenied(Exception):
+    pass
+
 def board(binary, *args):
     result = subprocess.run([binary, "--json", *args], capture_output=True, text=True, timeout=30)
     if result.returncode:
-        raise RuntimeError("Agentboard decision operation refused; inspect canonical state")
+        try:
+            code = json.loads(result.stderr).get("error", {}).get("code")
+        except (ValueError, AttributeError):
+            code = None
+        if result.returncode == 4 and code == "conflict":
+            raise ReservationDenied(result.stderr.strip())
+        raise RuntimeError("Agentboard decision operation refused; inspect canonical state: " + (result.stderr.strip() or result.stdout.strip()))
     return json.loads(result.stdout)
 
 def main():
@@ -55,7 +64,11 @@ def main():
                 print(json.dumps({"dry_run": True, "frame": frame}), flush=True)
                 continue
             key = "decision-watcher-" + str(uuid.uuid4())
-            reserved = board(args.agentboard, "decision", "wake", "reserve", wake["id"], "--key", key)
+            try:
+                reserved = board(args.agentboard, "decision", "wake", "reserve", wake["id"], "--key", key)
+            except ReservationDenied as denied:
+                print(json.dumps({"wake_id": wake["id"], "disposition": "skipped", "reason": str(denied)}), flush=True)
+                continue
             if not reserved.get("dispatch_allowed"):
                 continue
             try:
@@ -77,7 +90,7 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except (RuntimeError, subprocess.TimeoutExpired, json.JSONDecodeError):
+    except (RuntimeError, ReservationDenied, subprocess.TimeoutExpired, json.JSONDecodeError):
         print("Decision consumer stopped; inspect canonical wake state before recovery", file=sys.stderr)
         sys.exit(1)
 
