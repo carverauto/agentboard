@@ -150,7 +150,7 @@ defmodule Agentboard.Board.Operations do
   def restore(id, actor, data) do
     with {:ok, actor} <- Input.actor(actor),
          true <- actor[:availability_admin] == true,
-         true <- Input.slug?(id) and is_map(data) and Enum.all?(data, &match?({_, _}, &1)) do
+         true <- Input.slug?(id) and data == %{} do
       case transaction(fn ->
              lock_agent(id)
              agent = fetch!(Agent, id, "Agent is not registered")
