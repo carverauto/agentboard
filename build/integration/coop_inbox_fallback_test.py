@@ -85,5 +85,24 @@ detail = api('/prs/' + pr, agent='inbox-owner')
 modes = {(d['task_id'], d['kind']): d['mode'] for d in detail.get('follow_up_delivery', [])}
 if modes.get((repair, 'ci_failure')) != 'inbox_fallback':
     failures.append(('prs detail missing inbox_fallback mode', modes))
+rpc('Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-32-characters")')
+before = sql("SELECT count(*) FROM messages WHERE task_id='" + repair + "'")
+api('/workers/provision', {'worker_id': 'inbox-owner', 'host_id': 'sunset-host', 'idempotency_key': 'sunset-key-1', 'repos': ['fixture/repo'], 'model': 'fixture-model', 'harness': 'codex'}, agent='inbox-owner', captain=True)
+if sql("SELECT count(*) FROM cooperation_deliveries d JOIN cooperation_events e ON e.id = d.event_id WHERE e.task_id='" + repair + "'") != '0':
+    failures.append(('bootstrap replayed inbox-delivered occurrence', repair))
+if sql("SELECT count(*) FROM messages WHERE task_id='" + repair + "'") != before:
+    failures.append(('bootstrap sent second message', (before, repair)))
+pr2 = source(402)
+observe(pr2)
+repair2 = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id='" + pr2 + "'")
+if sql("SELECT count(*) FROM messages WHERE task_id='" + repair2 + "'") != '0':
+    failures.append(('worker-owned event gained fallback message', repair2))
+rpc('Agentboard.Cooperation.Runtime.route()')
+if sql("SELECT count(*) FROM cooperation_deliveries d JOIN cooperation_events e ON e.id = d.event_id WHERE e.task_id='" + repair2 + "'") == '0':
+    failures.append(('worker delivery missing for new event', repair2))
+detail2 = api('/prs/' + pr2, agent='inbox-owner')
+modes2 = {(d['task_id'], d['kind']): d['mode'] for d in detail2.get('follow_up_delivery', [])}
+if modes2.get((repair2, 'ci_failure')) != 'worker':
+    failures.append(('prs detail missing worker mode', modes2))
 assert not failures, failures
-print('Zero-worker CI failure/replay/reminder inbox proof passed', flush=True)
+print('Zero-worker CI failure/replay/reminder/enrollment-sunset inbox proof passed', flush=True)
