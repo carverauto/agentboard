@@ -188,9 +188,9 @@ create('auth-ui-revoked',ui_token,'token-other')
 assert api('auth/observations')['recent'][0]['outcome']=='invalid'
 # Observe degrades open with a nil principal when recording fails; readiness stays valid.
 # An INSERT trigger keeps required tables present so Compatibility passes and record fails.
-def plug_probe(bearer):
+def plug_probe(bearer, actor='token-owner'):
     expr=('conn = Plug.Test.conn(:post, "/api/v1/tasks", "{}") |> Plug.Conn.put_req_header("content-type", "application/json")'
-          ' |> Plug.Conn.put_req_header("x-agentboard-agent", "token-owner")'
+          ' |> Plug.Conn.put_req_header("x-agentboard-agent", "'+actor+'")'
           ' |> Plug.Conn.put_req_header("authorization", "Bearer '+bearer+'")'
           ' |> Plug.Conn.assign(:authenticated_agent, %{agent_id: "seeded"});'
           ' out = AgentboardWeb.Plugs.AgentAuth.call(conn, AgentboardWeb.Plugs.AgentAuth.init([]));'
@@ -207,7 +207,12 @@ def telemetry_detach():
 # token-other's earlier UI credential was revoked, so issue a fresh one here.
 fresh = api('agents/token-other/tokens/issue', {}, captain=True)['token']
 UNTRUSTED = 'abt_' + 'u'*43
-secret_hashes = [hashlib.sha256(t.encode()).hexdigest() for t in [token, new, cli_token, fresh, ui_token]]
+INVALID_A = 'abt_' + 'a'*43
+INVALID_B = 'abt_' + 'b'*43
+HEADER_SENTINEL = 'fixture-untrusted-header-1053'
+secret_values = [token, new, cli_token, fresh, ui_token, CAPTAIN, INVALID_A, INVALID_B, UNTRUSTED, HEADER_SENTINEL] + [item['token'] for item in race]
+secret_hashes = [hashlib.sha256(t.encode()).hexdigest() for t in secret_values]
+LOG_PATH = Path(os.environ['TEST_TMPDIR'])/'web.log'
 sql("CREATE FUNCTION fixture_reject_observation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='invalid_input', DETAIL='Synthetic observation rejected'; END $$ ")
 sql('CREATE TRIGGER fixture_observation_guard BEFORE INSERT ON agent_auth_observations FOR EACH ROW EXECUTE FUNCTION fixture_reject_observation()')
 telemetry_attach()
@@ -216,7 +221,7 @@ try:
     degraded=api('tasks',{'id':'auth-degraded-record','title':'Degraded record'},actor='token-owner',token=token)
     assert degraded['task']['id']=='auth-degraded-record'
     assert api('tasks/auth-degraded-record')['events'][0]['actor_id']=='token-owner'
-    degraded_invalid=api('tasks',{'id':'auth-degraded-invalid','title':'Degraded invalid'},actor='token-owner',token='abt_'+'a'*43)
+    degraded_invalid=api('tasks',{'id':'auth-degraded-invalid','title':'Degraded invalid'},actor='token-owner',token=INVALID_A)
     assert api('tasks/auth-degraded-invalid')['events'][0]['actor_id']=='token-owner'
     degraded_revoked=api('tasks',{'id':'auth-degraded-revoked','title':'Degraded revoked'},actor='token-owner',token=new)
     assert api('tasks/auth-degraded-revoked')['events'][0]['actor_id']=='token-owner'
@@ -228,17 +233,20 @@ try:
     api('agents/token-owner/tokens/issue',{},status=403)
     degraded_tokens=api('agents/token-owner/tokens',captain=True)
     assert token not in json.dumps(degraded_tokens) and CAPTAIN not in json.dumps(degraded_tokens)
-    for bearer in (token, 'abt_'+'a'*43, new, fresh, UNTRUSTED):
+    for bearer in (token, INVALID_A, new, fresh, UNTRUSTED):
         probe=plug_probe(bearer)
         assert 'plug_degraded: {nil, false}' in probe, probe
         assert bearer not in probe and CAPTAIN not in probe
+    header_probe=plug_probe(fresh, HEADER_SENTINEL)
+    assert 'plug_degraded: {nil, false}' in header_probe, header_probe
+    assert fresh not in header_probe and HEADER_SENTINEL not in header_probe and CAPTAIN not in header_probe
     events_out=rpc_out('events = :persistent_term.get(:fixture_auth_events, []); IO.inspect(events, label: "auth_events")')
     assert 'observation_unavailable' in events_out, events_out
-    assert token not in events_out and new not in events_out and cli_token not in events_out and fresh not in events_out and UNTRUSTED not in events_out and CAPTAIN not in events_out
+    assert all(t not in events_out for t in secret_values)
     assert all(h not in events_out for h in secret_hashes)
-    web_log=(Path(os.environ['TEST_TMPDIR'])/'web.log').read_bytes().decode('utf-8', errors='replace')
+    web_log=LOG_PATH.read_bytes().decode('utf-8', errors='replace')
     assert 'observation_unavailable' in web_log
-    assert all(t not in web_log for t in [token, new, cli_token, fresh, ui_token, UNTRUSTED, CAPTAIN])
+    assert all(t not in web_log for t in secret_values)
     assert all(h not in web_log for h in secret_hashes)
 finally:
     sql('DROP TRIGGER fixture_observation_guard ON agent_auth_observations; DROP FUNCTION fixture_reject_observation()')
@@ -248,23 +256,31 @@ finally:
 sql("CREATE FUNCTION fixture_reject_credential_use() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='invalid_input', DETAIL='Synthetic credential use rejected'; END $$ ")
 sql('CREATE TRIGGER fixture_credential_use_guard BEFORE UPDATE ON agent_api_credentials FOR EACH ROW EXECUTE FUNCTION fixture_reject_credential_use()')
 telemetry_attach()
+verify_mark=LOG_PATH.stat().st_size
 try:
     unverified=api('tasks',{'id':'auth-degraded-verify','title':'Degraded verify'},actor='token-owner',token=token)
     assert unverified['task']['id']=='auth-degraded-verify'
     assert api('tasks/auth-degraded-verify')['events'][0]['actor_id']=='token-owner'
-    unverified_invalid=api('tasks',{'id':'auth-degraded-verify-invalid','title':'Degraded verify invalid'},actor='token-owner',token='abt_'+'b'*43)
+    unverified_invalid=api('tasks',{'id':'auth-degraded-verify-invalid','title':'Degraded verify invalid'},actor='token-owner',token=INVALID_B)
     assert api('tasks/auth-degraded-verify-invalid')['events'][0]['actor_id']=='token-owner'
     unverified_active=api('tasks',{'id':'auth-degraded-verify-active','title':'Degraded verify active'},actor='token-other',token=fresh)
     assert api('tasks/auth-degraded-verify-active')['events'][0]['actor_id']=='token-other'
     api('agents/token-owner/tokens/issue',{},status=403)
-    for bearer in (token, 'abt_'+'b'*43, new, fresh, UNTRUSTED):
+    for bearer in (token, INVALID_B, new, fresh, UNTRUSTED):
         probe=plug_probe(bearer)
         assert 'plug_degraded: {nil, false}' in probe, probe
         assert bearer not in probe and CAPTAIN not in probe
+    header_probe=plug_probe(fresh, HEADER_SENTINEL)
+    assert 'plug_degraded: {nil, false}' in header_probe, header_probe
+    assert fresh not in header_probe and HEADER_SENTINEL not in header_probe and CAPTAIN not in header_probe
     events_out=rpc_out('events = :persistent_term.get(:fixture_auth_events, []); IO.inspect(events, label: "auth_events")')
     assert 'observation_unavailable' in events_out, events_out
-    assert token not in events_out and new not in events_out and fresh not in events_out and UNTRUSTED not in events_out and CAPTAIN not in events_out
+    assert all(t not in events_out for t in secret_values)
     assert all(h not in events_out for h in secret_hashes)
+    verify_log=LOG_PATH.read_bytes()[verify_mark:].decode('utf-8', errors='replace')
+    assert 'observation_unavailable' in verify_log, verify_log[-2000:]
+    assert all(t not in verify_log for t in secret_values)
+    assert all(h not in verify_log for h in secret_hashes)
 finally:
     sql('DROP TRIGGER fixture_credential_use_guard ON agent_api_credentials; DROP FUNCTION fixture_reject_credential_use()')
     telemetry_detach()
