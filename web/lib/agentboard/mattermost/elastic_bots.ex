@@ -216,25 +216,43 @@ defmodule Agentboard.Mattermost.ElasticBots do
          :ok <- join_team(cfg, user_id),
          :ok <- join_channels(cfg, user_id),
          {:ok, token} <- Transport.create_bot_token(cfg, user_id) do
-      Operations.update(
-        row,
-        :mark_active,
-        Map.merge(
-          %{mm_user_id: user_id, mm_username: username, display_name: row.agent_id, token: token, state: "active", last_error: nil},
-          touched()
-        ),
-        @actor
-      )
+      case fresh_row(row.agent_id) do
+        {:ok, fresh} ->
+          Operations.update(
+            fresh,
+            :mark_active,
+            Map.merge(
+              %{mm_user_id: user_id, mm_username: username, display_name: row.agent_id, token: token, state: "active", last_error: nil},
+              touched()
+            ),
+            @actor
+          )
 
-      {:ok, :active}
+          {:ok, :active}
+
+        :noop ->
+          {:ok, :noop}
+      end
     else
       {:error, reason} ->
-        Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:#{inspect(reason)}"}, touched()), @actor)
-        {:error, reason}
+        case fresh_row(row.agent_id) do
+          {:ok, fresh} ->
+            Operations.update(fresh, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:#{inspect(reason)}"}, touched()), @actor)
+            {:error, reason}
+
+          :noop ->
+            {:ok, :noop}
+        end
 
       _ ->
-        Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:unconfirmed"}, touched()), @actor)
-        {:error, :unconfirmed}
+        case fresh_row(row.agent_id) do
+          {:ok, fresh} ->
+            Operations.update(fresh, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:unconfirmed"}, touched()), @actor)
+            {:error, :unconfirmed}
+
+          :noop ->
+            {:ok, :noop}
+        end
     end
   rescue
     error ->
@@ -263,9 +281,22 @@ defmodule Agentboard.Mattermost.ElasticBots do
   end
 
   defp try_stale(row, error) do
-    Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:#{Exception.message(error) |> String.slice(0, 120)}"}, touched()), @actor)
+    case fresh_row(row.agent_id) do
+      {:ok, fresh} ->
+        Operations.update(fresh, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:#{Exception.message(error) |> String.slice(0, 120)}"}, touched()), @actor)
+
+      :noop ->
+        :ok
+    end
   rescue
     _ -> :ok
+  end
+
+  defp fresh_row(agent_id) do
+    case fetch_bot(agent_id) do
+      %{state: state} = row when state in ["pending", "stale"] -> {:ok, row}
+      _ -> :noop
+    end
   end
 
   defp join_team(cfg, user_id) do
