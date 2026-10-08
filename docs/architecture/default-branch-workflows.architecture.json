@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Default-branch workflow accountability",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "viewBox": [
+      1310,
+      635
+    ],
+    "repository": {
+      "url": "https://github.com/carverauto/agentboard",
+      "revision": "8d5a56b83d344c701e6ed953cd3fbd78c444128b"
+    }
+  },
+  "components": [
+    {
+      "id": "events",
+      "type": "external",
+      "label": "GitHub events",
+      "sublabel": "workflow_run completed",
+      "pos": [
+        30,
+        280
+      ],
+      "size": [
+        200,
+        72
+      ]
+    },
+    {
+      "id": "signature",
+      "type": "security",
+      "label": "Signature gate",
+      "sublabel": "Pinned repo + HMAC",
+      "pos": [
+        290,
+        280
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard_web/workflow_hook_controller.ex"
+        }
+      ]
+    },
+    {
+      "id": "cue",
+      "type": "messagebus",
+      "label": "Durable cue",
+      "sublabel": "Ash + Oban recovery",
+      "pos": [
+        550,
+        280
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/workflow_observation.ex"
+        }
+      ]
+    },
+    {
+      "id": "collector",
+      "type": "backend",
+      "label": "Run collector",
+      "sublabel": "Fenced Actions evidence",
+      "pos": [
+        810,
+        280
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/workflow_github.ex"
+        }
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "Run obligations",
+      "sublabel": "Reruns + green watermark",
+      "pos": [
+        1070,
+        280
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/workflow_monitor.ex"
+        }
+      ]
+    },
+    {
+      "id": "github",
+      "type": "external",
+      "label": "GitHub REST",
+      "sublabel": "Default branch / jobs / PR",
+      "pos": [
+        810,
+        80
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/github_http.ex"
+        }
+      ]
+    },
+    {
+      "id": "budget",
+      "type": "security",
+      "label": "Shared admission",
+      "sublabel": "60 requests / minute cap",
+      "pos": [
+        810,
+        500
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/provider_admission.ex"
+        }
+      ]
+    },
+    {
+      "id": "inbox",
+      "type": "backend",
+      "label": "Owner inbox",
+      "sublabel": "Coordinator fallback",
+      "pos": [
+        1070,
+        80
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/workflow_monitor.ex"
+        }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "/prs health",
+      "sublabel": "Retained red evidence",
+      "pos": [
+        1070,
+        500
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard_web/live/pr_live.ex"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "events-signature",
+      "from": "events",
+      "to": "signature",
+      "label": "HTTPS"
+    },
+    {
+      "id": "signature-cue",
+      "from": "signature",
+      "to": "cue",
+      "label": "queue ID"
+    },
+    {
+      "id": "cue-collector",
+      "from": "cue",
+      "to": "collector",
+      "label": "reserve"
+    },
+    {
+      "id": "collector-ledger",
+      "from": "collector",
+      "to": "ledger",
+      "label": "commit"
+    },
+    {
+      "id": "collector-github",
+      "from": "collector",
+      "to": "github",
+      "label": "read evidence"
+    },
+    {
+      "id": "collector-budget",
+      "from": "collector",
+      "to": "budget",
+      "label": "admit reads",
+      "labelDy": 24
+    },
+    {
+      "id": "ledger-inbox",
+      "from": "ledger",
+      "to": "inbox",
+      "label": "gated notice"
+    },
+    {
+      "id": "ledger-dashboard",
+      "from": "ledger",
+      "to": "dashboard",
+      "label": "projection",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Observation gate",
+      "items": [
+        "Signed cues survive worker restarts. Provider reads share existing admission.",
+        "No webhook body, credential or log text retained."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Recovery and responsibility",
+      "items": [
+        "Immutable task submitter owns the failure; unknown attribution routes to coordinator.",
+        "Later same-workflow green resolves prior red runs. Cooperation separately gates notices."
+      ]
+    }
+  ]
+}

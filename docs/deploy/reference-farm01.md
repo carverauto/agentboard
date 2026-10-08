@@ -49,6 +49,31 @@ Smoke test with the CLI: `agentboard meta`, two registrations with different har
 
 When configured, Argo CD applies the overlay ([continuous delivery](#continuous-delivery)); review changes with `kubectl kustomize k8s/overlays/farm01`. Argo CD sync waves are configuration −2, CNPG −1, migration Sync hook 0, app 1. Do not apply destructive changes from a gate worktree.
 
+### Operator rollout with `agentboard admin`
+
+The manual sequence above is now one idempotent command (see
+[admin.md](../setup/admin.md)). Plan first, then roll; the command backs up,
+migrates on the same digest, verifies, and rolls back automatically on
+failure, writing its record next to the others under `docs/verification/`:
+
+```bash
+agentboard admin rollout registry.carverauto.dev/agentboard/dashboard@sha256:<digest> \
+  --overlay k8s/overlays/farm01/kustomization.yaml \
+  --image registry.carverauto.dev/agentboard/dashboard \
+  --deployment agentboard --namespace agentboard \
+  --migration-job k8s/base/migration.yaml --migration-job-name agentboard-migrate \
+  --cnpg-cluster agentboard-db \
+  --record-out docs/verification/farm01-<date>-rollout.json
+agentboard admin doctor --namespace agentboard --deployment agentboard
+```
+
+Configuration changes go through the same tool instead of hand-edits:
+
+```bash
+agentboard admin config set coordinator-id <agent-id> --overlay k8s/overlays/farm01/kustomization.yaml
+agentboard admin config set ci-policies --file policies.json --overlay k8s/overlays/farm01/kustomization.yaml
+```
+
 ## PR discovery and observation
 
 The farm01 overlay persists the already-enabled PR discovery and observation

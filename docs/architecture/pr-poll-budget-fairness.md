@@ -41,3 +41,17 @@ All build/test/format execution uses remote Bazel. No workstation compilation or
 ## Structural review
 
 The bounded ripwire quality loop removed duplicated validator/check-name predicates through one bounded text helper. Remaining reported gates are recent churn, increased module size and a short SQL-row traversal shared structurally with the scheduler. Provider admission retains budget/credit lifecycle together because allocation, carryover and refunds require one lock and invariant; introducing a cross-domain generic SQL traversal would obscure the ownership boundary. Migration callbacks are discovered by Ecto, despite static dead-code diagnostics. These are conscious tradeoffs, not a clean structural-metric pass; owner-boundary tests and native review provide the behavioral checks.
+
+
+## Runtime stop repair after PR #142
+
+The credited request path originally checked observation enablement at reservation but missed the per-request fence. Disabling observation during an admitted poll therefore allowed subsequent provider requests. The follow-up restores the existing disabled response before each credit spend. An already admitted request may finish; cleanup returns unused credit and retains spent credit. Snapshot commit remains fenced.
+
+The primary TLS fixture now pauses metadata, disables observation, then releases the response and independently asserts one request, no new snapshot, remaining allowance 59 and no live reservation. This case extends the existing owner fixture without a new production test seam.
+
+- Witnessed pre-fix **RED** on main 5cf25aba: [3856307e](https://carverauto.buildbuddy.io/invocation/3856307e-12b2-4247-8561-ab738a76239b), seventeen provider requests instead of one.
+- Repaired owner, collector, polling and scheduling **4/4 PASS**: [95331db3](https://carverauto.buildbuddy.io/invocation/95331db3-5f44-4784-956d-4c157cae0c30).
+- Remote source formatting: [870e8daf-d4bc-4c64-82af-89142a1c3407](https://carverauto.buildbuddy.io/invocation/870e8daf-d4bc-4c64-82af-89142a1c3407); only the owned admission file was applied.
+- Scoped structural delta: zero gating findings, three minor findings for four added lines and recent churn; spend/1 contract unchanged. Dynamic RPC test reach is outside the static call graph, so the executed TLS owner remains the behavioral proof.
+
+Captain decision 1b2fa528 authorized the failing-first repair and full native validation without --yes. PR #142 had already squash-merged before the answer; its native run was completed and retired. The exact native 15da9ad73f9f7b83f67f3d97a742cdfea02927ec is archived, and its four documentation files match fresh main byte-for-byte. This repair uses a fresh launcher-validated Treehouse branch and a new follow-up PR. No merge was performed by this agent.

@@ -1,0 +1,59 @@
+{
+  "diagram_type": "architecture",
+  "specification_sha256": "dcf20c7057548403f55aa0e2057d1261d5a3877e4301c198c6b4c919fa3f911f",
+  "artifact_sha256": "b83fbf539508d54d551110b6e54842eb06451d2b87abb870784e577e1ce0ab39",
+  "validation": "9/9 showcase, 0 errors, 0 warnings",
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "correction_rounds": 2,
+  "perceptual_review": {
+    "reviewer": "document-phase (fresh repin inspection)",
+    "scope": "READ, Still; 1440x900 and 2048x1320 light/dark screenshots actually inspected after 8d5a56b repin",
+    "observations": "Clear main event/signature/cue/collector/ledger path, readable labels, no crossings/cutoff, large-screen vertical rhythm balanced."
+  },
+  "panel_review": {
+    "source": "Actual packaged SSR and fingerprinted Tailwind CSS from invented default_branch_workflows_test, test-created artifact",
+    "viewport": [
+      1440,
+      900
+    ],
+    "scroll": [
+      1440,
+      900
+    ],
+    "observations": "Owner, failed job/step, run attempt, branch/SHA and red timestamp readable; original PR table preserved."
+  },
+  "remote_verification": [
+    {
+      "url": "https://carverauto.buildbuddy.io/invocation/d4a1f449-ce7d-4046-9232-5f0f4d8563bc",
+      "passed": [
+        "default_branch_workflows_test"
+      ],
+      "note": "current rebased-head pass (45.2s remote); see test-results.md"
+    },
+    {
+      "url": "https://carverauto.buildbuddy.io/invocation/74997cb6-9996-4fe1-bd9e-9dfda47307f9",
+      "passed": [
+        "release_schema_test"
+      ],
+      "note": "current rebased-head pass after auth24 schema-27 plus workflow-table correction (50.4s remote); see test-results.md"
+    },
+    {
+      "url": "https://carverauto.buildbuddy.io/invocation/07061853-eb70-4a34-af76-643123a4d91d",
+      "status": "historical",
+      "passed": [
+        "default_branch_workflows_test",
+        "release_schema_test"
+      ]
+    },
+    {
+      "url": "https://carverauto.buildbuddy.io/invocation/1ed461c7-d626-49e1-8d0b-240be89077ab",
+      "status": "historical",
+      "passed": [
+        "ci_accountability_test",
+        "pr_conflicts_test"
+      ],
+      "failed": "release_schema_test exact-final-version marker24 repaired; subsequently passed07061853"
+    }
+  ]
+}

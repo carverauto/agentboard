@@ -353,7 +353,7 @@ merged head-identity index; readiness now requires schema 24. Existing board,
 evidence, delivery, obligation, and bot history is preserved; repeat migration
 is harmless, and no findings are seeded. The stamp uses
 `GREATEST(version, 24)`, so it never lowers a higher stamp (ordinal 23 stays
-reserved unused; 25 belongs to the agent API credential work below).
+reserved unused; 25 is the shipped agent API credential schema below).
 
 Behavior, ownership, and the publication guard live in
 [the duplicate PR checkpoint](verification/duplicate-pr-checkpoint.md), not
@@ -398,3 +398,25 @@ Behavior, fairness, conditional-request and cadence contracts live in
 Roll back by disabling PR observation and retaining the schema-28 tables
 against a compatible prior digest. The down migration raises instead of
 deleting polling bookkeeping.
+
+## Schema 27: default-branch workflow accountability
+
+Migrate and serve the same schema-27 image. Migration `20261008002700` adds
+the `delivery_workflow_runs` obligation table (unique repository/run key, run
+lease/generation, attempt evidence, immutable-submitter routing, resolution
+pointers) and the `delivery_workflow_health` per-workflow green-watermark
+table, plus unresolved-run indexes; current readiness requires schema 28 and both
+tables alongside the shipped auth and poll-credit tables. Existing board, evidence, delivery, obligation, and bot history is
+preserved; repeat migration is harmless, and no obligations are seeded. The
+stamp uses `GREATEST(version, 27)`, so it never lowers a higher stamp (25 is
+the shipped credential schema above, 26 remains reserved for parked work; 28
+is the shipped poll-fairness schema above and 29 is the higher-stamp upgrade
+proof marker).
+
+Behavior, intake, routing, recovery, and the operator rollout prerequisites
+live in [default-branch workflow accountability](default-branch-workflows.md),
+not here.
+
+Roll back by retaining the schema-27 tables and deploying a compatible prior
+digest. The down migration refuses a destructive downgrade; no down migration
+or obligation deletion is permitted.

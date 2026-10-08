@@ -14,6 +14,14 @@ config :agentboard, :message_mode, System.get_env("AGENTBOARD_MESSAGE_MODE", "bo
 config :agentboard, :coordinator_id, System.get_env("AGENTBOARD_COORDINATOR_ID")
 config :agentboard, :captain_token, System.get_env("AGENTBOARD_CAPTAIN_TOKEN")
 
+# GitHub hook secret is separate from agent/captain/worker capabilities. Intake
+# and recovery stay behind the existing PR observation flag.
+config :agentboard, :workflow_webhook_secret_file,
+       System.get_env("AGENTBOARD_WORKFLOW_WEBHOOK_SECRET_FILE")
+config :agentboard, :workflow_repositories,
+       System.get_env("AGENTBOARD_WORKFLOW_REPOSITORIES", "carverauto/agentboard,carverauto/serviceradar")
+       |> String.split(",", trim: true) |> Enum.map(&String.trim/1) |> Enum.take(20)
+
 # Inventory catch-up only. Provider observation and CI gates are separate stages.
 config :agentboard,
        :pr_discovery_enabled,

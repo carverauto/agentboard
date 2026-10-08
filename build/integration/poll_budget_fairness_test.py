@@ -261,4 +261,26 @@ with tls_provider(Provider) as (url, ca, server):
     due(ids[0]); assert "observed" in poll(ids[0])
     assert len(requests)-before == 17 and all(v is None for _,v in conditional[before:])
     assert sql("SELECT remaining FROM delivery_provider_budgets WHERE id='github'") == "26"
-print("Whole-poll zero spend,8x13 bounded fairness,conditional credit/cache isolation,backoff reset,concurrent admission,crash refund and minute rollover passed.")
+    # Runtime disable after admission must stop the next provider request.
+    # Hold real TLS metadata; no mock supplies the stop/refund outcome.
+    sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()+interval '1 hour',github_cache='{}',attempt_id=NULL,lease_expires_at=NULL")
+    due(ids[0])
+    sql("UPDATE delivery_provider_budgets SET remaining=60,reset_at=clock_timestamp()+interval '60 seconds',blocked_until=NULL WHERE id='github'")
+    before = len(requests)
+    snapshots = int(sql("SELECT count(*) FROM delivery_ci_snapshots"))
+    entered.clear(); hold.clear(); slow = True
+    with concurrent.futures.ThreadPoolExecutor(1) as pool:
+        f = pool.submit(poll, ids[0])
+        assert entered.wait(10), "admitted metadata never reached TLS"
+        try:
+            rpc('Application.put_env(:agentboard, :pr_observation_enabled, false)')
+            hold.set()
+            f.result(timeout=30)
+            assert len(requests)-before == 1, ("disabled admitted poll continued provider I/O", requests[before:])
+            assert int(sql("SELECT count(*) FROM delivery_ci_snapshots")) == snapshots
+            assert sql("SELECT remaining FROM delivery_provider_budgets WHERE id='github'") == "59", "charged first request must survive; unused credit must return"
+            assert sql("SELECT count(*) FROM delivery_poll_credits") == "0"
+        finally:
+            hold.set(); slow = False
+            rpc('Application.put_env(:agentboard, :pr_observation_enabled, true)')
+print("Whole-poll zero spend,8x13 bounded fairness,conditional credit/cache isolation,backoff reset,concurrent admission,crash refund minute rollover and in-flight runtime stop passed.")
