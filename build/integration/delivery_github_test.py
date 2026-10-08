@@ -9,6 +9,7 @@ import http.server
 import json
 import os
 import ssl
+from provider_fixture import tls_provider
 import subprocess
 import tempfile
 import threading
@@ -223,22 +224,7 @@ class Provider(http.server.BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
 
-with tempfile.TemporaryDirectory() as temp:
-    key, cert, ca, ca_key, csr = [str(Path(temp) / name) for name in ('key.pem','cert.pem','ca.pem','ca-key.pem','csr.pem')]
-    def openssl(*args):
-        subprocess.run(['openssl', *args], check=True, capture_output=True)
-    openssl('req','-x509','-newkey','rsa:2048','-nodes','-days','1','-keyout',ca_key,'-out',ca,'-subj','/CN=Fixture CA','-addext','basicConstraints=critical,CA:TRUE')
-    openssl('req','-new','-newkey','rsa:2048','-nodes','-keyout',key,'-out',csr,'-subj','/CN=fixture-provider')
-    extensions = Path(temp) / 'extensions.txt'
-    extensions.write_text('subjectAltName=IP:127.0.0.1\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n')
-    openssl('x509','-req','-in',csr,'-CA',ca,'-CAkey',ca_key,'-CAcreateserial','-out',cert,'-days','1','-extfile',str(extensions))
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Provider)
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-    ctx.load_cert_chain(cert, key)
-    server.socket = ctx.wrap_socket(server.socket, server_side=True)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    api_url = f'https://127.0.0.1:{server.server_port}'
+with tls_provider(Provider) as (api_url, ca, server):
     rpc(':ok = Oban.pause_queue(queue: :delivery_scheduler); :ok = Oban.pause_queue(queue: :delivery_polling)')
     rpc('Application.put_env(:agentboard, :github, [api_url: ' + json.dumps(api_url) +
         ', token: "invented-fixture-token", ca_file: ' + json.dumps(ca) + '])')
@@ -450,5 +436,4 @@ with tempfile.TemporaryDirectory() as temp:
     sql("UPDATE delivery_provider_budgets SET capacity=500,remaining=500,blocked_until=NULL,reset_at=clock_timestamp()+interval '60 seconds' WHERE id='github'")
     output = rpc('results = Enum.map(1..61, fn _ -> {:ok, r} = Agentboard.Delivery.ProviderAdmission.acquire("github"); r.allowed end); IO.puts("ALLOWED=" <> to_string(Enum.count(results, & &1)))')
     assert 'ALLOWED=60' in output, output
-    server.shutdown()
 print('Current-head all-page attempts/source links, no-policy unknown, fenced late reply, isolated writes and durable provider backoff passed.')

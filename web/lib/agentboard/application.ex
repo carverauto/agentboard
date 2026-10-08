@@ -60,6 +60,7 @@ defmodule Agentboard.Application do
             Enum.reject(opts[:crontab] || [], fn
               {_, Agentboard.Delivery.ReconcileLinks, _} -> not discovery_enabled?()
               {_, Agentboard.Delivery.ScheduleDue, _} -> not observation_enabled?()
+              {_, Agentboard.Delivery.ScheduleBases, _} -> not observation_enabled?()
               {_, Agentboard.Delivery.ReconcileMergedReviews, _} -> not observation_enabled?()
               {_, Agentboard.Mattermost.RoutePending, _} -> not bridge_enabled?()
               _ -> false
@@ -80,4 +81,3 @@ defmodule Agentboard.Application do
     :ok
   end
 end
-

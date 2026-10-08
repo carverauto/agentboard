@@ -88,6 +88,8 @@ defmodule AgentboardWeb.Router do
     get("/workers/:worker_id/:operation", WorkerController, :operate)
     post("/workers/:worker_id/attempts/:attempt_id/:operation", WorkerController, :operate)
     post("/workers/:worker_id/:operation", WorkerController, :operate)
+    get("/prs", APIController, :prs)
+    get("/prs/:id", APIController, :pr)
     get("/quota", APIController, :quota)
     post("/quota", APIController, :push_quota)
     get("/context/search", APIController, :context_search)
@@ -112,7 +114,13 @@ defmodule AgentboardWeb.Router do
     post("/tasks/:id/documents", APIController, :push_document)
     post("/conversations/send", ConversationController, :send)
     get("/conversations/reads", ConversationController, :reads)
-    post("/conversations/coverage/:agent_id/:channel_id", ConversationController, :report_coverage)
+
+    post(
+      "/conversations/coverage/:agent_id/:channel_id",
+      ConversationController,
+      :report_coverage
+    )
+
     get("/conversations/coverage/:agent_id/:channel_id", ConversationController, :coverage)
     get("/tasks/:id", APIController, :task)
     patch("/tasks/:id", APIController, :edit)

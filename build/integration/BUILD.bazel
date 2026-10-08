@@ -217,7 +217,7 @@ sh_test(
     name = "delivery_github_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "delivery_github_test.py", "AGENTBOARD_PR_OBSERVATION_ENABLED": "true"},
     srcs = ["board_api_test.sh"],
-    data = ["delivery_github_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    data = ["delivery_github_test.py", "provider_fixture.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
     args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
     size = "medium",
     timeout = "long",
@@ -259,4 +259,14 @@ sh_test(
     data = ["seat_isolation_test.py", "//scripts:launch-seat", "@seat_treehouse_linux_amd64//:treehouse"],
     args = ["$(rlocationpath //scripts:launch-seat)", "$(rlocationpath @seat_treehouse_linux_amd64//:treehouse)"],
     size = "small",
+)
+
+sh_test(
+    name = "pr_conflicts_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "pr_conflicts_test.py", "AGENTBOARD_PR_OBSERVATION_ENABLED": "true"},
+    srcs = ["board_api_test.sh"],
+    data = ["pr_conflicts_test.py", "provider_fixture.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "large",
+    timeout = "long",
 )

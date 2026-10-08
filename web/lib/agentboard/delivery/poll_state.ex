@@ -13,13 +13,13 @@ defmodule Agentboard.Delivery.PollState do
   paper_trail do
     change_tracking_mode(:changes_only)
     store_action_name?(true)
-    ignore_actions([:reserve, :defer, :observe])
+    ignore_actions([:reserve, :defer, :observe, :invalidate_base])
     metadata(:provenance, :map, allow_nil?: false)
   end
 
   events do
     event_log(Agentboard.Board.AuditEvent)
-    ignore_actions([:reserve, :defer, :observe])
+    ignore_actions([:reserve, :defer, :observe, :invalidate_base])
   end
 
   actions do
@@ -35,6 +35,12 @@ defmodule Agentboard.Delivery.PollState do
 
     update :defer do
       accept([:attempt_id, :lease_expires_at, :next_poll_at, :last_error])
+    end
+
+    update :invalidate_base do
+      accept([:generation, :expected_base_sha, :next_poll_at])
+      change(set_attribute(:attempt_id, nil))
+      change(set_attribute(:lease_expires_at, nil))
     end
 
     update :resume do
@@ -73,6 +79,8 @@ defmodule Agentboard.Delivery.PollState do
           :observed_at,
           :head_sha,
           :base_sha,
+          :base_ref,
+          :expected_base_sha,
           :snapshot_id,
           :lifecycle
         ])
@@ -127,6 +135,8 @@ defmodule Agentboard.Delivery.PollState do
     attribute(:observed_at, :utc_datetime_usec, public?: true)
     attribute(:head_sha, :string, public?: true)
     attribute(:base_sha, :string, public?: true)
+    attribute(:base_ref, :string, public?: true)
+    attribute(:expected_base_sha, :string, public?: true)
     attribute(:snapshot_id, :uuid, public?: true)
     attribute(:lifecycle, :string, public?: true)
   end

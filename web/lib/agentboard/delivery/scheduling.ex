@@ -45,10 +45,21 @@ defmodule Agentboard.Delivery.Scheduling do
     case Github.collect(reservation) do
       {:ok, observation} ->
         case Polling.commit_observation(reservation, observation) do
-          {:ok, projection} -> {:ok, %{observed: projection["ci_state"]}}
-          {:error, "disabled", _} -> snooze()
-          {:error, "conflict", _} -> {:ok, %{superseded: true}}
-          {:error, _code, message} -> {:error, message}
+          {:ok, projection} ->
+            # Separate transaction: never acquire a branch lock while holding PollState.
+            case Agentboard.Delivery.BaseMonitor.enroll(reservation, observation) do
+              {:ok, _} -> {:ok, %{observed: projection["ci_state"]}}
+              {:error, _code, message} -> {:error, message}
+            end
+
+          {:error, "disabled", _} ->
+            snooze()
+
+          {:error, "conflict", _} ->
+            {:ok, %{superseded: true}}
+
+          {:error, _code, message} ->
+            {:error, message}
         end
 
       {:error, "disabled", _} ->

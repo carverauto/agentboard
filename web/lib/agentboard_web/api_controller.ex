@@ -21,6 +21,11 @@ defmodule AgentboardWeb.APIController do
   def push_document(conn, %{"id" => id}),
     do: reply(conn, Agentboard.Documents.push(id, actor(conn), conn.body_params))
 
+  def prs(conn, _),
+    do: reply(conn, Agentboard.Delivery.Reads.list(fetch_query_params(conn).query_params))
+
+  def pr(conn, %{"id" => id}), do: reply(conn, Agentboard.Delivery.Reads.detail(id))
+
   def quota(conn, _), do: list(conn, "quota")
   def push_quota(conn, _), do: reply(conn, Agentboard.Quota.push(actor(conn), conn.body_params))
   def agents(conn, _), do: list(conn, "agents")
@@ -106,4 +111,3 @@ defmodule AgentboardWeb.APIController do
     conn |> put_status(status) |> json(%{error: %{code: code, message: message}})
   end
 end
-

@@ -318,3 +318,21 @@ events. The schema check in earlier images expects `conversation_identities`,
 so rolling back to 3c6e5b3 or older needs those empty tables recreated first.
 Prefer rolling forward. See the [rollout receipt](../verification/farm01-901f6a6-rollout.json).
 
+
+### PR-conflict post-rollout acceptance (#86)
+
+This change does not authorize a rollout or cooperation enablement. Once the
+captain separately approves a schema-compatible deployment, verify `/prs` plus
+API/CLI freshness against a controlled conflicting PR, one per-head owner inbox
+notice and frozen worker frame under cooperation-on, then definitive clearing
+after the owner's rebase. Receiving a notice is not repair completion.
+
+Coordinator message 623 recorded PR #93 at head `a5e68f5` against main `901f6a6`
+as a real conflict after sibling #91 merged. It had no board card at that point.
+Use it only while that exact state still exists, or create a controlled equivalent.
+First establish canonical inventory explicitly; unlinked PRs are not automatically
+enumerated from GitHub. Without immutable board-owner provenance, expect a captain
+queue repair and no guessed assignment to the GitHub human author. Record the
+actual later head and evidence before asserting owner routing. This live case
+remains untested until the separately authorized rollout; remote fixtures use
+invented data rather than exporting PR #93 into tests.

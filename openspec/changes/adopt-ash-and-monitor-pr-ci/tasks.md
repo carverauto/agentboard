@@ -35,6 +35,8 @@
 - [ ] 5.3 Implement provider health/backoff, conditional requests where supported, 401/403/429/reset handling and read-only failed Actions job details; verify no fake passing on partial/error responses and no busy retry loops remotely.
 - [ ] 5.4 Document repository credential scopes and expected-check configuration, including AgentboardAcceptance correlation/publication; verify the documented policy matches actual provider metadata during read-only rollout checks.
 
+- [ ] 5.5 Implement #86 fenced mergeable/state observation, durable minute base watches with paged open-PR invalidation and old-base response fences, independent /prs/API/CLI visibility, cooperation-gated exactly-once per-head rebase task/owner inbox/wake and explicit resolution; verify conflict/base-move/unknown/budget/restart/concurrency/rollback contracts remotely, preserve schema/history and terminal pruning, deliver native PR plus Archify and immediately rendered portable OpenSpec. Live rollout remains separate.
+
 ## 6. BuildBuddy failure diagnostics
 
 - [ ] 6.1 Implement configured GetInvocation/GetLog clients with pagination and repo/revision/CI-role/completion correlation; verify matching and rejected unrelated/manual invocations remotely using controlled API fixtures.

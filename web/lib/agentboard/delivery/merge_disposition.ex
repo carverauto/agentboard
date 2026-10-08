@@ -43,7 +43,8 @@ defmodule Agentboard.Delivery.MergeDisposition do
         |> Ash.Query.filter(status == "review" and not is_nil(pr_url))
         |> Ash.Query.filter(
           fragment(
-            "NOT EXISTS (SELECT 1 FROM delivery_obligations WHERE repair_task_id = ?)",
+            "NOT EXISTS (SELECT 1 FROM delivery_obligations WHERE repair_task_id = ?) AND NOT EXISTS (SELECT 1 FROM delivery_rebase_follow_ups WHERE repair_task_id = ?)",
+            id,
             id
           )
         )
@@ -145,7 +146,7 @@ defmodule Agentboard.Delivery.MergeDisposition do
   defp repair_task?(id) do
     %{rows: [[exists?]]} =
       Repo.statement!(
-        "SELECT EXISTS (SELECT 1 FROM delivery_obligations WHERE repair_task_id=$1)",
+        "SELECT EXISTS (SELECT 1 FROM delivery_obligations WHERE repair_task_id=$1) OR EXISTS (SELECT 1 FROM delivery_rebase_follow_ups WHERE repair_task_id=$1)",
         [id]
       )
 
@@ -165,4 +166,3 @@ defmodule Agentboard.Delivery.MergeDisposition do
 
   defp merged_evidence?(_state, _snapshot), do: false
 end
-

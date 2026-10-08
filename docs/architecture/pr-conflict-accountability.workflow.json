@@ -1,0 +1,147 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Rebase follow-up when a PR conflicts",
+    "subtitle": "A base movement rechecks open inventory; CI and mergeability remain independent.",
+    "quality_profile": "showcase",
+    "animation": "none",
+    "visual_preset": "signal-flow"
+  },
+  "lanes": [
+    {
+      "id": "observe",
+      "label": "Observe and retain"
+    },
+    {
+      "id": "follow",
+      "label": "Cooperation-gated follow-up"
+    }
+  ],
+  "mainPath": [
+    "watch",
+    "invalidate",
+    "collect",
+    "proof"
+  ],
+  "nodes": [
+    {
+      "id": "watch",
+      "lane": "observe",
+      "col": 0,
+      "type": "backend",
+      "label": "Watch base",
+      "sublabel": "Minute AshOban job",
+      "tag": "Shared 60/min",
+      "width": 140
+    },
+    {
+      "id": "invalidate",
+      "lane": "observe",
+      "col": 1,
+      "type": "database",
+      "label": "Invalidate",
+      "sublabel": "Open PRs, paged",
+      "tag": "Revision fence",
+      "width": 140
+    },
+    {
+      "id": "collect",
+      "lane": "observe",
+      "col": 2,
+      "type": "external",
+      "label": "Observe PR",
+      "sublabel": "HTTPS outside locks",
+      "tag": "Final reread",
+      "width": 140
+    },
+    {
+      "id": "proof",
+      "lane": "observe",
+      "col": 3,
+      "type": "database",
+      "label": "Merge proof",
+      "sublabel": "CI snapshot + views",
+      "tag": "False + dirty",
+      "width": 140
+    },
+    {
+      "id": "repair",
+      "lane": "follow",
+      "col": 2,
+      "type": "backend",
+      "label": "Rebase task",
+      "sublabel": "Cooperation on",
+      "tag": "Unique PR + head",
+      "width": 140
+    },
+    {
+      "id": "notify",
+      "lane": "follow",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Owner notice",
+      "sublabel": "Inbox + worker frame",
+      "tag": "Atomic intent",
+      "width": 140
+    }
+  ],
+  "edges": [
+    {
+      "from": "watch",
+      "to": "invalidate",
+      "label": "Base changed"
+    },
+    {
+      "from": "invalidate",
+      "to": "collect",
+      "label": "Due now"
+    },
+    {
+      "from": "collect",
+      "to": "proof",
+      "label": "Current revision"
+    },
+    {
+      "from": "proof",
+      "to": "repair",
+      "label": "Conflict",
+      "role": "branch"
+    },
+    {
+      "from": "repair",
+      "to": "notify",
+      "label": "Once per head"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Observation is independent",
+      "items": [
+        "Merge conflicts do not make CI fail",
+        "Null mergeability gets a bounded retry",
+        "Changed bases and failed fetches make retained evidence stale",
+        "Dashboard, API and CLI show mergeability beside CI"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Delivery is accountable",
+      "items": [
+        "Immutable PR submissions determine the owner",
+        "Ambiguous ownership stays in the captain queue",
+        "Definitive recovery suppresses the signal; repair completion remains explicit"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Preserved boundaries",
+      "items": [
+        "No source task, lease or current assignment is changed",
+        "No singleton serializes SQL or provider I/O",
+        "No merge, rollout or farm01 flag change is included"
+      ]
+    }
+  ]
+}
