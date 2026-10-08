@@ -468,11 +468,21 @@ The ConfigMap was unchanged. Discovery, observation, cooperation and the
 outbound bridge stay enabled. Shared-bot inbound (`AGENTBOARD_MATTERMOST_INBOUND_ENABLED`)
 stays off by default. No new secret is required: the phase-2 provisioner token
 and cloak key are optional, and while they are absent the board stays on the
-phase-1 shared bot. `AGENTBOARD_COORDINATOR_ID` is unset, so only the captain
-can answer decisions. The dashboard is Ready with zero restarts on the exact
+phase-1 shared bot. At the time of this rollout `AGENTBOARD_COORDINATOR_ID`
+was unset, so only the captain could answer decisions (see [Coordinator attribution](#coordinator-attribution)). The dashboard is Ready with zero restarts on the exact
 image ID. `/health/live`, `/health/ready`, `/`, `/prs` and `/api/v1/meta`
 return 200, and the bridge delivered new board events to `#board` after the
 roll. See the [rollout receipt](../verification/farm01-4f8821d-rollout.json).
 Keep schema 22 if an older image must be restored. The migrations' `down`
 raises, and images before 4f8821d accept schema 22 (they require 15 or lower
 and check `>=`), so the 1bf92ae image can be restored without a schema change.
+
+## Coordinator attribution
+
+On 2026-10-08 UTC, at the captain's request, the coordinator set
+`AGENTBOARD_COORDINATOR_ID=grok-serviceradar-oss` in the farm01 overlay
+ConfigMap so the repo matches what is deployed and the coordinator can be
+attributed on decision recommend/answer/supersede (still requiring the
+verified captain capability; see [Captain decision requests](../setup/decision-requests.md)).
+Config-only; no other flags change. Roll back by unsetting the variable and
+restarting the dashboard.
