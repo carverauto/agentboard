@@ -5,13 +5,14 @@ defmodule AgentboardWeb.ContextLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket), do: Process.send_after(self(), :refresh, 5000)
-    {:ok, assign(socket, filters: %{}, data: nil, error: nil, loaded: false)}
+    {:ok, assign(socket, filters: %{}, repos: load_repos(), data: nil, error: nil, loaded: false)}
   end
 
   @impl true
   def handle_params(params, _uri, socket) do
     filters =
       params
+      |> resolve_repo()
       |> Map.take(~w(id repo task kind q cursor))
       |> Map.reject(fn {_key, value} -> value == "" end)
 
@@ -52,6 +53,61 @@ defmodule AgentboardWeb.ContextLive do
   defp next_path(filters, cursor),
     do: "/context?" <> URI.encode_query(Map.put(filters, "cursor", cursor))
 
+  defp load_repos do
+    case Context.repos() do
+      {:ok, repos} -> repos
+      {:error, _, _} -> []
+    end
+  end
+
+  @doc """
+  Maps the repository dropdown selection to an effective `repo` param.
+
+  The dropdown submits `repo=<known>` directly, or `repo=other` together
+  with `repo_other=<typed>`. Returns params with the resolved `repo` (or no
+  `repo` key when nothing usable was chosen) and without `repo_other`.
+  """
+  def resolve_repo(params) when is_map(params) do
+    case params["repo"] do
+      "other" ->
+        other = params |> Map.get("repo_other", "") |> to_string() |> String.trim()
+        params = Map.delete(params, "repo_other")
+        if other == "", do: Map.delete(params, "repo"), else: Map.put(params, "repo", other)
+
+      _ ->
+        Map.delete(params, "repo_other")
+    end
+  end
+
+  @doc """
+  Builds dropdown options from known repos plus the current selection.
+
+  Each option is `%{value:, label:, selected:}`. Known repos render as
+  `owner/name (N entries)` in alpha order; a current selection outside the
+  known list (typed repo or entry-page link) is prepended so the control
+  still reflects it; `"other"` stays available for first-time repos.
+  """
+  def repo_options(repos, selected) when is_list(repos) do
+    known = Enum.map(repos, & &1.repo)
+
+    options =
+      Enum.map(repos, fn %{repo: repo, entries: count} ->
+        %{value: repo, label: "#{repo} (#{count} #{entry_word(count)})", selected: repo == selected}
+      end)
+
+    options =
+      if selected not in [nil, "", "other"] and selected not in known do
+        [%{value: selected, label: selected, selected: true} | options]
+      else
+        options
+      end
+
+    options ++ [%{value: "other", label: "Other (type below)…", selected: selected == "other"}]
+  end
+
+  defp entry_word(1), do: "entry"
+  defp entry_word(_), do: "entries"
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -62,7 +118,17 @@ defmodule AgentboardWeb.ContextLive do
       <p :if={@error} class="notice danger" role="alert">{@error}</p>
       <div :if={@live_action == :index}>
         <form action="/context" method="get" class="filters">
-          <label>Repository<input name="repo" value={@filters["repo"]} placeholder="owner/repository" required /></label>
+          <label>Repository
+            <select name="repo" required>
+              <option value="">Choose a repository…</option>
+              <option
+                :for={opt <- repo_options(@repos, @filters["repo"])}
+                value={opt.value}
+                selected={opt.selected}
+              >{opt.label}</option>
+            </select>
+          </label>
+          <label>Other repository<input name="repo_other" placeholder="owner/repository" /></label>
           <label>Search<input name="q" value={@filters["q"]} placeholder="Failure signature or finding" maxlength="512" /></label>
           <label>Task<input name="task" value={@filters["task"]} /></label>
           <label>Kind<input name="kind" value={@filters["kind"]} placeholder="OBSERVED, FACT, FAIL…" /></label>

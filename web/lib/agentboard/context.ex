@@ -144,6 +144,22 @@ defmodule Agentboard.Context do
     end
   end
 
+  def repos do
+    case Agentboard.Repo.statement(
+           "SELECT repo, COUNT(*) FROM context_entries GROUP BY repo ORDER BY repo ASC",
+           []
+         ) do
+      {:ok, %{rows: rows}} ->
+        {:ok, Enum.map(rows, fn [repo, count] -> %{repo: repo, entries: count} end)}
+
+      {:error, _} ->
+        {:error, "unavailable", "Context storage unavailable"}
+    end
+  rescue
+    _ in [Postgrex.Error, DBConnection.ConnectionError] ->
+      {:error, "unavailable", "Context storage unavailable"}
+  end
+
   def feed(actor, params) do
     with {:ok, actor} <- matching_actor(actor),
          {:ok, filters} <- filters(params, ~w(repo task kind limit)),
