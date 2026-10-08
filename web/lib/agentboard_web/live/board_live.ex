@@ -9,6 +9,8 @@ defmodule AgentboardWeb.BoardLive do
     socket =
       assign(socket,
         data: %{},
+        decisions: %{"decisions" => [], "next_cursor" => nil},
+        decision_unavailable: false,
         workers: %{},
         review_ci: %{},
         ci_unavailable: false,
@@ -39,7 +41,7 @@ defmodule AgentboardWeb.BoardLive do
     filters =
       Map.take(
         params,
-        ~w(id status owner repo label to task unread provider account cursor message_cursor)
+        ~w(id status owner repo label to task unread provider account cursor message_cursor decision_cursor waiting availability)
       )
 
     changed =
@@ -99,6 +101,29 @@ defmodule AgentboardWeb.BoardLive do
              |> Enum.reject(fn {_k, v} -> v == "" end)
              |> Map.new(),
            {:ok, _} <- Agentboard.Availability.set(actor, data) do
+        {:noreply, socket |> assign(archive_error: nil) |> reload()}
+      else
+        {:error, _, message} -> {:noreply, assign(socket, archive_error: message)}
+      end
+    else
+      {:noreply, assign(socket, archive_error: "Unlock captain controls in Settings first")}
+    end
+  end
+
+  def handle_event(event, params, socket) when event in ~w(decision_answer decision_supersede) do
+    if Agentboard.Captain.authorized?(socket.assigns.captain) do
+      actor = %{
+        "agent" => "captain",
+        "model" => "human",
+        "harness" => "captain",
+        :decision_admin => true
+      }
+
+      action = if event == "decision_answer", do: "answer", else: "supersede"
+      data = Map.take(params, if(action == "answer", do: ["answer"], else: ["reason"]))
+
+      with {:ok, _} <- Board.register(actor, %{"name" => "Captain"}),
+           {:ok, _} <- Agentboard.Decisions.mutate(params["decision_id"], action, actor, data) do
         {:noreply, socket |> assign(archive_error: nil) |> reload()}
       else
         {:error, _, message} -> {:noreply, assign(socket, archive_error: message)}
@@ -170,9 +195,16 @@ defmodule AgentboardWeb.BoardLive do
       {:ok, data} ->
         health = load_health(data)
         ci = load_review_ci(data)
+        decisions = load_decisions(socket.assigns.live_action, socket.assigns.filters)
 
         assign(socket,
           data: data,
+          decisions:
+            case decisions do
+              {:ok, records} -> records
+              _ -> socket.assigns.decisions
+            end,
+          decision_unavailable: not match?({:ok, _}, decisions),
           workers:
             case health do
               {:ok, workers} -> workers
@@ -194,6 +226,16 @@ defmodule AgentboardWeb.BoardLive do
         assign(socket, unavailable: true)
     end
   end
+
+  defp load_decisions(view, filters) when view in [:board, :task] do
+    query =
+      filters |> Map.take(~w(owner repo)) |> Map.put("waiting", "true") |> Map.put("limit", "20")
+
+    query = if view == :task, do: Map.put(query, "task", filters["id"]), else: query
+    Agentboard.Decisions.page(put_cursor(query, filters["decision_cursor"]))
+  end
+
+  defp load_decisions(_, _), do: {:ok, %{"decisions" => [], "next_cursor" => nil}}
 
   defp load(view, filters, column_pages) when view in [:board, :archive] do
     selected =
@@ -259,7 +301,11 @@ defmodule AgentboardWeb.BoardLive do
   end
 
   defp load(:agents, filters),
-    do: Board.page("agents", Map.take(filters, ~w(cursor)) |> Map.put("limit", "100"))
+    do:
+      Board.page(
+        "agents",
+        Map.take(filters, ~w(cursor waiting availability)) |> Map.put("limit", "100")
+      )
 
   defp load(:messages, filters),
     do:
@@ -402,13 +448,15 @@ defmodule AgentboardWeb.BoardLive do
                   <h3><a href={"/tasks/"<>task["id"]}>{task["title"]}</a></h3>
                   <p>{task["repo"] || "No repository"}</p>
                   <div class="owner">{task["assignee_id"] || "Unassigned"}</div>
-                  <div class="flags"><span :if={task["claim_expired"]} class="flag danger">Claim expired</span><span :if={owner_stale?(task,@data["roster"])} class="flag warning">Agent stale</span></div>
+                  <div class="flags"><span :if={task["held_by_decision"]} class="flag">Claim held by decision</span><span :if={task["requester_stale"]} class="flag warning">requester_stale</span><span :if={task["claim_expired"]} class="flag danger">Claim expired</span><span :if={owner_stale?(task,@data["roster"])} class="flag warning">Agent stale</span></div>
                   <.review_ci :if={status == "review" && task["pr_url"]} state={@review_ci[task["pr_url"]]} unavailable={@ci_unavailable || @unavailable} />
                   <div class="links"><a :if={task["issue_url"]} href={task["issue_url"]} target="_blank" rel="noopener noreferrer">Issue</a><a :if={task["pr_url"]} href={task["pr_url"]} target="_blank" rel="noopener noreferrer">Pull request</a></div>
                 </article>
 
               </section>
             </div>
+            <AgentboardWeb.DecisionPanel.waiting :if={@live_action == :board} records={@decisions["decisions"]} captain={@captain} unavailable={@decision_unavailable} />
+            <a :if={@live_action == :board and @decisions["next_cursor"]} href={page_link(:board,@filters,@decisions["next_cursor"],"decision_cursor")}>Next waiting decisions</a>
           <% :task -> %>
             <article class="task-detail">
               <div class="card-meta">{@data["task"]["id"]} <span class="flag">{label(@data["task"]["status"])} / P{@data["task"]["priority"]}</span></div>
@@ -416,9 +464,11 @@ defmodule AgentboardWeb.BoardLive do
               <p :if={@data["archive"]["archived_at"]} class="notice">Archived {@data["archive"]["archived_at"]}. This task remains Done and its records are retained.</p>
               <button :if={@data["task"]["status"]=="done" and Agentboard.Captain.authorized?(@captain)} type="button" phx-click="archive_task" phx-value-id={@data["task"]["id"]} phx-value-archived={if @data["archive"]["archived_at"],do: "false",else: "true"} phx-value-revision={@data["archive"]["revision"]}>{if @data["archive"]["archived_at"],do: "Restore to Done",else: "Archive task"}</button>
               <dl><dt>Worker delivery</dt><dd><AgentboardWeb.PRLive.delivery worker={@workers[@data["task"]["assignee_id"]]} /></dd><dt>Owner</dt><dd>{@data["task"]["assignee_id"] || "Unassigned"}</dd><dt>Assigned by</dt><dd>{@data["task"]["assigner_id"] || "None"}</dd><dt>Claimed</dt><dd>{@data["task"]["claimed_at"] || "No active claim"}</dd><dt>Lease expires</dt><dd>{@data["task"]["claim_expires_at"] || "No active lease"}</dd><dt>Revision</dt><dd>{@data["task"]["revision"]}</dd><dt>Repository</dt><dd>{@data["task"]["repo"] || "None"}</dd></dl>
-              <div class="flags"><span :if={@data["task"]["claim_expired"]} class="flag danger">Claim expired; explicit recovery required</span><span :if={owner_stale?(@data["task"],@data["roster"])} class="flag warning">Agent stale</span></div>
+              <div class="flags"><span :if={@data["task"]["held_by_decision"]} class="flag">Claim held by decision</span><span :if={@data["task"]["requester_stale"]} class="flag warning">requester_stale</span><span :if={@data["task"]["claim_expired"]} class="flag danger">Claim expired; explicit recovery required</span><span :if={owner_stale?(@data["task"],@data["roster"])} class="flag warning">Agent stale</span></div>
               <div class="links"><a :if={@data["task"]["issue_url"]} href={@data["task"]["issue_url"]} target="_blank" rel="noopener noreferrer">GitHub issue</a><a :if={@data["task"]["pr_url"]} href={@data["task"]["pr_url"]} target="_blank" rel="noopener noreferrer">GitHub pull request</a></div>
             </article>
+            <AgentboardWeb.DecisionPanel.waiting records={@decisions["decisions"]} captain={@captain} unavailable={@decision_unavailable} />
+            <a :if={@decisions["next_cursor"]} href={page_link(:task,@filters,@decisions["next_cursor"],"decision_cursor")}>Next waiting decisions</a>
             <section class="timeline"><h2>Task history</h2>
               <article :for={event <- @data["events"]}><div class="event-heading"><strong>{label(event["kind"])}</strong><time>{event["created_at"]}</time></div><p class="attribution">{event["actor_id"]} / {event["model"]} / {event["harness"]} / revision {event["new_revision"]}</p><p :if={event["body"]} class="description">{event["body"]}</p></article>
               <a :if={@data["next_cursor"]} href={page_link(:task,@filters,@data["next_cursor"])}>Next history page</a>
@@ -439,10 +489,11 @@ defmodule AgentboardWeb.BoardLive do
               <label>State<select name="state"><option value="active">Active</option><option value="reserved">Reserved</option><option value="out_of_service">Out of service</option></select></label>
               <label>Reason<input name="reason" /></label><label>Until (out of service, RFC3339)<input name="until" placeholder="2026-10-12T00:00:00Z" /></label><button type="submit">Save availability</button>
             </form>
+            <p><a href="/agents?waiting=true">Seats waiting on captain</a> · <a href="/agents">All seats</a></p>
             <p :if={!Agentboard.Captain.authorized?(@captain)}><a href="/settings">Unlock captain availability controls</a></p>
             <p :if={@data["agents"]==[]} class="empty">No registered agents. Register a stable identity with <code>agentboard agent register</code>.</p>
             <div class="table-scroll"><table><thead><tr><th>Agent / harness</th><th>Model / host</th><th>Activity</th><th>Availability</th><th>Heartbeat</th><th>Capabilities</th></tr></thead><tbody>
-              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
+              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<span :if={agent["waiting_on_captain"]} class="flag warning">Waiting on captain</span><p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
             </tbody></table></div>
             <a :if={@data["next_cursor"]} href={page_link(:agents,@filters,@data["next_cursor"])}>Next agents</a>
           <% :messages -> %>

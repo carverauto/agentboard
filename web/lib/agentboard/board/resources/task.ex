@@ -158,6 +158,25 @@ defmodule Agentboard.Board.Resources.Task do
       public?(true)
     end
 
+    calculate :held_by_decision,
+              :boolean,
+              expr(fragment("board_decision_hold(?,?)", id, assignee_id)) do
+      public?(true)
+    end
+
+    calculate :requester_stale,
+              :boolean,
+              expr(
+                fragment(
+                  "board_decision_hold(?,?) AND EXISTS(SELECT 1 FROM agents WHERE agents.id=? AND (last_heartbeat IS NULL OR last_heartbeat <= clock_timestamp()-interval '10 minutes'))",
+                  id,
+                  assignee_id,
+                  assignee_id
+                )
+              ) do
+      public?(true)
+    end
+
     calculate :archive_revision,
               :integer,
               expr(fragment("coalesce((SELECT revision FROM task_archives WHERE id = ?), 0)", id)) do

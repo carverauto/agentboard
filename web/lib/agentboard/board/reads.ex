@@ -107,7 +107,8 @@ defmodule Agentboard.Board.Reads do
         %{
           "harness" => :harness,
           "status" => :reported_status,
-          "availability" => :availability_state
+          "availability" => :availability_state,
+          "waiting" => :waiting_on_captain
         }}}
 
   defp spec("messages"),
@@ -136,6 +137,10 @@ defmodule Agentboard.Board.Reads do
       Map.has_key?(filters, "unread") and filters["unread"] not in ~w(true false) ->
         invalid("Unknown unread filter")
 
+      resource == "agents" and Map.has_key?(filters, "waiting") and
+          filters["waiting"] not in ~w(true false) ->
+        invalid("Unknown waiting filter")
+
       resource == "agents" and Map.has_key?(filters, "availability") and
           filters["availability"] not in ~w(active reserved out_of_service) ->
         invalid("Unknown availability filter")
@@ -154,6 +159,12 @@ defmodule Agentboard.Board.Reads do
   defp filtered(module, filters, fields, resource) do
     query =
       Enum.reduce(Map.take(filters, Map.keys(fields)), Ash.Query.new(module), fn
+        {"waiting", "true"}, query ->
+          Ash.Query.filter(query, waiting_on_captain == true)
+
+        {"waiting", "false"}, query ->
+          Ash.Query.filter(query, waiting_on_captain == false)
+
         {"label", label}, query ->
           Ash.Query.filter(query, ^label in labels)
 
@@ -226,13 +237,25 @@ defmodule Agentboard.Board.Reads do
   defp after_cursor(_, _, _), do: invalid("Cursor does not match this query")
 
   defp load_flags(query, "tasks", _filters),
-    do: {:ok, Ash.Query.load(query, [:claim_expired, :archive_revision])}
+    do:
+      {:ok,
+       Ash.Query.load(query, [
+         :claim_expired,
+         :archive_revision,
+         :held_by_decision,
+         :requester_stale
+       ])}
 
   defp load_flags(query, "agents", filters) do
     case threshold(filters) do
       {:ok, seconds} ->
         {:ok,
-         Ash.Query.load(query, [:availability, :availability_state, stale: %{seconds: seconds}])}
+         Ash.Query.load(query, [
+           :availability,
+           :availability_state,
+           :waiting_on_captain,
+           stale: %{seconds: seconds}
+         ])}
 
       error ->
         error
@@ -247,7 +270,9 @@ defmodule Agentboard.Board.Reads do
       |> Operations.public()
       |> Map.merge(%{
         "archive_revision" => row.archive_revision,
-        "claim_expired" => row.claim_expired
+        "claim_expired" => row.claim_expired,
+        "held_by_decision" => row.held_by_decision,
+        "requester_stale" => row.requester_stale
       })
     end)
   end
@@ -256,6 +281,7 @@ defmodule Agentboard.Board.Reads do
     Enum.map(records, fn row ->
       row
       |> Operations.public()
+      |> Map.put("waiting_on_captain", row.waiting_on_captain)
       |> Map.put("stale", row.stale)
       |> Map.put("availability", row.availability)
       |> Map.put("routing_eligible", row.availability_state == "active")

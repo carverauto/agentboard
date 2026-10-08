@@ -134,6 +134,26 @@ defmodule Agentboard.Delivery.Reads do
     end
   end
 
+  defp waiting_decisions(pr_id) do
+    %{rows: [[records]]} =
+      Agentboard.Repo.statement!(
+        """
+        SELECT coalesce(jsonb_agg(record ORDER BY created_at,id),'[]'::jsonb) FROM (
+          SELECT d.created_at,d.id,jsonb_build_object('id',d.id,'task_id',d.task_id,
+            'requester_id',d.requester_id,'status',d.status,
+            'requester_stale',(a.last_heartbeat IS NULL OR a.last_heartbeat<=clock_timestamp()-interval '10 minutes')) AS record
+          FROM decision_requests d JOIN agents a ON a.id=d.requester_id
+          WHERE d.status IN ('open','answered') AND EXISTS(
+            SELECT 1 FROM delivery_task_links l WHERE l.task_id=d.task_id AND l.pull_request_id=$1)
+          ORDER BY d.created_at,d.id LIMIT 20
+        ) waiting
+        """,
+        [pr_id]
+      )
+
+    records
+  end
+
   defp record(pr) do
     s = Ash.get!(PollState, pr.id, not_found_error?: false)
 
@@ -154,6 +174,7 @@ defmodule Agentboard.Delivery.Reads do
     responsible = (o && o.responsible_id) || (rebase && rebase.responsible_id)
 
     %{
+      decisions: waiting_decisions(pr.id),
       pr: Ops.public(pr),
       poll: if(s, do: Ops.public(s)),
       overdue:

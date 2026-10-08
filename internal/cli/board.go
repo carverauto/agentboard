@@ -82,7 +82,7 @@ func (c *commands) show(resource string) *cobra.Command {
 }
 func (c *commands) agents() *cobra.Command {
 	group := &cobra.Command{Use: "agent", Short: "Stable registry and heartbeat identity"}
-	group.AddCommand(c.list("agents", []string{"harness", "status", "availability"}), c.show("agents"))
+	group.AddCommand(c.list("agents", []string{"harness", "status", "availability", "waiting"}), c.show("agents"))
 	name, host, backend := "", "", ""
 	caps := []string{}
 	register := &cobra.Command{Use: "register", Short: "Create or refresh this agent; a different harness cannot reuse its ID", Args: cobra.NoArgs,

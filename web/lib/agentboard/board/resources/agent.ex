@@ -124,6 +124,17 @@ defmodule Agentboard.Board.Resources.Agent do
   end
 
   calculations do
+    calculate :waiting_on_captain,
+              :boolean,
+              expr(
+                fragment(
+                  "EXISTS(SELECT 1 FROM decision_requests WHERE requester_id=? AND status IN ('open','answered'))",
+                  id
+                )
+              ) do
+      public?(true)
+    end
+
     calculate :availability_state,
               :string,
               expr(fragment("board_agent_availability(?,?,?)->>'state'", id, harness, model)) do

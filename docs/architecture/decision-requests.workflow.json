@@ -1,0 +1,148 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Durable captain decisions",
+    "quality_profile": "showcase",
+    "animation": "none"
+  },
+  "lanes": [
+    {
+      "id": "request",
+      "label": "Decision lifecycle"
+    },
+    {
+      "id": "delivery",
+      "label": "Answer delivery"
+    }
+  ],
+  "mainPath": [
+    "seat",
+    "request",
+    "open",
+    "answer",
+    "answered",
+    "ack"
+  ],
+  "nodes": [
+    {
+      "id": "seat",
+      "lane": "request",
+      "col": 0,
+      "type": "frontend",
+      "label": "Seat stops",
+      "sublabel": "Verbatim findings"
+    },
+    {
+      "id": "request",
+      "lane": "request",
+      "col": 1,
+      "type": "backend",
+      "label": "Request",
+      "sublabel": "Own task + gate"
+    },
+    {
+      "id": "open",
+      "lane": "request",
+      "col": 2,
+      "type": "database",
+      "label": "Open",
+      "sublabel": "Claim held"
+    },
+    {
+      "id": "answer",
+      "lane": "request",
+      "col": 3,
+      "type": "security",
+      "label": "Answer",
+      "sublabel": "Verified capability"
+    },
+    {
+      "id": "answered",
+      "lane": "request",
+      "col": 4,
+      "type": "database",
+      "label": "Answered",
+      "sublabel": "One committed answer"
+    },
+    {
+      "id": "ack",
+      "lane": "request",
+      "col": 5,
+      "type": "frontend",
+      "label": "Apply + ack",
+      "sublabel": "Normal lease resumes"
+    },
+    {
+      "id": "outbox",
+      "lane": "delivery",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Delivery",
+      "sublabel": "Inbox + wake"
+    },
+    {
+      "id": "resume",
+      "lane": "delivery",
+      "col": 5,
+      "type": "frontend",
+      "label": "Seat resumes",
+      "sublabel": "Worker or watcher"
+    }
+  ],
+  "edges": [
+    {
+      "from": "seat",
+      "to": "request",
+      "role": "main"
+    },
+    {
+      "from": "request",
+      "to": "open",
+      "role": "main"
+    },
+    {
+      "from": "open",
+      "to": "answer",
+      "role": "main"
+    },
+    {
+      "from": "answer",
+      "to": "answered",
+      "role": "main"
+    },
+    {
+      "from": "answered",
+      "to": "ack",
+      "role": "main"
+    },
+    {
+      "from": "answered",
+      "to": "outbox",
+      "role": "async"
+    },
+    {
+      "from": "outbox",
+      "to": "resume",
+      "role": "async"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Ownership",
+      "items": [
+        "Open and answered holds survive expiry and stale heartbeat.",
+        "Audited captain/coordinator supersede closes all outstanding requests; then explicit reclaim."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Atomic delivery",
+      "items": [
+        "Answer, task-tagged board inbox and timeline commit together; never Mattermost.",
+        "One frozen route. Watcher reserve grants dispatch once; uncertainty prevents automatic replay."
+      ]
+    }
+  ]
+}

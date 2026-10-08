@@ -7,6 +7,8 @@ defmodule Agentboard.Board do
 
   resources do
     resource(Agentboard.Board.AuditEvent)
+    resource(Agentboard.Decisions.Request)
+    resource(Agentboard.Decisions.Wake)
     resource(Agentboard.Availability.Policy)
     resource(Agentboard.Board.Resources.Agent)
     resource(Agentboard.Board.Resources.Task)

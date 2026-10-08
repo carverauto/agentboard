@@ -93,6 +93,12 @@ and mark your owned task blocked after checking its live claim. Resume only
 in the correctly leased disposable worktree. Backend hosting is not isolation.
 Keep this STOP condition in subsequent ship briefs. Hooks are backstops only.
 Retain the worktree lease through PR review and green CI; do not merge.
+For ask-user gates, read the installed agentboard ask-user-escalation procedure.
+On schema20 create one durable decision with verbatim findings, notify the
+configured coordinator, and end the turn only after delivery. Resume by reading
+the canonical answer, applying it through the active no-mistakes gate, explicitly
+renewing the task and acknowledging the decision. Never answer your own gate,
+pass --yes, or bypass a held claim; older APIs use the documented board fallback.
 
 # Assigned brief (verbatim)
 
