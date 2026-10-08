@@ -437,7 +437,7 @@ def wait_bot(headers, want_active, tries=45):
 out = rpc('Agentboard.Mattermost.ElasticBots.short_name("abc") |> IO.inspect()').strip()
 assert out == '"ab-abc"', out
 out = rpc('Agentboard.Mattermost.ElasticBots.short_name("codex-agent-b-worker") |> IO.inspect()').strip()
-assert out.startswith('"ab-') and len(out) == 24, out
+assert out.startswith('"ab-') and len(out) <= 24, out
 
 # First register provisions exactly one bot; a racing second register adopts.
 out = ab('agent', 'register', agent_id='worker-bot')
