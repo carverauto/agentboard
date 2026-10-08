@@ -59,6 +59,8 @@ defmodule Agentboard.Board.Reads do
   def page(resource, filters), do: read(resource, filters, false)
   def snapshot(resource, filters), do: read(resource, Map.drop(filters, ~w(limit cursor)), true)
 
+  def roster_threshold, do: threshold(%{})
+
   defp read(resource, filters, snapshot?) do
     with {:ok, {module, order, fields}} <- spec(resource),
          :ok <- validate(filters, fields, resource),
@@ -108,7 +110,8 @@ defmodule Agentboard.Board.Reads do
           "harness" => :harness,
           "status" => :reported_status,
           "availability" => :availability_state,
-          "waiting" => :waiting_on_captain
+          "waiting" => :waiting_on_captain,
+          "kind" => :kind
         }}}
 
   defp spec("messages"),
@@ -120,7 +123,9 @@ defmodule Agentboard.Board.Reads do
   defp validate(filters, fields, resource) do
     allowed =
       Map.keys(fields) ++
-        ~w(limit cursor stale_after) ++ if(resource == "messages", do: ["unread"], else: [])
+        ~w(limit cursor stale_after) ++
+        if(resource == "messages", do: ["unread"], else: []) ++
+        if(resource == "agents", do: ["retired"], else: [])
 
     cond do
       not Enum.all?(filters, fn {k, v} ->
@@ -145,6 +150,14 @@ defmodule Agentboard.Board.Reads do
           filters["availability"] not in ~w(active reserved out_of_service) ->
         invalid("Unknown availability filter")
 
+      resource == "agents" and Map.has_key?(filters, "kind") and
+          filters["kind"] not in ~w(seat human system fixture all) ->
+        invalid("Unknown kind filter")
+
+      resource == "agents" and Map.has_key?(filters, "retired") and
+          filters["retired"] not in ~w(true false) ->
+        invalid("Unknown retired filter")
+
       resource == "agents" ->
         case threshold(filters) do
           {:ok, _} -> :ok
@@ -157,8 +170,13 @@ defmodule Agentboard.Board.Reads do
   end
 
   defp filtered(module, filters, fields, resource) do
+    keys =
+      if resource == "agents",
+        do: Map.keys(fields) -- ["kind"],
+        else: Map.keys(fields)
+
     query =
-      Enum.reduce(Map.take(filters, Map.keys(fields)), Ash.Query.new(module), fn
+      Enum.reduce(Map.take(filters, keys), Ash.Query.new(module), fn
         {"waiting", "true"}, query ->
           Ash.Query.filter(query, waiting_on_captain == true)
 
@@ -182,6 +200,20 @@ defmodule Agentboard.Board.Reads do
       if resource == "messages" and filters["unread"] == "true",
         do: Ash.Query.filter(query, is_nil(read_at) and not is_nil(recipient_id)),
         else: query
+
+    query =
+      if resource == "agents" do
+        scoped =
+          if filters["kind"] == "all",
+            do: query,
+            else: Ash.Query.filter(query, kind == ^(filters["kind"] || "seat"))
+
+        if filters["retired"] == "true",
+          do: Ash.Query.filter(scoped, not is_nil(retired_at)),
+          else: Ash.Query.filter(scoped, is_nil(retired_at))
+      else
+        query
+      end
 
     {:ok, query}
   end
@@ -284,7 +316,10 @@ defmodule Agentboard.Board.Reads do
       |> Map.put("waiting_on_captain", row.waiting_on_captain)
       |> Map.put("stale", row.stale)
       |> Map.put("availability", row.availability)
-      |> Map.put("routing_eligible", row.availability_state == "active")
+      |> Map.put(
+        "routing_eligible",
+        is_nil(row.retired_at) and row.availability_state == "active"
+      )
     end)
   end
 
@@ -367,16 +402,40 @@ defmodule Agentboard.Board.Reads do
   end
 
   defp threshold(filters) do
-    case Float.parse(Map.get(filters, "stale_after", "600")) do
-      {n, ""} ->
+    default =
+      Application.get_env(:agentboard, :roster, []) |> Keyword.get(:stale_after, "20m")
+
+    case parse_seconds(Map.get(filters, "stale_after", default)) do
+      {:ok, n} ->
         if Agentboard.Input.representable_offset?(n),
           do: {:ok, n},
           else: invalid("Stale threshold must be positive seconds")
 
-      _ ->
+      :error ->
         invalid("Stale threshold must be positive seconds")
     end
   end
+
+  defp parse_seconds(value) when is_binary(value) do
+    value = String.trim(value)
+
+    case Regex.run(~r/^([0-9]+(?:\.[0-9]+)?)m$/, value) do
+      [_, minutes] ->
+        case Float.parse(minutes) do
+          {n, ""} -> {:ok, n * 60}
+          _ -> :error
+        end
+
+      nil ->
+        case Float.parse(value) do
+          {n, ""} -> {:ok, n}
+          _ -> :error
+        end
+    end
+  end
+
+  defp parse_seconds(value) when is_number(value), do: {:ok, value * 1.0}
+  defp parse_seconds(_), do: :error
 
   defp invalid(message), do: {:error, "invalid_input", message}
 end

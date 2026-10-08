@@ -44,7 +44,9 @@ func (c *commands) list(resource string, filters []string) *cobra.Command {
 			q.Set("cursor", cursor)
 		}
 		if resource == "agents" || resource == "quota" {
-			q.Set("stale_after", strconv.FormatFloat(c.cfg.StaleAfter.Seconds(), 'f', -1, 64))
+			if stale := c.staleAfter(cmd); stale != "" {
+				q.Set("stale_after", stale)
+			}
 		}
 		for k, v := range values {
 			if *v != "" {
@@ -74,7 +76,9 @@ func (c *commands) show(resource string) *cobra.Command {
 			}
 		}
 		if resource == "agents" {
-			q.Set("stale_after", strconv.FormatFloat(c.cfg.StaleAfter.Seconds(), 'f', -1, 64))
+			if stale := c.staleAfter(cmd); stale != "" {
+				q.Set("stale_after", stale)
+			}
 		}
 		return c.request(cmd, http.MethodGet, resource+"/"+args[0], q, nil)
 	}
@@ -82,14 +86,22 @@ func (c *commands) show(resource string) *cobra.Command {
 }
 func (c *commands) agents() *cobra.Command {
 	group := &cobra.Command{Use: "agent", Short: "Stable registry and heartbeat identity"}
-	group.AddCommand(c.list("agents", []string{"harness", "status", "availability", "waiting"}), c.show("agents"))
-	name, host, backend := "", "", ""
+	group.AddCommand(c.list("agents", []string{"harness", "status", "availability", "waiting", "kind", "retired"}), c.show("agents"))
+	name, host, backend, kind := "", "", "", ""
 	caps := []string{}
 	register := &cobra.Command{Use: "register", Short: "Create or refresh this agent; a different harness cannot reuse its ID", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			data := map[string]any{}
 			if name != "" {
 				data["name"] = name
+			}
+			if kind != "" {
+				switch kind {
+				case "seat", "human", "system", "fixture":
+					data["kind"] = kind
+				default:
+					return errors.New("--kind must be seat, human, system, or fixture")
+				}
 			}
 			if host != "" {
 				data["host"] = host
@@ -103,10 +115,31 @@ func (c *commands) agents() *cobra.Command {
 			return c.request(cmd, http.MethodPost, "agents/register", nil, data)
 		}}
 	register.Flags().StringVar(&name, "name", "", "Descriptive agent name")
+	register.Flags().StringVar(&kind, "kind", "", "Identity kind: seat, human, system, or fixture")
 	register.Flags().StringVar(&host, "host", "", "Host/session label")
 	register.Flags().StringSliceVar(&caps, "capability", nil, "Comma-separated capabilities")
 	register.Flags().StringVar(&backend, "backend", "", "Optional backend metadata (e.g. herdr)")
-	group.AddCommand(register, c.heartbeat(), c.availabilityCommands(), c.agentTokens())
+	reason, force := "", false
+	retire := &cobra.Command{Use: "retire ID", Short: "Captain-gated tombstone retire of an identity (idempotent)", Args: idArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if reason == "" {
+				return errors.New("--reason is required")
+			}
+			data := map[string]any{"reason": reason}
+			if force {
+				data["force"] = true
+			}
+			return c.request(cmd, http.MethodPost, "agents/"+args[0]+"/retire", nil, data)
+		}}
+	retire.Flags().StringVar(&reason, "reason", "", "Why this identity retires")
+	retire.Flags().BoolVar(&force, "force", false, "Retire despite a live claim or open decision (reason still required)")
+	retire.Flags().Bool("captain", true, "Use protected AGENTBOARD_CAPTAIN_TOKEN_FILE capability")
+	restore := &cobra.Command{Use: "restore ID", Short: "Captain-gated restore of a retired identity (idempotent)", Args: idArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return c.request(cmd, http.MethodPost, "agents/"+args[0]+"/restore", nil, map[string]any{})
+		}}
+	restore.Flags().Bool("captain", true, "Use protected AGENTBOARD_CAPTAIN_TOKEN_FILE capability")
+	group.AddCommand(register, retire, restore, c.heartbeat(), c.availabilityCommands(), c.agentTokens())
 	return group
 }
 func (c *commands) tasks() *cobra.Command {

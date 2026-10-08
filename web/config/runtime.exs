@@ -149,6 +149,9 @@ config :agentboard, :rate_limits,
   watch_agent: String.to_integer(System.get_env("API_WATCH_LIMIT_AGENT", "5")),
   max_watches: 1_000
 
+config :agentboard, :roster,
+  stale_after: System.get_env("AGENTBOARD_ROSTER_STALE_AFTER", "20m")
+
 database_url = System.get_env("DATABASE_URL")
 
 if database_url do

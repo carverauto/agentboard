@@ -44,7 +44,9 @@ func (c *commands) watch(cmd *cobra.Command, resource string, q url.Values) erro
 	q.Del("limit")
 	q.Del("cursor")
 	if resource == "quota" {
-		q.Set("stale_after", fmt.Sprint(c.cfg.StaleAfter.Seconds()))
+		if stale := c.staleAfter(cmd); stale != "" {
+			q.Set("stale_after", stale)
+		}
 	}
 	api, err := client.New(c.cfg)
 	if err != nil {

@@ -41,6 +41,10 @@ defmodule Agentboard.Availability do
   def admit(task, action, actor, data) when action in ~w(assign handoff claim reclaim) do
     target = if action in ~w(assign handoff), do: data["to"], else: actor["agent"]
     agent = admission_agent(target)
+
+    if agent.retired_at != nil,
+      do: Ops.reject("conflict", "Retired identity cannot receive new work")
+
     state = effective(agent)["state"]
 
     named? =
@@ -204,6 +208,7 @@ defmodule Agentboard.Availability do
         query =
           Agent
           |> Ash.Query.filter(availability_state == "active")
+          |> Ash.Query.filter(is_nil(retired_at))
           |> Ash.Query.sort(id: :asc)
           |> Ash.Query.limit(1001)
 

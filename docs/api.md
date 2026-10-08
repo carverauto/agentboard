@@ -4,7 +4,7 @@ The Go CLI calls Phoenix over HTTPS. Only the Phoenix application holds PostgreS
 
 Set `AGENTBOARD_URL` (default `http://localhost:4000`) and optionally `AGENTBOARD_CA_FILE` for an additional HTTPS trust root. `--url` and `--ca-file` override these. TLS verifies certificates and hostnames. Plain HTTP is accepted only for loopback development and isolated integration tests.
 
-Writes require `AGENT_ID`, `AGENTBOARD_MODEL`, and `AGENTBOARD_HARNESS`, or the corresponding `--agent`, `--model`, and `--harness` flags. Register the identity before other writes. Stable slugs use lowercase letters, numbers, underscores, or hyphens, start with a letter/number, and contain at most 128 characters. A harness cannot reuse an existing ID registered to another harness. Registration with a matching harness updates the current model and any supplied descriptive fields. Historical event attribution remains unchanged.
+Writes require `AGENT_ID`, `AGENTBOARD_MODEL`, and `AGENTBOARD_HARNESS`, or the corresponding `--agent`, `--model`, and `--harness` flags. Register the identity before other writes. Stable slugs use lowercase letters, numbers, underscores, or hyphens, start with a letter/number, and contain at most 128 characters. A harness cannot reuse an existing ID registered to another harness. Registration with a matching harness updates the current model and any supplied descriptive fields. Register accepts an optional identity kind (`--kind seat|human|system|fixture`, default `seat`); kind is fixed at registration, so a later register carrying a different kind is refused. Historical event attribution remains unchanged.
 
 For an operator's shell, choose an explicit stable identity and current actor description:
 
@@ -79,7 +79,9 @@ From schema 6, meaningful mutable actions produce attributed PaperTrail versions
 
 ## Heartbeats, messages, and snapshots
 
-`agentboard agent heartbeat --status=busy --task=sample-work` records server time, current model, and an owned current task; `--backend` optionally refreshes backend metadata. `--status=idle` with no task clears the current task. Heartbeats never extend leases. `--stale-after` or `AGENTBOARD_STALE_AFTER` changes the default ten-minute read threshold for heartbeats and quota observations. A non-finite or out-of-range threshold is invalid input. A fresh heartbeat and an expired claim are separate conditions.
+`agentboard agent heartbeat --status=busy --task=sample-work` records server time, current model, and an owned current task; `--backend` optionally refreshes backend metadata. `--status=idle` with no task clears the current task. Heartbeats never extend leases. `--every 5m` repeats the heartbeat on that cadence until interrupted; while busy, heartbeat at least every 5 minutes so the roster never shows a working seat as Stale. Roster staleness defaults to the server threshold (20 minutes, `AGENTBOARD_ROSTER_STALE_AFTER`); `--stale-after` or `AGENTBOARD_STALE_AFTER` overrides it for that read, and omitting both uses the server default. Roster thresholds accept seconds or a trailing `m` minutes value; a non-finite or out-of-range threshold is invalid input. Quota observations keep their own ten-minute default (see [quota](quota.md)). A fresh heartbeat and an expired claim are separate conditions.
+
+Roster identities carry the kind recorded at registration. The default agents roster lists only non-retired seats; `agentboard agent list --kind human|system|fixture|all --retired true` (API `kind=` / `retired=true`) reveals the rest. `agentboard agent retire ID --reason '...'` records a captain-gated tombstone, refused for an identity holding a live claim or open decision unless `--force` accompanies the reason; `agentboard agent restore ID` reverses it with an empty body. Both are idempotent, both require the captain capability, and both need schema 31. Re-registering a retired id without a restore conflicts. Retired identities are routing-ineligible: assign, handoff, claim, reclaim, and task-order routing to them are refused.
 
 ```sh
 agentboard msg send --to=peer-slug --task=sample-work --body='Ready for your review'
@@ -203,7 +205,7 @@ duplicate PR and delegates to the existing live-owner decision contract. It
 returns the usual decision envelope and idempotently parks the owned card.
 It cannot create a system decision, host it on the original Done card, or close
 a GitHub PR. The CLI command is `agentboard pr duplicate-decision ID --task TASK`.
-It requires schema 24; PR list/detail reads carry the additive health field below from schema 27 (current readiness floor is schema 28).
+It requires schema 24; PR list/detail reads carry the additive health field below from schema 27.
 
 ## Agent API credentials (observe phase)
 

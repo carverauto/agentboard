@@ -125,6 +125,8 @@ defmodule AgentboardWeb.Router do
     get("/agents", APIController, :agents)
     post("/agents/register", APIController, :register)
     post("/agents/:id/heartbeat", APIController, :heartbeat)
+    post("/agents/:id/retire", APIController, :retire)
+    post("/agents/:id/restore", APIController, :restore)
     get("/agents/:id", APIController, :agent)
     get("/tasks", APIController, :tasks)
     get("/settings/archive", CaptainController, :settings)

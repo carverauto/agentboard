@@ -44,7 +44,7 @@ defmodule AgentboardWeb.BoardLive do
     filters =
       Map.take(
         params,
-        ~w(id status owner repo label to task unread provider account cursor message_cursor decision_cursor waiting availability)
+        ~w(id status owner repo label to task unread provider account cursor message_cursor decision_cursor waiting availability kind retired)
       )
 
     changed =
@@ -361,8 +361,12 @@ defmodule AgentboardWeb.BoardLive do
     with {:ok, data} <-
            Board.page(
              "agents",
-             Map.take(filters, ~w(cursor waiting availability)) |> Map.put("limit", "100")
-           ) do
+             Map.take(filters, ~w(cursor waiting availability kind retired))
+             |> Map.put("limit", "100")
+           ),
+         {:ok, seconds} <- Agentboard.Board.Reads.roster_threshold() do
+      data = Map.put(data, "roster_stale_after", seconds)
+
       case Agentboard.Auth.report() do
         {:ok, report} ->
           {:ok, Map.put(data, "authentication", report)}
@@ -414,6 +418,13 @@ defmodule AgentboardWeb.BoardLive do
   end
 
   defp owner_stale?(task, roster), do: get_in(roster, [task["assignee_id"], "stale"]) == true
+  defp stale_label(seconds) when is_number(seconds) do
+    total = round(seconds)
+    if rem(total, 60) == 0, do: "#{div(total, 60)}m", else: "#{total}s"
+  end
+
+  defp stale_label(_), do: "unknown"
+
   defp age(nil), do: "No heartbeat"
 
   defp age(stamp), do: AgentboardWeb.RelativeTime.age(stamp)
@@ -567,11 +578,11 @@ defmodule AgentboardWeb.BoardLive do
               <details><summary>Recent attribution evidence</summary><p :for={entry <- @data["authentication"]["recent"]}>{entry["created_at"]} · {entry["outcome"]} · attributed {entry["attributed_agent_id"] || "unregistered"} · verified {entry["verified_agent_id"] || "none"} · {entry["method"]} {entry["route"]}</p></details>
               </div>
             </section>
-            <p><a href="/agents?waiting=true">Seats waiting on captain</a> · <a href="/agents">All seats</a></p>
+            <p><a href="/agents?waiting=true">Seats waiting on captain</a> · <a href="/agents">All seats</a> · <a href="/agents?kind=human">Human</a> · <a href="/agents?kind=system">System</a> · <a href="/agents?kind=fixture">Fixture</a> · <a href="/agents?kind=all&retired=true">Retired</a></p>
             <p :if={!Agentboard.Captain.authorized?(@captain)}><a href="/settings">Unlock captain availability controls</a></p>
             <p :if={@data["agents"]==[]} class="empty">No registered agents. Register a stable identity with <code>agentboard agent register</code>.</p>
-            <div class="table-scroll"><table><thead><tr><th>Agent / harness</th><th>Model / host</th><th>Activity</th><th>Availability</th><th>Heartbeat</th><th>Capabilities</th></tr></thead><tbody>
-              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<span :if={agent["waiting_on_captain"]} class="flag warning">Waiting on captain</span><p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p><button :if={Agentboard.Captain.authorized?(@captain)} id={"availability-open-#{agent["id"]}"} type="button" class="text-button" phx-click="open_availability" phx-value-id={agent["id"]} aria-haspopup="dialog" aria-label={"Set availability for #{agent["id"]}"}>Set availability</button></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
+            <div class="table-scroll"><table><thead><tr><th>Agent / harness</th><th>Model / host</th><th>Activity</th><th>Availability</th><th>Heartbeat (stale after {stale_label(@data["roster_stale_after"])})</th><th>Capabilities</th></tr></thead><tbody>
+              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p><p><span :if={agent["kind"] != "seat"} class="flag">{agent["kind"]}</span><span :if={agent["retired_at"]} class="flag warning">Retired</span></p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<span :if={agent["waiting_on_captain"]} class="flag warning">Waiting on captain</span><p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p><button :if={Agentboard.Captain.authorized?(@captain)} id={"availability-open-#{agent["id"]}"} type="button" class="text-button" phx-click="open_availability" phx-value-id={agent["id"]} aria-haspopup="dialog" aria-label={"Set availability for #{agent["id"]}"}>Set availability</button></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p :if={agent["stale"] and agent["reported_status"] == "busy"}>last reported busy (unreliable)</p><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
             </tbody></table></div>
             <.availability_modal :if={@availability_form != nil and Agentboard.Captain.authorized?(@captain)} form={@availability_form} error={@availability_error} return_focus={@availability_return_focus} />
             <a :if={@data["next_cursor"]} href={page_link(:agents,@filters,@data["next_cursor"])}>Next agents</a>

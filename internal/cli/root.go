@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -55,7 +56,7 @@ func NewRoot() *cobra.Command {
 	f.StringVar(&c.cfg.CAFile, "ca-file", cfg.CAFile, "Additional trusted HTTPS CA PEM (AGENTBOARD_CA_FILE)")
 	f.BoolVar(&c.json, "json", false, "Emit JSON records; JSON errors use stderr")
 	f.StringVar(&c.ttl, "ttl", c.ttl, "Claim/renew/reclaim lease (AGENTBOARD_CLAIM_TTL; default 2h)")
-	f.StringVar(&c.stale, "stale-after", c.stale, "Liveness threshold (AGENTBOARD_STALE_AFTER; default 10m)")
+	f.StringVar(&c.stale, "stale-after", c.stale, "Liveness threshold (AGENTBOARD_STALE_AFTER; unset means server default)")
 	root.AddCommand(&cobra.Command{Use: "meta", Short: "Show API and schema compatibility metadata", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		api, err := client.New(c.cfg)
 		if err != nil {
@@ -81,6 +82,16 @@ func env(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func (c *commands) staleAfter(cmd *cobra.Command) string {
+	if os.Getenv("AGENTBOARD_STALE_AFTER") != "" {
+		return strconv.FormatFloat(c.cfg.StaleAfter.Seconds(), 'f', -1, 64)
+	}
+	if cmd.Root().PersistentFlags().Changed("stale-after") {
+		return strconv.FormatFloat(c.cfg.StaleAfter.Seconds(), 'f', -1, 64)
+	}
+	return ""
 }
 
 func (c *commands) request(cmd *cobra.Command, method, path string, query url.Values, payload any) error {
@@ -146,6 +157,14 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	}
 	if strings.HasSuffix(path, "/duplicate-decision") {
 		required = 24
+	}
+	if strings.HasSuffix(path, "/retire") || strings.HasSuffix(path, "/restore") {
+		required = 31
+	}
+	if fields, ok := payload.(map[string]any); ok {
+		if kind, ok := fields["kind"].(string); ok && (kind == "seat" || kind == "human" || kind == "system" || kind == "fixture") {
+			required = 31
+		}
 	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
