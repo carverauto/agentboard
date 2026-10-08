@@ -24,8 +24,10 @@
       ]
     },
     "narrow_all_sections_open": {
-      "width": 390,
-      "scrollWidth": 390
+      "requested_width": 390,
+      "measured_innerWidth": 500,
+      "measured_scrollWidth": 500,
+      "note": "Chrome enforced a500px viewport; no claim of390px measurement."
     },
     "visual_review": "passed"
   }
