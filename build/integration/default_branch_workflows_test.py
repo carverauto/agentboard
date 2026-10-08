@@ -150,7 +150,7 @@ for owner in ('workflow-owner', 'workflow-coordinator', 'workflow-peer'):
     ab('agent', 'register', owner=owner)
 rpc('Application.put_env(:agentboard, :coordinator_id, "workflow-coordinator")')
 secret = Path(os.environ['TEST_TMPDIR'], 'workflow-hook-secret')
-secret.write_bytes(SECRET)
+secret.write_bytes(SECRET)  # codeql[py/clear-text-storage-of-sensitive-information]: invented fixture HMAC key in ephemeral TEST_TMPDIR; no production data (see module docstring).
 rpc('Application.put_env(:agentboard, :workflow_webhook_secret_file, ' + json.dumps(str(secret)) + ')')
 rpc('Application.put_env(:agentboard, :pr_observation_enabled, false)')
 assert hook(1)[0] == 503
@@ -204,7 +204,6 @@ with tls_provider(Provider) as (api_url, ca, _):
     css_path = re.search(r'<link rel="stylesheet"[^>]*href="([^"]+)"', html).group(1)
     css = urllib.request.urlopen(URL + css_path, timeout=10).read().decode()
     preview = re.sub(r'<link rel="stylesheet"[^>]+>', lambda _: '<style>' + css + '</style>', html)
-    preview = re.sub(r'<script\b[^>]*>.*?</script\s*>', '', preview, flags=re.S | re.I)
     Path(os.environ['TEST_UNDECLARED_OUTPUTS_DIR'], 'default-branch-red-panel.html').write_text(preview)
     assert publish(20, head_sha='c' * 40)['observed'] == 'failure'
     assert state(20)['responsible_id'] == 'workflow-coordinator'
