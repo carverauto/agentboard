@@ -37,13 +37,17 @@ defmodule Agentboard.Mattermost.InboundStream do
         Enum.each(denied, fn post -> InboundStore.coverage(state.cfg, post["channel_id"], 0, false, "live_channel_not_authorized") end)
         state = %{state | channels: channels, buffer: allowed, bytes: if(allowed == [], do: 0, else: Enum.reduce(allowed, 0, fn post, acc -> acc + byte_size(Jason.encode!(post)) end)), next_scan: now() + 30_000}
         {:noreply, flush(state)}
-      {:live, {:ok, gaps}} ->
+      {:live, {:ok, gaps, capacity}, channels} ->
         gaps |> Enum.group_by(&elem(&1, 0), &elem(&1, 1)) |> Enum.each(fn {channel, ids} ->
           reason = String.slice("live_post_gap:" <> Enum.join(ids |> Enum.uniq() |> Enum.take(8), ","), 0, 256)
           InboundStore.coverage(state.cfg, channel, nil, false, reason)
         end)
+        if capacity do
+          Enum.each(channels, fn channel -> InboundStore.coverage(state.cfg, channel, nil, false, "metadata_capacity_reached") end)
+        end
         {:noreply, flush(state)}
-      {:live, {:error, {:rate_limited, seconds}}} -> {:noreply, %{disconnect(state, "rate_limited", seconds) | retry_at: now() + seconds * 1000}}
+      {:live, {:error, {:rate_limited, seconds}}, _} -> {:noreply, %{disconnect(state, "rate_limited", seconds) | retry_at: now() + seconds * 1000}}
+      {:live, _, _} -> {:noreply, disconnect(state, "catch_up_incomplete")}
       {:error, {:rate_limited, seconds}} -> {:noreply, %{disconnect(state, "rate_limited", seconds) | retry_at: now() + seconds * 1000}}
       _ -> {:noreply, disconnect(state, "catch_up_incomplete")}
     end
@@ -190,15 +194,17 @@ defmodule Agentboard.Mattermost.InboundStream do
         cfg = state.cfg
         posts = Enum.reverse(state.buffer)
         task = Task.Supervisor.async_nolink(Agentboard.Mattermost.InboundTasks, fn ->
-          result = Enum.reduce_while(posts, {:ok, []}, fn post, {:ok, gaps} ->
+          result = Enum.reduce_while(posts, {:ok, [], false}, fn post, {:ok, gaps, _capacity} ->
             case Inbound.observe(cfg, post) do
-              {:ok, _} -> {:cont, {:ok, gaps}}
+              {:ok, _} -> {:cont, {:ok, gaps, false}}
+              {:error, :metadata_capacity_reached} -> {:halt, {:ok, gaps, true}}
               {:error, reason} when reason in [:invalid_or_disallowed_post, :thread_root_unavailable] ->
-                {:cont, {:ok, [{post["channel_id"], post["id"]} | gaps]}}
+                {:cont, {:ok, [{post["channel_id"], post["id"]} | gaps], false}}
               error -> {:halt, error}
             end
           end)
-          {:live, result}
+          channels = posts |> Enum.map(& &1["channel_id"]) |> Enum.uniq() |> Enum.take(8)
+          {:live, result, channels}
         end)
         %{state | task: task, buffer: [], bytes: 0}
     end

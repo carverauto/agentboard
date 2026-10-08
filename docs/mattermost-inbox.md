@@ -53,7 +53,9 @@ changed membership and invalid live events trigger recovery.
 Ordinary bot history cannot prove unknown deletions during an outage, so even a
 stable scan retains `historical_deletions_unprovable` and `caught_up=false`.
 Known missing posts, revoked membership, unstable pages and budget exhaustion
-have explicit reasons. A post that cannot be inspected (malformed history entry,
+have explicit reasons. At the metadata cap, new versions are refused with an
+explicit `metadata_capacity_reached` gap while already-recorded versions replay
+idempotently and pending items are retained without pruning. A post that cannot be inspected (malformed history entry,
 dangling thread root, invalid live event) is skipped with bounded ID-only gap
 evidence while valid siblings on the same page, channel and live buffer continue;
 its channel stays explicitly incomplete. Buffered posts from a revoked or denied

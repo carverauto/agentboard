@@ -58,11 +58,18 @@ defmodule Agentboard.Mattermost.InboundStore do
   defp canonical(v) when is_list(v), do: Enum.map(v, &canonical/1)
   defp canonical(v), do: v
 
+  defmodule CapacityReached do
+    defexception [:message]
+  end
+
   def capture(cfg, post, recipients, attribution) do
     version = version(post)
     fenced(cfg, fn ->
-      %{rows: [[count]]} = Repo.statement!("SELECT count(*) FROM mattermost_post_versions WHERE source=$1", [cfg.source])
-      if count >= 100_000, do: Ops.reject("conflict", "Metadata capacity reached; pending versions retained")
+      %{rows: existing} = Repo.statement!("SELECT 1 FROM mattermost_post_versions WHERE source=$1 AND channel_id=$2 AND post_id=$3 AND version=$4", [cfg.source, post["channel_id"], post["id"], version])
+      if existing == [] do
+        %{rows: [[count]]} = Repo.statement!("SELECT count(*) FROM mattermost_post_versions WHERE source=$1", [cfg.source])
+        if count >= 100_000, do: raise(CapacityReached, message: "metadata capacity reached")
+      end
       Repo.statement!("""
       INSERT INTO mattermost_post_versions(source,channel_id,post_id,version,user_id,root_id,update_at,delete_at,observed_at)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp()) ON CONFLICT DO NOTHING
@@ -75,6 +82,8 @@ defmodule Agentboard.Mattermost.InboundStore do
       end)
       version
     end)
+  rescue
+    _ in CapacityReached -> {:error, :metadata_capacity_reached}
   end
 
   def known_posts(cfg, channel) do
