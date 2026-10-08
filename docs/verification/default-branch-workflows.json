@@ -25,18 +25,51 @@
   },
   "remote_verification": [
     {
+      "url": "https://carverauto.buildbuddy.io/invocation/a5e118b7-31b0-4189-9b32-447baf28194b",
+      "status": "current",
+      "passed": [
+        "default_branch_workflows_test"
+      ],
+      "source_commit": "c345dda31ecae913de92f728fca809ed12d7c306",
+      "no_mistakes_run": "01M4E7MP6DJ17M8MMYCRMETTY2",
+      "note": "PASSED from remote cache (46.3s original execution). Recorded in saved test-results.md; later 6a8d32b changes only documentation."
+    },
+    {
+      "url": "https://carverauto.buildbuddy.io/invocation/c2e15da5-2ac0-4f9e-967f-ef6cf7d5d9a2",
+      "status": "current",
+      "passed": [
+        "release_schema_test",
+        "poll_budget_fairness_test"
+      ],
+      "source_commit": "c345dda31ecae913de92f728fca809ed12d7c306",
+      "no_mistakes_run": "01M4E7MP6DJ17M8MMYCRMETTY2",
+      "note": "PASSED from remote cache (55.5s and 43.8s original execution); schema 28 floor and 29 non-lowering proof. Recorded in saved test-results.md; later 6a8d32b changes only documentation."
+    },
+    {
+      "url": "https://carverauto.buildbuddy.io/invocation/c4464b3f-d1f2-45ac-9fe8-1c551ebfcc82",
+      "status": "current",
+      "passed": [
+        "ci_accountability_test"
+      ],
+      "source_commit": "c345dda31ecae913de92f728fca809ed12d7c306",
+      "no_mistakes_run": "01M4E7MP6DJ17M8MMYCRMETTY2",
+      "note": "PASSED from remote cache (56.6s original execution). Recorded in saved test-results.md; later 6a8d32b changes only documentation."
+    },
+    {
       "url": "https://carverauto.buildbuddy.io/invocation/d4a1f449-ce7d-4046-9232-5f0f4d8563bc",
       "passed": [
         "default_branch_workflows_test"
       ],
-      "note": "current rebased-head pass (45.2s remote); see test-results.md"
+      "note": "Historical pre-main28 validation; superseded by run 01M4E7MP6DJ17M8MMYCRMETTY2.",
+      "status": "historical"
     },
     {
       "url": "https://carverauto.buildbuddy.io/invocation/74997cb6-9996-4fe1-bd9e-9dfda47307f9",
       "passed": [
         "release_schema_test"
       ],
-      "note": "current rebased-head pass after auth24 schema-27 plus workflow-table correction (50.4s remote); see test-results.md"
+      "note": "Historical pre-main28 validation; superseded by run 01M4E7MP6DJ17M8MMYCRMETTY2.",
+      "status": "historical"
     },
     {
       "url": "https://carverauto.buildbuddy.io/invocation/07061853-eb70-4a34-af76-643123a4d91d",
