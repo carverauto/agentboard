@@ -14,6 +14,8 @@ defmodule AgentboardWeb.BoardLive do
         ci_unavailable: false,
         health_unavailable: false,
         filters: %{},
+        column_pages: %{},
+        paging_view: nil,
         unavailable: false,
         last_read: nil,
         loaded: false,
@@ -40,11 +42,46 @@ defmodule AgentboardWeb.BoardLive do
         ~w(id status owner repo label to task unread provider account cursor message_cursor)
       )
 
-    socket = assign(socket, filters: filters, quota_detail: nil)
+    changed =
+      socket.assigns.filters != filters or
+        socket.assigns.paging_view != socket.assigns.live_action
+
+    socket =
+      assign(socket,
+        filters: filters,
+        quota_detail: nil,
+        paging_view: socket.assigns.live_action,
+        column_pages: if(changed, do: %{}, else: socket.assigns.column_pages)
+      )
+
     {:noreply, if(connected?(socket), do: reload(socket), else: socket)}
   end
 
   @impl true
+  def handle_event("column_page", %{"status" => status, "direction" => direction}, socket)
+      when direction in ~w(prev next) do
+    with true <- socket.assigns.live_action in [:board, :archive],
+         %{} = column <- get_in(socket.assigns.data, ["columns", status]),
+         current = Map.get(socket.assigns.column_pages, status, initial_page()),
+         %{} = page <- advance_page(current, column, direction) do
+      candidate =
+        socket
+        |> assign(column_pages: Map.put(socket.assigns.column_pages, status, page))
+        |> reload()
+
+      # A failed read retains both the last cards and their matching cursor history.
+      {:noreply,
+       if(candidate.assigns.unavailable,
+         do: assign(candidate, column_pages: socket.assigns.column_pages),
+         else: candidate
+       )}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("column_page", _params, socket), do: {:noreply, socket}
+
   def handle_event("set_availability", params, socket) do
     if Agentboard.Captain.authorized?(socket.assigns.captain) do
       actor = %{
@@ -100,6 +137,16 @@ defmodule AgentboardWeb.BoardLive do
     end
   end
 
+  defp initial_page, do: %{cursor: nil, history: [], number: 1}
+
+  defp advance_page(page, %{"next_cursor" => cursor}, "next") when is_binary(cursor),
+    do: %{cursor: cursor, history: [page.cursor | page.history], number: page.number + 1}
+
+  defp advance_page(%{history: [cursor | history], number: number}, _column, "prev"),
+    do: %{cursor: cursor, history: history, number: number - 1}
+
+  defp advance_page(_page, _column, _direction), do: nil
+
   @impl true
   def handle_info({:board_changed, _topic, _reason}, socket) do
     if socket.assigns.refresh_pending do
@@ -119,7 +166,7 @@ defmodule AgentboardWeb.BoardLive do
   end
 
   defp reload(socket) do
-    case load(socket.assigns.live_action, socket.assigns.filters) do
+    case load(socket.assigns.live_action, socket.assigns.filters, socket.assigns.column_pages) do
       {:ok, data} ->
         health = load_health(data)
         ci = load_review_ci(data)
@@ -148,7 +195,7 @@ defmodule AgentboardWeb.BoardLive do
     end
   end
 
-  defp load(view, filters) when view in [:board, :archive] do
+  defp load(view, filters, column_pages) when view in [:board, :archive] do
     selected =
       if view == :archive,
         do: ["done"],
@@ -159,12 +206,23 @@ defmodule AgentboardWeb.BoardLive do
         Enum.reduce_while(selected, {:ok, %{}}, fn status, {:ok, columns} ->
           q =
             filters
-            |> Map.take(~w(owner repo label cursor))
+            |> Map.take(~w(owner repo label))
             |> Map.merge(%{"status" => status, "limit" => "20"})
             |> Map.put("archive", if(view == :archive, do: "archived", else: "active"))
 
-          case Board.page("tasks", q) do
-            {:ok, page} -> {:cont, {:ok, Map.put(columns, status, page)}}
+          state = Map.get(column_pages, status, initial_page())
+
+          with {:ok, total} <- Board.count("tasks", q),
+               {:ok, page} <- Board.page("tasks", put_cursor(q, state.cursor)) do
+            page =
+              Map.merge(page, %{
+                "total" => total,
+                "page" => state.number,
+                "previous" => state.history != []
+              })
+
+            {:cont, {:ok, Map.put(columns, status, page)}}
+          else
             error -> {:halt, error}
           end
         end)
@@ -175,6 +233,8 @@ defmodule AgentboardWeb.BoardLive do
               %{"columns" => columns, "roster" => Map.new(roster["agents"], &{&1["id"], &1})}}
     end
   end
+
+  defp load(view, filters, _column_pages), do: load(view, filters)
 
   defp load(:task, filters) do
     with {:ok, task} <-
@@ -327,7 +387,14 @@ defmodule AgentboardWeb.BoardLive do
             </form>
             <div class={if @live_action==:archive,do: "board-columns archive-columns",else: "board-columns"}>
               <section :for={status <- @statuses} :if={Map.has_key?(@data["columns"],status)} class="column" aria-label={label(status)}>
-                <h2><span class={"status-marker "<>status}></span>{label(status)}<span class="count">{length(@data["columns"][status]["tasks"])}</span></h2>
+                <h2><span class={"status-marker "<>status}></span>{label(status)}<span class="count">{@data["columns"][status]["total"]}</span></h2>
+                <nav class="column-pagination" aria-label={label(status) <> " pages"}>
+                  <p id={"page-status-" <> status} role="status" aria-live="polite">Page {@data["columns"][status]["page"]} · {length(@data["columns"][status]["tasks"])} shown · {@data["columns"][status]["total"]} total</p>
+                  <div>
+                    <button id={"previous-page-" <> status} type="button" phx-click="column_page" phx-value-status={status} phx-value-direction="prev" aria-label={"Previous " <> label(status) <> " page"} aria-describedby={"page-status-" <> status} disabled={!@data["columns"][status]["previous"]}>Prev</button>
+                    <button id={"next-page-" <> status} type="button" phx-click="column_page" phx-value-status={status} phx-value-direction="next" aria-label={"Next " <> label(status) <> " page"} aria-describedby={"page-status-" <> status} disabled={is_nil(@data["columns"][status]["next_cursor"])}>Next</button>
+                  </div>
+                </nav>
                 <p :if={@data["columns"][status]["tasks"]==[]} class="empty">No {String.replace(status,"_"," ")} tasks.</p>
                 <.completed_card :for={task <- @data["columns"][status]["tasks"]} :if={status=="done"} task={task} archived={@live_action==:archive} captain={@captain} />
                 <article :for={task <- @data["columns"][status]["tasks"]} :if={status != "done"} class="task-card">
@@ -339,7 +406,7 @@ defmodule AgentboardWeb.BoardLive do
                   <.review_ci :if={status == "review" && task["pr_url"]} state={@review_ci[task["pr_url"]]} unavailable={@ci_unavailable || @unavailable} />
                   <div class="links"><a :if={task["issue_url"]} href={task["issue_url"]} target="_blank" rel="noopener noreferrer">Issue</a><a :if={task["pr_url"]} href={task["pr_url"]} target="_blank" rel="noopener noreferrer">Pull request</a></div>
                 </article>
-                <a :if={@data["columns"][status]["next_cursor"]} class="more" href={page_link(@live_action,Map.put(@filters,"status",status),@data["columns"][status]["next_cursor"])}>Next tasks in {label(status)}</a>
+
               </section>
             </div>
           <% :task -> %>

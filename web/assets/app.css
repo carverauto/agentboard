@@ -31,3 +31,5 @@
 }
 
 .review-ci{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem;margin:.5rem 0;min-width:0}.review-ci .flag{display:inline-flex;align-items:center;gap:.3rem;max-width:100%;overflow-wrap:anywhere}.review-ci time{font-size:.75rem;color:var(--muted);overflow-wrap:anywhere}
+
+.column-pagination{@apply min-w-0 flex flex-col gap-2 mb-3}.column-pagination p{@apply text-xs text-muted;overflow-wrap:anywhere}.column-pagination>div{@apply flex flex-wrap gap-2}.column-pagination button{@apply px-2 py-1 text-xs}.column-pagination button:disabled{@apply opacity-40 cursor-default}

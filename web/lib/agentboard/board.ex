@@ -36,6 +36,8 @@ defmodule Agentboard.Board do
 
   def show(resource, id, filters), do: Agentboard.Board.Reads.show(resource, id, filters)
 
+  def count(resource, filters), do: Agentboard.Board.Reads.count(resource, filters)
+
   def page(resource, filters) when resource != "quota",
     do: Agentboard.Board.Reads.page(resource, filters)
 
