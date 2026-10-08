@@ -40,31 +40,44 @@ func (c *commands) seatReturnTask(ctx context.Context, task string) error {
 		return err
 	}
 	defer api.Close()
-	q := url.Values{}
-	q.Set("limit", "100")
-	raw, err := api.JSON(ctx, http.MethodGet, "tasks/"+task, q, nil)
-	if err != nil {
-		return err
-	}
-	var show struct {
-		Task struct {
-			Status string `json:"status"`
-		} `json:"task"`
-		Events []struct {
-			Body string `json:"body"`
-		} `json:"events"`
-	}
-	if err := json.Unmarshal(raw, &show); err != nil {
-		return err
-	}
-	if show.Task.Status != "done" && show.Task.Status != "cancelled" {
-		return fmt.Errorf("refuses: task %s is %q, not done/cancelled", task, show.Task.Status)
-	}
+	cursor := ""
+	var status string
 	record := ""
-	for _, event := range show.Events {
-		if strings.HasPrefix(event.Body, seatRecordPrefix) {
-			record = event.Body
+	for {
+		page := url.Values{}
+		page.Set("limit", "1000")
+		if cursor != "" {
+			page.Set("cursor", cursor)
 		}
+		raw, err := api.JSON(ctx, http.MethodGet, "tasks/"+task, page, nil)
+		if err != nil {
+			return err
+		}
+		var show struct {
+			Task struct {
+				Status string `json:"status"`
+			} `json:"task"`
+			Events []struct {
+				Body string `json:"body"`
+			} `json:"events"`
+			NextCursor *string `json:"next_cursor"`
+		}
+		if err := json.Unmarshal(raw, &show); err != nil {
+			return err
+		}
+		status = show.Task.Status
+		for _, event := range show.Events {
+			if strings.HasPrefix(event.Body, seatRecordPrefix) {
+				record = event.Body
+			}
+		}
+		if show.NextCursor == nil || *show.NextCursor == "" {
+			break
+		}
+		cursor = *show.NextCursor
+	}
+	if status != "done" && status != "cancelled" {
+		return fmt.Errorf("refuses: task %s is %q, not done/cancelled", task, status)
 	}
 	fields := parseSeatRecord(record)
 	worktree, version, root, holder := fields["worktree"], fields["treehouse_version"], fields["treehouse_root"], fields["lease_holder"]
@@ -95,6 +108,17 @@ func (c *commands) seatReturnTask(ctx context.Context, task string) error {
 
 func parseSeatRecord(record string) map[string]string {
 	fields := map[string]string{}
+	body := strings.TrimPrefix(record, seatRecordPrefix)
+	body = strings.TrimSpace(body)
+	if strings.HasPrefix(body, "{") {
+		var decoded map[string]string
+		if err := json.Unmarshal([]byte(body), &decoded); err == nil {
+			for key, value := range decoded {
+				fields[key] = value
+			}
+			return fields
+		}
+	}
 	for _, part := range strings.Fields(record) {
 		key, value, ok := strings.Cut(part, "=")
 		if ok {

@@ -25,22 +25,20 @@ def git(cwd, *args):
 
 
 def probe(argv, cwd, timeout=15):
-    """Run argv without raising; return (returncode, stdout)."""
+    """Run argv without raising; return (returncode, stdout, stderr)."""
     try:
         result = subprocess.run(argv, cwd=cwd, text=True, capture_output=True, timeout=timeout)
-    except (OSError, subprocess.SubprocessError):
-        return 127, ""
-    return result.returncode, result.stdout.strip()
+    except (OSError, subprocess.SubprocessError) as error:
+        return 127, "", str(error)
+    return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
 SEAT_RECORD_PREFIX = "agentboard-seat"
 
 
 def seat_body(worktree, root, holder):
-    return (
-        f"{SEAT_RECORD_PREFIX} worktree={worktree} "
-        f"treehouse_version={VERSION} treehouse_root={root} lease_holder={holder}"
-    )
+    payload = json.dumps({"worktree": str(worktree), "treehouse_version": VERSION, "treehouse_root": str(root), "lease_holder": holder}, separators=(",", ":"))
+    return f"{SEAT_RECORD_PREFIX} {payload}"
 
 
 def record_slot(task, worktree, root, holder):
@@ -49,7 +47,7 @@ def record_slot(task, worktree, root, holder):
     if not exe:
         print("agentboard CLI not on PATH; skipping slot record", file=sys.stderr)
         return False
-    code, _ = probe([exe, "task", "update", task, "--body", seat_body(worktree, root, holder)], str(worktree))
+    code, _, _ = probe([exe, "task", "update", task, "--body", seat_body(worktree, root, holder)], str(worktree))
     if code:
         print(f"slot record on task {task} failed; continuing without it", file=sys.stderr)
         return False
@@ -61,7 +59,7 @@ def task_state(task, worktree):
     exe = shutil.which("agentboard")
     if not exe:
         return None, None
-    code, out = probe([exe, "task", "show", task, "--json"], str(worktree))
+    code, out, _ = probe([exe, "task", "show", task, "--json"], str(worktree))
     if code:
         return None, None
     try:
@@ -76,17 +74,17 @@ def task_state(task, worktree):
 
 def landed(worktree):
     """Firstmate-style landed gate. Returns (True, '') or (False, reason)."""
-    code, dirty = probe(["git", "status", "--porcelain"], str(worktree))
+    code, dirty, _ = probe(["git", "status", "--porcelain"], str(worktree))
     if code or dirty:
         return False, "uncommitted changes" if dirty else "cannot read worktree status"
-    code, head = probe(["git", "rev-parse", "HEAD"], str(worktree))
+    code, head, _ = probe(["git", "rev-parse", "HEAD"], str(worktree))
     if code or not head:
         return False, "cannot read HEAD"
-    code, remotes = probe(["git", "branch", "-r", "--contains", head], str(worktree))
+    code, remotes, _ = probe(["git", "branch", "-r", "--contains", head], str(worktree))
     if not code and remotes.strip():
         return True, ""
     for base in ("origin/main", "main"):
-        code, _ = probe(["git", "merge-base", "--is-ancestor", head, base], str(worktree))
+        code, _, _ = probe(["git", "merge-base", "--is-ancestor", head, base], str(worktree))
         if not code:
             return True, ""
     return False, "HEAD is not reachable from any remote branch or base"
@@ -110,9 +108,10 @@ def maybe_return_slot(task, worktree, root, binary, holder):
         print(f"Retained lease at {worktree}; landed gate refused: {reason}.", file=sys.stderr)
         note_slot(task, worktree, f"slot retained: {reason} at {worktree}; push or park first, never --force")
         return
-    code, err = probe([binary, "return", str(worktree), "--if-lease-holder", holder, "--root", str(root)], str(worktree), timeout=120)
+    code, out, err = probe([binary, "return", str(worktree), "--if-lease-holder", holder, "--root", str(root)], str(worktree), timeout=120)
     if code:
-        print(f"Retained lease at {worktree}; treehouse return failed: {err}.", file=sys.stderr)
+        detail = err.strip() or out.strip()
+        print(f"Retained lease at {worktree}; treehouse return failed: {detail}.", file=sys.stderr)
         note_slot(task, worktree, f"slot retained: return failed at {worktree}; lease still held")
         return
     print(f"Returned Treehouse v{VERSION} lease at {worktree} after task {task} landed.", file=sys.stderr)

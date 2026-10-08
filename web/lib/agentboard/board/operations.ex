@@ -234,16 +234,42 @@ defmodule Agentboard.Board.Operations do
            timeout: 2_000
          ) do
       {:ok, %{rows: [[body]]}} ->
-        case Regex.run(~r/worktree=(\S+)/, body || "") do
-          [_, path] ->
-            " Seat slot #{path}: return it with the same-version `treehouse return #{path}` before claiming new work; never --force, never rm -rf."
-
-          _ ->
-            ""
+        path = seat_slot_path(body)
+        if path do
+          quoted = if String.contains?(path, " "), do: "\"#{path}\"", else: path
+          " Seat slot #{quoted}: return it with the same-version `treehouse return #{quoted}` before claiming new work; never --force, never rm -rf."
+        else
+          ""
         end
 
       _ ->
         ""
+    end
+  end
+
+  defp seat_slot_path(body) when is_binary(body) do
+    rest =
+      case String.split(body, "agentboard-seat ", parts: 2) do
+        [_, payload] -> String.trim(payload)
+        _ -> ""
+      end
+
+    if String.starts_with?(rest, "{") do
+      case Jason.decode(rest) do
+        {:ok, %{"worktree" => path}} when is_binary(path) and path != "" -> path
+        _ -> legacy_seat_path(body)
+      end
+    else
+      legacy_seat_path(body)
+    end
+  end
+
+  defp seat_slot_path(_), do: nil
+
+  defp legacy_seat_path(body) do
+    case Regex.run(~r/worktree=(\S+)/, body || "") do
+      [_, path] -> path
+      _ -> nil
     end
   end
 
