@@ -5,6 +5,7 @@ defmodule Agentboard.Decisions do
   alias Agentboard.Board.Resources.Task
   alias Agentboard.Decisions.{Request, Wake}
   require Ash.Query
+  require Logger
   @active ~w(open answered)
   @kinds ~w(ask_user_gate approval merge policy credential scope blocked_decision other)
 
@@ -233,10 +234,15 @@ defmodule Agentboard.Decisions do
     end)
     |> case do
       {:ok, true} -> true
-      _ -> false
+      {:ok, false} -> false
+      {:error, _} ->
+        Logger.warning("decision cleanup candidate skipped: #{id}")
+        false
     end
   rescue
-    _ -> false
+    _ ->
+      Logger.warning("decision cleanup candidate skipped: #{id}")
+      false
   end
 
   defp cleanup_reason(r, task, stamp) do
