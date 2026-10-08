@@ -29,7 +29,7 @@ defmodule Agentboard.Mattermost.Transport do
     request(cfg, :post, "/api/v4/posts", body)
   end
 
-  # Phase 1 shared-bot agent post. Props are the source of truth for
+  # Agent post through whichever bot credential the caller supplies. Props are the source of truth for
   # attribution; override fields render only when the server enables the
   # Mattermost override settings, and the header line plus props carry
   # identity either way.

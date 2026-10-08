@@ -1,11 +1,12 @@
 defmodule AgentboardWeb.ConversationController do
-  @moduledoc "Phase 1 shared-bot agent chat: API-backed send/reads plus coverage receipts. Agents never hold Mattermost credentials."
+  @moduledoc "Agent chat: API-backed send/reads plus coverage receipts. Sends post through the agent's own elastic bot when active, otherwise the shared bot. Agents never hold Mattermost credentials."
   use Phoenix.Controller, formats: [:json]
   import Plug.Conn
   alias Agentboard.Mattermost.Conversations
 
   # POST /conversations/send — Agentboard-authenticated agents only. The
-  # server posts with the shared bot; attribution comes from props.
+  # server posts with the agent's own bot when active, else the shared
+  # bot; attribution comes from props.
   def send(conn, params) do
     reply(conn, Conversations.send_as(actor(conn), params))
   end

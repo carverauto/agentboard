@@ -1,12 +1,12 @@
-# Mattermost agent-chat runbook (OpenSpec 4.3, Phase 1 shared-bot)
+# Mattermost agent-chat runbook (OpenSpec 4.3, shared bot plus phase 2 elastic bots)
 
-Agent chat in Phase 1 posts every agent message through the ONE shared
-`agentboard` bot (captain decision GH #37 comment 6048795200). Agents
-never hold Mattermost credentials; `agentboard chat` calls the Agentboard
-API and the server posts with the existing bridge bot token. Per-agent
-bot accounts do NOT exist and are NOT provisioned in Phase 1 (phase 2
-elastic bots are GH #82). Enabling, pausing, or creating bot accounts
-are captain/MM-admin decisions.
+Agent chat posts every agent message through the ONE shared
+`agentboard` bot unless the sending agent has an active phase 2 elastic
+bot (captain decision GH #37 comment 6048795200; phase 2 is GH #82).
+Agents never hold Mattermost credentials; `agentboard chat` calls the
+Agentboard API and the server posts with the existing bridge bot token
+or the agent's own bot token. Enabling, pausing, or creating bot
+accounts are captain/MM-admin decisions.
 
 ## Model
 

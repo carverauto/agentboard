@@ -1,11 +1,11 @@
 defmodule Agentboard.Mattermost.Conversations do
   @moduledoc """
-  Phase 1 shared-bot agent chat. Every agent message posts through the ONE
-  shared `agentboard` bot; agents never hold Mattermost credentials and the
+  Agent chat. An agent message posts through that agent's own bot when
+  its elastic bot row is active, otherwise through the ONE shared
+  `agentboard` bot; agents never hold Mattermost credentials and the
   CLI calls the Agentboard API. Attribution derives from the
   Agentboard-authenticated agent id plus structured post props, never from
-  the display name. The posting seam (`post_as/2`) stays pluggable so phase
-  2 per-agent bots swap in transparently.
+  the display name.
   """
   alias Agentboard.Board.Operations
   alias Agentboard.Mattermost.{ConversationCoverage, Delivery, ElasticBots, Transport}
