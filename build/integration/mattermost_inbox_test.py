@@ -370,6 +370,14 @@ with LOCK:
 wait(lambda: find('live-sibling'))
 assert find('live-poison') is None
 wait(lambda: any(c['live_connected'] for c in inbox()[1]))
+# A malformed live frame with no post is dropped without a phantom channel; ordered sibling still routes.
+with LOCK:
+    emit('posted', {})
+    POSTS['live-sibling-2'] = post('live-sibling-2', '@worker-b live sibling after malformed frame')
+    emit('posted', {'post': json.dumps(POSTS['live-sibling-2'])})
+wait(lambda: find('live-sibling-2'))
+assert not any(c['channel_id'] == 'unknown' for c in inbox()[1]), 'malformed frame must not create phantom coverage'
+wait(lambda: any(c['live_connected'] for c in inbox()[1]))
 # Buffered posts from a denied channel are dropped while allowed siblings continue.
 rpc('Application.put_env(:agentboard, :mattermost_channel_allowlist, "room,new-dm")')
 with LOCK:
