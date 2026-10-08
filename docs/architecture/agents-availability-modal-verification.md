@@ -6,9 +6,9 @@ The dialog reuses `QuotaDialog`, with a per-dialog close event and return-focus 
 
 ## Remote runtime proof
 
-`./scripts/bazel test //build/integration:availability_api_test //build/integration:board_paging_test //build/integration:dialog_hook_test //build/integration:board_api_test //build/integration:seat_attachment_test --test_output=summary`
+`./scripts/bazel test //build/integration:availability_api_test //build/integration:board_paging_test //build/integration:dialog_hook_test //build/integration:board_api_test //build/integration:seat_attachment_test //build/integration:details_hook_test //web:decision_panel_test --test_output=summary`
 
-**5/5 passed**: [BuildBuddy invocation](https://carverauto.buildbuddy.io/invocation/b06b07f8-6348-4ec9-a4ad-51d98edb8c05).
+**7/7 passed** after rebasing onto main with merged PR #174: [BuildBuddy invocation](https://carverauto.buildbuddy.io/invocation/ee654a6b-d396-43aa-9b6a-9ff655979772). The append conflict in the test manifest retained both findings and dialog targets.
 
 Availability is exercised through a real CSRF-protected captain unlock, signed session, LiveView websocket, the pinned SDK's rendered-wire consumer, and persisted Ash policies. Coverage includes public denial, row/header opening, row prefill, cancellation, conditional fields, invalid reasons/timestamps, successful save, and draft retention through the actual fallback reload. The browser hook test executes the production application registration and callbacks; SDK stand-ins capture registration only.
 
