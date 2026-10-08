@@ -120,12 +120,14 @@ def api(method, path, body=None, headers=None):
         return e.code, json.loads(e.read() or b'null')
 
 
-cli_env = {k: v for k, v in os.environ.items() if not k.startswith(('DATABASE_', 'PG', 'AGENTBOARD_MATTERMOST'))}
+cli_env = {k: v for k, v in os.environ.items() if not k.startswith(('DATABASE_', 'PG', 'AGENTBOARD_MATTERMOST_'))}
 cli_env.update(AGENT_ID='worker-a', AGENTBOARD_MODEL='fixture', AGENTBOARD_HARNESS='codex')
 # Deliberately NO Mattermost variables in the worker environment: agents
-# hold no MM credentials in Phase 1.
+# hold no MM credentials in Phase 1. Non-secret harness config injected by
+# the test runner (bridge flags, timeouts) is stripped above, so assert the
+# credential-bearing seams specifically.
 for key in list(cli_env):
-    assert not key.startswith('AGENTBOARD_MATTERMOST'), key
+    assert key not in ('AGENTBOARD_MATTERMOST_BASE_URL', 'AGENTBOARD_MATTERMOST_BOT_TOKEN', 'AGENTBOARD_MATTERMOST_BOT_TOKEN_FILE', 'AGENTBOARD_MATTERMOST_CA_FILE'), key
 
 
 def ab(*args, success=True, agent_id=None):
@@ -158,6 +160,14 @@ status, _ = api('POST', '/api/v1/conversations/send',
                 {'channel_id': 'chan-1', 'body': 'hi', 'kind': 'rm -rf'}, WA)
 assert status == 422, status
 status, _ = api('POST', '/api/v1/conversations/send', {'body': 'no channel'}, WA)
+assert status == 422, status
+
+# Channel ids are path-interpolated upstream: slashes or query strings
+# must be rejected, not fetched as a different URL.
+status, _ = api('POST', '/api/v1/conversations/send',
+                {'channel_id': 'chan-1/extra', 'body': 'hi'}, WA)
+assert status == 422, status
+status, _ = api('GET', '/api/v1/conversations/reads?channel_id=x%3Fpage%3D9', None, WA)
 assert status == 422, status
 
 # Send through the API: the shared bot posts with props + header + override.
@@ -213,8 +223,13 @@ assert 'fixture' not in sql("SELECT row_to_json(c)::text FROM conversation_cover
 status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=post-0', None, WB)
 assert status == 200 and len(body['posts']) == 1 and body['posts'][0]['id'] == 'post-1', (status, body)
 assert body['posts'][0]['props']['agent_id'] == 'worker-a', body
+assert body['posts'][0]['user_id'] == 'shared-bot', body
 status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=post-1', None, WB)
 assert status == 200 and body['caught_up'] is True and body['incomplete_reason'] is None, (status, body)
+# Read-at-cursor still records a receipt: the ledger must show worker-b
+# caught up at the cursor even though nothing newer existed.
+assert sql("SELECT last_post_id FROM conversation_coverage WHERE agent_id='worker-b' AND channel_id='chan-1'") == 'post-1'
+assert sql("SELECT caught_up FROM conversation_coverage WHERE agent_id='worker-b' AND channel_id='chan-1'") == 't'
 
 # The packaged CLI drives the same API: send, then read past the cursor.
 out = ab('chat', 'send', '--channel', 'chan-1', '--body', 'cli hello', '--task', 'task-9',
@@ -239,4 +254,17 @@ assert body['caught_up'] is True and body['incomplete_reason'] is None, body
 status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=%20&limit=50', None, WB)
 assert status == 200 and body['caught_up'] is False, (status, body)
 assert body['incomplete_reason'] == 'bounded_snapshot', body
+
+# Channel allowlist gates send and reads when configured; empty means open.
+rpc("Application.put_env(:agentboard, :mattermost_channel_allowlist, \"chan-1\")")
+status, body = api('POST', '/api/v1/conversations/send',
+                   {'channel_id': 'chan-9', 'body': 'scoped out'}, WA)
+assert status == 422 and body['error']['code'] == 'invalid_context', (status, body)
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-9', None, WA)
+assert status == 422 and body['error']['code'] == 'invalid_context', (status, body)
+status, _ = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&limit=5', None, WA)
+assert status == 200, status
+rpc('Application.put_env(:agentboard, :mattermost_channel_allowlist, "")')
+status, _ = api('GET', '/api/v1/conversations/reads?channel_id=chan-9', None, WA)
+assert status == 200, status
 print('Phase 1 shared-bot chat: API send with props/header/override, retry-key adoption, echo-suppressed reads and explicit coverage passed')

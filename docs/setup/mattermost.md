@@ -198,7 +198,7 @@ The gate explicitly reports unavailable implementations rather than trusting a
 must replace each blocker with measured subsystem readiness before cutover:
 
 - Working authorized bridge and handoff delivery, including outage recovery.
-- 5.1 stable per-agent Mattermost identities and protected scoped credentials.
+- 5.1 Phase 1 shared-bot routing with per-agent attribution (header line plus props; agents hold no Mattermost credentials).
 - 5.2 authenticated headless peer send/read with outbound uncertainty handling.
 - 5.3 authorized inbox catch-up with exact post/version receipts and visible gaps.
 - Usable, verified delivery adapters for the participating workers.
