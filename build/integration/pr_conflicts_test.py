@@ -500,5 +500,39 @@ with tls_provider(Provider) as (api_url, ca, server):
         denied = subprocess.run([os.environ['AB_BINARY'], '--json', 'task', 'claim', repair], env=env, capture_output=True, text=True, timeout=25)
         assert denied.returncode != 0, (restricted, repair, denied.stdout, denied.stderr)
         assert sql("SELECT status FROM tasks WHERE id='" + repair + "'") == 'open'
+    # Nil-baseline fence: a watch enrolled between two same-branch reservations
+    # must not defer the second committer when its head matches provider base;
+    # a minimal reservation must resolve scope without KeyError, and a genuine
+    # move must still reject even when the provider matches the new head.
+    fence_expr = '''
+    alias Agentboard.Delivery.BaseMonitor
+    pr_row = Ash.get!(Agentboard.Delivery.PullRequest, "''' + pr + '''")
+    ref = "fence-regression"
+    sha = "cccccccccccccccccccccccccccccccccccccccc"
+    new_sha = "dddddddddddddddddddddddddddddddddddddddd"
+    key = BaseMonitor.id(pr_row.owner, pr_row.repo, ref)
+    Agentboard.Repo.statement!("DELETE FROM delivery_base_watches WHERE id=$1", [key])
+    before_res = %{id: pr_row.id, attempt_id: "11111111-1111-1111-1111-111111111111", generation: 1, owner: pr_row.owner, repo: pr_row.repo, base_watches: %{}}
+    result = %{lifecycle: "open", base_sha: sha, payload: %{"base_ref" => ref}}
+    first = try do BaseMonitor.assert_current!(before_res, result); :admitted rescue e in Agentboard.Board.OperationError -> {:rejected, e.code} end
+    unless first == :admitted, do: raise("fence case1 no-watch must admit, got " <> inspect(first))
+    {:ok, _} = BaseMonitor.enroll(pr_row, result)
+    second = try do BaseMonitor.assert_current!(before_res, result); :admitted rescue e in Agentboard.Board.OperationError -> {:rejected, e.code} end
+    unless second == :admitted, do: raise("fence case2 revision-zero convergence must admit, got " <> inspect(second))
+    minimal = %{id: pr_row.id, attempt_id: "11111111-1111-1111-1111-111111111111", generation: 1}
+    main_result = %{lifecycle: "open", base_sha: sha, payload: %{"base_ref" => "main"}}
+    third = try do BaseMonitor.assert_current!(minimal, main_result); :admitted rescue e in Agentboard.Board.OperationError -> {:rejected, e.code}; _e in KeyError -> :crashed end
+    if third == :crashed, do: raise("fence case3 minimal reservation crashed")
+    Agentboard.Repo.statement!("UPDATE delivery_base_watches SET revision = revision + 1, head_sha = $2 WHERE id = $1", [key, new_sha])
+    moved_result = %{lifecycle: "open", base_sha: new_sha, payload: %{"base_ref" => ref}}
+    fourth = try do BaseMonitor.assert_current!(before_res, moved_result); :admitted rescue e in Agentboard.Board.OperationError -> {:rejected, e.code} end
+    unless fourth == {:rejected, "base_changed"}, do: raise("fence case4 genuine move must reject, got " <> inspect(fourth))
+    established = %{id: pr_row.id, attempt_id: "11111111-1111-1111-1111-111111111111", generation: 1, owner: pr_row.owner, repo: pr_row.repo, base_watches: %{ref => {0, sha}}}
+    fifth = try do BaseMonitor.assert_current!(established, moved_result); :admitted rescue e in Agentboard.Board.OperationError -> {:rejected, e.code} end
+    unless fifth == {:rejected, "base_changed"}, do: raise("fence case5 established move must reject despite provider match, got " <> inspect(fifth))
+    Agentboard.Repo.statement!("DELETE FROM delivery_base_watches WHERE id=$1", [key])
+    IO.puts("FENCE_OK")
+    '''
+    assert 'FENCE_OK' in rpc(fence_expr), 'nil-baseline fence regression failed'
     print('Restricted merge-conflict owners retain observation with open unassigned repair work and no grant.')
 print('Conflict observations, independent CI, base revision fences, owner inbox/worker frame, once per head, rollback and terminal pruning passed.')

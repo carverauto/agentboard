@@ -8,6 +8,7 @@ defmodule Agentboard.Delivery.BaseMonitor do
     BaseInvalidationWorker,
     Github,
     PollState,
+    PullRequest,
     Scheduling
   }
 
@@ -42,15 +43,24 @@ defmodule Agentboard.Delivery.BaseMonitor do
     ref = result.payload["base_ref"]
 
     if is_binary(ref) do
-      key = id(reservation.owner, reservation.repo, ref)
+      {owner, repo} = resolve_scope(reservation)
+      key = id(owner, repo, ref)
       # Commit acquires this lock BEFORE PollState, matching invalidation's
       # branch -> PR order. It also closes the check-to-commit race.
       Repo.statement!("SELECT id FROM delivery_base_watches WHERE id=$1 FOR SHARE", [key])
       watch = Ash.get!(BaseWatch, key, not_found_error?: false)
       current = if watch, do: {watch.revision, watch.head_sha}
-      before = Map.get(Map.get(reservation, :base_watches, %{}), ref)
 
-      if before != current,
+      watches =
+        Map.get(reservation, :base_watches, Map.get(reservation, "base_watches", %{})) || %{}
+
+      before = Map.get(watches, ref)
+
+      admitted? =
+        before == current or
+          (is_nil(before) and match?({0, _}, current) and elem(current, 1) == result.base_sha)
+
+      unless admitted?,
         do: Ops.reject("base_changed", "Base watch changed during collection")
 
       if watch && watch.last_success_at, do: watch.head_sha, else: result.base_sha
@@ -60,6 +70,24 @@ defmodule Agentboard.Delivery.BaseMonitor do
   end
 
   def assert_current!(_reservation, result), do: result.base_sha
+
+  defp resolve_scope(reservation) do
+    owner = Map.get(reservation, :owner, Map.get(reservation, "owner"))
+    repo = Map.get(reservation, :repo, Map.get(reservation, "repo"))
+
+    if is_binary(owner) and is_binary(repo) do
+      {owner, repo}
+    else
+      pr =
+        Ops.fetch!(
+          PullRequest,
+          Map.get(reservation, :id, Map.get(reservation, "id")),
+          "PR not found"
+        )
+
+      {pr.owner, pr.repo}
+    end
+  end
 
   def enroll(pr, observation) do
     ref = observation.payload["base_ref"]
