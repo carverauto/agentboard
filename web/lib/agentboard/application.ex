@@ -25,8 +25,7 @@ defmodule Agentboard.Application do
            delivery_scheduler: [limit: 1, paused: not observation_enabled?()],
            delivery_polling: [limit: 4, paused: not observation_enabled?()],
            mattermost_router: [limit: 1, paused: not bridge_enabled?()],
-           mattermost_sender: [limit: 2, paused: not bridge_enabled?()],
-           mattermost_verify: [limit: 1, paused: not bridge_enabled?()]
+           mattermost_sender: [limit: 2, paused: not bridge_enabled?()]
          ],
          plugins: [Oban.Plugins.Cron, Oban.Plugins.Pruner]
        )},

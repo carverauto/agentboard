@@ -325,6 +325,17 @@ defmodule Agentboard.Board.Operations do
     end
   end
 
+  # Non-raising form of identity!/1 for API boundaries that map error
+  # codes to statuses instead of rescuing.
+  def registered_agent(agent_id, harness) when is_binary(agent_id) and agent_id != "" do
+    case Ash.get!(Agent, agent_id, not_found_error?: false) do
+      %Agent{harness: ^harness} = agent -> {:ok, agent}
+      _ -> {:error, "invalid_context", "Register a matching agent identity first"}
+    end
+  end
+
+  def registered_agent(_, _), do: {:error, "invalid_context", "Register a matching agent identity first"}
+
   def fetch!(resource, id, message, code \\ "not_found") do
     Ash.get!(resource, id, not_found_error?: false) || reject(code, message)
   end
@@ -416,7 +427,6 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Delivery.CISnapshot,
              Agentboard.Mattermost.Outbox,
              Agentboard.Mattermost.TaskThread,
-             Agentboard.Mattermost.ConversationIdentity,
              Agentboard.Mattermost.ConversationCoverage,
              Agentboard.Cooperation.Subscription,
              Agentboard.Cooperation.Binding,

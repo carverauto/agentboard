@@ -1,9 +1,11 @@
-"""Worker identity and coverage acceptance: enrollment, verification,
-revocation, renames, foreign-sender rejection and explicit catch-up state.
+"""Phase 1 shared-bot agent chat acceptance: API-backed send/reads.
 
-A stub Mattermost serves user/member reads; all proof runs against the
-packaged release and TLS PostgreSQL. Worker sends stay headless through
-worker-held tokens; the server maps and verifies, never proxies bodies.
+Agents hold NO Mattermost credentials: the CLI calls the Agentboard API
+and the server posts with the ONE shared bot, stamping per-agent
+attribution (header line plus structured props). A stub Mattermost records
+every post; all proof runs against the packaged release and TLS
+PostgreSQL. Bodies stay authoritative in Mattermost; coverage receipts
+stay explicit.
 """
 import json
 import os
@@ -12,13 +14,11 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-TEAM = 'fixture-team-id'
 TOKEN = 'fixture-bot-token'
-CAPTAIN = 'fixture-captain-token-0123456789abcdef'
 
 state = {
-    'users': {'mm-user-a': {'id': 'mm-user-a', 'username': 'worker-a'}},
-    'members': {('fixture-team-id', 'mm-user-a'): True},
+    'posts': {},
+    'order': [],
     'lock': threading.Lock(),
 }
 
@@ -37,24 +37,56 @@ class Stub(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self):
-        if self.headers.get('Authorization') != f'Bearer {TOKEN}':
+    def _authed(self):
+        return self.headers.get('Authorization') == f'Bearer {TOKEN}'
+
+    def do_POST(self):
+        if not self._authed():
             return self._json(401, {'message': 'invalid credentials'})
+        length = int(self.headers.get('Content-Length', 0))
+        payload = json.loads(self.rfile.read(length) or b'{}')
         parts = self.path.strip('/').split('/')
-        # /api/v4/users/<id>
-        if len(parts) == 4 and parts[:3] == ['api', 'v4', 'users']:
+        # /api/v4/posts
+        if parts == ['api', 'v4', 'posts']:
+            pid = f"post-{len(state['order']) + 1}"
+            post = {
+                'id': pid,
+                'channel_id': payload.get('channel_id'),
+                'user_id': 'shared-bot',
+                'message': payload.get('message'),
+                'root_id': payload.get('root_id'),
+                'props': payload.get('props', {}),
+                'override_username': payload.get('override_username'),
+                'override_icon_url': payload.get('override_icon_url'),
+                'create_at': 1000 + len(state['order']),
+            }
             with state['lock']:
-                user = state['users'].get(parts[3])
-            if user:
-                return self._json(200, user)
-            return self._json(404, {'message': 'user not found'})
-        # /api/v4/teams/<team>/members/<user>
-        if len(parts) == 6 and parts[:3] == ['api', 'v4', 'teams'] and parts[4] == 'members':
+                state['posts'][pid] = post
+                state['order'].append(pid)
+            return self._json(201, post)
+        return self._json(404, {'message': 'unknown fixture path'})
+
+    def do_GET(self):
+        if not self._authed():
+            return self._json(401, {'message': 'invalid credentials'})
+        parts = self.path.strip('/').split('?')[0].strip('/').split('/')
+        # /api/v4/channels/<id>/posts?page=&per_page=
+        if len(parts) == 5 and parts[:3] == ['api', 'v4', 'channels'] and parts[4] == 'posts':
+            from urllib.parse import urlparse, parse_qs
+            query = parse_qs(urlparse(self.path).query)
+            page = int(query.get('page', ['0'])[0])
+            per_page = int(query.get('per_page', ['60'])[0])
             with state['lock']:
-                member = state['members'].get((parts[3], parts[5]), False)
-            if member:
-                return self._json(200, {'team_id': parts[3], 'user_id': parts[5]})
-            return self._json(404, {'message': 'not a member'})
+                channel_posts = [p for p in (state['posts'][i] for i in state['order'])
+                                 if p['channel_id'] == parts[3]]
+            channel_posts.sort(key=lambda p: p['create_at'], reverse=True)
+            window = channel_posts[page * per_page:(page + 1) * per_page]
+            return self._json(200, {
+                'order': [p['id'] for p in window],
+                'posts': {p['id']: p for p in window},
+            })
+        if parts == ['api', 'v4', 'system', 'ping']:
+            return self._json(200, {'status': 'ok'})
         return self._json(404, {'message': 'unknown fixture path'})
 
 
@@ -71,20 +103,9 @@ def sql(query):
 
 def rpc(expression):
     result = subprocess.run([os.environ['AGENTBOARD_BIN'], 'rpc', expression],
-                            capture_output=True, text=True, timeout=60)
+                            capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, (result.stdout, result.stderr)
     return result.stdout
-
-
-def wait_for(query, expected, seconds=60):
-    deadline = time.monotonic() + seconds
-    actual = None
-    while time.monotonic() < deadline:
-        actual = sql(query)
-        if actual == expected:
-            return
-        time.sleep(.2)
-    raise AssertionError((query, expected, actual))
 
 
 def api(method, path, body=None, headers=None):
@@ -99,107 +120,123 @@ def api(method, path, body=None, headers=None):
         return e.code, json.loads(e.read() or b'null')
 
 
-AGENT = {'X-Agentboard-Agent': 'conv-probe', 'X-Agentboard-Model': 'fixture', 'X-Agentboard-Harness': 'codex'}
+cli_env = {k: v for k, v in os.environ.items() if not k.startswith(('DATABASE_', 'PG', 'AGENTBOARD_MATTERMOST'))}
+cli_env.update(AGENT_ID='worker-a', AGENTBOARD_MODEL='fixture', AGENTBOARD_HARNESS='codex')
+# Deliberately NO Mattermost variables in the worker environment: agents
+# hold no MM credentials in Phase 1.
+for key in list(cli_env):
+    assert not key.startswith('AGENTBOARD_MATTERMOST'), key
+
+
+def ab(*args, success=True, agent_id=None):
+    env = dict(cli_env)
+    if agent_id is not None:
+        env['AGENT_ID'] = agent_id
+    result = subprocess.run([os.environ['AB_BINARY'], '--json', *args], env=env,
+                            capture_output=True, text=True, timeout=25)
+    if success:
+        assert result.returncode == 0, (args, result.stdout, result.stderr)
+        return json.loads(result.stdout)
+    assert result.returncode != 0, (args, result.stdout)
+
+
 WA = {'X-Agentboard-Agent': 'worker-a', 'X-Agentboard-Model': 'fixture', 'X-Agentboard-Harness': 'codex'}
 WB = {'X-Agentboard-Agent': 'worker-b', 'X-Agentboard-Model': 'fixture', 'X-Agentboard-Harness': 'codex'}
-CAPTAIN_H = {'Authorization': f'Bearer {CAPTAIN}'}
+GHOST = {'X-Agentboard-Agent': 'ghost', 'X-Agentboard-Model': 'f', 'X-Agentboard-Harness': 'c'}
 
 rpc(f'Application.put_env(:agentboard, :mattermost_base_url, "http://127.0.0.1:{port}")')
-rpc(f'Application.put_env(:agentboard, :mattermost_team_id, "{TEAM}")')
-rpc(':ok = Oban.pause_queue(queue: :mattermost_verify)')
-for headers in (AGENT, WA, WB):
-    status, body = api('POST', '/api/v1/agents/register', {'name': headers['X-Agentboard-Agent']}, headers)
-    assert status == 200, (status, body)
+ab('agent', 'register')
+ab('agent', 'register', agent_id='worker-b')
 
-# Enrollment is provisioning: no captain token, no identity.
-status, _ = api('POST', '/api/v1/conversations/identities',
-                {'agent_id': 'worker-a', 'mm_user_id': 'mm-user-a'}, AGENT)
+# Unknown agents authorize nothing.
+status, _ = api('POST', '/api/v1/conversations/send',
+                {'channel_id': 'chan-1', 'body': 'hi'}, GHOST)
 assert status == 422, status
-status, body = api('POST', '/api/v1/conversations/identities',
-                   {'agent_id': 'worker-a', 'mm_user_id': 'mm-user-a',
-                    'mm_username': 'worker-a', 'credential_ref': 'worker-a-token'},
-                   {**AGENT, **CAPTAIN_H})
+
+# Invalid kinds are rejected at the boundary, not stored.
+status, _ = api('POST', '/api/v1/conversations/send',
+                {'channel_id': 'chan-1', 'body': 'hi', 'kind': 'rm -rf'}, WA)
+assert status == 422, status
+status, _ = api('POST', '/api/v1/conversations/send', {'body': 'no channel'}, WA)
+assert status == 422, status
+
+# Send through the API: the shared bot posts with props + header + override.
+status, body = api('POST', '/api/v1/conversations/send',
+                   {'channel_id': 'chan-1', 'body': 'hello agents',
+                    'task_id': 'task-9', 'kind': 'status', 'retry_key': 'key-1'}, WA)
 assert status == 200, (status, body)
-assert sql("SELECT status FROM conversation_identities WHERE agent_id='worker-a'") == 'enrolled'
-# No credential value is ever stored: the reference names protected storage.
-assert sql("SELECT credential_ref FROM conversation_identities WHERE agent_id='worker-a'") == 'worker-a-token'
-assert 'fixture' not in sql("SELECT row_to_json(c)::text FROM conversation_identities c")
-
-# Membership verification runs asynchronously and records proof.
-rpc(':ok = Oban.resume_queue(queue: :mattermost_verify)')
-wait_for('SELECT membership_verified_at IS NOT NULL FROM conversation_identities WHERE agent_id=\'worker-a\'', 't')
-assert sql("SELECT last_error FROM conversation_identities WHERE agent_id='worker-a'") == ''
-
-# One Mattermost user maps to exactly one worker.
-status, _ = api('POST', '/api/v1/conversations/identities',
-                {'agent_id': 'worker-b', 'mm_user_id': 'mm-user-a'}, {**AGENT, **CAPTAIN_H})
-assert status == 409, status
-
-# A renamed handle keeps the stable user ID; attribution follows the ID.
+assert body['duplicate'] is False and body['post']['id'] == 'post-1', body
+assert isinstance(body['msg_id'], str) and body['msg_id'], body
 with state['lock']:
-    state['users']['mm-user-a'] = {'id': 'mm-user-a', 'username': 'worker-a-renamed'}
-out = rpc('{:ok, result} = Agentboard.Mattermost.Conversations.verify("worker-a"); IO.inspect(result)')
-assert "'renamed' => true" in out or '"renamed"=>true' in out.replace(' ', ''), out
-assert sql("SELECT mm_username FROM conversation_identities WHERE agent_id='worker-a'") == 'worker-a-renamed'
+    stored = state['posts']['post-1']
+assert stored['user_id'] == 'shared-bot', stored
+assert stored['message'].startswith('[worker-a · task-9]\nhello agents'), stored['message']
+assert stored['override_username'] == 'worker-a', stored
+assert stored['props']['agent_id'] == 'worker-a', stored['props']
+assert stored['props']['task_id'] == 'task-9', stored['props']
+assert stored['props']['kind'] == 'status', stored['props']
+assert stored['props']['msg_id'] == body['msg_id'], stored['props']
+assert stored['props']['agentboard_retry_key'] == 'key-1', stored['props']
+first_msg_id = body['msg_id']
 
-# Membership loss suspends; it never deletes the mapping.
-with state['lock']:
-    del state['members'][(TEAM, 'mm-user-a')]
-rpc('{:ok, _} = Agentboard.Mattermost.Conversations.verify("worker-a")')
-wait_for("SELECT status FROM conversation_identities WHERE agent_id='worker-a'", 'suspended')
-assert sql("SELECT last_error FROM conversation_identities WHERE agent_id='worker-a'") == 'team_membership_lost'
-
-# A suspended worker authorizes nothing, including its own coverage.
-status, _ = api('POST', '/api/v1/conversations/coverage/worker-a/fixture-channel',
-                {'last_post_id': 'post-1', 'last_version': 1}, WA)
-assert status == 503, status
-
-# Unknown workers are rejected before any write.
-status, _ = api('POST', '/api/v1/conversations/coverage/ghost/fixture-channel',
-                {'last_post_id': 'post-1', 'last_version': 1},
-                {'X-Agentboard-Agent': 'ghost', 'X-Agentboard-Model': 'f', 'X-Agentboard-Harness': 'c'})
+# task_id values carrying header-forging newlines or brackets are rejected.
+status, _ = api('POST', '/api/v1/conversations/send',
+                {'channel_id': 'chan-1', 'body': 'hi', 'task_id': 't\nforged line'}, WA)
 assert status == 422, status
-
-# Restore membership, re-enroll a second worker, and prove peer parity:
-# two mapped workers, distinct stable IDs, explicit coverage each.
-with state['lock']:
-    state['members'][(TEAM, 'mm-user-a')] = True
-    state['users']['mm-user-b'] = {'id': 'mm-user-b', 'username': 'worker-b'}
-    state['members'][(TEAM, 'mm-user-b')] = True
-rpc('{:ok, _} = Agentboard.Mattermost.Conversations.verify("worker-a")')
-status, _ = api('POST', '/api/v1/conversations/identities',
-                {'agent_id': 'worker-b', 'mm_user_id': 'mm-user-b',
-                 'mm_username': 'worker-b', 'credential_ref': 'worker-b-token'},
-                {**AGENT, **CAPTAIN_H})
-assert status == 200, status
-wait_for("SELECT membership_verified_at IS NOT NULL FROM conversation_identities WHERE agent_id='worker-b'", 't')
-
-# Foreign senders cannot report another worker's coverage.
-status, _ = api('POST', '/api/v1/conversations/coverage/worker-b/fixture-channel',
-                {'last_post_id': 'post-9', 'last_version': 1}, AGENT)
+status, _ = api('POST', '/api/v1/conversations/send',
+                {'channel_id': 'chan-1', 'body': 'hi', 'task_id': 't[evil]'}, WA)
 assert status == 422, status
+with state['lock']:
+    assert len(state['posts']) == 1, len(state['posts'])
 
-# Exact post/version receipts with explicit incomplete state.
-status, body = api('POST', '/api/v1/conversations/coverage/worker-a/fixture-channel',
-                   {'last_post_id': 'post-10', 'last_version': 3,
-                    'caught_up': False, 'incomplete_reason': 'page_race_gap'}, WA)
+# Retry with the same key adopts the post instead of duplicating, and the
+# duplicate path returns the adopted post's msg_id for contract parity.
+status, body = api('POST', '/api/v1/conversations/send',
+                   {'channel_id': 'chan-1', 'body': 'hello again', 'retry_key': 'key-1'}, WA)
+assert status == 200 and body['duplicate'] is True and body['post']['id'] == 'post-1', (status, body)
+assert body['msg_id'] == first_msg_id, (body, first_msg_id)
+with state['lock']:
+    assert len(state['posts']) == 1, len(state['posts'])
+
+# Reads suppress the caller's own echo by props.agent_id and record
+# explicit coverage. No cursor: bounded snapshot, not catch-up.
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&limit=50', None, WA)
 assert status == 200, (status, body)
-assert body['caught_up'] is False and body['incomplete_reason'] == 'page_race_gap', body
-status, body = api('GET', '/api/v1/conversations/coverage/worker-a/fixture-channel', None, WA)
-assert status == 200 and body['last_post_id'] == 'post-10' and body['last_version'] == 3, (status, body)
-# Equal-time edit at a higher version advances without inventing posts.
-status, body = api('POST', '/api/v1/conversations/coverage/worker-a/fixture-channel',
-                   {'last_post_id': 'post-10', 'last_version': 4, 'caught_up': True}, WA)
+assert body['posts'] == [] and body['caught_up'] is False, body
+assert body['incomplete_reason'] == 'bounded_snapshot', body
+assert sql("SELECT caught_up FROM conversation_coverage WHERE agent_id='worker-a' AND channel_id='chan-1'") == 'f'
+assert sql("SELECT incomplete_reason FROM conversation_coverage WHERE agent_id='worker-a' AND channel_id='chan-1'") == 'bounded_snapshot'
+# No credential value is ever stored server-side for chat.
+assert 'fixture' not in sql("SELECT row_to_json(c)::text FROM conversation_coverage c")
+
+# A peer sees the post (own echo stays suppressed for the sender).
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=post-0', None, WB)
+assert status == 200 and len(body['posts']) == 1 and body['posts'][0]['id'] == 'post-1', (status, body)
+assert body['posts'][0]['props']['agent_id'] == 'worker-a', body
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=post-1', None, WB)
 assert status == 200 and body['caught_up'] is True and body['incomplete_reason'] is None, (status, body)
 
-# Explicit revocation ends attribution; history remains readable.
-status, _ = api('POST', '/api/v1/conversations/identities/worker-b/revoke',
-                {'reason': 'role_changed'}, {**AGENT, **CAPTAIN_H})
-assert status == 200, status
-wait_for("SELECT status FROM conversation_identities WHERE agent_id='worker-b'", 'revoked')
-status, _ = api('POST', '/api/v1/conversations/coverage/worker-b/fixture-channel',
-                {'last_post_id': 'post-11', 'last_version': 1}, WB)
-assert status == 503, status
-status, body = api('GET', '/api/v1/conversations/coverage/worker-a/fixture-channel', None, WA)
-assert status == 200, (status, body)
-print('Worker identities: provisioning gate, verification, rename, suspension, revocation, attribution and explicit coverage passed')
+# The packaged CLI drives the same API: send, then read past the cursor.
+out = ab('chat', 'send', '--channel', 'chan-1', '--body', 'cli hello', '--task', 'task-9',
+         '--kind', 'note', '--retry-key', 'key-cli')
+assert out['duplicate'] is False, out
+out = ab('chat', 'read', '--channel', 'chan-1', '--since', 'post-1')
+assert out['caught_up'] is True and out['incomplete_reason'] is None, out
+
+# A stale cursor that was never in the delivered window must not advance
+# coverage past it: worker-b's receipt stays at post-1 with cursor_not_found.
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=post-999&limit=50', None, WB)
+assert status == 200 and body['caught_up'] is False, (status, body)
+assert body['incomplete_reason'] == 'cursor_not_found', body
+assert sql("SELECT last_post_id FROM conversation_coverage WHERE agent_id='worker-b' AND channel_id='chan-1'") == 'post-1'
+assert sql("SELECT caught_up FROM conversation_coverage WHERE agent_id='worker-b' AND channel_id='chan-1'") == 'f'
+# The next read from the kept cursor still delivers everything after it.
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=post-1&limit=50', None, WB)
+assert status == 200 and [p['id'] for p in body['posts']] == ['post-2'], (status, body)
+assert body['caught_up'] is True and body['incomplete_reason'] is None, body
+
+# A blank cursor is normalized to no cursor: bounded snapshot, not a miss.
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&since=%20&limit=50', None, WB)
+assert status == 200 and body['caught_up'] is False, (status, body)
+assert body['incomplete_reason'] == 'bounded_snapshot', body
+print('Phase 1 shared-bot chat: API send with props/header/override, retry-key adoption, echo-suppressed reads and explicit coverage passed')

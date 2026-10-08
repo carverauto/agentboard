@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -14,80 +12,69 @@ import (
 	"github.com/carverauto/agentboard/internal/cli"
 )
 
-type mmFixture struct {
-	token   string
-	selfID  string
-	posts   map[string]map[string]any
-	order   []string
-	created atomic.Int32
-	server  *httptest.Server
+type chatBoard struct {
+	sends    atomic.Int32
+	reads    atomic.Int32
+	lastSend map[string]any
+	server   *httptest.Server
 }
 
-func newMMFixture(t *testing.T) *mmFixture {
+func newChatBoard(t *testing.T) *chatBoard {
 	t.Helper()
-	f := &mmFixture{
-		token:  "worker-token-abc123",
-		selfID: "mm-self",
-		posts: map[string]map[string]any{
-			"post-old": {"id": "post-old", "channel_id": "chan-1", "user_id": "mm-peer", "message": "hello", "props": map[string]any{}},
-			"post-own": {"id": "post-own", "channel_id": "chan-1", "user_id": "mm-self", "message": "my echo", "props": map[string]any{}},
-		},
-		order: []string{"post-own", "post-old"},
-	}
+	f := &chatBoard{}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v4/users/me", func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer "+f.token {
-			w.WriteHeader(401)
-			return
-		}
-		json.NewEncoder(w).Encode(map[string]any{"id": f.selfID, "username": "worker-a"})
+	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"api_version":1,"schema_version":12,"required_schema_version":12}`))
 	})
-	mux.HandleFunc("GET /api/v4/channels/chan-1/posts", func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer "+f.token {
-			w.WriteHeader(401)
+	mux.HandleFunc("POST /api/v1/conversations/send", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Agentboard-Agent") == "" {
+			w.WriteHeader(422)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"order": f.order, "posts": f.posts})
-	})
-	mux.HandleFunc("POST /api/v4/posts", func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer "+f.token {
-			w.WriteHeader(401)
-			return
-		}
+		f.sends.Add(1)
 		var payload map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			w.WriteHeader(400)
 			return
 		}
-		n := f.created.Add(1)
-		post := map[string]any{
-			"id":         "post-new",
-			"channel_id": payload["channel_id"],
-			"user_id":    f.selfID,
-			"message":    payload["message"],
-			"props":      payload["props"],
+		if payload["channel_id"] == "" || payload["body"] == "" {
+			w.WriteHeader(422)
+			w.Write([]byte(`{"error":{"code":"invalid_input","message":"channel_id and body required"}}`))
+			return
 		}
-		f.posts["post-new"] = post
-		f.order = append([]string{"post-new"}, f.order...)
-		w.WriteHeader(201)
-		json.NewEncoder(w).Encode(post)
-		_ = n
+		f.lastSend = payload
+		w.WriteHeader(200)
+		json.NewEncoder(w).Encode(map[string]any{
+			"duplicate": false,
+			"post":      map[string]any{"id": "post-1", "channel_id": payload["channel_id"]},
+			"msg_id":    "msg-1",
+		})
+	})
+	mux.HandleFunc("GET /api/v1/conversations/reads", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Agentboard-Agent") == "" {
+			w.WriteHeader(422)
+			return
+		}
+		f.reads.Add(1)
+		q := r.URL.Query()
+		if q.Get("channel_id") == "" {
+			w.WriteHeader(422)
+			return
+		}
+		w.WriteHeader(200)
+		json.NewEncoder(w).Encode(map[string]any{
+			"channel_id":        q.Get("channel_id"),
+			"posts":             []any{map[string]any{"id": "post-1"}},
+			"caught_up":         q.Get("since") != "",
+			"incomplete_reason": nil,
+		})
 	})
 	f.server = httptest.NewServer(mux)
 	t.Cleanup(f.server.Close)
 	return f
 }
 
-func writeTokenFile(t *testing.T, token string) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "worker-token")
-	if err := os.WriteFile(path, []byte(token+"\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
-func runChat(t *testing.T, args ...string) (string, error) {
+func runChatCommand(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
 	root := cli.NewRoot()
 	var stdout, stderr bytes.Buffer
@@ -95,122 +82,80 @@ func runChat(t *testing.T, args ...string) (string, error) {
 	root.SetErr(&stderr)
 	root.SetArgs(args)
 	err := root.Execute()
-	if stderr.Len() != 0 && err == nil {
-		t.Fatalf("unexpected stderr %q", stderr.String())
-	}
-	return stdout.String(), err
+	return stdout.String(), stderr.String(), err
 }
 
-func TestChatSendRequiresActor(t *testing.T) {
+func TestChatSendRequiresAgentAndChannel(t *testing.T) {
+	f := newChatBoard(t)
+	t.Setenv("AGENTBOARD_URL", f.server.URL)
 	t.Setenv("AGENT_ID", "")
-	if _, err := runChat(t, "chat", "send", "--channel", "chan-1", "--body", "hi"); err == nil {
-		t.Fatal("expected actor validation error")
+	if _, _, err := runChatCommand(t, "chat", "send", "--channel", "chan-1", "--body", "hi"); err == nil {
+		t.Fatal("expected actor validation error without AGENT_ID")
+	}
+	t.Setenv("AGENT_ID", "worker-a")
+	t.Setenv("AGENTBOARD_MODEL", "fixture")
+	t.Setenv("AGENTBOARD_HARNESS", "test")
+	if _, _, err := runChatCommand(t, "chat", "send", "--body", "hi"); err == nil {
+		t.Fatal("expected channel requirement error")
 	}
 }
 
-func TestChatSendRequiresTokenFile(t *testing.T) {
-	f := newMMFixture(t)
-	t.Setenv("AGENTBOARD_MATTERMOST_BASE_URL", f.server.URL)
-	t.Setenv("AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE", filepath.Join(t.TempDir(), "missing"))
-	t.Setenv("AGENT_ID", "test-worker")
+func TestChatSendPostsThroughAPI(t *testing.T) {
+	f := newChatBoard(t)
+	t.Setenv("AGENTBOARD_URL", f.server.URL)
+	t.Setenv("AGENT_ID", "worker-a")
 	t.Setenv("AGENTBOARD_MODEL", "fixture")
 	t.Setenv("AGENTBOARD_HARNESS", "test")
-	if _, err := runChat(t, "chat", "send", "--channel", "chan-1", "--body", "hi"); err == nil {
-		t.Fatal("expected token file error")
-	}
-}
-
-func TestChatSendPostsAndNeverLeaksToken(t *testing.T) {
-	f := newMMFixture(t)
-	t.Setenv("AGENTBOARD_MATTERMOST_BASE_URL", f.server.URL)
-	t.Setenv("AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE", writeTokenFile(t, f.token))
-	t.Setenv("AGENT_ID", "test-worker")
-	t.Setenv("AGENTBOARD_MODEL", "fixture")
-	t.Setenv("AGENTBOARD_HARNESS", "test")
-	out, err := runChat(t, "chat", "send", "--channel", "chan-1", "--body", "hello agents", "--json")
+	out, stderr, err := runChatCommand(t, "chat", "send", "--channel", "chan-1", "--body", "hello agents",
+		"--task", "task-1", "--kind", "status", "--retry-key", "key-1", "--json")
 	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(out, f.token) {
-		t.Fatalf("token leaked into output: %s", out)
+		t.Fatalf("send failed: %v stderr %s", err, stderr)
 	}
 	var envelope map[string]any
 	if err := json.Unmarshal([]byte(out), &envelope); err != nil {
 		t.Fatalf("invalid output %s: %v", out, err)
 	}
-	record, _ := envelope["chat"].(map[string]any)
-	if record["duplicate"] != false {
-		t.Fatalf("expected fresh post, got %v", record)
+	if envelope["duplicate"] != false {
+		t.Fatalf("expected fresh post, got %v", envelope)
 	}
-	post, _ := record["post"].(map[string]any)
-	if post["id"] != "post-new" || f.created.Load() != 1 {
-		t.Fatalf("expected one created post, got %v", record)
+	if f.sends.Load() != 1 {
+		t.Fatalf("expected one API send, got %d", f.sends.Load())
+	}
+	if f.lastSend["retry_key"] != "key-1" || f.lastSend["kind"] != "status" {
+		t.Fatalf("send payload lost fields: %v", f.lastSend)
 	}
 }
 
-func TestChatSendRetryKeyAdoptsDuplicate(t *testing.T) {
-	f := newMMFixture(t)
-	t.Setenv("AGENTBOARD_MATTERMOST_BASE_URL", f.server.URL)
-	t.Setenv("AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE", writeTokenFile(t, f.token))
-	t.Setenv("AGENT_ID", "test-worker")
+func TestChatSendTableShowsDuplicate(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"api_version":1,"schema_version":12}`))
+	})
+	mux.HandleFunc("POST /api/v1/conversations/send", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"duplicate":true,"post":{"id":"post-0"}}`))
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	t.Setenv("AGENTBOARD_URL", server.URL)
+	t.Setenv("AGENT_ID", "worker-a")
 	t.Setenv("AGENTBOARD_MODEL", "fixture")
 	t.Setenv("AGENTBOARD_HARNESS", "test")
-	out, err := runChat(t, "chat", "send", "--channel", "chan-1", "--body", "first", "--retry-key", "key-1", "--json")
+	out, _, err := runChatCommand(t, "chat", "send", "--channel", "chan-1", "--body", "again", "--retry-key", "key-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err = runChat(t, "chat", "send", "--channel", "chan-1", "--body", "second", "--retry-key", "key-1", "--json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var envelope map[string]any
-	if err := json.Unmarshal([]byte(out), &envelope); err != nil {
-		t.Fatal(err)
-	}
-	record, _ := envelope["chat"].(map[string]any)
-	if record["duplicate"] != true {
-		t.Fatalf("expected duplicate adoption, got %v", record)
-	}
-	if f.created.Load() != 1 {
-		t.Fatalf("expected exactly one Mattermost post, created %d", f.created.Load())
+	if !strings.Contains(out, "duplicate") {
+		t.Fatalf("expected duplicate marker in table output: %q", out)
 	}
 }
 
-func TestChatReadSuppressesOwnEcho(t *testing.T) {
-	f := newMMFixture(t)
-	t.Setenv("AGENTBOARD_MATTERMOST_BASE_URL", f.server.URL)
-	t.Setenv("AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE", writeTokenFile(t, f.token))
-	t.Setenv("AGENT_ID", "")
-	out, err := runChat(t, "chat", "read", "--channel", "chan-1", "--json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(out, f.token) {
-		t.Fatalf("token leaked into output: %s", out)
-	}
-	var envelope map[string]any
-	if err := json.Unmarshal([]byte(out), &envelope); err != nil {
-		t.Fatal(err)
-	}
-	record, _ := envelope["chat"].(map[string]any)
-	posts, _ := record["posts"].([]any)
-	if len(posts) != 1 {
-		t.Fatalf("expected only the peer post, got %v", record)
-	}
-	if posts[0].(map[string]any)["id"] != "post-old" {
-		t.Fatalf("expected oldest-first peer post, got %v", posts)
-	}
-	if record["caught_up"] != false || record["incomplete_reason"] != "bounded_snapshot" {
-		t.Fatalf("expected explicit bounded snapshot state, got %v", record)
-	}
-}
-
-func TestChatReadSinceCursorMarksCaughtUp(t *testing.T) {
-	f := newMMFixture(t)
-	t.Setenv("AGENTBOARD_MATTERMOST_BASE_URL", f.server.URL)
-	t.Setenv("AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE", writeTokenFile(t, f.token))
-	t.Setenv("AGENT_ID", "")
-	out, err := runChat(t, "chat", "read", "--channel", "chan-1", "--since", "post-old", "--json")
+func TestChatReadFetchesThroughAPI(t *testing.T) {
+	f := newChatBoard(t)
+	t.Setenv("AGENTBOARD_URL", f.server.URL)
+	t.Setenv("AGENT_ID", "worker-a")
+	t.Setenv("AGENTBOARD_MODEL", "fixture")
+	t.Setenv("AGENTBOARD_HARNESS", "test")
+	out, _, err := runChatCommand(t, "chat", "read", "--channel", "chan-1", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,27 +163,21 @@ func TestChatReadSinceCursorMarksCaughtUp(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &envelope); err != nil {
 		t.Fatal(err)
 	}
-	record, _ := envelope["chat"].(map[string]any)
-	if record["caught_up"] != true || record["incomplete_reason"] != nil {
-		t.Fatalf("expected caught-up with no reason, got %v", record)
+	if envelope["caught_up"] != false {
+		t.Fatalf("expected bounded snapshot without cursor, got %v", envelope)
 	}
-}
-
-func TestChatReadMissingCursorStaysExplicit(t *testing.T) {
-	f := newMMFixture(t)
-	t.Setenv("AGENTBOARD_MATTERMOST_BASE_URL", f.server.URL)
-	t.Setenv("AGENTBOARD_MATTERMOST_WORKER_TOKEN_FILE", writeTokenFile(t, f.token))
-	t.Setenv("AGENT_ID", "")
-	out, err := runChat(t, "chat", "read", "--channel", "chan-1", "--since", "post-gone", "--json")
+	out, _, err = runChatCommand(t, "chat", "read", "--channel", "chan-1", "--since", "post-0", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var envelope map[string]any
+	envelope = nil
 	if err := json.Unmarshal([]byte(out), &envelope); err != nil {
 		t.Fatal(err)
 	}
-	record, _ := envelope["chat"].(map[string]any)
-	if record["caught_up"] != false || record["incomplete_reason"] != "cursor_not_found" {
-		t.Fatalf("expected explicit cursor gap, got %v", record)
+	if envelope["caught_up"] != true {
+		t.Fatalf("expected caught-up with cursor, got %v", envelope)
+	}
+	if f.reads.Load() != 2 {
+		t.Fatalf("expected two API reads, got %d", f.reads.Load())
 	}
 }

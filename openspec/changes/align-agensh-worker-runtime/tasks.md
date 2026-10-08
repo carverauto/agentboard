@@ -38,10 +38,11 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 
 ## 5. Worker identities and real peer inboxes
 
-- [ ] 5.1 Provision explicit stable-agent/Mattermost-user mappings and worker-scoped secret storage; verify token revocation, renamed handles, membership loss and foreign sender attribution remotely, and document headless enrollment without admin credentials in steady state.
-- [ ] 5.2 Add dedicated conversation send/read tools/CLI with protected local outbound spool and source references; verify exact retry keys, uncertain sends, own-send/bridge echo suppression and machine-readable output remotely, and preserve legacy `msg` contracts until cutover.
+- [ ] 5.1 Phase 1 shared-bot identity: server posts every agent message through the ONE shared `agentboard` bot with per-post `override_username` (agent id), `override_icon_url`, structured props (`agent_id`, `task_id`, `kind`, `msg_id` plus retry key) and a readable `[<agent-id> · <task-id>]` header line; props are the source of truth, never the display name. Agents hold NO Mattermost credentials; `agentboard chat` calls the Agentboard API. Verify override on/off behavior (header plus props carry identity when overrides are off), retry-key adoption, and machine-readable output remotely. Keep the server posting seam pluggable for phase 2.
+- [ ] 5.1b Phase 2 elastic per-agent bots (GH #82, board task agentboard-mm-elastic-agent-bots): lazy bot per agent on first `agent register`, AshCloak-encrypted tokens in Postgres, roster-GC retirement. Explicitly NOT blocking `dual` mode; the phase 1/2 swap stays transparent to agents.
+- [ ] 5.2 Add `agentboard chat send/read` over the Agentboard API with protected server-side outbound spool and source references; verify exact retry keys, uncertain sends, own-send/bridge echo suppression by `props.agent_id` plus `msg_id`, and machine-readable output remotely, and preserve legacy `msg` contracts until cutover.
 - [ ] 5.3 Implement per-worker WebSocket plus paginated REST catch-up with persisted coverage/version ledger; verify equal-time posts, edits, concurrent page/live arrival, newly discovered DM channels, outage, retention gap and deleted posts remotely, and expose incomplete coverage explicitly.
-- [ ] 5.4 Run two real enrolled workers through headless channel/urgent-DM send/receive/handling and reconnect recovery in `dual` mode; verify the bridge bot alone does not satisfy peer identity parity and document the measured capability matrix.
+- [ ] 5.4 Run two real workers through headless channel/urgent-DM send/receive/handling and reconnect recovery in `dual` mode; phase 1 shared-bot routing with per-agent attribution satisfies dual-mode parity. Document the measured capability matrix.
 
 ## 6. Context and native boundary adapters
 
