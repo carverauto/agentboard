@@ -8,6 +8,8 @@ defmodule Agentboard.Delivery do
 
   resources do
     resource(Agentboard.Delivery.PullRequest)
+    resource(Agentboard.Delivery.DuplicateFinding)
+    resource(Agentboard.Delivery.DuplicateMonitor)
     resource(Agentboard.Delivery.TaskLink)
     resource(Agentboard.Delivery.Discovery)
     resource(Agentboard.Delivery.PollState)

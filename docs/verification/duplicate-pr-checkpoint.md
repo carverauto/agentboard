@@ -1,69 +1,75 @@
-# Duplicate-PR guard checkpoint
+# Duplicate PR evidence and publication guard
 
-GH110: https://github.com/carverauto/agentboard/issues/110
+GH #110 adds possible duplicate evidence without automatically closing PRs,
+creating decisions, assigning work or renewing claims. Captain ruling949 chose
+an owner-initiated CTA on the duplicate's own non-terminal linked card. The
+collector never impersonates a worker. Decisions use the existing #100 boundary.
 
-This is an unfinished implementation checkpoint, not a delivery receipt. Base
-main1321dc08505278c3451eeeeb24cc39a1b0817c48. No application migration,
-duplicate resource, dashboard flag or decision mutation has been implemented.
+The HTTPS collector retains bounded head repository/ref metadata in immutable
+snapshots. A per-PR reconciliation transaction compares the current open
+snapshot with retained merged PRs in the same target repository. Same head
+repository/ref or a shared retained task submission produces one durable Ash
+finding with both snapshot IDs. Matching branch names in unrelated forks are
+independent. Missing historical head metadata cannot prove branch identity.
+A minute AshOban reconciliation handles late/out-of-order original observations.
+Task locks precede per-finding locks; no provider I/O happens under those locks.
 
-## Proven behavior
+`/prs`, PR details and linked cards show the finding. The actual live duplicate
+card owner can run the displayed command:
 
-The corrected remote baseline reproduces the missing duplicate flag through a
-real HTTPS provider and the fenced Ash polling callback. It first observes A
-merged, completes its Review source using the public Ash action, observes B
-open on the same head repository and branch, and fails at the missing
-`duplicate_of` assertion:
-https://carverauto.buildbuddy.io/invocation/666a9c65-66ea-4b54-819b-04cc27897522
+```sh
+agentboard pr duplicate-decision CANONICAL_PR_ID --task DUPLICATE_TASK
+```
 
-An earlier fixture accidentally invoked a private function; invocationd6017968
-is not bug proof. The correction is retained in the regression.
+The API derives a stable task/gate request, verifies the duplicate task link,
+then uses the existing owner-only decision API. Retrying returns the same
+request. A request parks the owned card. An original Done card is never used to
+host the decision. The captain's answer guides the owner's later action; this
+endpoint does not call GitHub to close or keep anything.
 
-The prepared publication guard and existing seat-isolation suites pass remotely:
-https://carverauto.buildbuddy.io/invocation/bb7194a8-1f55-4c0b-affa-c13dcf7a9360
+Cooperation-disabled observation still records findings. When enabled, the
+finding's recipient receipts and audited board messages commit together,
+including when no worker is enrolled. Retries deliver at most one notice to
+each current owner/coordinator recipient. Shared routing can adopt #122's
+fallback contract when that dependency lands. There is no host wake or global
+installation in this change.
 
-The guard test executes actual Git pushes from a separate linked worktree in a
-bare native-style gate. Its pre-install and still-open controls succeed; terminal
-task, merged linked PR and merged same-head-branch controls refuse publication
-without recreating the target branch. Same spelling in a different fork remains
-independent. Provider failure is refused, sensitive stderr is not echoed, the
-native post-receive hook is preserved, and primary-cwd invocation is rejected.
-The wrapper refuses terminal publication before invoking native run control.
-The actual no-mistakes daemon has not been driven with this new wrapper yet.
+The additive migration reserves24 per captain949 (main22, PR126 reserved23).
+It uses GREATEST, never lowering a higher stamp. The release upgrade test runs
+the actual schema22 migrations, retains task/history/HTML prefixes, then runs
+24 twice with a preexisting25 stamp: prefixes and higher stamp survive, and no
+findings are seeded. The PR merged second must reconcile the ordinal with main.
 
-The upstream in-flight repair/rebase issue is filed:
-https://github.com/kunchenguid/no-mistakes/issues/1371
+## Publication boundary
 
-## Remaining design and authority
+`scripts/publish-seat TASK -- run ...` verifies the leased seat, live task
+ownership, linked PR and same-head merged history before native AXI publication.
+It binds a pre-push hook only to that task branch in the explicitly configured
+bare no-mistakes mirror and preserves its post-receive hook. Use the wrapper for
+respond/rerun too. Terminal/merged evidence means stop, inspect custody and
+abort an obsolete active run from the outer driver; coordinate a remaining
+fresh-main delta. Hooks never drive or abort the native pipeline themselves.
 
-Detection must persist immutable evidence (candidate and merged canonical IDs,
-proof snapshot, basis and timestamps) through Ash, without changing task status,
-ownership, CI qualification or closing a PR. A cooperation-gated once-only
-notification marker must include both submitting seat and configured coordinator,
-including the un-enrolled inbox path. Unknown historical head metadata does not
-prove a matching branch. Compare head repository as well as ref, and preserve
-terminal evidence independently of inventory visibility. Concurrent/late
-observations need explicit ordering and rollback coverage. The current
-`duplicate_pr_test` remains intentionally red until that implementation exists.
+The hook cannot make GitHub merge and Git push atomic or intercept a PR-only
+daemon step. Upstream [no-mistakes1371](https://github.com/kunchenguid/no-mistakes/issues/1371)
+tracks the remaining in-flight race. Unbound historical refs are outside the
+registered task guard. Provider verification failure refuses publication.
 
-Agent A's current PR125/Context203 decision contract permits requests by the
-actual live task owner. A Done task cannot receive a request; the collector must
-not manufacture an owner actor. Required coordinator decision: owner-initiated
-CTA using that existing boundary, or a separately authorized system-generated
-request/follow-up contract. Do not silently skip required decisions when the
-module is absent. Prefer implementation after PR125 merges.
+## Evidence
 
-Schema main is21; open PR118 reserves22. Coordinate the next additive migration
-ordinal before writing a conflicting schema change. No schema number is assigned
-to this checkpoint.
+- Intended pre-fix failure: [remote baseline](https://carverauto.buildbuddy.io/invocation/666a9c65-66ea-4b54-819b-04cc27897522). An earlier fixture/private-function failure is not regression evidence.
+- [Current CLI floor + regression pass](https://carverauto.buildbuddy.io/invocation/9d0c7d2d-a1be-4c6b-b350-f205db08af0c): new write rejects schema22/23 before mutation; TLS duplicate regression passes.
+- [Corrected regression pass](https://carverauto.buildbuddy.io/invocation/63fce502-ce2d-4758-9cba-76085e5a3a1d): actual TLS provider, Ash collector, API/CLI and connected LiveView. Branch/task replay, forks, retry notices, owner-only/idempotent CTA, unchanged Done original and late merge all pass.
+- [Upgrade and integration proof](https://carverauto.buildbuddy.io/invocation/0c21de67-4dc5-41c8-b0f1-1b75f6cacda2): release-schema, decisions, paging and merge disposition pass. Duplicate target failed on missing LiveView runfile there, corrected in the separate pass above.
+- [Publication and seat isolation](https://carverauto.buildbuddy.io/invocation/1fa41e7e-d93d-4712-b3d8-60cf5fcd7499): real Git pushes, positive control, terminal/merged refusal, fork isolation, provider-error refusal and native post-receive preservation (cached remote results).
 
-The publication wrapper binds a native pre-push hook only to the current task
-branch in the explicitly configured local bare mirror. Unbound legacy branches
-and evidence refs are outside its scope. It fails rather than replacing foreign
-hooks. The hook does not call abort from inside a pipeline step. The outer driver
-inspects custody and aborts an obsolete active run after verifying terminal state.
-It cannot make a GitHub merge and Git push atomic or intercept a PR step that
-publishes without a Git push; upstream1371 owns that remaining daemon fence.
+[Architecture HTML](../architecture/duplicate-pr-guard.html) and its retained
+JSON source explain the boundaries. Archify delivery:9/9 showcase,0 errors/0
+warnings. Specification SHA2561a71bf9c7582d92865c7d4814870c541391c37136c95cba0838526e2253686fe;
+HTML SHA256fc56f00c732d150049899377f7ca6c2d5f421ef453195548c72f635313c0ef21.
+Automated browser evidence passes1440x900,1600x1000,1920x1080,2048x1320;
+image review of both endpoint sizes/themes passes. Correction rounds:1.
+The abandoned workflow layout did not pass readability and is not delivered.
 
-Archify, any accepted OpenSpec/Lavish proposal, full application test proof and
-native no-mistakes publication remain required before final delivery. Nothing
-has been pushed, merged, installed globally or deployed by this checkpoint.
+Native no-mistakes publication/CI and task document upload remain pending until
+reported on the live card. No merge or deployment is authorized by this receipt.

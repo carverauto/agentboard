@@ -34,6 +34,8 @@ defmodule Agentboard.Delivery.Github do
          "mergeable" => before.mergeable,
          "mergeable_state" => before.mergeable_state,
          "base_ref" => before.base_ref,
+         "head_ref" => before.head_ref,
+         "head_repo" => before.head_repo,
          "coverage" => "terminal_metadata",
          "policy" => "unknown",
          "tested_ref" => "head",
@@ -69,6 +71,8 @@ defmodule Agentboard.Delivery.Github do
            "mergeable" => after_read.mergeable,
            "mergeable_state" => after_read.mergeable_state,
            "base_ref" => after_read.base_ref,
+           "head_ref" => after_read.head_ref,
+           "head_repo" => after_read.head_repo,
            "coverage" => "complete_head",
            "policy" => "unknown",
            "tested_ref" => "head",
@@ -101,7 +105,7 @@ defmodule Agentboard.Delivery.Github do
   end
 
   defp revision(metadata),
-    do: Map.take(metadata, [:head_sha, :base_sha, :base_ref, :lifecycle, :draft])
+    do: Map.take(metadata, [:head_sha, :base_sha, :base_ref, :head_ref, :head_repo, :lifecycle, :draft])
 
   defp bounded_state(value)
        when value in ~w(clean dirty unstable behind blocked unknown draft has_hooks), do: value
@@ -141,13 +145,22 @@ defmodule Agentboard.Delivery.Github do
          draft: if(is_boolean(data["draft"]), do: data["draft"], else: nil),
          mergeable: if(is_boolean(data["mergeable"]), do: data["mergeable"], else: nil),
          mergeable_state: bounded_state(data["mergeable_state"]),
-         base_ref: if(ref?(data["base"]["ref"]), do: data["base"]["ref"])
+         base_ref: if(ref?(data["base"]["ref"]), do: data["base"]["ref"]),
+         head_ref: if(ref?(data["head"]["ref"]) and not contains_token?(data["head"]["ref"]), do: data["head"]["ref"]),
+         head_repo: head_repository(data["head"]["repo"])
        }, ctx}
     else
       {:error, _, _} = error -> error
       _ -> {:error, "incomplete", 60}
     end
   end
+
+  defp head_repository(%{"full_name" => name}) when is_binary(name) do
+    if Regex.match?(~r/\A[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\z/, name) and not contains_token?(name),
+      do: String.downcase(name)
+  end
+
+  defp head_repository(_), do: nil
 
   defp suite_runs(root, sha, suites, ctx) do
     Enum.reduce_while(suites, {:ok, [], ctx}, fn suite, {:ok, acc, ctx} ->

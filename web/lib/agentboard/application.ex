@@ -67,6 +67,7 @@ defmodule Agentboard.Application do
               {_, Agentboard.Delivery.ScheduleDue, _} -> not observation_enabled?()
               {_, Agentboard.Delivery.ScheduleBases, _} -> not observation_enabled?()
               {_, Agentboard.Delivery.ReconcileMergedReviews, _} -> not observation_enabled?()
+              {_, Agentboard.Delivery.ReconcileDuplicates, _} -> not observation_enabled?()
               {_, Agentboard.Mattermost.RoutePending, _} -> not bridge_enabled?()
               _ -> false
             end)

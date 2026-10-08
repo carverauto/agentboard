@@ -71,7 +71,7 @@ func TestRejectedRequestLeavesCLIStdoutEmpty(t *testing.T) {
 // Legacy servers may ignore new auth headers or filters. Feature commands must
 // reject incompatible schemas before any mutation or misleading roster read.
 func TestFeatureCommandsRequireCompatibleServer(t *testing.T) {
-	for _, schema := range []string{"12", "14", "15", "19"} {
+	for _, schema := range []string{"12", "14", "15", "19", "22", "23"} {
 		for _, feature := range []struct {
 			minimum int
 			args    []string
@@ -80,6 +80,7 @@ func TestFeatureCommandsRequireCompatibleServer(t *testing.T) {
 			{15, []string{"agent", "list", "--availability", "active"}},
 			{15, []string{"msg", "send", "--to", "fixture-agent", "--kind", "task_order", "--body", "Work order"}},
 			{15, []string{"agent", "availability", "set", "--agent-id", "fixture-agent", "--state", "active"}},
+			{24, []string{"pr", "duplicate-decision", "fixture-pr", "--task", "fixture-task"}},
 			{20, []string{"decision", "list"}},
 			{20, []string{"decision", "answer", "00000000-0000-4000-8000-000000000001", "--answer", "Approved"}},
 			{20, []string{"decision", "ack", "00000000-0000-4000-8000-000000000001"}},

@@ -11,6 +11,7 @@ import subprocess
 import urllib.parse
 import urllib.request
 from provider_fixture import tls_provider
+from liveview_client import LiveView
 
 URL = os.environ['AGENTBOARD_URL']
 HEAD, BASE = 'a' * 40, 'b' * 40
@@ -85,7 +86,7 @@ def poll(pr):
 rpc(':ok = Oban.stop_queue(queue: :delivery_scheduler); :ok = Oban.stop_queue(queue: :delivery_polling); Application.put_env(:agentboard, :cooperation_enabled, false)')
 ab('agent', 'register')
 ab('agent', 'register', owner='fixture-coordinator')
-rpc('Application.put_env(:agentboard, :cooperation_coordinator_id, "fixture-coordinator")')
+rpc('Application.put_env(:agentboard, :coordinator_id, "fixture-coordinator")')
 with tls_provider(Provider) as (api_url, ca, _):
     rpc('Application.put_env(:agentboard, :github, [api_url: ' + json.dumps(api_url) +
         ', token: "invented-duplicate-token", ca_file: ' + json.dumps(ca) + '])')
@@ -116,9 +117,28 @@ with tls_provider(Provider) as (api_url, ca, _):
     assert ab('pr', 'list')['prs'][0].get('duplicate_of')
     html = urllib.request.urlopen(URL + '/prs').read().decode()
     assert 'Possible duplicate' in html and '/pull/101' in html
-    board = urllib.request.urlopen(URL + '/?status=review').read().decode()
-    assert 'Possible duplicate' in board
+    assert 'Owner: request captain decision' in html
+    detail_html = urllib.request.urlopen(URL + '/prs/' + replay).read().decode()
+    assert 'duplicate-decision' in detail_html and 'duplicate-replayed' in detail_html
+    live = LiveView(URL, '/?status=review')
+    assert 'Possible duplicate' in json.dumps(live.initial)
+    live.socket.close()
     assert ab('task', 'show', 'duplicate-replayed')['task']['status'] == 'review'
+    assert sql("SELECT count(*) FROM decision_requests") == '0', 'collector must not create decisions'
+    def refused(task, owner):
+        env = dict(os.environ, AGENT_ID=owner, AGENTBOARD_MODEL='fixture-model', AGENTBOARD_HARNESS='codex')
+        p = subprocess.run([os.environ['AB_BINARY'], '--json', 'pr', 'duplicate-decision', replay, '--task', task], env=env, capture_output=True, text=True)
+        assert p.returncode == 4, (p.returncode, p.stdout, p.stderr)
+    refused('duplicate-replayed', 'fixture-coordinator')
+    refused('duplicate-original', 'duplicate-owner')
+    decision = ab('pr', 'duplicate-decision', replay, '--task', 'duplicate-replayed')
+    assert decision['decision']['requester_id'] == 'duplicate-owner'
+    assert decision['decision']['task_id'] == 'duplicate-replayed'
+    assert decision['decision']['status'] == 'open'
+    again = ab('pr', 'duplicate-decision', replay, '--task', 'duplicate-replayed')
+    assert again['decision']['id'] == decision['decision']['id']
+    assert ab('task', 'show', 'duplicate-replayed')['task']['status'] == 'blocked'
+    assert ab('task', 'show', 'duplicate-original')['task']['status'] == 'done'
     # Branch names in other head repositories are independent, as are fresh
     # branches without a common merged task submission.
     other_fork = create(103, 'duplicate-other-fork', head_repo='other/repo')
@@ -138,4 +158,14 @@ with tls_provider(Provider) as (api_url, ca, _):
     poll(later)
     assert ab('pr', 'show', later)['duplicate_of']['basis'] == 'task_submission'
     assert ab('task', 'show', 'duplicate-task-source')['task']['status'] == 'review'
+    late_a = create(107, 'duplicate-late-a', branch='feat/late')
+    late_b = create(108, 'duplicate-late-b', branch='feat/late')
+    poll(late_b)
+    assert ab('pr', 'show', late_b).get('duplicate_of') is None
+    prs[107]['merged'] = True
+    poll(late_a)
+    rpc('input = Ash.ActionInput.for_action(Agentboard.Delivery.DuplicateMonitor, :reconcile, %{}, actor: %{role: :system}); {:ok, _} = Ash.run_action(input)')
+    assert ab('pr', 'show', late_b)['duplicate_of']['merged_pull_request_id'] == late_a
+    assert sql("SELECT count(*) FROM delivery_duplicate_findings WHERE id='" + replay + "'") == '1'
+    assert sql("SELECT count(*) FROM board_action_events WHERE resource LIKE '%DuplicateFinding%' AND action='record'") != '0'
     print('Merged-branch/task replay findings, fork isolation, board/API reads and once-only cooperation inbox notices passed')

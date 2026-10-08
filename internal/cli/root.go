@@ -144,6 +144,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasPrefix(path, "decisions") || query.Get("waiting") != "" {
 		required = 20
 	}
+	if strings.HasSuffix(path, "/duplicate-decision") {
+		required = 24
+	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
 	}
