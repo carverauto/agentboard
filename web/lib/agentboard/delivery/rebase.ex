@@ -1,5 +1,5 @@
 defmodule Agentboard.Delivery.Rebase do
-  @moduledoc "Definitive dirty evidence creates one gated repair, inbox notice and normal harness-delivery intent atomically."
+  @moduledoc "Definitive dirty evidence creates one gated repair, inbox notice and normal harness-delivery intent atomically. The collector calls this inside its fenced snapshot/projection transaction."
   alias Agentboard.Board.Operations, as: Ops
   alias Agentboard.Board.Resources.{Agent, Task}
   alias Agentboard.Delivery.{RebaseFollowUp, PullRequest, TaskLink}
@@ -82,9 +82,15 @@ defmodule Agentboard.Delivery.Rebase do
 
       {task, responsible} =
         if owner do
-          try do
-            grant = Availability.admit(task, "assign", @actor, %{"to" => owner})
+          grant =
+            try do
+              Availability.admit(task, "assign", @actor, %{"to" => owner})
+            rescue
+              e in Agentboard.Board.OperationError ->
+                if e.code == "conflict", do: nil, else: reraise(e, __STACKTRACE__)
+            end
 
+          if grant do
             assigned =
               Ops.update(
                 task,
@@ -103,8 +109,8 @@ defmodule Agentboard.Delivery.Rebase do
               )
 
             {assigned, owner}
-          rescue
-            _ in Agentboard.Board.OperationError -> {task, nil}
+          else
+            {task, nil}
           end
         else
           {task, nil}

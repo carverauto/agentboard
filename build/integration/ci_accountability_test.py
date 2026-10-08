@@ -536,6 +536,38 @@ assert actual_regrant == 'ci-reserved-other,true,assigned', actual_regrant
 api('/tasks/' + repair301 + '/claim', {}, agent='ci-reserved-target', status=409)
 api('/tasks/' + repair301 + '/claim', {}, agent='ci-reserved-other')
 print('AVAILABILITY_CI_ROUTING', repair301, flush=True)
+import time
+print('COLLECTOR_ADMISSION_LOCK', flush=True)
+api('/tasks', {'id': 'ci-lock-source', 'title': 'Lock barrier source', 'repo': 'fixture/repo',
+               'pr_url': 'https://github.com/fixture/repo/pull/302'}, agent='ci-owner')
+pr302 = sql("SELECT id FROM delivery_pull_requests WHERE number='302'")
+sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 second' WHERE id='" + pr302 + "'")
+reservation302 = json.loads(rpc('{:ok, [r]} = Agentboard.Delivery.Polling.reserve_pr(' + json.dumps(pr302) + '); IO.puts("RESERVATION:" <> Jason.encode!(r))').split('RESERVATION:', 1)[1].strip())
+check302 = dict(identity='check:1:required', latest=True, status='completed', conclusion='failure', source_url='https://github.com/fixture/repo/actions/runs/302')
+payload302 = dict(policy='unknown', coverage='complete_head', tested_ref='head', attempts=[check302], draft=None)
+encoded302 = base64.b64encode(json.dumps(payload302).encode()).decode()
+expression302 = ('result = %{ci_state: "failing", lifecycle: "open", head_sha: ' + json.dumps(HEAD) + ', base_sha: ' + json.dumps(BASE) + ', payload: Jason.decode!(Base.decode64!("' + encoded302 + '"))}; reservation = %{id: ' + json.dumps(reservation302['id']) + ', attempt_id: ' + json.dumps(reservation302['attempt_id']) + ', generation: ' + str(reservation302['generation']) + '}; IO.puts(inspect(Agentboard.Delivery.Polling.commit_observation(reservation, result)))')
+snapshots_before = sql('SELECT count(*) FROM delivery_ci_snapshots')
+locker = subprocess.Popen([os.environ['FIXTURE_PSQL'], '-At', '-v', 'ON_ERROR_STOP=1'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+locker.stdin.write("BEGIN; SELECT pg_advisory_xact_lock(48713081); SELECT 'ready';\n")
+locker.stdin.flush()
+while locker.stdout.readline().strip() != 'ready':
+    assert locker.poll() is None
+with concurrent.futures.ThreadPoolExecutor(1) as pool:
+    pending = pool.submit(rpc, expression302)
+    time.sleep(0.5)
+    assert not pending.done(), 'Collector committed without holding the shared admission lock'
+    assert sql('SELECT count(*) FROM delivery_ci_snapshots') == snapshots_before, 'Collector published evidence while admission-blocked'
+    locker.stdin.write("COMMIT;\n")
+    locker.stdin.flush()
+    locker.stdin.close()
+    output302 = pending.result(timeout=60)
+    assert '{:ok,' in output302, output302
+assert locker.wait(timeout=10) == 0, locker.stderr.read()
+assert sql('SELECT count(*) FROM delivery_ci_snapshots') == str(int(snapshots_before) + 1)
+repair302 = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id='" + pr302 + "'")
+actual302 = sql("SELECT status||','||coalesce(assignee_id,'')||','||assignment_authorized::text FROM tasks WHERE id='" + repair302 + "'")
+assert actual302 == 'assigned,ci-owner,false', actual302
 
 api('/workers/ci-peer/resume', {'binding_epoch': 1}, token=host)
 batch = api('/workers/ci-peer/reserve', {'binding_epoch': 1, 'idempotency_key': 'dashboard-uncertain'}, token=host)['batch']

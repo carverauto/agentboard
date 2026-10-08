@@ -3,7 +3,7 @@ defmodule Agentboard.Delivery.Accountability do
   alias Agentboard.{Availability, Repo, Cooperation.Runtime}
   alias Agentboard.Board.Operations, as: Ops
   alias Agentboard.Delivery.{Obligation, PullRequest, TaskLink}
-  alias Agentboard.Board.Resources.Task
+  alias Agentboard.Board.Resources.{Agent, Task}
   require Ash.Query
   @actor %{"agent" => "ci-accountability", "model" => "system", "harness" => "ash"}
 
@@ -57,7 +57,11 @@ defmodule Agentboard.Delivery.Accountability do
       |> Ash.read!()
 
     owners = links |> Enum.map(& &1.submitted_by_id) |> Enum.uniq()
-    owner = if length(owners) == 1 and not is_nil(hd(owners)), do: hd(owners)
+
+    owner =
+      if length(owners) == 1 and not is_nil(hd(owners)) and
+           Ash.get!(Agent, hd(owners), not_found_error?: false),
+         do: hd(owners)
 
     %{rows: [[episode]]} =
       Repo.statement!(
@@ -93,9 +97,15 @@ defmodule Agentboard.Delivery.Accountability do
 
     {task, responsible} =
       if owner do
-        try do
-          grant = Availability.admit(task, "assign", @actor, %{"to" => owner})
+        grant =
+          try do
+            Availability.admit(task, "assign", @actor, %{"to" => owner})
+          rescue
+            e in Agentboard.Board.OperationError ->
+              if e.code == "conflict", do: nil, else: reraise(e, __STACKTRACE__)
+          end
 
+        if grant do
           assigned =
             Ops.update(
               task,
@@ -114,8 +124,8 @@ defmodule Agentboard.Delivery.Accountability do
             )
 
           {assigned, owner}
-        rescue
-          _ in Agentboard.Board.OperationError -> {task, nil}
+        else
+          {task, nil}
         end
       else
         {task, nil}
