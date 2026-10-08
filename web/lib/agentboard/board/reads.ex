@@ -170,8 +170,13 @@ defmodule Agentboard.Board.Reads do
   end
 
   defp filtered(module, filters, fields, resource) do
+    keys =
+      if resource == "agents",
+        do: Map.keys(fields) -- ["kind"],
+        else: Map.keys(fields)
+
     query =
-      Enum.reduce(Map.take(filters, Map.keys(fields)), Ash.Query.new(module), fn
+      Enum.reduce(Map.take(filters, keys), Ash.Query.new(module), fn
         {"waiting", "true"}, query ->
           Ash.Query.filter(query, waiting_on_captain == true)
 
