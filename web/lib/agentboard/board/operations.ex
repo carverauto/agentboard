@@ -40,7 +40,19 @@ defmodule Agentboard.Board.Operations do
                        "That identity is retired; restore it before re-registering"
                      )
 
-                 attrs = Map.merge(data, %{"model" => actor["model"], "updated_at" => now})
+                 if Map.has_key?(data, "kind") and data["kind"] != agent.kind,
+                   do:
+                     reject(
+                       "invalid_input",
+                       "Identity kind is set at registration"
+                     )
+
+                 attrs =
+                   Map.merge(Map.delete(data, "kind"), %{
+                     "model" => actor["model"],
+                     "updated_at" => now
+                   })
+
                  %{"agent" => public(update(agent, :register, attrs, actor))}
              end
            end) do
@@ -156,7 +168,7 @@ defmodule Agentboard.Board.Operations do
              agent = fetch!(Agent, id, "Agent is not registered")
 
              if agent.retired_at == nil do
-               %{"agent" => public(agent)}
+               {%{"agent" => public(agent)}, false}
              else
                attrs = %{
                  retired_at: nil,
@@ -164,11 +176,18 @@ defmodule Agentboard.Board.Operations do
                  retire_reason: nil,
                  retire_forced: false
                }
-               %{"agent" => public(update(agent, :restore, attrs, actor))}
+               {%{"agent" => public(update(agent, :restore, attrs, actor))}, true}
              end
            end) do
-        {:ok, _} = ok -> ok
-        error -> error
+        {:ok, {result, true}} ->
+          Agentboard.Mattermost.ElasticBots.ensure(id)
+          {:ok, result}
+
+        {:ok, {result, false}} ->
+          {:ok, result}
+
+        error ->
+          error
       end
     else
       false -> {:error, "invalid_input", "Invalid restore request or caller"}

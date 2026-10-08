@@ -44,7 +44,9 @@ func (c *commands) list(resource string, filters []string) *cobra.Command {
 			q.Set("cursor", cursor)
 		}
 		if resource == "agents" || resource == "quota" {
-			q.Set("stale_after", strconv.FormatFloat(c.cfg.StaleAfter.Seconds(), 'f', -1, 64))
+			if stale := c.staleAfter(cmd); stale != "" {
+				q.Set("stale_after", stale)
+			}
 		}
 		for k, v := range values {
 			if *v != "" {
@@ -74,7 +76,9 @@ func (c *commands) show(resource string) *cobra.Command {
 			}
 		}
 		if resource == "agents" {
-			q.Set("stale_after", strconv.FormatFloat(c.cfg.StaleAfter.Seconds(), 'f', -1, 64))
+			if stale := c.staleAfter(cmd); stale != "" {
+				q.Set("stale_after", stale)
+			}
 		}
 		return c.request(cmd, http.MethodGet, resource+"/"+args[0], q, nil)
 	}

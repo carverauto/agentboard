@@ -138,7 +138,10 @@ func (c *commands) decisionList(resource string) *cobra.Command {
 		if limit < 1 || limit > 100 {
 			return errors.New("--limit must be 1–100")
 		}
-		q := url.Values{"limit": {strconv.Itoa(limit)}, "stale_after": {strconv.FormatFloat(c.cfg.StaleAfter.Seconds(), 'f', -1, 64)}}
+		q := url.Values{"limit": {strconv.Itoa(limit)}}
+		if stale := c.staleAfter(cmd); stale != "" {
+			q.Set("stale_after", stale)
+		}
 		for k, v := range map[string]string{"owner": owner, "task": task, "status": status, "route": route, "cursor": cursor} {
 			if v != "" {
 				q.Set(k, v)
