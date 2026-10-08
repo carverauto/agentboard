@@ -69,6 +69,9 @@ defmodule Agentboard.Mattermost.Conversations do
       {:ok, 404, _} ->
         {:error, "not_found", "channel not found"}
 
+      {:ok, 400, _} ->
+        {:error, "invalid_input", "Mattermost rejected the post"}
+
       {:ok, _status, _} ->
         {:error, "unavailable", "Mattermost did not acknowledge the post"}
 
@@ -142,7 +145,9 @@ defmodule Agentboard.Mattermost.Conversations do
 
   defp send_params(params) do
     with {:ok, channel_id} <- present(params["channel_id"], "channel_id is required"),
+         {:ok, channel_id} <- capped(channel_id, 128, "channel_id exceeds 128 characters"),
          {:ok, body} <- present(params["body"], "body is required"),
+         {:ok, body} <- capped(body, 16_383, "body exceeds 16383 characters"),
          {:ok, kind} <- send_kind(params["kind"]),
          {:ok, retry_key} <- optional_text(params["retry_key"], 128),
          {:ok, task_id} <- optional_text(params["task_id"], 128),
@@ -153,7 +158,15 @@ defmodule Agentboard.Mattermost.Conversations do
   end
 
   defp send_kind(nil), do: {:ok, "note"}
-  defp send_kind(kind) when kind in @kinds, do: {:ok, kind}
+  defp send_kind(kind) when is_binary(kind) do
+    trimmed = String.trim(kind)
+
+    cond do
+      trimmed == "" -> {:ok, "note"}
+      trimmed in @kinds -> {:ok, trimmed}
+      true -> {:error, "invalid_input", "kind must be one of #{Enum.join(@kinds, ", ")}"}
+    end
+  end
   defp send_kind(_), do: {:error, "invalid_input", "kind must be one of #{Enum.join(@kinds, ", ")}"}
 
   defp present(nil, message), do: {:error, "invalid_input", message}
@@ -181,6 +194,10 @@ defmodule Agentboard.Mattermost.Conversations do
   end
 
   defp optional_text(_, _), do: {:error, "invalid_input", "value must be text"}
+
+  defp capped(value, max, message) when is_binary(value) do
+    if String.length(value) > max, do: {:error, "invalid_input", message}, else: {:ok, value}
+  end
 
   defp read_limit(nil), do: {:ok, 50}
   defp read_limit(""), do: {:ok, 50}
@@ -231,6 +248,9 @@ defmodule Agentboard.Mattermost.Conversations do
 
         {:ok, 404, _} ->
           {:halt, {:error, "not_found", "channel not found"}}
+
+        {:ok, 400, _} ->
+          {:halt, {:error, "invalid_input", "channel history rejected"}}
 
         _ ->
           {:halt, {:error, "unavailable", "channel history unavailable"}}
