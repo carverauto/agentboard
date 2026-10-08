@@ -90,6 +90,8 @@ defmodule Agentboard.Mattermost.Inbound do
            true <- valid_post?(root) and root["channel_id"] == post["channel_id"] and (root["delete_at"] || 0) == 0 do
         {:ok, root}
       else
+        {:error, {:rate_limited, _} = rate} -> {:error, rate}
+        {:error, reason} when reason in [:transport_error, :timeout, :response_too_large, :unexpected_status] -> {:error, {:source_transport, reason}}
         _ -> {:error, :thread_root_unavailable}
       end
     end
@@ -139,7 +141,10 @@ defmodule Agentboard.Mattermost.Inbound do
       results = Enum.map(channels, fn channel ->
         InboundStore.coverage(cfg, channel, 0, false, "catch_up_in_progress")
         case stable_scan(cfg, channel, nil, 0) do
-          {:ok, _} -> InboundStore.coverage(cfg, channel, 0, true, @historical_gap)
+          {:ok, _, [], []} -> InboundStore.coverage(cfg, channel, 0, true, @historical_gap)
+          {:ok, _, scan_gaps, missing_gaps} ->
+            InboundStore.coverage(cfg, channel, nil, false, hole_reason(scan_gaps, missing_gaps))
+            {:gap, :post_gap}
           {:error, reason} ->
             InboundStore.coverage(cfg, channel, nil, false, reason_text(reason))
             {:gap, reason}
@@ -154,22 +159,23 @@ defmodule Agentboard.Mattermost.Inbound do
 
   defp stable_scan(_cfg, _channel, _prior, 3), do: {:error, :history_changed_during_scan}
   defp stable_scan(cfg, channel, prior, round) do
-    with {:ok, versions} <- scan(cfg, channel, 0, %{}),
-         :ok <- verify_missing(cfg, channel, versions) do
-      if versions == prior, do: {:ok, versions}, else: stable_scan(cfg, channel, versions, round + 1)
+    with {:ok, versions, scan_gaps} <- scan(cfg, channel, 0, %{}, []),
+         {:ok, missing_gaps} <- verify_missing(cfg, channel, versions) do
+      gaps = {Enum.uniq(scan_gaps) |> Enum.take(8), Enum.uniq(missing_gaps) |> Enum.take(8)}
+      if versions == prior, do: {:ok, versions, elem(gaps, 0), elem(gaps, 1)}, else: stable_scan(cfg, channel, versions, round + 1)
     end
   end
 
-  defp scan(cfg, channel, page, versions) do
+  defp scan(cfg, channel, page, versions, gaps) do
     max_pages = Application.get_env(:agentboard, :mattermost_inbound_max_pages, 128)
     if page >= max_pages do
       {:error, :page_budget_exhausted}
     else
       with {:ok, %{"order" => order, "posts" => posts}} when is_list(order) and is_map(posts) <- InboundHTTP.page(cfg, channel, page),
            true <- length(order) <= 60 and map_size(posts) <= 60 and Enum.all?(order, &Map.has_key?(posts, &1)),
-           {:ok, versions} <- capture_page(cfg, channel, order, posts, versions),
+           {:ok, versions, gaps} <- capture_page(cfg, channel, order, posts, versions, gaps),
            {:ok, :ok} <- InboundStore.coverage(cfg, channel, page + 1, false, "catch_up_in_progress") do
-        if length(order) < 60, do: {:ok, versions}, else: scan(cfg, channel, page + 1, versions)
+        if length(order) < 60, do: {:ok, versions, gaps}, else: scan(cfg, channel, page + 1, versions, gaps)
       else
         false -> {:error, :invalid_history_page}
         {:error, code, _} -> {:error, code}
@@ -179,18 +185,32 @@ defmodule Agentboard.Mattermost.Inbound do
     end
   end
 
-  defp capture_page(cfg, channel, order, posts, versions) do
-    Enum.reduce_while(order, {:ok, versions}, fn id, {:ok, acc} ->
+  defp capture_page(cfg, channel, order, posts, versions, gaps) do
+    Enum.reduce_while(order, {:ok, versions, gaps}, fn id, {:ok, acc, gaps} ->
       post = posts[id]
       if valid_post?(post) and post["id"] == id and post["channel_id"] == channel do
         case observe(cfg, post) do
-          {:ok, version} -> {:cont, {:ok, Map.put(acc, id, version)}}
+          {:ok, version} -> {:cont, {:ok, Map.put(acc, id, version), gaps}}
+          {:error, reason} when reason in [:invalid_or_disallowed_post, :thread_root_unavailable] ->
+            {:cont, {:ok, acc, add_gap(gaps, id)}}
           error -> {:halt, error}
         end
       else
-        {:halt, {:error, :invalid_history_post}}
+        {:cont, {:ok, acc, add_gap(gaps, id)}}
       end
     end)
+  end
+
+  defp add_gap(gaps, id) do
+    id = if InboundHTTP.segment?(id), do: id, else: "invalid_id"
+    (gaps ++ [id]) |> Enum.uniq() |> Enum.take(8)
+  end
+
+  defp hole_reason(scan_gaps, missing_gaps) do
+    parts = []
+    parts = if scan_gaps == [], do: parts, else: parts ++ ["uninspectable_post:" <> Enum.join(scan_gaps, ",")]
+    parts = if missing_gaps == [], do: parts, else: parts ++ ["known_post_unavailable:" <> Enum.join(missing_gaps, ",")]
+    (if parts == [], do: @historical_gap, else: Enum.join(parts, ";")) |> String.slice(0, 256)
   end
 
   defp verify_missing(cfg, channel, versions) do
@@ -198,13 +218,17 @@ defmodule Agentboard.Mattermost.Inbound do
     if length(missing) > 500 do
       {:error, :missing_post_budget_exhausted}
     else
-      Enum.reduce_while(missing, :ok, fn id, :ok ->
+      Enum.reduce_while(missing, {:ok, []}, fn id, {:ok, gaps} ->
         case InboundHTTP.post(cfg, id) do
           {:ok, post} -> case observe(cfg, post) do
-            {:ok, _} -> {:cont, :ok}
-            _ -> {:halt, {:error, :known_post_changed_outside_history}}
+            {:ok, _} -> {:cont, {:ok, gaps}}
+            {:error, reason} when reason in [:invalid_or_disallowed_post, :thread_root_unavailable] ->
+              {:cont, {:ok, add_gap(gaps, id)}}
+            error -> {:halt, error}
           end
-          _ -> {:halt, {:error, :known_post_unavailable}}
+          {:error, reason} when reason in [:source_unavailable, :invalid_id] ->
+            {:cont, {:ok, add_gap(gaps, id)}}
+          error -> {:halt, error}
         end
       end)
     end

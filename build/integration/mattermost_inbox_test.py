@@ -249,13 +249,16 @@ POSTS['human-forged'] = post('human-forged', user='human-2', props=dict(agent_id
 POSTS['root'] = post('root', '', user='shared-bot', props=dict(agent_id='worker-a', msg_id='root-msg', task_id='fixture-task'))
 POSTS['reply'] = post('reply', 'human thread reply', root='root')
 POSTS['bridge'] = post('bridge', user='shared-bot', props=dict(agentboard_event_marker='agentboard:message:1:notice'))
+POSTS['zz-poison-1'] = post('zz-poison-1', '@worker-b ' + 'x' * 70000)
+POSTS['zz-poison-2'] = post('zz-poison-2', '@worker-b poison root', root='missing-root-post')
+POSTS['zz-poison-0-sibling'] = post('zz-poison-0-sibling', '@worker-b valid sibling after poison')
 RACE = True
 rpc('Application.put_env(:agentboard, :mattermost_inbound_history_start_ms, 0)')
 rpc('Application.put_env(:agentboard, :mattermost_base_url, ' + json.dumps('http://127.0.0.1:%d' % server.server_port) + ')')
 rpc('Application.put_env(:agentboard, :mattermost_bot_token, ' + json.dumps(TOKEN) + ')')
 rpc('Application.put_env(:agentboard, :mattermost_inbound_repo, "fixture/repo")')
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, true)')
-wait(lambda: any(c['history_complete'] for c in inbox()[1]))
+wait(lambda: any('uninspectable_post' in c['incomplete_reason'] for c in inbox()[1]))
 items, coverage = inbox()
 assert len([i for i in items if i['post_id'].startswith('p-')]) >= 70
 assert len([i for i in items if i['post_id'] == 'zz-page-live']) == 1
@@ -265,7 +268,11 @@ assert find('bot-peer')['kind'] == 'handoff'
 assert find('human-forged')['sender_agent_id'] is None
 assert read(find('human-forged'))['user_id'] == 'human-2'
 assert find('reply', 'worker-a')['task_id'] == 'fixture-task'
-assert all(not c['caught_up'] and c['incomplete_reason'] == 'historical_deletions_unprovable' for c in coverage)
+room_cov = next(c for c in coverage if c['channel_id'] == 'room')
+assert not room_cov['caught_up'] and not room_cov['history_complete']
+assert 'uninspectable_post' in room_cov['incomplete_reason']
+assert 'zz-poison-1' in room_cov['incomplete_reason'] and 'zz-poison-2' in room_cov['incomplete_reason']
+assert find('zz-poison-1') is None and find('zz-poison-2') is None
 assert all('message' not in i for i in items)
 first = api('/workers/worker-b/mattermost_inbox', token=TOKENS['worker-b'])
 assert first['next_cursor'], 'expected multiple inbox pages for bounded-walk proof'
@@ -332,6 +339,8 @@ with LOCK:
     emit('direct_added', {'channel_id': 'new-dm'})
     emit('posted', {'post': json.dumps(POSTS['dm'])})
 wait(lambda: find('dm'))
+dm_cov = next(c for c in inbox()[1] if c['channel_id'] == 'new-dm')
+assert dm_cov['history_complete'] and dm_cov['incomplete_reason'] == 'historical_deletions_unprovable'
 # Live edit with unchanged timestamps is a distinct version; old body is unavailable.
 old = find('p-002')
 with LOCK:
@@ -340,6 +349,28 @@ with LOCK:
 new = wait(lambda: next((i for i in inbox()[0] if i['post_id'] == 'p-002' and i['version'] != old['version']), None))
 assert read(old)['source_state'] == 'source_unavailable'
 assert read(new)['message'] == '@worker-b newest source'
+# A bad live event is dropped with gap evidence while a valid sibling routes and the stream stays up.
+with LOCK:
+    POSTS['live-poison'] = post('live-poison', '@worker-b bad\x00live event')
+    emit('posted', {'post': json.dumps(POSTS['live-poison'])})
+    POSTS['live-sibling'] = post('live-sibling', '@worker-b live sibling after bad event')
+    emit('posted', {'post': json.dumps(POSTS['live-sibling'])})
+wait(lambda: find('live-sibling'))
+assert find('live-poison') is None
+wait(lambda: any(c['live_connected'] for c in inbox()[1]))
+# Buffered posts from a denied channel are dropped while allowed siblings continue.
+rpc('Application.put_env(:agentboard, :mattermost_channel_allowlist, "room,new-dm")')
+with LOCK:
+    CHANNELS.append('late-denied')
+    for i in range(5):
+        POSTS['denied-%d' % i] = post('denied-%d' % i, '@worker-b denied %d' % i, channel='late-denied')
+        emit('posted', {'post': json.dumps(POSTS['denied-%d' % i])})
+    POSTS['allowed-after-deny'] = post('allowed-after-deny', '@worker-b kept after denied split')
+    emit('posted', {'post': json.dumps(POSTS['allowed-after-deny'])})
+wait(lambda: find('allowed-after-deny'))
+assert find('denied-0') is None
+wait(lambda: any(c['channel_id'] == 'late-denied' and ('live_channel_not_authorized' in c['incomplete_reason'] or 'membership_or_allowlist_revoked' in c['incomplete_reason']) for c in inbox()[1]))
+assert any(c['live_connected'] for c in inbox()[1]), 'denied-channel split must not disconnect the stream'
 # Downtime/reconnect replays missed posts; deletes/retention remain explicit gaps.
 ACCEPT_WS = False
 with LOCK:
@@ -352,7 +383,7 @@ with LOCK:
     POSTS.pop('p-003')
 ACCEPT_WS = True
 wait(lambda: find('downtime'))
-wait(lambda: any(c['incomplete_reason'] == 'known_post_unavailable' for c in inbox()[1]))
+wait(lambda: any('known_post_unavailable' in c['incomplete_reason'] and 'p-003' in c['incomplete_reason'] for c in inbox()[1]))
 assert read(find('p-003'))['source_state'] == 'source_unavailable'
 DENIED.add('room')
 assert read(find('downtime'))['source_state'] == 'source_unavailable'
