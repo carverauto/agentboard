@@ -215,11 +215,36 @@ defmodule Agentboard.Board.Operations do
     notify_task_owner(
       changed,
       actor,
-      "Review completed by system: #{url} was observed merged at #{snapshot.observed_at}. CI qualification is unchanged; investigate any outstanding CI repair obligations before taking new work.",
+      "Review completed by system: #{url} was observed merged at #{snapshot.observed_at}. CI qualification is unchanged; investigate any outstanding CI repair obligations before taking new work." <>
+        seat_return_nudge(task.id),
       stamp
     )
 
     result
+  end
+
+  # Board-side safety net for Treehouse leases nobody returned (#107): when
+  # the task records a launch-seat slot (`agentboard-seat ...` update body),
+  # the merge-completion message carries the return instruction. Best-effort;
+  # any read failure means no nudge, never a failed disposition.
+  defp seat_return_nudge(task_id) do
+    case Repo.statement(
+           "SELECT body FROM task_events WHERE task_id = $1 AND body LIKE 'agentboard-seat %' ORDER BY id DESC LIMIT 1",
+           [task_id],
+           timeout: 2_000
+         ) do
+      {:ok, %{rows: [[body]]}} ->
+        case Regex.run(~r/worktree=(\S+)/, body || "") do
+          [_, path] ->
+            " Seat slot #{path}: return it with the same-version `treehouse return #{path}` before claiming new work; never --force, never rm -rf."
+
+          _ ->
+            ""
+        end
+
+      _ ->
+        ""
+    end
   end
 
   # Internal system notifications share the same audited message + notice path.
