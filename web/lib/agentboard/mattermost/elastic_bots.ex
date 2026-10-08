@@ -31,6 +31,9 @@ defmodule Agentboard.Mattermost.ElasticBots do
         %{state: "pending"} ->
           enqueue_bot_job("provision", agent_id)
 
+        %{state: "stale"} ->
+          enqueue_bot_job("provision", agent_id)
+
         _ ->
           :ok
       end
@@ -80,6 +83,10 @@ defmodule Agentboard.Mattermost.ElasticBots do
             mark_stale(row, "token_unreadable")
             reprovision(agent_id) |> error()
         end
+
+      %{state: "stale"} ->
+        reprovision(agent_id)
+        {:error, :no_bot}
 
       _ ->
         {:error, :no_bot}
