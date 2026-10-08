@@ -239,7 +239,7 @@ On 2026-10-08 UTC, merged main `9432792a57019ae9d3aa6245cda229044adc7ab4`
 PR84 and PR83) was rolled to farm01 using dashboard digest
 `sha256:76af4541a0598501d210b1d37d12b97c2a2d161ed68bddbd24d3e1e096f566a3`
 from [Container images run 37704796955](https://github.com/carverauto/agentboard/actions/runs/37704796955).
-This is the current operator image pin; the prior pin was 7dfd031
+It was rolled forward to 3c6e5b3 minutes later (below); the prior pin was 7dfd031
 `sha256:2285d2159d2b78f3e1357220fcf5d1e962daca78e3967b043b8ad114b598b01a`.
 
 Job `agentboard-migrate-9432792` (flags forced false in the Job) ran the
@@ -259,3 +259,19 @@ The dashboard is Ready with zero restarts on the exact image ID;
 (outbox rows `sent` with remote post IDs). See the
 [rollout receipt](../verification/farm01-9432792-rollout.json). Keep schema 12
 if the 7dfd031 image must be restored, following the [rollback procedure](#rollback).
+
+### Roll-forward to 3c6e5b3 (PR88)
+
+At the captain's request the same session rolled forward to merged main
+`3c6e5b3` (PR88, board-default dual message transport with readiness-gated
+cutover) using dashboard digest
+`sha256:b892c442a7578c814ba756afc644b0feb96c6004925f4b8869420f232835015c`
+from [Container images run 37706265335](https://github.com/carverauto/agentboard/actions/runs/37706265335).
+This is the current operator image pin. Job `agentboard-migrate-3c6e5b3`
+reported "Migrations already up"; schema stays 12/API 1/required 12. PR88 adds
+only the optional `AGENTBOARD_MESSAGE_MODE` (default `board`, unset on farm01);
+`/api/v1/meta` reports `message_transport` requested and effective `board`
+with `cutover_ready: false`. No new secret is required and all flags are
+unchanged. The pod is Ready with zero restarts on the exact image ID, health,
+`/`, `/prs` and the CLI pass, and the bridge delivered a new board event after
+the roll. Roll back to 9432792 (`sha256:76af4541...`) or 7dfd031 keeping schema 12.
