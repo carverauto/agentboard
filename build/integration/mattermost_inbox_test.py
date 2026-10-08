@@ -267,6 +267,21 @@ assert read(find('human-forged'))['user_id'] == 'human-2'
 assert find('reply', 'worker-a')['task_id'] == 'fixture-task'
 assert all(not c['caught_up'] and c['incomplete_reason'] == 'historical_deletions_unprovable' for c in coverage)
 assert all('message' not in i for i in items)
+first = api('/workers/worker-b/mattermost_inbox', token=TOKENS['worker-b'])
+assert first['next_cursor'], 'expected multiple inbox pages for bounded-walk proof'
+with LOCK:
+    POSTS['paged-race'] = post('paged-race', '@worker-b paged race arrival')
+    emit('posted', {'post': json.dumps(POSTS['paged-race'])})
+wait(lambda: find('paged-race'))
+walk_ids = [i['post_id'] for i in first['items']]
+page = api('/workers/worker-b/mattermost_inbox?cursor=' + urllib.parse.quote(first['next_cursor'], safe=''), token=TOKENS['worker-b'])
+while True:
+    walk_ids += [i['post_id'] for i in page['items']]
+    if not page['next_cursor']:
+        break
+    page = api('/workers/worker-b/mattermost_inbox?cursor=' + urllib.parse.quote(page['next_cursor'], safe=''), token=TOKENS['worker-b'])
+assert 'paged-race' not in walk_ids, 'bounded walk must exclude arrivals committed after it started'
+assert find('paged-race') is not None, 'excluded arrival must remain visible on the next walk'
 # A repeated history scan/WS replay cannot create another exact recipient/version.
 assert len({(i['post_id'], i['version']) for i in items}) == len(items)
 item = find('bot-peer')

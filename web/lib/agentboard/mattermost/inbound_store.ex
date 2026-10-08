@@ -83,15 +83,15 @@ defmodule Agentboard.Mattermost.InboundStore do
   end
 
   def page(subscription, data) do
-    cursor = data["cursor"] || "00000000-0000-0000-0000-000000000000"
-    unless Ecto.UUID.cast(cursor) != :error, do: Ops.reject("invalid_input", "UUID cursor required")
+    {last_seq, high} = decode_cursor(data["cursor"])
+    high = high || high_water()
     %{rows: rows} = Repo.statement!("""
-    SELECT i.id::text,i.source,i.channel_id,i.post_id,i.version,v.user_id,v.root_id,v.delete_at,i.task_id,i.sender_agent_id,i.msg_id,i.kind
+    SELECT i.seq,i.id::text,i.source,i.channel_id,i.post_id,i.version,v.user_id,v.root_id,v.delete_at,i.task_id,i.sender_agent_id,i.msg_id,i.kind
     FROM mattermost_inbox i JOIN mattermost_post_versions v USING(source,channel_id,post_id,version)
-    WHERE i.worker_id=$1 AND i.repo=ANY($2::text[]) AND i.handled_at IS NULL AND i.id>$3
-    ORDER BY i.id LIMIT 51
-    """, [subscription.id, subscription.repos, uuid(cursor)])
-    items = Enum.take(rows, 50) |> Enum.map(fn [id, source, channel, post, version, user, root, deleted, task, sender, msg, kind] ->
+    WHERE i.worker_id=$1 AND i.repo=ANY($2::text[]) AND i.handled_at IS NULL AND i.seq>$3 AND i.seq<=$4
+    ORDER BY i.seq LIMIT 51
+    """, [subscription.id, subscription.repos, last_seq, high])
+    items = Enum.take(rows, 50) |> Enum.map(fn [_seq, id, source, channel, post, version, user, root, deleted, task, sender, msg, kind] ->
       %{id: id, source: source, channel_id: channel, post_id: post, version: version, user_id: user, root_id: root, delete_at: deleted, task_id: task, sender_agent_id: sender, msg_id: msg, kind: kind}
     end)
     %{rows: coverage} = Repo.statement!("""
@@ -100,10 +100,30 @@ defmodule Agentboard.Mattermost.InboundStore do
     WHERE r.repo=ANY($1::text[]) ORDER BY c.source,c.channel_id LIMIT 1001
     """, [subscription.repos])
     %{rows: streams} = Repo.statement!("SELECT source,connected AND expires_at>clock_timestamp(),reason FROM mattermost_inbound_runs WHERE repo=ANY($1::text[]) ORDER BY source LIMIT 21", [subscription.repos])
-    %{stream_states: Enum.map(streams, fn [source, connected, reason] -> %{source: source, live_connected: connected, reason: reason} end), items: items, next_cursor: if(length(rows) > 50, do: List.last(items).id), enabled: Agentboard.Mattermost.Inbound.enabled?(),
+    %{stream_states: Enum.map(streams, fn [source, connected, reason] -> %{source: source, live_connected: connected, reason: reason} end), items: items, next_cursor: if(length(rows) > 50, do: encode_cursor(rows |> Enum.take(50) |> List.last() |> hd(), high)), enabled: Agentboard.Mattermost.Inbound.enabled?(),
       coverage_truncated: length(coverage) > 1000, coverage: Enum.map(Enum.take(coverage, 1000), fn [channel, page, complete, reason, checked, connected, stream_reason] ->
         %{channel_id: channel, next_page: page, history_complete: complete, caught_up: false, incomplete_reason: reason, checked_at: checked, live_connected: connected, stream_reason: stream_reason}
       end)}
+  end
+
+  defp decode_cursor(nil), do: {0, nil}
+  defp decode_cursor(""), do: {0, nil}
+  defp decode_cursor(cursor) when is_binary(cursor) and byte_size(cursor) <= 128 do
+    with {:ok, json} <- Base.url_decode64(cursor, padding: false),
+         {:ok, [last, high]} <- Jason.decode(json),
+         true <- is_integer(last) and is_integer(high) and last >= 0 and high >= last do
+      {last, high}
+    else
+      _ -> Ops.reject("invalid_input", "Opaque inbox cursor required")
+    end
+  end
+  defp decode_cursor(_), do: Ops.reject("invalid_input", "Opaque inbox cursor required")
+
+  defp encode_cursor(last, high), do: Base.url_encode64(Jason.encode!([last, high]), padding: false)
+
+  defp high_water do
+    %{rows: [[max]]} = Repo.statement!("SELECT COALESCE(MAX(seq),0) FROM mattermost_inbox", [])
+    max
   end
 
   def read(subscription, data) do

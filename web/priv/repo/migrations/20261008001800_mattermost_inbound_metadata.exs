@@ -34,6 +34,7 @@ defmodule Agentboard.Repo.Migrations.MattermostInboundMetadata do
     end
 
     create table(:mattermost_inbox, primary_key: false) do
+      add(:seq, :bigserial)
       add(:id, :uuid, primary_key: true)
       add(:source, :text, null: false)
       add(:channel_id, :text, null: false)
@@ -52,6 +53,7 @@ defmodule Agentboard.Repo.Migrations.MattermostInboundMetadata do
     end
 
     create(unique_index(:mattermost_inbox, [:source, :post_id, :version, :worker_id]))
+    create(index(:mattermost_inbox, [:worker_id, :repo, :seq]))
     create(index(:mattermost_inbox, [:worker_id, :handled_at, :id]))
     execute("ALTER TABLE mattermost_inbox ADD CONSTRAINT mattermost_inbox_version_fk FOREIGN KEY (source,channel_id,post_id,version) REFERENCES mattermost_post_versions(source,channel_id,post_id,version)")
     execute("UPDATE board_schema SET version=18 WHERE id=1")
