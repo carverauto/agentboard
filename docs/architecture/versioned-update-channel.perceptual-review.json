@@ -1,6 +1,6 @@
 {
-  "artifact_sha256": "4e4e68e30b40233e08cfe5f40d840015bd6339f9fa7322daf3853536818d82c6",
-  "artifact_bytes": 707716,
+  "artifact_sha256": "fd1ed9154e255a0e57840579b2bdef1dae2d94b9444d24be3be354b4e9dffedd",
+  "artifact_bytes": 707730,
   "evidenceKind": "perceptual-review",
   "reviewer": "codex-agentboard-rollout (image-capable)",
   "visual_review": "passed",
@@ -17,5 +17,5 @@
     "Large desktop retains readable balanced composition."
   ],
   "automated_browser_evidence": "passed",
-  "note": "The diagram is a proposal; distribution and notification policy await coordinator review."
+  "note": "Captain policies approved in msg1193; final design artifact independently inspected in both endpoint themes."
 }

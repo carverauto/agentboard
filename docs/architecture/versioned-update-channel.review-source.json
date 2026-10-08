@@ -1,0 +1,32 @@
+{
+  "source_hashes": {
+    "changes/add-versioned-update-channel/proposal.md": "88bfffcb34f1413463c45f162dea03d5565346781569fd47c0afc032776d6fde",
+    "changes/add-versioned-update-channel/design.md": "7dcb3a3bed4e3c4a5b9ba1c456436891502fc24079c8cabb08a923aaba98210e",
+    "changes/add-versioned-update-channel/specs/artifact-update-channel/spec.md": "cd5f5f4e7b1e66ae2667cc4b1fae5d1b3058653784e20c8ce7e4c3b57ef312db",
+    "changes/add-versioned-update-channel/tasks.md": "482da8531fa3605a4aeee4409ae540f879d40251cd278400f2df7c2ebf643050",
+    "changes/add-versioned-update-channel/policy-review.md": "39c59a69624c26e178762f067c832810eaedbeb02d5a4d2b59f9995da6b7616c"
+  },
+  "design_system": "Agentboard web/assets/app.css tokens",
+  "planning_only": true,
+  "artifact_sha256": "6bd9375914b75adc272884c94ab84ad32105b6de5462af97db4b0e6d786de774",
+  "artifact_bytes": 82657,
+  "lavish_review": "approved; user-ended before cosmetic SVG grid-fill correction; planning content unchanged",
+  "session_ended_by": "user",
+  "runtime_validation": "not applicable: planning only",
+  "openspec_validation": "strict passed; 4/4 artifacts complete",
+  "portable_browser_validation": {
+    "desktop": {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "themes": [
+        "light",
+        "dark"
+      ]
+    },
+    "narrow_all_sections_open": {
+      "width": 390,
+      "scrollWidth": 390
+    },
+    "visual_review": "passed"
+  }
+}

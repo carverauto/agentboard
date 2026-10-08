@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "Proposed versioned update channel",
+    "title": "Versioned update channel \u2014 design",
     "quality_profile": "showcase",
     "locale": "en"
   },
@@ -11,7 +11,7 @@
       "id": "release",
       "type": "external",
       "label": "Release assets",
-      "sublabel": "Proposed GitHub authority",
+      "sublabel": "GitHub immutable authority",
       "pos": [
         40,
         220
@@ -155,8 +155,8 @@
       "dot": "amber",
       "title": "Design boundary",
       "items": [
-        "#127 owns installer + release triggers",
-        "#57 adds manifests, updates and notifications"
+        "Captain-approved release / skills / opt-in policy",
+        "#127 owns installer + release triggers"
       ]
     }
   ]
