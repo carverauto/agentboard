@@ -447,45 +447,45 @@ with tls_provider(Provider) as (api_url, ca, server):
     assert sql("SELECT count(*) FROM messages WHERE task_id='" + unknown_follow['repair_task_id'] + "'") == '0'
     assert sql("SELECT count(*) FROM cooperation_events WHERE kind='pr_conflict' AND task_id='" + unknown_follow['repair_task_id'] + "'") == '1'
     export_page('/prs?show_terminal=true', 'pr-conflicts-inventory.html')
-# Restricted submitters keep conflict observation but receive no automatic grant.
-rpc('Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-32-characters")')
-CAPABILITY = 'fixture-captain-capability-32-characters'
-TOKEN = Path(os.environ['TEST_TMPDIR']) / 'captain-token'
-TOKEN.write_text(CAPABILITY + '\n')
-TOKEN.chmod(0o600)
+    # Restricted submitters keep conflict observation but receive no automatic grant.
+    rpc('Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-32-characters")')
+    CAPABILITY = 'fixture-captain-capability-32-characters'
+    TOKEN = Path(os.environ['TEST_TMPDIR']) / 'captain-token'
+    TOKEN.write_text(CAPABILITY + '\n')
+    TOKEN.chmod(0o600)
 
 
-def ab_cap(*args, owner='conflict-owner'):
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('PG', 'DATABASE_'))}
-    env.update(AGENT_ID=owner, AGENTBOARD_MODEL='fixture-model', AGENTBOARD_HARNESS='codex',
-               AGENTBOARD_CAPTAIN_TOKEN_FILE=str(TOKEN))
-    p = subprocess.run([os.environ['AB_BINARY'], '--json', *args], env=env,
-                       capture_output=True, text=True, timeout=25)
-    assert p.returncode == 0, (args, p.stdout, p.stderr)
-    return json.loads(p.stdout)
+    def ab_cap(*args, owner='conflict-owner'):
+        env = {k: v for k, v in os.environ.items() if not k.startswith(('PG', 'DATABASE_'))}
+        env.update(AGENT_ID=owner, AGENTBOARD_MODEL='fixture-model', AGENTBOARD_HARNESS='codex',
+                   AGENTBOARD_CAPTAIN_TOKEN_FILE=str(TOKEN))
+        p = subprocess.run([os.environ['AB_BINARY'], '--json', *args], env=env,
+                           capture_output=True, text=True, timeout=25)
+        assert p.returncode == 0, (args, p.stdout, p.stderr)
+        return json.loads(p.stdout)
 
 
-for restricted in ('conflict-oos', 'conflict-reserved'):
-    ab('agent', 'register', owner=restricted)
-ab_cap('agent', 'availability', 'set', '--agent-id', 'conflict-oos', '--state', 'out_of_service', '--reason', 'Fixture maintenance')
-ab_cap('agent', 'availability', 'set', '--agent-id', 'conflict-reserved', '--state', 'reserved', '--reason', 'Named captain only')
-for number, restricted in ((303, 'conflict-oos'), (304, 'conflict-reserved')):
-    url = f'https://github.com/fixture/repo/pull/{number}'
-    pid = hashlib.sha256(url.encode()).hexdigest()
-    ab('task', 'create', '--id', f'restricted-source-{number}', '--title', 'Restricted original', '--repo', 'fixture/repo', '--pr', url, owner=restricted)
-    sql("INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES ('" + pid + "','fixture','repo','" + str(number) + "','" + url + "',clock_timestamp()); INSERT INTO delivery_poll_states(id,registered_at,next_poll_at,enabled,lifecycle,head_sha,base_sha,base_ref,expected_base_sha) VALUES ('" + pid + "',clock_timestamp(),clock_timestamp()-interval '1 second',true,'open','" + HEAD + "','" + branch_sha + "','main','" + branch_sha + "')")
-    prs[number] = dict(head='3' * 40, base=branch_sha, mergeable=False, mergeable_state='dirty')
-    reset_budget()
-    assert 'observed' in poll(pid)
-    repair = sql("SELECT repair_task_id FROM delivery_rebase_follow_ups WHERE pull_request_id='" + pid + "'")
-    assert sql("SELECT responsible_id IS NULL FROM delivery_rebase_follow_ups WHERE pull_request_id='" + pid + "'") == 't'
-    assert sql("SELECT status||','||coalesce(assignee_id,'')||','||assignment_authorized::text FROM tasks WHERE id='" + repair + "'") == 'open,,f'
-    assert sql("SELECT count(*) FROM cooperation_events WHERE kind='pr_conflict' AND task_id='" + repair + "'") == '1'
-    assert sql("SELECT count(*) FROM messages WHERE task_id='" + repair + "'") == '0'
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('PG', 'DATABASE_'))}
-    env.update(AGENT_ID=restricted, AGENTBOARD_MODEL='fixture-model', AGENTBOARD_HARNESS='codex')
-    denied = subprocess.run([os.environ['AB_BINARY'], '--json', 'task', 'claim', repair], env=env, capture_output=True, text=True, timeout=25)
-    assert denied.returncode != 0, (restricted, repair, denied.stdout, denied.stderr)
-    assert sql("SELECT status FROM tasks WHERE id='" + repair + "'") == 'open'
-print('Restricted merge-conflict owners retain observation with open unassigned repair work and no grant.')
+    for restricted in ('conflict-oos', 'conflict-reserved'):
+        ab('agent', 'register', owner=restricted)
+    ab_cap('agent', 'availability', 'set', '--agent-id', 'conflict-oos', '--state', 'out_of_service', '--reason', 'Fixture maintenance')
+    ab_cap('agent', 'availability', 'set', '--agent-id', 'conflict-reserved', '--state', 'reserved', '--reason', 'Named captain only')
+    for number, restricted in ((303, 'conflict-oos'), (304, 'conflict-reserved')):
+        url = f'https://github.com/fixture/repo/pull/{number}'
+        ab('task', 'create', '--id', f'restricted-source-{number}', '--title', 'Restricted original', '--repo', 'fixture/repo', '--pr', url, owner=restricted)
+        pid = sql("SELECT id FROM delivery_pull_requests WHERE number='" + str(number) + "'")
+        sql("UPDATE delivery_poll_states SET head_sha='" + HEAD + "', base_sha='" + branch_sha + "', base_ref='main', expected_base_sha='" + branch_sha + "', next_poll_at=clock_timestamp()-interval '1 second' WHERE id='" + pid + "'")
+        prs[number] = dict(head='3' * 40, base=branch_sha, mergeable=False, mergeable_state='dirty')
+        reset_budget()
+        assert 'observed' in poll(pid)
+        repair = sql("SELECT repair_task_id FROM delivery_rebase_follow_ups WHERE pull_request_id='" + pid + "'")
+        assert sql("SELECT responsible_id IS NULL FROM delivery_rebase_follow_ups WHERE pull_request_id='" + pid + "'") == 't'
+        assert sql("SELECT status||','||coalesce(assignee_id,'')||','||assignment_authorized::text FROM tasks WHERE id='" + repair + "'") == 'open,,false'
+        assert sql("SELECT count(*) FROM cooperation_events WHERE kind='pr_conflict' AND task_id='" + repair + "'") == '1'
+        assert sql("SELECT count(*) FROM messages WHERE task_id='" + repair + "'") == '0'
+        env = {k: v for k, v in os.environ.items() if not k.startswith(('PG', 'DATABASE_'))}
+        env.update(AGENT_ID=restricted, AGENTBOARD_MODEL='fixture-model', AGENTBOARD_HARNESS='codex')
+        denied = subprocess.run([os.environ['AB_BINARY'], '--json', 'task', 'claim', repair], env=env, capture_output=True, text=True, timeout=25)
+        assert denied.returncode != 0, (restricted, repair, denied.stdout, denied.stderr)
+        assert sql("SELECT status FROM tasks WHERE id='" + repair + "'") == 'open'
+    print('Restricted merge-conflict owners retain observation with open unassigned repair work and no grant.')
 print('Conflict observations, independent CI, base revision fences, owner inbox/worker frame, once per head, rollback and terminal pruning passed.')
