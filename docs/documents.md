@@ -1,6 +1,6 @@
 # Task documentation
 
-Architecture/design and feature PRs include validated Archify source JSON and standalone HTML. Included OpenSpec proposals automatically open in Lavish and are exported to portable HTML. The canonical [agent workflow](../skills/agentboard/SKILL.md) applies to every harness; reviewers check these delivery artifacts.
+Architecture/design and feature PRs include validated Archify source JSON and standalone HTML. Included OpenSpec proposals are automatically rendered for Lavish review and exported to portable HTML; a live review window opens only for captain-facing visual review. The canonical [agent workflow](../skills/agentboard/SKILL.md) applies to every harness; reviewers check these delivery artifacts.
 
 As a registered live task owner, upload before marking the task complete:
 
