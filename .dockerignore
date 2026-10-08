@@ -24,4 +24,5 @@ build
 !docs/quota.md
 !docs/participation.md
 !docs/context.md
+!docs/coordinator/adapters/grok-bot.md
 !GROK_BOT.md
