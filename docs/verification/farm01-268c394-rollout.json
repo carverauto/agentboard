@@ -1,0 +1,89 @@
+{
+  "verified_at": "2026-10-08T02:26:00Z",
+  "commit": "268c394",
+  "source_prs": [
+    "https://github.com/carverauto/agentboard/pull/96",
+    "https://github.com/carverauto/agentboard/pull/94",
+    "https://github.com/carverauto/agentboard/pull/93"
+  ],
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37717226576",
+  "failed_prior_build": {
+    "commit": "75425c7",
+    "run": "https://github.com/carverauto/agentboard/actions/runs/37714728085",
+    "cause": "board_api_test restored board_schema 12 while required was 14; fixed by PR96",
+    "follow_up_issue": "https://github.com/carverauto/agentboard/issues/97"
+  },
+  "rollout_operator": "grok-serviceradar-oss",
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:c7739931faab0c8fd5c75e232d0f35d6e598a2f1ed8a5e93fd1fcdc2dad73781",
+  "cli_image": "registry.carverauto.dev/agentboard/cli@sha256:aa93fd55e7ba3c3c2e79cec1f9f9ebd45db2a7f6739e4d22ea785a871be3e66e",
+  "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:5193d83379a629cf2e4af3e756839efed745c93f497cc0642eb20c7db33ef029",
+  "pre_migration_backup": {
+    "host": "agentboard-db-2 (CNPG primary)",
+    "path": "/var/lib/postgresql/data/agentboard-backups/pre-268c394-20261008/",
+    "format": "pg_dump -Fc + schema-only SQL + SHA256SUMS",
+    "row_counts": {
+      "delivery_poll_states": 71,
+      "delivery_poll_states_versions": 433,
+      "board_schema_version": 12
+    }
+  },
+  "migration": {
+    "job": "agentboard-migrate-268c394",
+    "started_at": "2026-10-08T02:20:43Z",
+    "completed_at": "2026-10-08T02:20:51Z",
+    "succeeded": true,
+    "migrations": [
+      "20261008000200_pr_merge_conflicts"
+    ],
+    "literal_env_overrides": {
+      "PHX_SERVER": "false",
+      "AGENTBOARD_PR_DISCOVERY_ENABLED": "false",
+      "AGENTBOARD_PR_OBSERVATION_ENABLED": "false",
+      "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "false",
+      "AGENTBOARD_COOPERATION_ENABLED": "false"
+    },
+    "completed_before_dashboard_started": true
+  },
+  "schema": {
+    "before": 12,
+    "after": 14,
+    "api_version": 1,
+    "required_schema_version": 14
+  },
+  "dashboard": {
+    "pod": "agentboard-dashboard-578f47c6c5-ksw9g",
+    "started_at": "2026-10-08T02:20:52Z",
+    "ready": true,
+    "restarts": 0,
+    "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:c7739931faab0c8fd5c75e232d0f35d6e598a2f1ed8a5e93fd1fcdc2dad73781"
+  },
+  "flags": {
+    "AGENTBOARD_PR_DISCOVERY_ENABLED": "true",
+    "AGENTBOARD_PR_OBSERVATION_ENABLED": "true",
+    "AGENTBOARD_COOPERATION_ENABLED": "false",
+    "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "true",
+    "AGENTBOARD_MATTERMOST_TEAM_ID": "set (unread since PR91)",
+    "AGENTBOARD_MATTERMOST_CHANNEL_ALLOWLIST": "unset (any channel)"
+  },
+  "new_secrets_required": [],
+  "http": {
+    "/health/live": 200,
+    "/health/ready": 200,
+    "/": 200,
+    "/prs": 200,
+    "/api/v1/meta": 200
+  },
+  "cli_task_list": "ok",
+  "mattermost_bridge": "new board events delivered (outbox sent with remote post ids) at 2026-10-08T02:25:49Z",
+  "merge_conflict_detection": {
+    "pr": "https://github.com/carverauto/agentboard/pull/95",
+    "observed_at": "2026-10-08T02:25:05Z",
+    "mergeable": false,
+    "mergeable_state": "dirty",
+    "base_ref": "main",
+    "prs_page": "Merge conflicting \u00b7 Base main \u00b7 dirty",
+    "rebase_follow_ups": 0,
+    "note": "cooperation disabled, so no follow-up dispatched"
+  },
+  "rollback_performed": false
+}
