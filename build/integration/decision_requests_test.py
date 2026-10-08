@@ -3,6 +3,7 @@ Invented actors only. Existing board/runtime fixtures own general lease and rece
 this fixture owns their decision integration and new public wire contract."""
 import http.cookiejar
 import concurrent.futures
+from html.parser import HTMLParser
 import json
 import os
 import re
@@ -326,6 +327,49 @@ print("Denied first wake skips without suppressing the later eligible wake proof
 
 # Retain actual packaged server HTML/CSS for isolated browser visual review.
 # This is supplemental product evidence, not a hand-authored UI or test seam.
+class _ScriptStripper(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.parts=[]
+        self.depth=0
+    def handle_starttag(self,tag,attrs):
+        if tag.lower() == "script":
+            self.depth+=1
+        elif self.depth == 0:
+            self.parts.append(self.get_starttag_text())
+    def handle_endtag(self,tag):
+        if tag.lower() == "script":
+            self.depth=max(0,self.depth-1)
+        elif self.depth == 0:
+            self.parts.append("</%s>" % tag)
+    def handle_startendtag(self,tag,attrs):
+        if tag.lower() != "script" and self.depth == 0:
+            self.parts.append(self.get_starttag_text())
+    def handle_data(self,data):
+        if self.depth == 0:
+            self.parts.append(data)
+    def handle_comment(self,data):
+        if self.depth == 0:
+            self.parts.append("<!--%s-->" % data)
+    def handle_decl(self,decl):
+        if self.depth == 0:
+            self.parts.append("<!%s>" % decl)
+    def handle_pi(self,data):
+        if self.depth == 0:
+            self.parts.append("<?%s>" % data)
+    def handle_entityref(self,name):
+        if self.depth == 0:
+            self.parts.append("&%s;" % name)
+    def handle_charref(self,name):
+        if self.depth == 0:
+            self.parts.append("&#%s;" % name)
+
+def _strip_scripts(document):
+    stripper=_ScriptStripper()
+    stripper.feed(document)
+    stripper.close()
+    return "".join(stripper.parts)
+
 out=Path(os.environ["TEST_UNDECLARED_OUTPUTS_DIR"])
 for label,path in [("board","/tasks/page-task"),("prs","/prs")]:
     document=urllib.request.urlopen(URL+path,timeout=15).read().decode()
@@ -333,7 +377,7 @@ for label,path in [("board","/tasks/page-task"),("prs","/prs")]:
     for style in styles:
         css=urllib.request.urlopen(urllib.parse.urljoin(URL,style),timeout=15).read().decode()
         document=document.replace('href="'+style+'"','href="data:text/css;base64,'+__import__('base64').b64encode(css.encode()).decode()+'"')
-    document=re.sub(r'<script\b[^>]*>.*?</script\s*>', '', document, flags=re.S | re.IGNORECASE)
+    document=_strip_scripts(document)
     document=re.sub(r'\s(?:data-phx-session|data-phx-static)="[^" ]*"', '', document)
     (out/(label+"-decision-preview.html")).write_text(document)
 

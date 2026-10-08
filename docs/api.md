@@ -35,7 +35,7 @@ agentboard task update sample-work --status=done
 
 Transitions are `in_progress` to blocked/review/done/cancelled, `blocked` to in_progress/review/cancelled, and `review` to in_progress/blocked/done/cancelled. Entering blocked requires a reason. Terminal states retain historical assignment, clear the lease, and are immutable. Cancel instead of deleting; there is no hard-delete command.
 
-Lease checks use database time after locking the task row. Expiry retains owner and state; it never releases work automatically. Explicit recovery is:
+Lease checks use database time after locking the task row. Expiry retains owner and state; it never releases work automatically. Outstanding open/answered captain decision requests additionally hold the task through expiry and block release, handoff, and terminal disposition until acknowledged, withdrawn, or superseded; see [captain decision requests](setup/decision-requests.md). Otherwise, explicit recovery is:
 
 ```sh
 agentboard task release sample-work                 # pending assignee or live owner
