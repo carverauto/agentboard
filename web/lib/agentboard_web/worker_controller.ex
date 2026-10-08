@@ -35,11 +35,7 @@ defmodule AgentboardWeb.WorkerController do
   end
 
   defp captain(conn, fun) do
-    capability =
-      case get_req_header(conn, "x-agentboard-captain-token") do
-        [value] -> Agentboard.Captain.authenticate(value)
-        _ -> nil
-      end
+    capability = Agentboard.Captain.authenticate_header(conn, "x-agentboard-captain-token")
 
     if Agentboard.Captain.authorized?(capability),
       do: protocol(conn, fun),

@@ -46,7 +46,14 @@ defmodule Agentboard.Board.Resources.Task do
     end
 
     update :assign do
-      accept([:status, :assignee_id, :assigner_id, :revision, :updated_at])
+      accept([
+        :status,
+        :assignee_id,
+        :assigner_id,
+        :assignment_authorized,
+        :revision,
+        :updated_at
+      ])
     end
 
     update :claim do
@@ -62,6 +69,7 @@ defmodule Agentboard.Board.Resources.Task do
         :status,
         :assignee_id,
         :assigner_id,
+        :assignment_authorized,
         :claimed_at,
         :claim_expires_at,
         :revision,
@@ -74,6 +82,7 @@ defmodule Agentboard.Board.Resources.Task do
         :status,
         :assignee_id,
         :assigner_id,
+        :assignment_authorized,
         :claimed_at,
         :claim_expires_at,
         :revision,
@@ -119,6 +128,7 @@ defmodule Agentboard.Board.Resources.Task do
         :status,
         :assignee_id,
         :assigner_id,
+        :assignment_authorized,
         :claimed_at,
         :claim_expires_at,
         :revision,
@@ -156,6 +166,8 @@ defmodule Agentboard.Board.Resources.Task do
   end
 
   attributes do
+    attribute(:assignment_authorized, :boolean, default: false, allow_nil?: false, public?: true)
+
     attribute :id, :string do
       constraints(trim?: false, allow_empty?: true)
       public?(true)
@@ -240,4 +252,3 @@ defmodule Agentboard.Board.Resources.Task do
     end
   end
 end
-

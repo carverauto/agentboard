@@ -314,7 +314,7 @@ assert result.returncode==0 and json.loads(result.stdout)['tasks']
 sql('DELETE FROM board_schema')
 ab('task','list',code=1)
 assert sql('SELECT count(*) FROM board_schema')=='0'
-sql('INSERT INTO board_schema(id,version) VALUES(1,12)')
+sql('INSERT INTO board_schema(id,version) VALUES(1,13)')
 # A marker alone cannot make the new evidence/receipt/accountability schema ready.
 for table in ('delivery_ci_snapshots', 'cooperation_receipts', 'delivery_obligations'):
     sql('ALTER TABLE ' + table + ' RENAME TO fixture_missing_relation')

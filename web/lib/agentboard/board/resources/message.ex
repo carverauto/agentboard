@@ -34,6 +34,7 @@ defmodule Agentboard.Board.Resources.Message do
         :recipient_id,
         :task_id,
         :body,
+        :kind,
         :created_at,
         :read_at,
         :read_model,
@@ -46,7 +47,13 @@ defmodule Agentboard.Board.Resources.Message do
     end
   end
 
+  validations do
+    validate(attribute_in(:kind, ~w(note task_order)))
+  end
+
   attributes do
+    attribute(:kind, :string, default: "note", allow_nil?: false, public?: true)
+
     attribute :id, :integer do
       public?(true)
       allow_nil?(false)
@@ -108,4 +115,3 @@ defmodule Agentboard.Board.Resources.Message do
     end
   end
 end
-

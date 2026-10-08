@@ -77,7 +77,7 @@ INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html
 INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES (repeat('d',64),'fixture','repo','101','https://github.com/fixture/repo/pull/101',clock_timestamp());
 INSERT INTO delivery_task_links(task_id,pull_request_id,submitted_by_id,model,harness,source_event_id,attribution,linked_at,recorded_at) SELECT 'retained-task',repeat('d',64),'retained','model','codex',id,'submission',created_at,clock_timestamp() FROM task_events;
 INSERT INTO delivery_pull_requests_versions(id,version_source_id,version_action_type,version_action_name,changes,provenance,version_inserted_at,version_updated_at) VALUES (gen_random_uuid(),repeat('d',64),'create','record','{}','{}',clock_timestamp(),clock_timestamp());" >/dev/null
-history_query="SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM task_events t),'documents',(SELECT jsonb_agg(t ORDER BY id) FROM task_documents t),'prs',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests t),'links',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_task_links t),'versions',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests_versions t),'audit',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t))"
+history_query="SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t)-'assignment_authorized' ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM task_events t),'documents',(SELECT jsonb_agg(t ORDER BY id) FROM task_documents t),'prs',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests t),'links',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_task_links t),'versions',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests_versions t),'audit',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t))"
 before_inventory="$(inventory_psql "$history_query")"
 "$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261007000100) end)'
 [[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 8 ]]
@@ -116,4 +116,7 @@ for payload in '{}' '{"policy":"unknown","coverage":"complete_head","tested_ref"
 done
 inventory_psql "INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES (gen_random_uuid(),repeat('d',64),2,clock_timestamp(),repeat('a',40),repeat('b',40),'open','passing','{\"policy\":\"verified\",\"coverage\":\"complete_head\",\"tested_ref\":\"head\"}')" >/dev/null
 [[ "$(inventory_psql 'SELECT count(*) FROM delivery_ci_snapshots')" == 2 ]]
+[[ "$(inventory_psql 'SELECT count(*) FROM availability_policies')" == 0 ]]
+[[ "$(inventory_psql "SELECT count(*) FROM tasks WHERE assignment_authorized")" == 0 ]]
+echo 'Schema-13 defaults preserve existing tasks and seed no availability policies.'
 echo 'Schema-10 to 11 preserves immutable snapshot/projection bytes and rejects missing or unverified passing evidence.'

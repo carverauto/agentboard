@@ -45,6 +45,32 @@ defmodule AgentboardWeb.BoardLive do
   end
 
   @impl true
+  def handle_event("set_availability", params, socket) do
+    if Agentboard.Captain.authorized?(socket.assigns.captain) do
+      actor = %{
+        "agent" => "captain",
+        "model" => "human",
+        "harness" => "captain",
+        :availability_admin => true
+      }
+
+      # The captain UI uses a fixed registered identity; form input never sets role.
+      with {:ok, _} <- Board.register(actor, %{"name" => "Captain"}),
+           data =
+             params
+             |> Map.take(~w(agent_id harness model_pattern state reason until))
+             |> Enum.reject(fn {_k, v} -> v == "" end)
+             |> Map.new(),
+           {:ok, _} <- Agentboard.Availability.set(actor, data) do
+        {:noreply, socket |> assign(archive_error: nil) |> reload()}
+      else
+        {:error, _, message} -> {:noreply, assign(socket, archive_error: message)}
+      end
+    else
+      {:noreply, assign(socket, archive_error: "Unlock captain controls in Settings first")}
+    end
+  end
+
   def handle_event("open_quota", %{"id" => id}, %{assigns: %{live_action: :quota}} = socket) do
     observation = Enum.find(socket.assigns.data["quota"] || [], &(to_string(&1["id"]) == id))
     {:noreply, assign(socket, quota_detail: observation)}
@@ -338,9 +364,18 @@ defmodule AgentboardWeb.BoardLive do
               <a :if={@data["message_cursor"]} href={page_link(:task,@filters,@data["message_cursor"],"message_cursor")}>Next messages</a>
             </section>
           <% :agents -> %>
+            <form :if={Agentboard.Captain.authorized?(@captain)} phx-submit="set_availability" class="settings-form settings-panel">
+              <h2>Set availability</h2><p>Use an agent override, or a harness/model selector. Reserved and out-of-service require a reason. Current task ownership is retained.</p>
+              <label>Agent ID (override)<input name="agent_id" placeholder="codex-example-agent-a" /></label>
+              <label>Harness (default)<input name="harness" placeholder="claude" /></label>
+              <label>Model pattern (default)<input name="model_pattern" placeholder="glm-*" /></label>
+              <label>State<select name="state"><option value="active">Active</option><option value="reserved">Reserved</option><option value="out_of_service">Out of service</option></select></label>
+              <label>Reason<input name="reason" /></label><label>Until (out of service, RFC3339)<input name="until" placeholder="2026-10-12T00:00:00Z" /></label><button type="submit">Save availability</button>
+            </form>
+            <p :if={!Agentboard.Captain.authorized?(@captain)}><a href="/settings">Unlock captain availability controls</a></p>
             <p :if={@data["agents"]==[]} class="empty">No registered agents. Register a stable identity with <code>agentboard agent register</code>.</p>
-            <div class="table-scroll"><table><thead><tr><th>Agent / harness</th><th>Model / host</th><th>Activity</th><th>Heartbeat</th><th>Capabilities</th></tr></thead><tbody>
-              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
+            <div class="table-scroll"><table><thead><tr><th>Agent / harness</th><th>Model / host</th><th>Activity</th><th>Availability</th><th>Heartbeat</th><th>Capabilities</th></tr></thead><tbody>
+              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
             </tbody></table></div>
             <a :if={@data["next_cursor"]} href={page_link(:agents,@filters,@data["next_cursor"])}>Next agents</a>
           <% :messages -> %>

@@ -46,6 +46,7 @@ defmodule Agentboard.Application do
       AshOban.config(
         [
           Agentboard.Housekeeping,
+          Agentboard.Board,
           Agentboard.Delivery,
           Agentboard.Cooperation,
           Agentboard.Mattermost
