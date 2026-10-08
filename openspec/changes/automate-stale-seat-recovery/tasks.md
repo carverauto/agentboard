@@ -8,7 +8,7 @@ Captain implementation approval is applied. Coordinator orders1438/1449 authoriz
 - [x] C2 Add audited episode/attempt resources and additive migration20261008003100 with uniqueness and retained history; verify packaged schema upgrades and higher stamps remotely.
 - [x] C3 Implement disabled default, authorized idempotent dry-run capture and bounded episode reducer; verify active capture and ordinary attribution are refused.
 - [x] C4 Verify lifecycle contract remotely: cadence/availability, retry limits, uncertain effects, old-generation rejection, startup proof, override, original responsibility references and escalation identity.
-- [ ] C5 Publish current implementation Archify and portable OpenSpec artifacts with honest proof and explicit blocked-on follow-ups.
+- [x] C5 Publish current implementation Archify and portable OpenSpec artifacts with honest proof and explicit blocked-on follow-ups.
 - [ ] C6 Deliver through native No-mistakes without --yes and green exact-head PR CI; link the PR, never merge, preserve and coordinate return of only this seat lease.
 
 ## Follow-up / blocked-on full approved recovery

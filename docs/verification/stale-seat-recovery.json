@@ -42,5 +42,27 @@
     "remote_format": "https://carverauto.buildbuddy.io/invocation/cf2bb579-6e90-4129-a065-f3f82e9b378b",
     "native_restart_proof": "blocked-on real154/155/156",
     "activation": "disabled"
+  },
+  "portable_browser_review": {
+    "status": "pass",
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900,
+        "overflow_x": false
+      },
+      {
+        "requested_width": 390,
+        "actual_width": 500,
+        "height": 844,
+        "overflow_x": false
+      }
+    ],
+    "limit": "Chrome native minimum yielded500px viewport; no390px pass claimed",
+    "perceptual_review": "Three captured images inspected; coherent product theme, readable prose/table and contained overview diagram"
   }
 }
