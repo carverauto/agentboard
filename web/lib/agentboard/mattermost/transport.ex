@@ -11,6 +11,12 @@ defmodule Agentboard.Mattermost.Transport do
 
   @user_agent "agentboard-bridge/1"
 
+  # Paging bounds for channel-history scans. Declared before use: Elixir
+  # reads module attributes at compile time, so a later declaration
+  # would silently nil the guards below and unbind the scan.
+  @history_per_page 60
+  @history_max_pages 5
+
   defp request_timeout,
     do: Application.get_env(:agentboard, :mattermost_request_timeout_ms, 10_000)
 
@@ -23,7 +29,7 @@ defmodule Agentboard.Mattermost.Transport do
     request(cfg, :post, "/api/v4/posts", body)
   end
 
-  # Phase 1 shared-bot agent post. Props are the source of truth for
+  # Agent post through whichever bot credential the caller supplies. Props are the source of truth for
   # attribution; override fields render only when the server enables the
   # Mattermost override settings, and the header line plus props carry
   # identity either way.
@@ -94,9 +100,6 @@ defmodule Agentboard.Mattermost.Transport do
   # Reconciliation: find a post we may have created before losing the
   # response. Channel history is authoritative; a client-sent idempotency
   # key alone never proves the remote accepted anything.
-  @history_per_page 60
-  @history_max_pages 5
-
   def find_by_marker(cfg, channel_id, marker) do
     search_channel(cfg, channel_id, marker, 0)
   end
@@ -167,6 +170,92 @@ defmodule Agentboard.Mattermost.Transport do
     end
   end
 
+  # Phase 2 elastic bot admin calls. These run with the server-held
+  # provisioner credential, never an agent credential. Bodies are small
+  # maps; responses are matched by shape, never logged.
+  def create_bot(cfg, username, display_name) do
+    body = Jason.encode!(%{username: username, display_name: display_name})
+
+    case request(cfg, :post, "/api/v4/bots", body) do
+      {:ok, 201, %{"user_id" => _} = bot} -> {:ok, bot}
+      {:ok, status, _} when status in [401, 403] -> {:error, :unauthorized}
+      {:ok, _status, _} -> {:error, :unconfirmed}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def create_bot_token(cfg, bot_user_id) do
+    body = Jason.encode!(%{description: "agentboard elastic agent bot"})
+
+    case request(cfg, :post, "/api/v4/bots/#{bot_user_id}/token", body) do
+      {:ok, 200, %{"token" => token}} when is_binary(token) -> {:ok, token}
+      {:ok, 200, %{"token" => %{"token" => token}}} when is_binary(token) -> {:ok, token}
+      {:ok, status, _} when status in [401, 403] -> {:error, :unauthorized}
+      {:ok, _status, _} -> {:error, :unconfirmed}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def set_bot_active(cfg, bot_user_id, true) do
+    case request(cfg, :post, "/api/v4/bots/#{bot_user_id}/enable", Jason.encode!(%{})) do
+      {:ok, 200, _} -> :ok
+      {:ok, status, _} when status in [401, 403] -> {:error, :unauthorized}
+      {:ok, _status, _} -> {:error, :unconfirmed}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def set_bot_active(cfg, bot_user_id, false) do
+    case request(cfg, :post, "/api/v4/bots/#{bot_user_id}/disable", Jason.encode!(%{})) do
+      {:ok, 200, _} -> :ok
+      {:ok, status, _} when status in [401, 403] -> {:error, :unauthorized}
+      {:ok, _status, _} -> {:error, :unconfirmed}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def list_user_tokens(cfg, user_id) do
+    case request(cfg, :get, "/api/v4/users/#{user_id}/tokens", nil) do
+      {:ok, 200, tokens} when is_list(tokens) -> {:ok, tokens}
+      {:ok, status, _} when status in [401, 403] -> {:error, :unauthorized}
+      {:ok, _status, _} -> {:error, :unconfirmed}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def revoke_user_token(cfg, user_id, token_id) do
+    body = Jason.encode!(%{token_id: token_id})
+
+    case request(cfg, :post, "/api/v4/users/#{user_id}/tokens/revoke", body) do
+      {:ok, 200, _} -> :ok
+      {:ok, status, _} when status in [401, 403] -> {:error, :unauthorized}
+      {:ok, _status, _} -> {:error, :unconfirmed}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def add_team_member(cfg, team_id, user_id) do
+    body = Jason.encode!(%{team_id: team_id, user_id: user_id})
+
+    case request(cfg, :post, "/api/v4/teams/#{team_id}/members", body) do
+      {:ok, status, _} when status in [200, 201, 409] -> :ok
+      {:ok, status, _} when status in [401, 403] -> {:error, :unauthorized}
+      {:ok, _status, _} -> {:error, :unconfirmed}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def add_channel_member(cfg, channel_id, user_id) do
+    body = Jason.encode!(%{user_id: user_id})
+
+    case request(cfg, :post, "/api/v4/channels/#{channel_id}/members", body) do
+      {:ok, status, _} when status in [200, 201, 409] -> :ok
+      {:ok, status, _} when status in [401, 403] -> {:error, :unauthorized}
+      {:ok, _status, _} -> {:error, :unconfirmed}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   # Read-only liveness probe used at enablement: proves the full TLS stack
   # (trust chain plus hostname match) before any board event posts.
   def ping(cfg) do
@@ -213,9 +302,14 @@ defmodule Agentboard.Mattermost.Transport do
       body |> IO.iodata_to_binary() |> Jason.decode()
 
     # Retry-After rides along regardless of body shape; callers match on it.
+    # Lists pass through untouched (e.g. token listings); maps carry the
+    # header along for callers that match on it.
     case parsed do
       {:ok, json} when is_map(json) ->
         Map.put(json, "_retry_after", retry_after(headers))
+
+      {:ok, json} when is_list(json) ->
+        json
 
       _ ->
         %{"_raw_status" => status, "_retry_after" => retry_after(headers)}

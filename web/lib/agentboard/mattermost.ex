@@ -11,6 +11,7 @@ defmodule Agentboard.Mattermost do
     resource(Agentboard.Mattermost.TaskThread)
     resource(Agentboard.Mattermost.Router)
     resource(Agentboard.Mattermost.ConversationCoverage)
+    resource(Agentboard.Mattermost.AgentBot)
   end
 
   defdelegate enabled?, to: Agentboard.Mattermost.Bridge

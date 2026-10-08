@@ -23,7 +23,9 @@ mix_app(
     srcs = [":srcs"],
     app_name = "agentboard",
     deps = [
+        "@hexpm//:ash_cloak",
         "@hexpm//:ash",
+        "@hexpm//:cloak",
         "@hexpm//:ash_events",
         "@hexpm//:ash_oban",
         "@hexpm//:ash_paper_trail",

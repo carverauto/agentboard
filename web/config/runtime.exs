@@ -50,6 +50,69 @@ config :agentboard,
        :mattermost_channel_allowlist,
        System.get_env("AGENTBOARD_MATTERMOST_CHANNEL_ALLOWLIST", "")
 
+# Phase 2 elastic per-agent bots: the provisioner credential creates bots
+# and the cloak key encrypts their tokens. Both are secret references
+# only; absent means everything stays on phase 1 (shared bot).
+config :agentboard,
+       :mattermost_provisioner_token_file,
+       System.get_env("AGENTBOARD_MATTERMOST_PROVISIONER_TOKEN_FILE")
+
+config :agentboard,
+       :mattermost_provisioner_token,
+       System.get_env("AGENTBOARD_MATTERMOST_PROVISIONER_TOKEN")
+
+config :agentboard,
+       :mattermost_team_id,
+       System.get_env("AGENTBOARD_MATTERMOST_TEAM_ID")
+
+config :agentboard,
+       :mattermost_agent_bot_channel_ids,
+       System.get_env("AGENTBOARD_MATTERMOST_AGENT_BOT_CHANNEL_IDS", "")
+
+decode_cloak_key = fn contents, source ->
+  case Base.decode64(contents) do
+    {:ok, key} when byte_size(key) == 32 ->
+      key
+
+    _ when byte_size(contents) == 32 ->
+      contents
+
+    _ ->
+      raise "#{source} must hold 32 raw bytes or base64 thereof"
+  end
+end
+
+cloak_key =
+  case System.get_env("AGENTBOARD_MATTERMOST_CLOAK_KEY_FILE") do
+    nil ->
+      case System.get_env("AGENTBOARD_MATTERMOST_CLOAK_KEY") do
+        nil -> :crypto.strong_rand_bytes(32)
+        "" -> :crypto.strong_rand_bytes(32)
+        env -> decode_cloak_key.(String.trim(env), "AGENTBOARD_MATTERMOST_CLOAK_KEY")
+      end
+
+    "" ->
+      :crypto.strong_rand_bytes(32)
+
+    file ->
+      decode_cloak_key.(
+        file |> File.read!() |> String.trim(),
+        "AGENTBOARD_MATTERMOST_CLOAK_KEY_FILE"
+      )
+  end
+
+config :agentboard, Agentboard.Vault,
+  ciphers: [
+    default: {
+      Cloak.Ciphers.AES.GCM,
+      tag: "AES.GCM.V1", key: cloak_key, iv_length: 12
+    }
+  ]
+
+config :agentboard,
+       :mattermost_cloak_key,
+       System.get_env("AGENTBOARD_MATTERMOST_CLOAK_KEY")
+
 config :agentboard,
        :public_board_url,
        System.get_env("AGENTBOARD_PUBLIC_BOARD_URL")

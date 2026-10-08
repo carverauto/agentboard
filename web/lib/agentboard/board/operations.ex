@@ -7,35 +7,45 @@ defmodule Agentboard.Board.Operations do
 
   def register(actor, data) do
     with {:ok, actor} <- Input.actor(actor), :ok <- Input.registration(data) do
-      transaction(fn ->
-        lock_identity(actor["agent"])
-        now = now()
+      case transaction(fn ->
+             lock_identity(actor["agent"])
+             now = now()
 
-        case Ash.get!(Agent, actor["agent"], not_found_error?: false) do
-          nil ->
-            attrs =
-              Map.merge(
-                %{"name" => actor["agent"], "capabilities" => [], "metadata" => %{}},
-                data
-              )
-              |> Map.merge(%{
-                "id" => actor["agent"],
-                "model" => actor["model"],
-                "harness" => actor["harness"],
-                "created_at" => now,
-                "updated_at" => now
-              })
+             case Ash.get!(Agent, actor["agent"], not_found_error?: false) do
+               nil ->
+                 attrs =
+                   Map.merge(
+                     %{"name" => actor["agent"], "capabilities" => [], "metadata" => %{}},
+                     data
+                   )
+                   |> Map.merge(%{
+                     "id" => actor["agent"],
+                     "model" => actor["model"],
+                     "harness" => actor["harness"],
+                     "created_at" => now,
+                     "updated_at" => now
+                   })
 
-            %{"agent" => public(create(Agent, :register_new, attrs, actor))}
+                 %{"agent" => public(create(Agent, :register_new, attrs, actor))}
 
-          %Agent{harness: harness} = agent ->
-            if harness != actor["harness"],
-              do: reject("conflict", "That agent ID belongs to another harness")
+               %Agent{harness: harness} = agent ->
+                 if harness != actor["harness"],
+                   do: reject("conflict", "That agent ID belongs to another harness")
 
-            attrs = Map.merge(data, %{"model" => actor["model"], "updated_at" => now})
-            %{"agent" => public(update(agent, :register, attrs, actor))}
-        end
-      end)
+                 attrs = Map.merge(data, %{"model" => actor["model"], "updated_at" => now})
+                 %{"agent" => public(update(agent, :register, attrs, actor))}
+             end
+           end) do
+        {:ok, _} = ok ->
+          # Elastic bot provisioning never fails registration: best-effort
+          # enqueue after commit; without provisioner/cloak material this
+          # is a no-op and the agent stays on the shared bot.
+          Agentboard.Mattermost.ElasticBots.ensure(actor["agent"])
+          ok
+
+        error ->
+          error
+      end
     end
   end
 

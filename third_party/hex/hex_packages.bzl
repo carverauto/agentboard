@@ -2,7 +2,9 @@
 
 HEX_PACKAGES = [
     ('ash', 'ash', '3.34.3', '7f5c9468aa8f4066a052bb01daf7520b42d6bbaac187b19d00bbab3be14f4bdc'),
+    ('ash_cloak', 'ash_cloak', '0.4.0', 'd55bde03e90f8e31436ebec069681cbdab0875de52efe0939e5e2c3f32b91efd'),
     ('ash_events', 'ash_events', '0.8.2', '98576569eefa3318ff97eeb0b6a283b70091de261766849c28ba86e699fe255f'),
+    ('cloak', 'cloak', '1.1.4', '92b20527b9aba3d939fab0dd32ce592ff86361547cfdc87d74edce6f980eb3d7'),
     ('ash_oban', 'ash_oban', '0.8.14', 'd3002ba8be675257393e6d6719a871c502f39c6c0901bfbeef9eb62c06838279'),
     ('ash_paper_trail', 'ash_paper_trail', '0.7.0', '6c2a2153aad2b5568288e06531c5c057aad049fe5d522b6e91a3991cc91fc7d5'),
     ('ash_phoenix', 'ash_phoenix', '2.3.25', '2ca4039c85041c2f59933a9ae1df20397a6d416772473a7baa5ff7c55df64f06'),
