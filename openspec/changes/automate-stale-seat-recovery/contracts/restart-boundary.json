@@ -105,6 +105,13 @@
       "primary/legacy/foreign cwd",
       "conflicting retained metadata"
     ],
-    "credentials": "never copied into resolution JSON"
+    "credentials": "never copied into resolution JSON",
+    "owner_confirmation_message": 1408,
+    "recovery_constraints": [
+      "Require preserved expected lease and WIP before ensure; never allocate blindly on missing custody",
+      "Inspect native No-mistakes branch_sync separately; refuse unresolved or unpreserved custody",
+      "Task-aware launcher attachment generates/checks STOP brief; exported brief path alone is not proof",
+      "Preserve retained credential environment; refuse incompatible metadata"
+    ]
   }
 }

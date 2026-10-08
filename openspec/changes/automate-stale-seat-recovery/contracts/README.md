@@ -4,7 +4,15 @@ Captain implementation approval is applied in `../approval.md`; this records the
 
 ## Verified #141 interface
 
-Inspected PR167 head `a3160e23a1da7bc29a3bed64542a2d454bf1d6b8`: `internal/cli/seat_attach.go` defines resolution as `binding` plus `environment`. Its real CLI consumer checks every task-history page and requires a live owned in_progress/blocked/review claim. `scripts/launch-seat` verifies lease id/holder, pinned pool/source, physical Git registration and cwd. Its final JSON contains the seven binding fields and eight selected non-secret environment fields recorded here. It does not change a parent shell. The remote packaged fixture proves reuse/attachment, WIP/credential preservation and conflict refusals; retained proof is in PR167. This seat has inspected, not rerun, that sibling fixture. Owner confirmation requested in board msg1400.
+Inspected [PR167](https://github.com/carverauto/agentboard/pull/167) head `a3160e23a1da7bc29a3bed64542a2d454bf1d6b8`: `internal/cli/seat_attach.go` defines resolution as `binding` plus `environment`. Its real CLI consumer checks every task-history page and requires a live owned in_progress/blocked/review claim. `scripts/launch-seat` verifies lease id/holder, pinned pool/source, physical Git registration and cwd. Its final JSON contains the seven binding fields and eight selected non-secret environment fields recorded here. It does not change a parent shell. The remote packaged fixture proves reuse/attachment, WIP/credential preservation and conflict refusals; retained proof is in PR167 and FACT270. This seat has inspected, not rerun, that sibling fixture. Owner confirmed the interface in board msg1408; acknowledgement is msg1412.
+
+Recovery must enforce these confirmed constraints:
+
+- `seat env` and `seat check` are read-only and refuse a missing seat. General `seat ensure` may allocate; recovery must first require preserved expected lease and WIP rather than blindly allocate on missing custody.
+- Seat validation does not establish No-mistakes branch custody. Inspect native `branch_sync` separately before restarting; unresolved or unpreserved custody refuses restart.
+- `AGENTBOARD_SEAT_BRIEF` in JSON is a path, not evidence that a brief was generated or replayed. Task-aware `scripts/launch-seat` attachment must generate/check the mandatory STOP brief and refuse incompatible retained credential environment without overwriting it.
+
+Owning fixture: [packaged seat attachment scenario](https://github.com/carverauto/agentboard/blob/a3160e23a1da7bc29a3bed64542a2d454bf1d6b8/build/integration/seat_attachment_test.py), remote target `//build/integration:seat_attachment_test`. This confirms the dependency boundary, not #164 restart readiness.
 
 ## Actual missing integration surfaces
 

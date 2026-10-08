@@ -14797,7 +14797,7 @@
   </script>
 </body>
 </html>
-"></iframe></details></section><section id="review" class="card"><h2>Implementation authorization applied</h2><p>Captain decision <code>6f947f2e-62ee-4f73-a36b-c44aeb8c4cd6</code> approved implementation with the proposed defaults. Applied and acknowledged on the board. Policy and production activation remain separately gated.</p><p>Current work: task 1.1 dependency interfaces. Schema allocation requested in message 1397; #141 owner confirmation requested in 1400; #154/#155 dependency or narrow prerequisite ownership clarification requested in 1405. No product code or test changes yet. All 23 implementation items remain unchecked.</p><details><summary>Applied authorization receipt</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere"># Implementation authorization
+"></iframe></details></section><section id="review" class="card"><h2>Implementation authorization applied</h2><p>Captain decision <code>6f947f2e-62ee-4f73-a36b-c44aeb8c4cd6</code> approved implementation with the proposed defaults. Applied and acknowledged on the board. Policy and production activation remain separately gated.</p><p>Current work: task 1.1 dependency interfaces. Schema allocation requested in message 1397; #141 owner confirmation received in 1408 and acknowledged in 1412; #154/#155 dependency or narrow prerequisite ownership clarification requested in 1405. No product code or test changes yet. All 23 implementation items remain unchecked.</p><details><summary>Applied authorization receipt</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere"># Implementation authorization
 
 Captain decision `6f947f2e-62ee-4f73-a36b-c44aeb8c4cd6` was answered on behalf of captain on 2026-10-08 at 19:01:13Z (14:01 CT), following the captain 14:00 CT decision. Retained board answer and task orders are messages 1393 and 1394. The approved planning checkpoint is `8590a5738b7b1d7683c95b9abf8fa59616ae7a1a`.
 
@@ -14812,7 +14812,15 @@ Captain implementation approval is applied in `../approval.md`; this records the
 
 ## Verified #141 interface
 
-Inspected PR167 head `a3160e23a1da7bc29a3bed64542a2d454bf1d6b8`: `internal/cli/seat_attach.go` defines resolution as `binding` plus `environment`. Its real CLI consumer checks every task-history page and requires a live owned in_progress/blocked/review claim. `scripts/launch-seat` verifies lease id/holder, pinned pool/source, physical Git registration and cwd. Its final JSON contains the seven binding fields and eight selected non-secret environment fields recorded here. It does not change a parent shell. The remote packaged fixture proves reuse/attachment, WIP/credential preservation and conflict refusals; retained proof is in PR167. This seat has inspected, not rerun, that sibling fixture. Owner confirmation requested in board msg1400.
+Inspected [PR167](https://github.com/carverauto/agentboard/pull/167) head `a3160e23a1da7bc29a3bed64542a2d454bf1d6b8`: `internal/cli/seat_attach.go` defines resolution as `binding` plus `environment`. Its real CLI consumer checks every task-history page and requires a live owned in_progress/blocked/review claim. `scripts/launch-seat` verifies lease id/holder, pinned pool/source, physical Git registration and cwd. Its final JSON contains the seven binding fields and eight selected non-secret environment fields recorded here. It does not change a parent shell. The remote packaged fixture proves reuse/attachment, WIP/credential preservation and conflict refusals; retained proof is in PR167 and FACT270. This seat has inspected, not rerun, that sibling fixture. Owner confirmed the interface in board msg1408; acknowledgement is msg1412.
+
+Recovery must enforce these confirmed constraints:
+
+- `seat env` and `seat check` are read-only and refuse a missing seat. General `seat ensure` may allocate; recovery must first require preserved expected lease and WIP rather than blindly allocate on missing custody.
+- Seat validation does not establish No-mistakes branch custody. Inspect native `branch_sync` separately before restarting; unresolved or unpreserved custody refuses restart.
+- `AGENTBOARD_SEAT_BRIEF` in JSON is a path, not evidence that a brief was generated or replayed. Task-aware `scripts/launch-seat` attachment must generate/check the mandatory STOP brief and refuse incompatible retained credential environment without overwriting it.
+
+Owning fixture: [packaged seat attachment scenario](https://github.com/carverauto/agentboard/blob/a3160e23a1da7bc29a3bed64542a2d454bf1d6b8/build/integration/seat_attachment_test.py), remote target `//build/integration:seat_attachment_test`. This confirms the dependency boundary, not #164 restart readiness.
 
 ## Actual missing integration surfaces
 
@@ -14935,7 +14943,14 @@ No product code, tests, service activation, credential provisioning, or producti
       &quot;primary/legacy/foreign cwd&quot;,
       &quot;conflicting retained metadata&quot;
     ],
-    &quot;credentials&quot;: &quot;never copied into resolution JSON&quot;
+    &quot;credentials&quot;: &quot;never copied into resolution JSON&quot;,
+    &quot;owner_confirmation_message&quot;: 1408,
+    &quot;recovery_constraints&quot;: [
+      &quot;Require preserved expected lease and WIP before ensure; never allocate blindly on missing custody&quot;,
+      &quot;Inspect native No-mistakes branch_sync separately; refuse unresolved or unpreserved custody&quot;,
+      &quot;Task-aware launcher attachment generates/checks STOP brief; exported brief path alone is not proof&quot;,
+      &quot;Preserve retained credential environment; refuse incompatible metadata&quot;
+    ]
   }
 }
 </pre></details></section></main><footer>Design source: Agentboard's existing CSS tokens and system font from web/assets/app.css. Planning validation does not establish runtime or CI proof. Product code, services, secrets and hooks remain unchanged.</footer><script>const root=document.documentElement;root.dataset.theme=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.getElementById('theme').onclick=()=>{root.dataset.theme=root.dataset.theme==='dark'?'light':'dark'};</script></body></html>
