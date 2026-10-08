@@ -36,6 +36,18 @@ sh_test(
     timeout = "long",
 )
 
+# The host CLI and Phoenix release meet at their public HTTP boundary;
+# worker_runtime_test supplies only the invented native socket fixture.
+sh_test(
+    name = "worker_packaged_api_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "worker_packaged_api_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["worker_packaged_api_test.py", "worker_runtime_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)
+
 sh_test(
     name = "db_tls_guard_test",
     srcs = ["db_tls_guard_test.sh"],

@@ -30,8 +30,9 @@ its candidate APIs; the installed request schema has only target/text/wait for
 prompting. The runtime therefore uses the specified native fallback.
 
 See `docs/verification/worker-pi-live.json` for the actual model and native session
-identity. That harness proof used invented local HTTP contracts and is distinct
-from packaged Phoenix acceptance and the coordinated release proof. A second actual busy model turn consumed the frame at the dedicated check-in tool return while retaining its original result (`docs/verification/worker-pi-busy-live.json`). Remote socket
+identity. That historical harness proof used invented local HTTP contracts.
+[Fresh packaged server/host acceptance and isolated Pi evidence](verification/worker-packaged-api.md)
+now cover the shipped boundary separately; the coordinated release proof remains open. A second actual busy model turn consumed the frame at the dedicated check-in tool return while retaining its original result (`docs/verification/worker-pi-busy-live.json`). Remote socket
 fixtures test occupied composer, busy native queuing, original result preservation,
 pause, exact generation rejection and uncertainty. No TUI parity is implied.
 

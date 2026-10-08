@@ -21,3 +21,10 @@ Ripwire identified new complexity in the explicit dispatch state machine, native
 Two reported preexisting regressions are understood: `config.Actor.Validate` is still called at `internal/cli/root.go`; a new batch method with the same name confuses the name-based graph. `worker.delay` repeats the small context-cancellable timer idiom used by the private client retry helper; exporting transport internals only to share that idiom would widen the contract. Neither finding was silently suppressed. Public subprocess tests provide coverage beyond the static name graph.
 
 Archify source, standalone HTML, delivery receipt, light/dark browser captures and image review are stored under `docs/architecture/supervised-worker.*`. Browser layout checks and separate human-style image inspection passed. No screenshot substitutes for protocol or live session evidence.
+
+## Published server contract acceptance
+
+[Fresh packaged API/host proof and named isolated Pi evidence](worker-packaged-api.md)
+close the host acceptance gap after the server shipped. The live Pi model proof
+and real packaged API proof remain distinct. Captain-gated production enrollment
+and the controlled failed-PR/reminder/repaired-head demonstration remain open.

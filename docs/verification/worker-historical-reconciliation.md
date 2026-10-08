@@ -35,6 +35,7 @@ https://agentboard.farm01.carverauto.dev/documents/65 and
 https://agentboard.farm01.carverauto.dev/documents/66. This consumer correction
 does not add an adapter or activate a service.
 
-Real packaged Phoenix interoperability still awaits the published server.
+[Fresh packaged host/server acceptance](worker-packaged-api.md) now passes after
+the server shipped.
 The controlled failed-PR, reminder, restart and repaired-head release proof remains
 open. No local build or user-session prompting was performed for this correction.

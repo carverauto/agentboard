@@ -1,0 +1,33 @@
+{
+  "binary_sha256": "09ee1a9deaf555fcd1e7047e3374fc7133a91cc4057ffb924e26bfcf8ad779e3",
+  "pi_version": "0.99.2",
+  "provider": "xai",
+  "model": "grok-4.3",
+  "named_session": "agentboard-b-runtime-20261008-conformance",
+  "session_id": "01a11a71-f9e2-7588-8ddb-a471e91ea285",
+  "generation": "6b67c0d2-61d9-4b73-b45a-4332fbef482a",
+  "remote_binary_invocation": "https://carverauto.buildbuddy.io/invocation/759a4772-c929-40fe-a36f-0c9ea78a6cb5",
+  "adapter": "pi-native-v1",
+  "surface": "actual Pi RPC with scoped invented HTTP API; packaged Phoenix proof remains separate",
+  "session_replacement_and_stale_identity": "passed",
+  "explicit_rebind_epoch": 2,
+  "original_generation": "baa2f626-077d-400d-8513-f75a00a27c47",
+  "original_session": "2628ddcf-d483-4208-97c0-0ef512d38d34",
+  "profile": "exclusive-rpc",
+  "idle_probe": "passed",
+  "native_wake": "passed",
+  "exact_handling_receipt": {
+    "attempt_id": "attempt-1",
+    "binding_epoch": 1,
+    "delivery_ids": [
+      "delivery-1",
+      "delivery-2"
+    ],
+    "dispatch_generation": 1,
+    "idempotency_key": "live-proof-1",
+    "kind": "handled",
+    "payload_hash": "7272578f9ac15e5d705b61cf916e3d2ae37dfb26ae975b651fa610376e687c0b"
+  },
+  "protocol": 1,
+  "global_services_changed": false
+}
