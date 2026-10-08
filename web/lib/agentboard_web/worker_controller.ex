@@ -31,7 +31,13 @@ defmodule AgentboardWeb.WorkerController do
     data =
       if params["attempt_id"], do: Map.put(data, "attempt_id", params["attempt_id"]), else: data
 
-    protocol(conn, fn -> Runtime.request(params["worker_id"], token, operation, data) end)
+    protocol(conn, fn ->
+      case Runtime.request(params["worker_id"], token, operation, data) do
+        {:ok, page} when operation == "mattermost_read" ->
+          {:ok, Agentboard.Mattermost.Inbound.materialize(page)}
+        result -> result
+      end
+    end)
   end
 
   defp captain(conn, fun) do

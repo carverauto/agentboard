@@ -311,18 +311,20 @@ override_env=dict(cli_env,AGENTBOARD_URL='https://invalid.example',AGENTBOARD_CL
 result=subprocess.run([os.environ['AB_BINARY'],'--url',os.environ['AGENTBOARD_URL'],'--ttl','2h','--stale-after','10m','--json','task','list'],env=override_env,capture_output=True,text=True)
 assert result.returncode==0 and json.loads(result.stdout)['tasks']
 # Schema compatibility fails without the CLI attempting to migrate.
+installed_schema=int(sql('SELECT version FROM board_schema WHERE id=1'))
 sql('DELETE FROM board_schema')
 ab('task','list',code=1)
 assert sql('SELECT count(*) FROM board_schema')=='0'
-sql('INSERT INTO board_schema(id,version) VALUES(1,14)')
+sql('INSERT INTO board_schema(id,version) VALUES(1,%d)' % installed_schema)
 # A marker alone cannot make the new evidence/receipt/accountability schema ready.
 for table in ('delivery_ci_snapshots', 'cooperation_receipts', 'delivery_obligations'):
     sql('ALTER TABLE ' + table + ' RENAME TO fixture_missing_relation')
     ab('task','list',code=1)
     sql('ALTER TABLE fixture_missing_relation RENAME TO ' + table)
-# Only a fully migrated marker satisfies the fence; the stale marker alone stays refused.
+# A stale marker stays refused even when every required relation exists.
+sql('UPDATE board_schema SET version=%d' % (installed_schema-1))
 assert ab('task','list',code=1)['code']=='schema_unavailable'
-sql('UPDATE board_schema SET version=21')
+sql('UPDATE board_schema SET version=%d' % installed_schema)
 assert ab('task','list')['tasks']
 print('Heartbeats, messages, atomic handoff, commit-only snapshots, listener reconnect and stream cleanup passed')
 
