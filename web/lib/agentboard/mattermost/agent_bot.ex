@@ -26,7 +26,17 @@ defmodule Agentboard.Mattermost.AgentBot do
     defaults([:read, :destroy])
 
     create :open do
-      accept([:id, :agent_id, :mm_user_id, :mm_username, :display_name, :token, :state, :created_at, :updated_at])
+      accept([
+        :id,
+        :agent_id,
+        :mm_user_id,
+        :mm_username,
+        :display_name,
+        :token,
+        :state,
+        :created_at,
+        :updated_at
+      ])
     end
 
     update :mark_active do

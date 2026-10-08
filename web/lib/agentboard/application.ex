@@ -11,7 +11,6 @@ defmodule Agentboard.Application do
       Agentboard.Repo,
       Agentboard.Vault,
       {Phoenix.PubSub, name: Agentboard.PubSub},
-
       Agentboard.RateLimits.Owner,
       Agentboard.Notifications,
       {Oban,

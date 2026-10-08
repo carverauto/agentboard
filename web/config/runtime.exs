@@ -95,16 +95,17 @@ cloak_key =
       :crypto.strong_rand_bytes(32)
 
     file ->
-      decode_cloak_key.(file |> File.read!() |> String.trim(), "AGENTBOARD_MATTERMOST_CLOAK_KEY_FILE")
+      decode_cloak_key.(
+        file |> File.read!() |> String.trim(),
+        "AGENTBOARD_MATTERMOST_CLOAK_KEY_FILE"
+      )
   end
 
 config :agentboard, Agentboard.Vault,
   ciphers: [
     default: {
       Cloak.Ciphers.AES.GCM,
-      tag: "AES.GCM.V1",
-      key: cloak_key,
-      iv_length: 12
+      tag: "AES.GCM.V1", key: cloak_key, iv_length: 12
     }
   ]
 

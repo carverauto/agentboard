@@ -25,7 +25,13 @@ defmodule Agentboard.Mattermost.ElasticBots do
           enqueue_bot_job("provision", agent_id)
 
         %{state: "retired"} = row ->
-          Operations.update(row, :mark_stale, Map.merge(%{state: "pending", last_error: nil}, touched()), @actor)
+          Operations.update(
+            row,
+            :mark_stale,
+            Map.merge(%{state: "pending", last_error: nil}, touched()),
+            @actor
+          )
+
           enqueue_bot_job("provision", agent_id)
 
         %{state: "pending"} ->
@@ -59,11 +65,18 @@ defmodule Agentboard.Mattermost.ElasticBots do
         :ok
 
       row ->
-        Operations.update(row, :retire, Map.merge(%{state: "retired", token: nil, last_error: nil}, touched()), @actor)
+        Operations.update(
+          row,
+          :retire,
+          Map.merge(%{state: "retired", token: nil, last_error: nil}, touched()),
+          @actor
+        )
+
         case retire_remote(row) do
           :ok -> :ok
           _ -> enqueue_bot_job("retire", row.agent_id)
         end
+
         :ok
     end
   rescue
@@ -78,7 +91,9 @@ defmodule Agentboard.Mattermost.ElasticBots do
     case fetch_bot(agent_id) do
       %{state: "active"} = row ->
         case load_token(row) do
-          {:ok, token} when is_binary(token) and token != "" -> {:ok, token}
+          {:ok, token} when is_binary(token) and token != "" ->
+            {:ok, token}
+
           _ ->
             mark_stale(row, "token_unreadable")
             reprovision(agent_id) |> error()
@@ -118,9 +133,14 @@ defmodule Agentboard.Mattermost.ElasticBots do
     if String.length(full) <= @max_username do
       full
     else
-      suffix = :crypto.hash(:sha256, agent_id) |> Base.encode16(case: :lower) |> String.slice(0, 6)
+      suffix =
+        :crypto.hash(:sha256, agent_id) |> Base.encode16(case: :lower) |> String.slice(0, 6)
+
       keep = @max_username - 3 - 1 - 6
-      head = clean |> String.slice(0, keep) |> String.trim_trailing("-") |> String.trim_trailing(".")
+
+      head =
+        clean |> String.slice(0, keep) |> String.trim_trailing("-") |> String.trim_trailing(".")
+
       "ab-" <> head <> "-" <> suffix
     end
   end
@@ -155,7 +175,14 @@ defmodule Agentboard.Mattermost.ElasticBots do
       |> String.slice(0, 10)
 
     keep = @max_username - 3 - 1 - 10
-    head = agent_id |> clean_handle() |> String.slice(0, keep) |> String.trim_trailing("-") |> String.trim_trailing(".")
+
+    head =
+      agent_id
+      |> clean_handle()
+      |> String.slice(0, keep)
+      |> String.trim_trailing("-")
+      |> String.trim_trailing(".")
+
     "ab-" <> head <> "-" <> suffix
   end
 
@@ -212,7 +239,8 @@ defmodule Agentboard.Mattermost.ElasticBots do
   defp do_provision(cfg, row) do
     username = unique_username(row.agent_id)
 
-    with {:ok, user_id} <- ensure_bot_user(cfg, %{mm_user_id: row.mm_user_id, display: row.agent_id}, username),
+    with {:ok, user_id} <-
+           ensure_bot_user(cfg, %{mm_user_id: row.mm_user_id, display: row.agent_id}, username),
          :ok <- join_team(cfg, user_id),
          :ok <- join_channels(cfg, user_id),
          {:ok, token} <- Transport.create_bot_token(cfg, user_id) do
@@ -222,7 +250,14 @@ defmodule Agentboard.Mattermost.ElasticBots do
             fresh,
             :mark_active,
             Map.merge(
-              %{mm_user_id: user_id, mm_username: username, display_name: row.agent_id, token: token, state: "active", last_error: nil},
+              %{
+                mm_user_id: user_id,
+                mm_username: username,
+                display_name: row.agent_id,
+                token: token,
+                state: "active",
+                last_error: nil
+              },
               touched()
             ),
             @actor
@@ -237,7 +272,13 @@ defmodule Agentboard.Mattermost.ElasticBots do
       {:error, reason} ->
         case fresh_row(row.agent_id) do
           {:ok, fresh} ->
-            Operations.update(fresh, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:#{inspect(reason)}"}, touched()), @actor)
+            Operations.update(
+              fresh,
+              :mark_stale,
+              Map.merge(%{state: "stale", last_error: "provision:#{inspect(reason)}"}, touched()),
+              @actor
+            )
+
             {:error, reason}
 
           :noop ->
@@ -247,7 +288,13 @@ defmodule Agentboard.Mattermost.ElasticBots do
       _ ->
         case fresh_row(row.agent_id) do
           {:ok, fresh} ->
-            Operations.update(fresh, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:unconfirmed"}, touched()), @actor)
+            Operations.update(
+              fresh,
+              :mark_stale,
+              Map.merge(%{state: "stale", last_error: "provision:unconfirmed"}, touched()),
+              @actor
+            )
+
             {:error, :unconfirmed}
 
           :noop ->
@@ -283,7 +330,18 @@ defmodule Agentboard.Mattermost.ElasticBots do
   defp try_stale(row, error) do
     case fresh_row(row.agent_id) do
       {:ok, fresh} ->
-        Operations.update(fresh, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:#{Exception.message(error) |> String.slice(0, 120)}"}, touched()), @actor)
+        Operations.update(
+          fresh,
+          :mark_stale,
+          Map.merge(
+            %{
+              state: "stale",
+              last_error: "provision:#{Exception.message(error) |> String.slice(0, 120)}"
+            },
+            touched()
+          ),
+          @actor
+        )
 
       :noop ->
         :ok
@@ -356,7 +414,12 @@ defmodule Agentboard.Mattermost.ElasticBots do
   end
 
   defp mark_stale(row, reason) do
-    Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: reason}, touched()), @actor)
+    Operations.update(
+      row,
+      :mark_stale,
+      Map.merge(%{state: "stale", last_error: reason}, touched()),
+      @actor
+    )
   rescue
     _ -> :ok
   end
@@ -377,7 +440,14 @@ defmodule Agentboard.Mattermost.ElasticBots do
       AgentBot,
       :open,
       Map.merge(
-        %{id: Ash.UUID.generate(), agent_id: agent_id, mm_user_id: "pending:#{agent_id}", mm_username: short_name(agent_id), display_name: agent_id, state: "pending"},
+        %{
+          id: Ash.UUID.generate(),
+          agent_id: agent_id,
+          mm_user_id: "pending:#{agent_id}",
+          mm_username: short_name(agent_id),
+          display_name: agent_id,
+          state: "pending"
+        },
         created_stamps()
       ),
       @actor
@@ -468,8 +538,12 @@ defmodule Agentboard.Mattermost.ElasticBots do
   defp cloak_ready? do
     key_source =
       case System.get_env("AGENTBOARD_MATTERMOST_CLOAK_KEY_FILE") do
-        nil -> System.get_env("AGENTBOARD_MATTERMOST_CLOAK_KEY")
-        "" -> System.get_env("AGENTBOARD_MATTERMOST_CLOAK_KEY")
+        nil ->
+          System.get_env("AGENTBOARD_MATTERMOST_CLOAK_KEY")
+
+        "" ->
+          System.get_env("AGENTBOARD_MATTERMOST_CLOAK_KEY")
+
         file when is_binary(file) ->
           case File.read(file) do
             {:ok, contents} -> contents

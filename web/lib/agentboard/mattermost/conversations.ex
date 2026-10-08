@@ -63,10 +63,33 @@ defmodule Agentboard.Mattermost.Conversations do
   # re-provisions in the background and the same send falls back once.
   def post_as(cfg, agent_id, channel_id, message, props, root_id \\ nil, icon_url \\ nil, msg_id \\ nil) do
     {send_cfg, via_bot} = send_config(cfg, agent_id)
-    do_post_as(send_cfg, via_bot, cfg, agent_id, channel_id, message, props, root_id, icon_url, msg_id)
+
+    do_post_as(
+      send_cfg,
+      via_bot,
+      cfg,
+      agent_id,
+      channel_id,
+      message,
+      props,
+      root_id,
+      icon_url,
+      msg_id
+    )
   end
 
-  defp do_post_as(send_cfg, via_bot, shared_cfg, agent_id, channel_id, message, props, root_id, icon_url, msg_id) do
+  defp do_post_as(
+         send_cfg,
+         via_bot,
+         shared_cfg,
+         agent_id,
+         channel_id,
+         message,
+         props,
+         root_id,
+         icon_url,
+         msg_id
+       ) do
     {username_opt, icon_opt} = override_opts(agent_id, icon_url)
     opts = [root_id: root_id, override_username: username_opt, override_icon_url: icon_opt]
 
@@ -84,7 +107,18 @@ defmodule Agentboard.Mattermost.Conversations do
       {:ok, status, _} when status in [401, 403] and via_bot ->
         ElasticBots.note_revoked(agent_id)
 
-        do_post_as(shared_cfg, false, shared_cfg, agent_id, channel_id, message, props, root_id, icon_url, msg_id)
+        do_post_as(
+          shared_cfg,
+          false,
+          shared_cfg,
+          agent_id,
+          channel_id,
+          message,
+          props,
+          root_id,
+          icon_url,
+          msg_id
+        )
 
       {:ok, _status, _} ->
         {:error, "unavailable", "Mattermost did not acknowledge the post"}
