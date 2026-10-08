@@ -3,27 +3,43 @@ defmodule AgentboardWeb.ContextLiveTest do
   alias AgentboardWeb.ContextLive
 
   describe "resolve_repo/1" do
-    test "known dropdown selection passes through and drops repo_other" do
+    test "known dropdown selection with blank typed repo passes through" do
+      assert ContextLive.resolve_repo(%{"repo" => "carverauto/agentboard", "repo_other" => "   "}) ==
+               {:ok, %{"repo" => "carverauto/agentboard"}}
+    end
+
+    test "known dropdown selection disagreeing with typed repo errors" do
       assert ContextLive.resolve_repo(%{"repo" => "carverauto/agentboard", "repo_other" => "x/y"}) ==
-               %{"repo" => "carverauto/agentboard"}
+               {:error, "Repository and Other repository disagree; clear one."}
+    end
+
+    test "known dropdown selection matching typed repo uses it" do
+      assert ContextLive.resolve_repo(%{"repo" => "a/b", "repo_other" => "  a/b  "}) ==
+               {:ok, %{"repo" => "a/b"}}
+    end
+
+    test "blank dropdown with typed repo resolves to the typed value" do
+      assert ContextLive.resolve_repo(%{"repo" => "", "repo_other" => "  c/d  "}) ==
+               {:ok, %{"repo" => "c/d"}}
     end
 
     test "other with typed repo resolves to the typed value" do
       assert ContextLive.resolve_repo(%{"repo" => "other", "repo_other" => "  carverauto/new  "}) ==
-               %{"repo" => "carverauto/new"}
+               {:ok, %{"repo" => "carverauto/new"}}
     end
 
     test "other with blank typed repo drops the repo key" do
       assert ContextLive.resolve_repo(%{"repo" => "other", "repo_other" => "   ", "q" => "x"}) ==
-               %{"q" => "x"}
+               {:ok, %{"q" => "x"}}
     end
 
     test "other without typed repo drops the repo key" do
-      assert ContextLive.resolve_repo(%{"repo" => "other"}) == %{}
+      assert ContextLive.resolve_repo(%{"repo" => "other"}) == {:ok, %{}}
     end
 
-    test "missing repo leaves other params untouched" do
-      assert ContextLive.resolve_repo(%{"q" => "boom", "repo_other" => "x/y"}) == %{"q" => "boom"}
+    test "missing repo with typed repo resolves to the typed value" do
+      assert ContextLive.resolve_repo(%{"q" => "boom", "repo_other" => "x/y"}) ==
+               {:ok, %{"q" => "boom", "repo" => "x/y"}}
     end
   end
 

@@ -10,14 +10,19 @@ defmodule AgentboardWeb.ContextLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    filters =
-      params
-      |> resolve_repo()
-      |> Map.take(~w(id repo task kind q cursor))
-      |> Map.reject(fn {_key, value} -> value == "" end)
+    case resolve_repo(params) do
+      {:ok, resolved} ->
+        filters =
+          resolved
+          |> Map.take(~w(id repo task kind q cursor))
+          |> Map.reject(fn {_key, value} -> value == "" end)
 
-    socket = assign(socket, filters: filters)
-    {:noreply, if(connected?(socket), do: reload(socket), else: socket)}
+        socket = assign(socket, filters: filters)
+        {:noreply, if(connected?(socket), do: reload(socket), else: socket)}
+
+      {:error, message} ->
+        {:noreply, assign(socket, filters: %{}, data: nil, error: message, loaded: true)}
+    end
   end
 
   @impl true
@@ -64,18 +69,31 @@ defmodule AgentboardWeb.ContextLive do
   Maps the repository dropdown selection to an effective `repo` param.
 
   The dropdown submits `repo=<known>` directly, or `repo=other` together
-  with `repo_other=<typed>`. Returns params with the resolved `repo` (or no
-  `repo` key when nothing usable was chosen) and without `repo_other`.
+  with `repo_other=<typed>`. Returns `{:ok, params}` with the resolved
+  `repo` (or no `repo` key when nothing usable was chosen) and without
+  `repo_other`, or `{:error, message}` when a selected repository and a
+  different typed repository disagree.
   """
   def resolve_repo(params) when is_map(params) do
-    case params["repo"] do
-      "other" ->
-        other = params |> Map.get("repo_other", "") |> to_string() |> String.trim()
-        params = Map.delete(params, "repo_other")
-        if other == "", do: Map.delete(params, "repo"), else: Map.put(params, "repo", other)
+    other = params |> Map.get("repo_other", "") |> to_string() |> String.trim()
+    cleaned = Map.delete(params, "repo_other")
+    repo = Map.get(cleaned, "repo")
+    trimmed_repo = repo |> to_string() |> String.trim()
 
-      _ ->
-        Map.delete(params, "repo_other")
+    cond do
+      other == "" ->
+        if repo == "other",
+          do: {:ok, Map.delete(cleaned, "repo")},
+          else: {:ok, cleaned}
+
+      repo in [nil, "", "other"] ->
+        {:ok, Map.put(cleaned, "repo", other)}
+
+      trimmed_repo == other ->
+        {:ok, Map.put(cleaned, "repo", other)}
+
+      true ->
+        {:error, "Repository and Other repository disagree; clear one."}
     end
   end
 
