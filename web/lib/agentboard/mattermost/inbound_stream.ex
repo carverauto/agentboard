@@ -35,10 +35,15 @@ defmodule Agentboard.Mattermost.InboundStream do
       {:ok, channels, _} ->
         {allowed, denied} = Enum.split_with(state.buffer, &(&1["channel_id"] in channels))
         Enum.each(denied, fn post -> InboundStore.coverage(state.cfg, post["channel_id"], 0, false, "live_channel_not_authorized") end)
-        state = %{state | channels: channels, buffer: allowed, bytes: if(allowed == [], do: 0, else: state.bytes), next_scan: now() + 30_000}
+        state = %{state | channels: channels, buffer: allowed, bytes: if(allowed == [], do: 0, else: Enum.reduce(allowed, 0, fn post, acc -> acc + byte_size(Jason.encode!(post)) end)), next_scan: now() + 30_000}
         {:noreply, flush(state)}
-      {:live, :ok} -> {:noreply, flush(state)}
-      {:error, {:rate_limited, seconds}} -> {:noreply, %{disconnect(state, "rate_limited", seconds) | retry_at: now() + seconds * 1000}}
+      {:live, {:ok, gaps}} ->
+        gaps |> Enum.group_by(&elem(&1, 0), &elem(&1, 1)) |> Enum.each(fn {channel, ids} ->
+          reason = String.slice("live_post_gap:" <> Enum.join(ids |> Enum.uniq() |> Enum.take(8), ","), 0, 256)
+          InboundStore.coverage(state.cfg, channel, nil, false, reason)
+        end)
+        {:noreply, flush(state)}
+      {:live, {:error, {:rate_limited, seconds}}} -> {:noreply, %{disconnect(state, "rate_limited", seconds) | retry_at: now() + seconds * 1000}}
       _ -> {:noreply, disconnect(state, "catch_up_incomplete")}
     end
   end
@@ -153,8 +158,19 @@ defmodule Agentboard.Mattermost.InboundStream do
         %{state | buffer: [decoded | state.buffer], bytes: bytes}
       end
     else
-      _ -> disconnect(state, "invalid_live_post")
+      _ -> drop(state, event)
     end
+  end
+
+  defp drop(state, event) do
+    decoded = case get_in(event, ["data", "post"]) do
+      post when is_binary(post) -> case Jason.decode(post) do {:ok, decoded} when is_map(decoded) -> decoded; _ -> %{} end
+      _ -> %{}
+    end
+    id = if InboundHTTP.segment?(decoded["id"]), do: decoded["id"], else: "invalid_id"
+    channel = if InboundHTTP.segment?(decoded["channel_id"]), do: decoded["channel_id"], else: "unknown"
+    if state.cfg, do: InboundStore.coverage(state.cfg, channel, nil, false, "live_post_gap:" <> id)
+    state
   end
 
   defp maybe_scan(state), do: if(ready?(state) and state.task == nil, do: scan(state), else: state)
@@ -173,10 +189,12 @@ defmodule Agentboard.Mattermost.InboundStream do
         cfg = state.cfg
         posts = Enum.reverse(state.buffer)
         task = Task.Supervisor.async_nolink(Agentboard.Mattermost.InboundTasks, fn ->
-          result = Enum.reduce_while(posts, :ok, fn post, :ok ->
+          result = Enum.reduce_while(posts, {:ok, []}, fn post, {:ok, gaps} ->
             case Inbound.observe(cfg, post) do
-              {:ok, _} -> {:cont, :ok}
-              _ -> {:halt, :error}
+              {:ok, _} -> {:cont, {:ok, gaps}}
+              {:error, reason} when reason in [:invalid_or_disallowed_post, :thread_root_unavailable] ->
+                {:cont, {:ok, [{post["channel_id"], post["id"]} | gaps]}}
+              error -> {:halt, error}
             end
           end)
           {:live, result}

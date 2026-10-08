@@ -53,7 +53,11 @@ changed membership and invalid live events trigger recovery.
 Ordinary bot history cannot prove unknown deletions during an outage, so even a
 stable scan retains `historical_deletions_unprovable` and `caught_up=false`.
 Known missing posts, revoked membership, unstable pages and budget exhaustion
-have explicit reasons. This slice does not claim full historical deletion parity
+have explicit reasons. A post that cannot be inspected (malformed history entry,
+dangling thread root, invalid live event) is skipped with bounded ID-only gap
+evidence while valid siblings on the same page, channel and live buffer continue;
+its channel stays explicitly incomplete. Buffered posts from a revoked or denied
+channel are dropped and the retained byte budget is recomputed from the posts kept. This slice does not claim full historical deletion parity
 or qualify sole-Mattermost cutover. Unavailable inspection never fabricates text
 or consumes the item.
 
