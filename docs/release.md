@@ -315,8 +315,10 @@ of its own repair task closes the machine episode through audited Ash actions.
 Pending/received failure, reminder and digest notices are suppressed atomically;
 handled deliveries, original failure events, task history and CI qualification
 remain intact. No repair task is auto-completed. An explicitly dismissed failing
-head does not recreate an episode until a new head or verified recovery after
-that disposition. A closed PR reopening can start a new episode.
+head does not recreate an episode until a new head, verified recovery after
+that disposition, or retained merged/closed lifecycle after that disposition.
+A fenced closed observation preserves the retained disposition yet still ends
+suppression, so a closed PR reopening can start a new episode.
 
 With PR observation enabled, minute AshOban worker
 `Agentboard.Delivery.ReconcileTerminalObligations` recovers terminal repair tasks

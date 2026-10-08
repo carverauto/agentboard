@@ -72,7 +72,7 @@ The system SHALL resolve an unresolved obligation with a recorded reason when it
 
 #### Scenario: Repair completion or cancellation
 - **WHEN** the own repair task transitions to Done/Cancelled through the Board transaction
-- **THEN** its obligation closes atomically with a repair disposition reason; identical dismissed head failures do not recreate the episode until a new head or verified recovery after dismissal
+- **THEN** its obligation closes atomically with a repair disposition reason; identical dismissed head failures do not recreate the episode until a new head, verified recovery after dismissal, or retained merged/closed lifecycle after dismissal
 
 #### Scenario: Recovery after downtime while cooperation is disabled
 - **WHEN** observation is enabled and retained matching terminal proof or a terminal repair task exists
@@ -80,4 +80,4 @@ The system SHALL resolve an unresolved obligation with a recorded reason when it
 
 #### Scenario: Replay, unknown proof, reopened PR or audit failure
 - **WHEN** concurrent closure replays, retained proof is mismatched, a closed PR reopens with a new failure, or audit capture fails
-- **THEN** replay creates no second resolution, mismatched proof remains active, a reopened failure creates a new episode, and failed transactions retain the original task/obligation/delivery state
+- **THEN** replay creates no second resolution, mismatched proof remains active, a fenced closed observation preserves the retained disposition but ends same-head suppression, a reopened failure creates a new episode, and failed transactions retain the original task/obligation/delivery state

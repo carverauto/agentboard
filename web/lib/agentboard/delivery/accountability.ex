@@ -384,7 +384,9 @@ defmodule Agentboard.Delivery.Accountability do
   end
 
   # An explicit repair disposition must not create the identical repair again
-  # each minute. A new head or verified recovery after dismissal starts a new episode.
+  # each minute. A new head, verified recovery after dismissal, or retained
+  # merged/closed lifecycle after dismissal starts a new episode; a fenced
+  # closed observation preserves the retained disposition.
   defp dismissed_head?(id, head) do
     last =
       Obligation
