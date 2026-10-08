@@ -73,7 +73,9 @@ defmodule Agentboard.Mattermost.ElasticBots do
       %{state: "active"} = row ->
         case load_token(row) do
           {:ok, token} when is_binary(token) and token != "" -> {:ok, token}
-          _ -> mark_stale(row, "token_unreadable") |> error()
+          _ ->
+            mark_stale(row, "token_unreadable")
+            reprovision(agent_id) |> error()
         end
 
       _ ->
