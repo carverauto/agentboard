@@ -578,7 +578,7 @@ func decodeAdminFile(doc ynode) (adminFile, error) {
 				if nm == "" || dg == "" {
 					return f, fmt.Errorf("line %d: image name and digest are required", it.line)
 				}
-				if digestRef.FindStringSubmatch(nm+"@"+dg) == nil {
+				if digestRef.FindStringSubmatch(nm+"@"+dg) == nil || pinRepoHasTag(nm) {
 					return f, fmt.Errorf("line %d: pins must be IMAGE@sha256 digests; tags rejected", it.line)
 				}
 				f.Pins.Images = append(f.Pins.Images, adminPinImage{Name: nm, Digest: dg})
@@ -710,28 +710,36 @@ func (c *commands) runDoctor(cmd *cobra.Command, applyFile, overlay, compose str
 				return terr
 			}
 		}
-		if t.path != "" {
-			lines, err := readTargetLines(t.path)
-			if err != nil {
-				return err
-			}
-			if af.Config.CoordinatorID != "" {
-				if cur, _, found := findEnv(lines, "AGENTBOARD_COORDINATOR_ID"); !found || cur != af.Config.CoordinatorID {
-					drift = append(drift, adminDiff{Scope: "config", Field: "AGENTBOARD_COORDINATOR_ID", Current: cur, Desired: af.Config.CoordinatorID})
-				}
-			}
-			if af.Config.CIPoliciesFile != "" {
-				praw, err := os.ReadFile(af.Config.CIPoliciesFile)
+		if af.Pins.Overlay != "" && af.Pins.Compose != "" {
+			return errors.New("pins takes exactly one of overlay or compose")
+		}
+		if (af.Config.CoordinatorID != "" || af.Config.CIPoliciesFile != "") && t.path == "" {
+			return errors.New("config section needs overlay or compose")
+		}
+		pinsPath, pinKind := af.Pins.Overlay, "overlay"
+		if af.Pins.Compose != "" {
+			pinsPath, pinKind = af.Pins.Compose, "compose"
+		}
+		if t.path != "" || pinsPath != "" {
+			if t.path != "" {
+				lines, err := readTargetLines(t.path)
 				if err != nil {
-					return errors.New("cannot read policies file: " + af.Config.CIPoliciesFile)
+					return err
 				}
-				if cur, _, found := findEnv(lines, "AGENTBOARD_CI_POLICIES"); !found || cur != string(praw) {
-					drift = append(drift, adminDiff{Scope: "config", Field: "AGENTBOARD_CI_POLICIES", Current: currentMarker(cur, found), Desired: "policies file content"})
+				if af.Config.CoordinatorID != "" {
+					if cur, _, found := findEnv(lines, "AGENTBOARD_COORDINATOR_ID"); !found || cur != af.Config.CoordinatorID {
+						drift = append(drift, adminDiff{Scope: "config", Field: "AGENTBOARD_COORDINATOR_ID", Current: cur, Desired: af.Config.CoordinatorID})
+					}
 				}
-			}
-			pinsPath, pinKind := af.Pins.Overlay, "overlay"
-			if af.Pins.Compose != "" {
-				pinsPath, pinKind = af.Pins.Compose, "compose"
+				if af.Config.CIPoliciesFile != "" {
+					praw, err := os.ReadFile(af.Config.CIPoliciesFile)
+					if err != nil {
+						return errors.New("cannot read policies file: " + af.Config.CIPoliciesFile)
+					}
+					if cur, _, found := findEnv(lines, "AGENTBOARD_CI_POLICIES"); !found || cur != string(praw) {
+						drift = append(drift, adminDiff{Scope: "config", Field: "AGENTBOARD_CI_POLICIES", Current: currentMarker(cur, found), Desired: "policies file content"})
+					}
+				}
 			}
 			if pinsPath != "" {
 				plines, err := readTargetLines(pinsPath)

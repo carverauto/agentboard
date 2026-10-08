@@ -221,6 +221,9 @@ func (c *commands) runRollout(cmd *cobra.Command, pin string, f rolloutFlags) er
 	if m == nil {
 		return errors.New("rollout pins must be immutable digests IMAGE@sha256:<64 hex>; tags are rejected")
 	}
+	if pinRepoHasTag(pin[:strings.Index(pin, "@")]) {
+		return errors.New("rollout pins must be immutable digests IMAGE@sha256:<64 hex>; tags are rejected")
+	}
 	digest := "sha256:" + pin[strings.LastIndex(pin, ":")+1:]
 	targets := 0
 	if f.overlay != "" {
@@ -655,6 +658,14 @@ func manifestImageRepo(ref string) string {
 		repo = repo[:k]
 	}
 	return repo
+}
+
+func pinRepoHasTag(repo string) bool {
+	last := repo
+	if k := strings.LastIndex(repo, "/"); k >= 0 {
+		last = repo[k+1:]
+	}
+	return strings.Contains(last, ":")
 }
 
 // rewriteManifestImage replaces every `image:` value whose repo matches the

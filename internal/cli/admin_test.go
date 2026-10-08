@@ -674,11 +674,94 @@ func TestAdminRolloutDryRunWritesNothing(t *testing.T) {
 
 func TestAdminRolloutRejectsTags(t *testing.T) {
 	f := newAdmBoard(t)
-	admEnv(t, f)
+	dir := admEnv(t, f)
 	_, _, err := runAdm(t, "admin", "rollout", "registry.example.com/agentboard/dashboard:0.1.0",
 		"--overlay", "x", "--image", "y", "--deployment", "d", "--namespace", "n", "--migration-job", "j")
 	if err == nil || !strings.Contains(err.Error(), "tags are rejected") {
 		t.Fatalf("must reject tags, got %v", err)
+	}
+	taggedPin := "registry.example.com/agentboard/dashboard:v1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	_, _, err = runAdm(t, "admin", "rollout", taggedPin,
+		"--overlay", "x", "--image", "y", "--deployment", "d", "--namespace", "n", "--migration-job", "j")
+	if err == nil || !strings.Contains(err.Error(), "tags are rejected") {
+		t.Fatalf("must reject tag-qualified digests, got %v", err)
+	}
+	portOverlay := filepath.Join(dir, "kustomization.yaml")
+	portContent := "images:\n- name: registry.example.com:5000/agentboard/dashboard\n  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+	if err := os.WriteFile(portOverlay, []byte(portContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	portJob := filepath.Join(dir, "job.yaml")
+	if err := os.WriteFile(portJob, []byte("apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: m\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	portPin := "registry.example.com:5000/agentboard/dashboard@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	_, _, err = runAdm(t, "admin", "rollout", portPin,
+		"--overlay", portOverlay, "--image", "registry.example.com:5000/agentboard/dashboard",
+		"--deployment", "d", "--namespace", "n", "--migration-job", portJob,
+		"--backup-path", filepath.Join(dir, "dump.sql"), "--db-name", "board", "--dry-run")
+	if err == nil || cli.ExitCode(err) != 2 {
+		t.Fatalf("registry ports must not count as tags, got %v", err)
+	}
+}
+
+func TestAdminDoctorRejectsBothPinsTargets(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	overlay := filepath.Join(dir, "kustomization.yaml")
+	if err := os.WriteFile(overlay, []byte("configMapGenerator:\n- name: cfg\n  literals:\n  - FOO=bar\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	compose := filepath.Join(dir, "compose.yaml")
+	if err := os.WriteFile(compose, []byte("services:\n  app:\n    environment:\n    - FOO=bar\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	applyPath := filepath.Join(dir, "admin.yaml")
+	apply := "apiVersion: agentboard.carverauto.dev/v1\nkind: AdminConfig\n" +
+		"pins:\n  overlay: " + overlay + "\n  compose: " + compose + "\n"
+	if err := os.WriteFile(applyPath, []byte(apply), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, "admin", "doctor", "-f", applyPath); err == nil || !strings.Contains(err.Error(), "exactly one") {
+		t.Fatalf("both pins targets must error, got %v", err)
+	}
+}
+
+func TestAdminDoctorErrorsWithoutConfigTarget(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	applyPath := filepath.Join(dir, "admin.yaml")
+	apply := "apiVersion: agentboard.carverauto.dev/v1\nkind: AdminConfig\n" +
+		"config:\n  coordinator_id: coord-one\n"
+	if err := os.WriteFile(applyPath, []byte(apply), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, "admin", "doctor", "-f", applyPath); err == nil || !strings.Contains(err.Error(), "needs overlay or compose") {
+		t.Fatalf("config without a target must error, got %v", err)
+	}
+}
+
+func TestAdminApplyRejectsTaggedPinName(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	overlay := filepath.Join(dir, "kustomization.yaml")
+	before := "configMapGenerator:\n- name: cfg\n  literals:\n  - FOO=bar\n"
+	if err := os.WriteFile(overlay, []byte(before), 0644); err != nil {
+		t.Fatal(err)
+	}
+	applyPath := filepath.Join(dir, "admin.yaml")
+	apply := "apiVersion: agentboard.carverauto.dev/v1\nkind: AdminConfig\n" +
+		"pins:\n  overlay: " + overlay + "\n  images:\n  - name: registry.example.com/agentboard/dashboard:v1\n    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+	if err := os.WriteFile(applyPath, []byte(apply), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := runAdm(t, "admin", "apply", "-f", applyPath)
+	if err == nil || !strings.Contains(err.Error(), "tags rejected") {
+		t.Fatalf("must reject tag-qualified pin names, got %v", err)
+	}
+	raw, _ := os.ReadFile(overlay)
+	if string(raw) != before {
+		t.Fatalf("rejected file mutated the target")
 	}
 }
 
