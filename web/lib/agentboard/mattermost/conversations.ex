@@ -241,7 +241,7 @@ defmodule Agentboard.Mattermost.Conversations do
       case Transport.channel_page(cfg, channel_id, page - 1, @read_per_page) do
         {:ok, 200, %{"order" => order, "posts" => posts}} ->
           merged = Map.merge(posts_acc, posts || %{})
-          needed = order_acc ++ (order || [])
+          needed = Enum.uniq(order_acc ++ (order || []))
 
           if length(needed) >= limit or length(order || []) < @read_per_page,
             do: {:halt, {:ok, Enum.take(needed, limit), merged}},
