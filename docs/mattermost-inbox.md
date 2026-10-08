@@ -66,9 +66,11 @@ runtime authorization transaction.
 
 | Operation | Request | Result |
 | --- | --- | --- |
-| `GET mattermost_inbox` | Optional UUID `cursor` | Up to 50 pending metadata references; `next_cursor`, stream and coverage state; reads do not acknowledge |
+| `GET mattermost_inbox` | Optional opaque `cursor` | Up to 50 pending metadata references; `next_cursor`, stream and coverage state; reads do not acknowledge |
 | `POST mattermost_read` | Exact `id` and `version` | One ephemeral current source body only after membership and hash verification; otherwise `source_unavailable` |
 | `POST mattermost_ack` | `items`: 1–50 exact `{id, version}` pairs | Atomic scoped handling; retries retain first time/model/harness |
+
+Inbox pages follow ledger insertion order under an opaque cursor carrying a bounded high-water mark: arrivals committed after the walk starts stay out of that walk and appear on the next walk from no cursor.
 
 An edited/deleted/inaccessible old version remains a reference; reading it
 cannot retrieve invented prior content. A forged version or foreign inbox ID is
