@@ -411,6 +411,23 @@ assert read(find('p-003'))['source_state'] == 'source_unavailable'
 DENIED.add('room')
 assert read(find('downtime'))['source_state'] == 'source_unavailable'
 assert find('downtime') is not None, 'unavailable inspection must retain pending state'
+# Metadata capacity leaves an explicit gap instead of a crash loop; pending retained.
+source = sql("SELECT source FROM mattermost_inbound_runs")
+sql("INSERT INTO mattermost_post_versions(source,channel_id,post_id,version,user_id,root_id,update_at,delete_at,observed_at) SELECT '%s','seed-chan','seed-'||g,'v'||g,'u','',0,0,clock_timestamp() FROM generate_series(1,100000) g ON CONFLICT DO NOTHING" % source)
+assert int(sql("SELECT count(*) FROM mattermost_post_versions WHERE source='%s'" % source)) >= 100000
+run_before = sql("SELECT run_id::text FROM mattermost_inbound_runs")
+with LOCK:
+    emit('posted', {'post': json.dumps(post('cap-probe', '@worker-b capacity probe'))})
+wait(lambda: any('metadata_capacity_reached' in c['incomplete_reason'] for c in inbox()[1]))
+assert find('cap-probe') is None, 'new versions are refused at capacity'
+with LOCK:
+    emit('posted', {'post': json.dumps(POSTS['dm'])})
+time.sleep(2)
+assert len([i for i in inbox()[0] if i['post_id'] == 'dm']) == 1, 'recorded versions replay idempotently'
+assert find('downtime') is not None, 'pending versions retained at capacity'
+time.sleep(6)
+assert sql("SELECT run_id::text FROM mattermost_inbound_runs") == run_before, 'no hot re-claim loop at capacity'
+assert any(c['live_connected'] for c in inbox()[1]), 'owner stays connected at capacity'
 assert not FAILURES, FAILURES
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
 server.shutdown()
