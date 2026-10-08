@@ -168,9 +168,7 @@ defmodule Agentboard.Delivery.Rebase do
 
       # The notify above carries the exact source marker, so the fallback
       # adopts it instead of a second DM. Markerless notes are never adopted.
-      Runtime.fallback(event, [assignee], @actor,
-        recipient: f.responsible_id || "captain"
-      )
+      Runtime.fallback(event, [assignee], @actor, recipient: f.responsible_id || "captain")
 
       event
     end

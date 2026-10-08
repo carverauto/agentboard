@@ -205,6 +205,7 @@ defmodule Agentboard.Delivery.Reads do
       |> Ash.read_one!()
 
     responsible = (o && o.responsible_id) || (rebase && rebase.responsible_id)
+
     repair_tasks =
       [o && o.repair_task_id, rebase && rebase.repair_task_id]
       |> Enum.reject(&is_nil/1)
