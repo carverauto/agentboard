@@ -12,7 +12,7 @@ Load these files using the session's supported instruction mechanism. No hook in
 ## Worktree isolation remains required
 
 `--backend herdr` records hosting metadata; it does **not** establish worktree
-isolation. Every seat still needs a persistently leased Treehouse v2.0.1 linked
+isolation. Every seat still needs a persistently leased Treehouse v3.1.2 linked
 worktree, the launcher's settled physical-cwd gate, and its harness's generated
 STOP brief. Verify `pwd -P` and `git rev-parse --show-toplevel` against the exact
 expected `AGENTBOARD_SEAT_WORKTREE` before editing. A primary or mismatched cwd

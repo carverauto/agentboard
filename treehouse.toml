@@ -1,4 +1,6 @@
-# Treehouse v2.0.1 appends .treehouse and the repository pool name to root.
-# Keep its state separate from any globally configured newer Treehouse pool.
+# Legacy Treehouse v2.0.1 pool. scripts/launch-seat now uses v3.1.2 with an
+# explicit --root, so this value no longer selects seat pools. It stays so the
+# pinned v2 binary can still find and return leases already held here; do not
+# point v3 at it (v3 honors --root, then TREEHOUSE_ROOT, then this file).
 root = "$HOME/.local/share/agentboard/treehouse-v2.0.1"
 max_trees = 16

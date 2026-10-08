@@ -27,7 +27,7 @@ report `launched in primary checkout, not an isolated worktree` on the task and
 the status channel if one exists. Request a correctly
 leased task worktree; do not guess a seat path or hardcode an agent ID.
 
-Use Treehouse v2.0.1 through the repository's explicit seat launcher. A Herdr
+Use Treehouse v3.1.2 through the repository's explicit seat launcher with an explicit v3 pool root (`--root` or `AGENTBOARD_SEAT_ROOT`). A Herdr
 backend does not satisfy isolation. Optional hooks are backstops only; this brief
 and the launch-time cwd assertion remain required. Retain the lease through PR
 review and green CI. The skill does not create a launcher, install hooks or enable

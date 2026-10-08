@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install checksum-pinned Treehouse v2.0.1 without replacing the global CLI."""
+"""Install checksum-pinned Treehouse v3.1.2 without replacing the global CLI."""
 import hashlib
 import os
 from pathlib import Path
@@ -9,12 +9,12 @@ import sys
 import tarfile
 import tempfile
 
-VERSION = "2.0.1"
+VERSION = "3.1.2"
 CHECKSUMS = {
-    ("Linux", "x86_64"): ("linux-amd64", "1d5a32751ab921670103fd201ddb2b91b47338cb13976f45642b827cf8976af2"),
-    ("Linux", "aarch64"): ("linux-arm64", "eaccc9c5b98125df8bd77425598eeecee66cb0371db4eb1cf75f0d813c18fab9"),
-    ("Darwin", "arm64"): ("darwin-arm64", "7ee5078f3d1f33c01196548797fce65408e459d53530b77d4ba56e074fa1c1a2"),
-    ("Darwin", "x86_64"): ("darwin-amd64", "1cf44580a5837f995e1d3bb74f4fbd3112b642acd20406087d9735a8106112fd"),
+    ("Linux", "x86_64"): ("linux-amd64", "bc059c6dbbcf6b11a741e92aed1d845d5b4a96f1d9c5e6f78c1aa2502669962d"),
+    ("Linux", "aarch64"): ("linux-arm64", "999e6f4888cfd4e6c0b97d49a4857355208bcba080aa2c59902f7fa77b940c0a"),
+    ("Darwin", "arm64"): ("darwin-arm64", "24666ddec346b5fd1f0467f475c647d8e2ce45e80e8a84548eade97b353cbe4b"),
+    ("Darwin", "x86_64"): ("darwin-amd64", "19a3a79c792139e36c1f5c3e9e0f9fdebe9127f1168b1debb40b4513ffed1319"),
 }
 
 
@@ -22,7 +22,7 @@ def main():
     if len(sys.argv) > 2:
         raise RuntimeError("usage: scripts/install-treehouse [destination-directory]")
     target, checksum = CHECKSUMS[(platform.system(), platform.machine())]
-    destination = Path(sys.argv[1]) if len(sys.argv) == 2 else Path.home() / ".local/share/agentboard/tools/treehouse/v2.0.1"
+    destination = Path(sys.argv[1]) if len(sys.argv) == 2 else Path.home() / f".local/share/agentboard/tools/treehouse/v{VERSION}"
     url = f"https://github.com/kunchenguid/treehouse/releases/download/v{VERSION}/treehouse-v{VERSION}-{target}.tar.gz"
     with tempfile.TemporaryDirectory(prefix="agentboard-treehouse-install-") as scratch:
         archive = Path(scratch) / "treehouse.tar.gz"
