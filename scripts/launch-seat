@@ -83,11 +83,10 @@ def landed(worktree):
     code, remotes, _ = probe(["git", "branch", "-r", "--contains", head], str(worktree))
     if not code and remotes.strip():
         return True, ""
-    for base in ("origin/main", "main"):
-        code, _, _ = probe(["git", "merge-base", "--is-ancestor", head, base], str(worktree))
-        if not code:
-            return True, ""
-    return False, "HEAD is not reachable from any remote branch or base"
+    code, _, _ = probe(["git", "merge-base", "--is-ancestor", head, "origin/main"], str(worktree))
+    if not code:
+        return True, ""
+    return False, "HEAD is not reachable from any remote branch"
 
 
 def note_slot(task, worktree, text):

@@ -84,6 +84,9 @@ func (c *commands) seatReturnTask(ctx context.Context, task string) error {
 	if worktree == "" || version == "" || root == "" || holder == "" {
 		return fmt.Errorf("refuses: task %s has no complete slot record", task)
 	}
+	if !validSeatVersion(version) {
+		return fmt.Errorf("refuses: task %s has invalid treehouse version %q", task, version)
+	}
 	if holder != c.cfg.Actor.ID {
 		return fmt.Errorf("refuses: slot lease holder is %q", holder)
 	}
@@ -139,7 +142,7 @@ func seatGit(worktree string, args ...string) (string, error) {
 }
 
 // seatLanded is the Firstmate-style landed gate: clean tree, and HEAD
-// reachable from a remote ref or the base. Empty means landed.
+// reachable from a remote ref. Empty means landed.
 func seatLanded(worktree string) string {
 	if dirty, err := seatGit(worktree, "status", "--porcelain"); err != nil || dirty != "" {
 		if err != nil {
@@ -154,14 +157,30 @@ func seatLanded(worktree string) string {
 	if remotes, err := seatGit(worktree, "branch", "-r", "--contains", head); err == nil && remotes != "" {
 		return ""
 	}
-	for _, base := range []string{"origin/main", "main"} {
-		cmd := exec.Command("git", "merge-base", "--is-ancestor", head, base)
-		cmd.Dir = worktree
-		if cmd.Run() == nil {
-			return ""
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", head, "origin/main")
+	cmd.Dir = worktree
+	if cmd.Run() == nil {
+		return ""
+	}
+	return "HEAD is not reachable from any remote branch"
+}
+
+func validSeatVersion(version string) bool {
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" {
+			return false
+		}
+		for _, r := range part {
+			if r < '0' || r > '9' {
+				return false
+			}
 		}
 	}
-	return "HEAD is not reachable from any remote branch or base"
+	return true
 }
 
 func seatTreehouseBinary(version string) (string, error) {

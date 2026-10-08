@@ -132,12 +132,60 @@ func TestSeatReturnRefusesUnlandedSlot(t *testing.T) {
 
 func TestSeatReturnRefusesUnknownBinaryVersion(t *testing.T) {
 	dir := seatScratchRepo(t, false, false)
+	seatPushRemote(t, dir)
 	body := "agentboard-seat worktree=" + dir + " treehouse_version=9.9.9 treehouse_root=/r lease_holder=worker-a"
 	f := newSeatBoard(t, "cancelled", body)
 	seatEnv(t, f)
 	err := runSeatCommand(t, "seat", "return", "seat-task")
 	if err == nil || !strings.Contains(err.Error(), "no Treehouse v9.9.9 binary") {
 		t.Fatalf("expected binary refusal, got %v", err)
+	}
+}
+
+func seatPushRemote(t *testing.T, dir string) {
+	t.Helper()
+	env := append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	if out, err := exec.Command("git", "init", "-q", "--bare", remote).CombinedOutput(); err != nil {
+		t.Fatalf("git init --bare: %v: %s", err, out)
+	}
+	for _, args := range [][]string{{"remote", "add", "origin", remote}, {"push", "-q", "origin", "main"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = env
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+}
+
+func TestSeatReturnRefusesLocalOnlyMerge(t *testing.T) {
+	dir := seatScratchRepo(t, false, true)
+	env := append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+	for _, args := range [][]string{{"checkout", "-q", "main"}, {"merge", "-q", "--no-ff", "side", "-m", "merge"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = env
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	body := seatJSONRecord(dir, "3.1.2", "/r", "worker-a")
+	f := newSeatBoard(t, "done", body)
+	seatEnv(t, f)
+	err := runSeatCommand(t, "seat", "return", "seat-task")
+	if err == nil || !strings.Contains(err.Error(), "landed gate") {
+		t.Fatalf("expected landed-gate refusal for local-only merge, got %v", err)
+	}
+}
+
+func TestSeatReturnRefusesInvalidVersion(t *testing.T) {
+	body := seatJSONRecord("/nonexistent-slot", "../../etc", "/r", "worker-a")
+	f := newSeatBoard(t, "done", body)
+	seatEnv(t, f)
+	err := runSeatCommand(t, "seat", "return", "seat-task")
+	if err == nil || !strings.Contains(err.Error(), "invalid treehouse version") {
+		t.Fatalf("expected invalid-version refusal, got %v", err)
 	}
 }
 
