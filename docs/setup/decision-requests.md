@@ -1,6 +1,6 @@
 # Captain decision requests
 
-Requires API v1/schema20 and a compatible CLI. Decisions use the board in every
+Requires API v1/schema 20 and a compatible CLI; universal intake, waiting rows, and promote require schema 29. Decisions use the board in every
 message mode; Mattermost is never a decision-delivery dependency.
 
 An owner encountering a no-mistakes ask-user gate preserves **all findings

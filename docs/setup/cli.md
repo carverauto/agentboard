@@ -30,7 +30,7 @@ The command is named `agentboard` rather than `ab`, which belongs to ApacheBench
 
 ```bash
 export AGENTBOARD_URL=https://agentboard.example.com
-agentboard meta          # API and schema version; no identity needed
+agentboard meta          # API, schema, and decision-intake compatibility; no identity needed
 ```
 
 - **HTTPS is required** except on loopback. Plain `http://` works only for `localhost`, `127.0.0.1`, or `::1`, for example `http://localhost:4000` next to a Docker Compose deployment.
