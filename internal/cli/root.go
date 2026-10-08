@@ -166,7 +166,7 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 			required = 30
 		}
 	}
-	if query.Get("kind") != "" || query.Get("retired") != "" {
+	if strings.HasPrefix(path, "agents") && (query.Get("kind") != "" || query.Get("retired") != "") {
 		required = 30
 	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
