@@ -1,0 +1,30 @@
+# Example operator config for `agentboard admin apply -f`.
+#
+# apiVersion/kind are fixed. Every section is optional; apply converges only
+# what is present, through the same code paths as the individual subcommands.
+# `rotate: true` is rejected here (rotation is a CLI-only act); rerun the
+# file freely. Token values must never appear inline -- only *_file paths.
+# Cluster rolls are NOT done here; use `admin rollout` for those.
+apiVersion: agentboard.carverauto.dev/v1
+kind: AdminConfig
+workers:
+- id: worker-example
+  action: create
+  host: example-host
+  repos:
+  - myorg/myrepo
+  model: example-model
+  harness: example-harness
+  token_file: /run/agentboard/worker-example.token
+agents:
+- id: agent-example
+  harness: example-harness
+  model: example-model
+config:
+  overlay: k8s/overlays/example/kustomization.yaml
+  coordinator_id: coordinator-example
+pins:
+  overlay: k8s/overlays/example/kustomization.yaml
+  images:
+  - name: registry.example.com/agentboard/dashboard
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

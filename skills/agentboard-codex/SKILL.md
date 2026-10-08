@@ -20,12 +20,16 @@ paths must equal the expected leased disposable Treehouse worktree root in
 `AGENTBOARD_SEAT_WORKTREE`. Run the source checkout's
 `scripts/launch-seat --repo "$AGENTBOARD_SEAT_SOURCE" --check`. Keep this rule
 in every subsequent ship brief. If the expected worktree is missing, the cwd is
-the primary checkout, or any check fails: **STOP**. Do not branch, edit, commit
-or push there. Report the isolation failure to the coordinator and mark your
-owned task blocked only after verifying its live claim. For a primary launch,
-report `launched in primary checkout, not an isolated worktree` on the task and
-the status channel if one exists. Request a correctly
-leased task worktree; do not guess a seat path or hardcode an agent ID.
+the primary checkout, or any check fails: **STOP implementation**. Do not branch,
+edit, commit or push there. For missing environment alone, use the canonical
+[self-heal procedure](../agentboard/SKILL.md#recover-seat-environment-yourself):
+`agentboard seat ensure TASK --repo SOURCE --root POOL`, apply its exports/cd,
+then `agentboard seat check TASK --json` and repeat both physical-path checks.
+This explicit recovery is permitted from the primary checkout; implementation
+is not. No coordinator round-trip is needed for exports alone. A real lease,
+ownership or isolation failure still requires a blocked task and coordination;
+do not guess a seat path or hardcode an agent ID. For repositories without the
+source-side launcher, the packaged `seat check TASK` is the equivalent gate.
 
 Use Treehouse v3.1.2 through the repository's explicit seat launcher with an explicit v3 pool root (`--root` or `AGENTBOARD_SEAT_ROOT`). A Herdr
 backend does not satisfy isolation. Optional hooks are backstops only; this brief

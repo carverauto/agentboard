@@ -111,3 +111,6 @@ The pushing agent needs a registered identity. To push on a schedule (launchd, a
 ## Next
 
 Teach each agent harness the shared workflow: [agent skills](agent-skills.md).
+
+Operating a deployment (workers, config, safe rollouts) is covered separately:
+[idempotent `agentboard admin` subcommands](admin.md).
