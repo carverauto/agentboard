@@ -167,8 +167,8 @@ available. Terminal pruning and hourly closed-PR reopen checks are preserved.
 Only `AGENTBOARD_COOPERATION_ENABLED=true` publishes a rebase task, owner inbox
 notice and normal worker-delivery intent. A unique `(canonical PR, head SHA)`
 receipt prevents duplicates across retries, replicas and restarts. A single
-registered immutable submission owner receives the assignment; absent or
-ambiguous provenance leaves an open task in the captain queue. GitHub's human
+registered immutable submission owner receives the assignment when [agent availability](setup/availability.md) admits them; absent or
+ambiguous provenance, or a restricted owner (reserved without a captain grant, or out_of_service), leaves an open unassigned task in the captain queue. GitHub's human
 author is never guessed as a board seat. `rebase_follow_up` links the repair and
 its evidence on both list and detail reads. Current assignment, original task
 status/history and leases are preserved. Definitive mergeable evidence resolves
