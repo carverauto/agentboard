@@ -106,7 +106,7 @@ func (c *commands) agents() *cobra.Command {
 	register.Flags().StringVar(&host, "host", "", "Host/session label")
 	register.Flags().StringSliceVar(&caps, "capability", nil, "Comma-separated capabilities")
 	register.Flags().StringVar(&backend, "backend", "", "Optional backend metadata (e.g. herdr)")
-	group.AddCommand(register, c.heartbeat(), c.availabilityCommands())
+	group.AddCommand(register, c.heartbeat(), c.availabilityCommands(), c.agentTokens())
 	return group
 }
 func (c *commands) tasks() *cobra.Command {

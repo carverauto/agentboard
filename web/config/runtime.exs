@@ -1,5 +1,13 @@
 import Config
 
+# Observe-only delivery: enforcement is a separate captain-approved change.
+auth_mode = System.get_env("AGENTBOARD_AUTH_MODE", "off")
+
+if auth_mode not in ["off", "observe"],
+  do: raise("AGENTBOARD_AUTH_MODE must be off or observe; enforcement requires captain approval")
+
+config :agentboard, :agent_auth_mode, auth_mode
+
 # Board remains primary unless an explicitly selected transport passes its gate.
 config :agentboard, :message_mode, System.get_env("AGENTBOARD_MESSAGE_MODE", "board")
 

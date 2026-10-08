@@ -238,3 +238,76 @@ func TestRedirectDoesNotForwardCallerContext(t *testing.T) {
 		t.Fatalf("redirect followed: error %v forwarded %d", err, forwarded.Load())
 	}
 }
+
+// Server reflection is a separate transport risk from the packaged server's
+// hash-only persistence: stdout/error surfaces must remain safe even when the
+// remote response repeats a caller's bearer.
+func TestAgentBearerTransportRedactsReflectedResponses(t *testing.T) {
+	secret := "abt_fixture-transport-token-012345678901234567890"
+	for _, status := range []int{200, 403} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer "+secret {
+					t.Error("board bearer not transported")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				if status == 200 {
+					io.WriteString(w, `{"echo":"`+secret+`"}`)
+				} else {
+					io.WriteString(w, `{"error":{"code":"`+secret+`","message":"echo `+secret+`"}}`)
+				}
+			}))
+			defer server.Close()
+			c, err := client.New(config.Config{URL: server.URL, Token: secret})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			raw, err := c.JSON(context.Background(), http.MethodGet, "meta", nil, nil)
+			if strings.Contains(string(raw), secret) || (err != nil && strings.Contains(err.Error(), secret)) {
+				t.Fatal("credential reflected")
+			}
+			if status == 200 && err != nil {
+				t.Fatal(err)
+			}
+			if status != 200 {
+				var e *client.Error
+				if !errors.As(err, &e) || e.Code == secret {
+					t.Fatal("unsafe reflected error code")
+				}
+			}
+		})
+	}
+}
+
+func TestAuthenticatedWatchRedactsAcrossTransportChunks(t *testing.T) {
+	secret := "abt_fixture-watch-transport-token-012345678901234"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+secret {
+			t.Error("watch lost board credential")
+		}
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		io.WriteString(w, `{"message":"`+secret[:20])
+		w.(http.Flusher).Flush()
+		io.WriteString(w, secret[20:]+`"}`+"\n")
+	}))
+	defer server.Close()
+	c, err := client.New(config.Config{URL: server.URL, Token: secret})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	resp, err := c.Stream(context.Background(), "messages/watch", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), secret) || !strings.Contains(string(raw), "[redacted]") {
+		t.Fatal("watch reflection was not redacted")
+	}
+}

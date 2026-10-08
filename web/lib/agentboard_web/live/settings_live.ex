@@ -3,8 +3,27 @@ defmodule AgentboardWeb.SettingsLive do
   alias Agentboard.{Captain, Housekeeping}
 
   def mount(_params, session, socket) do
-    socket = assign(socket, policy: nil, capability: session["captain"], error: nil, saved: false)
+    socket =
+      assign(socket,
+        policy: nil,
+        capability: session["captain"],
+        error: nil,
+        saved: false,
+        credential_records: [],
+        credential_agent: nil
+      )
+
     {:ok, if(connected?(socket), do: load(socket), else: socket)}
+  end
+
+  def handle_event("list_credentials", %{"agent_id" => id}, socket) do
+    case Agentboard.Auth.administer(id, "list", %{}, socket.assigns.capability) do
+      {:ok, %{credentials: records}} ->
+        {:noreply, assign(socket, credential_records: records, credential_agent: id, error: nil)}
+
+      {:error, _, message} ->
+        {:noreply, assign(socket, credential_records: [], credential_agent: nil, error: message)}
+    end
   end
 
   def handle_event("save", params, socket) do
@@ -66,8 +85,30 @@ defmodule AgentboardWeb.SettingsLive do
         <% end %>
         <dl><dt>Next sweep</dt><dd>{@policy.next_run_at || "Not scheduled"}</dd><dt>Last sweep</dt><dd>{@policy.last_run_at || "Never"}</dd><dt>Cards archived last sweep</dt><dd>{@policy.last_archived_count}</dd></dl>
       </section>
+      <section class="settings-panel" id="agent-token-settings">
+        <h2>Agent API credentials</h2>
+        <p>Authentication mode: {Agentboard.Auth.mode()}. Board credentials are separate from worker and Mattermost credentials.</p>
+        <%= if Captain.authorized?(@capability) do %>
+          <form action="/settings/agent-tokens/issue" method="post" class="settings-form">
+            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+            <label>Registered agent ID <input name="agent_id" required /></label><button type="submit">Issue credential download</button>
+          </form>
+          <form action="/settings/agent-tokens/rotate" method="post" class="settings-form">
+            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+            <label>Registered agent ID <input name="agent_id" required /></label><button type="submit">Rotate and download once</button>
+          </form>
+          <form action="/settings/agent-tokens/revoke" method="post" class="settings-form">
+            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+            <label>Registered agent ID <input name="agent_id" required /></label><button type="submit">Revoke active credentials</button>
+          </form>
+          <p>The captain handles the download. Set its permissions to 0600 before use; the CLI rejects other permissions. Prefer the CLI --out flow for direct protected custody. Tokens are never retained in this page.</p>
+          <form phx-submit="list_credentials" class="settings-form"><label>Registered agent ID <input name="agent_id" required /></label><button type="submit">List credential metadata</button></form>
+          <div :if={@credential_agent}><h3>Credentials for {@credential_agent}</h3><p :if={@credential_records==[]}>No credentials issued.</p><dl :for={row <- @credential_records}><dt>Fingerprint</dt><dd>{row.fingerprint}</dd><dt>Scope / issuer</dt><dd>{row.scope} / {row.issuer}</dd><dt>Created</dt><dd>{row.created_at}</dd><dt>Last used</dt><dd>{row.last_used_at || "Never"}</dd><dt>Revoked</dt><dd>{row.revoked_at || "Active"}</dd></dl></div>
+        <% else %>
+          <p>Unlock captain controls to administer credentials.</p>
+        <% end %>
+      </section>
     </main>
     """
   end
 end
-

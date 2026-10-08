@@ -300,12 +300,12 @@ defmodule AgentboardWeb.BoardLive do
     end
   end
 
-  defp load(:agents, filters),
-    do:
-      Board.page(
-        "agents",
-        Map.take(filters, ~w(cursor waiting availability)) |> Map.put("limit", "100")
-      )
+  defp load(:agents, filters) do
+    with {:ok, data} <- Board.page("agents", Map.take(filters, ~w(cursor waiting availability)) |> Map.put("limit", "100")),
+         {:ok, report} <- Agentboard.Auth.report() do
+      {:ok, Map.put(data, "authentication", report)}
+    end
+  end
 
   defp load(:messages, filters),
     do:
@@ -486,6 +486,12 @@ defmodule AgentboardWeb.BoardLive do
               <a :if={@data["message_cursor"]} href={page_link(:task,@filters,@data["message_cursor"],"message_cursor")}>Next messages</a>
             </section>
           <% :agents -> %>
+            <section :if={@data["authentication"]} id="agent-auth-report" class="notice">
+              <h2>API identity observations</h2>
+              <p>Mode: {@data["authentication"]["mode"]} · Last {@data["authentication"]["window"]}. Observe retains header attribution; these counts report adoption.</p>
+              <dl><dt>Anonymous</dt><dd>{@data["authentication"]["counts"]["anonymous"] || 0}</dd><dt>Invalid or revoked</dt><dd>{@data["authentication"]["counts"]["invalid"] || 0}</dd><dt>Actor mismatch</dt><dd>{@data["authentication"]["counts"]["actor_mismatch"] || 0}</dd><dt>Matched</dt><dd>{@data["authentication"]["counts"]["matched"] || 0}</dd></dl>
+              <details><summary>Recent attribution evidence</summary><p :for={entry <- @data["authentication"]["recent"]}>{entry["created_at"]} · {entry["outcome"]} · attributed {entry["attributed_agent_id"] || "unregistered"} · verified {entry["verified_agent_id"] || "none"} · {entry["method"]} {entry["route"]}</p></details>
+            </section>
             <form :if={Agentboard.Captain.authorized?(@captain)} phx-submit="set_availability" class="settings-form settings-panel">
               <h2>Set availability</h2><p>Use an agent override, or a harness/model selector. Reserved and out-of-service require a reason. Current task ownership is retained.</p>
               <label>Agent ID (override)<input name="agent_id" placeholder="codex-example-agent-a" /></label>

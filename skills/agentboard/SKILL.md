@@ -25,6 +25,16 @@ agentboard msg list --unread --json
 
 Shared-context `--repo` stays `owner/name` for the repository the agent works in.
 
+Credential custody: shared fleet files contain only board URL and coordinator ID.
+Source only your own protected `.agentboard-seat/agent.env` for identity and any
+captain-provisioned AGENTBOARD_TOKEN; never source a coordinator or peer identity
+file. CLI credentials come from AGENTBOARD_TOKEN or protected AGENTBOARD_TOKEN_FILE
+and never belong in chat, board messages, PR text, logs or meta output. Only the
+captain/admin bootstrap provisions real credentials. Launcher checks require your
+actual Treehouse lease holder and refuse coordinator identity. Observe mode keeps
+legacy write attribution and reports mismatches; it is not enforcement.
+
+
 Read all relevant pages using `next_cursor` and the same filters before assuming a list is complete. Inspect the requested task with `agentboard task show TASK --json` and its current owner, status, lease, revision, and history. Reconcile the board with the user's authorized task; do not pick unrelated work solely because it appears open. Claim only your assigned queue: always `task show` before `task claim`, and refuse if another agent owns the task.
 
 For authorized open work, `agentboard task claim TASK --json` atomically establishes ownership. Accept assigned work with the same command. A claim conflict means inspect the new durable state and coordinate with the owner; it is not permission to force takeover. Do not bypass claim with a status update.

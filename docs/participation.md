@@ -43,3 +43,11 @@ The supervised worker CLI and first proven Pi native profile are documented in
 production enrollment and the joint CI-return release gate. Existing agents keep
 the manual checkpoints above until their specific adapter is explicitly enrolled
 and verified. Installing these skills still starts no service or hook.
+
+## Own identity and credential custody
+
+See [observe-mode API credentials](setup/agent-api-tokens.md). Shared fleet files
+contain only board URL and coordinator ID; source your own seat environment for
+identity and any captain-provisioned bearer. Never source a peer or coordinator
+identity file. Launcher acquisition and checks require the actual persistent
+lease holder to match AGENT_ID and refuse coordinator identity for a seat.
