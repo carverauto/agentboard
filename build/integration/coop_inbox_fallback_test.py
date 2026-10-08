@@ -104,5 +104,19 @@ detail2 = api('/prs/' + pr2, agent='inbox-owner')
 modes2 = {(d['task_id'], d['kind']): d['mode'] for d in detail2.get('follow_up_delivery', [])}
 if modes2.get((repair2, 'ci_failure')) != 'worker':
     failures.append(('prs detail missing worker mode', modes2))
+pr4 = source(404)
+observe(pr4)
+repair4 = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id='" + pr4 + "'")
+sql("UPDATE cooperation_subscriptions SET revoked=true WHERE id='inbox-owner'")
+api('/agents/register', {'name': 'cooperation'}, agent='cooperation')
+rpc('Agentboard.Board.Operations.send_message(%{"agent" => "cooperation", "model" => "fixture-model", "harness" => "codex"}, %{"to" => "inbox-owner", "task" => ' + json.dumps(repair4) + ', "kind" => "note", "body" => "markerless decoy"}, Agentboard.Board.Operations.now())')
+sql("UPDATE delivery_obligations SET next_reminder_at=clock_timestamp()-interval '1 second' WHERE repair_task_id='" + repair4 + "'")
+rpc('{:ok, %{checked: n}} = Agentboard.Delivery.Accountability.tick(); if n < 1, do: raise("tick checked nothing")')
+if sql("SELECT count(*) FROM messages WHERE task_id='" + repair4 + "'") != '2':
+    failures.append(('markerless note wrongly adopted; canonical digest not sent', sql("SELECT sender_id || '/' || left(body, 60) FROM messages WHERE task_id='" + repair4 + "' ORDER BY id")))
+detail4 = api('/prs/' + pr4, agent='inbox-owner')
+modes4 = {(d['task_id'], d['kind']): d['mode'] for d in detail4.get('follow_up_delivery', [])}
+if modes4.get((repair4, 'ci_digest')) != 'inbox_fallback':
+    failures.append(('prs detail missing inbox_fallback digest mode', modes4))
 assert not failures, failures
 print('Zero-worker CI failure/replay/reminder/enrollment-sunset inbox proof passed', flush=True)

@@ -155,7 +155,8 @@ defmodule Agentboard.Delivery.Rebase do
       Ops.notify_task_owner(
         task,
         @actor,
-        "Merge conflict: #{pr.url} at head #{result.head_sha}, base #{result.base_sha}. Follow up on #{task.id}; rebase and verify CI before moving on.",
+        "Merge conflict: #{pr.url} at head #{result.head_sha}, base #{result.base_sha}. Follow up on #{task.id}; rebase and verify CI before moving on.\n" <>
+          Runtime.fallback_marker(event.source_key),
         stamp
       )
 
@@ -166,8 +167,8 @@ defmodule Agentboard.Delivery.Rebase do
             current -> current.assignee_id
           end
 
-        # The notify above already retained the canonical message when an
-        # assignee exists; the fallback adopts it instead of a second DM.
+        # The notify above carries the exact source marker, so the fallback
+        # adopts it instead of a second DM. Markerless notes are never adopted.
         Runtime.fallback(event, [assignee], @actor,
           recipient: f.responsible_id || "captain"
         )

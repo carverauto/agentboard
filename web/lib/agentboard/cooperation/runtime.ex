@@ -776,15 +776,38 @@ defmodule Agentboard.Cooperation.Runtime do
     end
   end
 
-  # Single-source inbox fallback for cooperation-enabled CI/conflict signals.
+  # SOLE DELIVERY SELECTOR for cooperation CI/conflict signals (#122 owns it;
+  # conflict-order producers call this and run no election of their own).
+  #
+  # Signature: fallback(event, recipient_ids, actor, opts \\ []) where event is
+  # a cooperation_events row (source_key, repo, task_id, summary), recipient_ids
+  # is the ordered capture-filter chain (sentinel "captain" never resolves),
+  # actor is %{"agent" => _, "model" => _, "harness" => _}, and opts carries
+  # :recipient / :exclude_recipient scoping. Returns {:disabled | :worker, event}
+  # | {:adopted | :sent, message} | {:undeliverable, :no_task | :no_registered_recipient}.
+  #
   # The caller owns the canonical transaction and calls this only for events
   # whose pinned audience is empty. The delivery mode is elected atomically
-  # under the source election lock BEFORE any worker/delivery insertion:
-  # a subscription that appeared meanwhile sends the event down the worker
-  # path, otherwise exactly one canonical Board.Message is retained (adopted
-  # when a notify already created it, sent otherwise). Late enrollment runs
-  # the same election through fallback_claimed?/1, so a logically delivered
-  # occurrence is never replayed as a worker frame.
+  # under the source election lock (pg_advisory_xact_lock on
+  # "fallback:" <> source_key) BEFORE any worker/delivery insertion: a live
+  # subscription that appeared meanwhile (unrevoked, repo-enrolled, recipient
+  # scoping) sends the event down the worker path, otherwise exactly one
+  # canonical Board.Message (kind "note") is retained -- adopted when the
+  # exact source marker is already present, sent otherwise. Late enrollment
+  # recovers through ensure_delivery/3 (exact prior check, no re-election),
+  # so a logically delivered occurrence is never replayed as a worker frame.
+  #
+  # LOCK CONTRACT (worker-first full graph): the caller must NOT hold worker
+  # ("worker:" <> id) or provision locks. Election locks are taken only in
+  # producer transactions (collector/accountability tick, conflict publish),
+  # which hold obligation/PR row locks at most. Worker-lock holders
+  # (provision/enroll -> bootstrap) run pure capture + ensure_delivery only
+  # and take no advisory source/event locks.
+  #
+  # SOURCE MARKER CONTRACT: "[coop-fallback source=<source_key>]"; namespaces
+  # "obligation:<id>:<suffix>", "rebase:<follow_id>", "task:<id>",
+  # "context:<id>", "conflict-order:<order UUID>:<revision>". Adoption matches
+  # the exact marker only; markerless notes are never adopted.
   def fallback_marker(source_key), do: "[coop-fallback source=#{source_key}]"
 
   def fallback(event, recipient_ids, actor, opts \\ []) do
@@ -836,15 +859,15 @@ defmodule Agentboard.Cooperation.Runtime do
     end
   end
 
+  # Adoption is exact-source-marker only. A markerless note from a system
+  # sender is never adopted: without the exact marker the candidate is
+  # ambiguous and the election sends the canonical message instead.
   def fallback_message(event) do
     marker = fallback_marker(event.source_key)
 
     Agentboard.Board.Resources.Message
     |> Ash.Query.filter(
-      task_id == ^event.task_id and
-        (fragment("position(? in ?) > 0", ^marker, body) or
-           (sender_id in ["ci-accountability", "cooperation"] and
-              fragment("NOT EXISTS (SELECT 1 FROM messages m2 WHERE m2.task_id = ? AND position(? in m2.body) > 0)", task_id, ^"[coop-fallback source=")))
+      task_id == ^event.task_id and fragment("position(? in ?) > 0", ^marker, body)
     )
     |> Ash.Query.sort(id: :asc)
     |> Ash.Query.limit(1)

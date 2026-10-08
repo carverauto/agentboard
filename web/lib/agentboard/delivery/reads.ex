@@ -232,9 +232,9 @@ defmodule Agentboard.Delivery.Reads do
 
   # Derived per-event delivery mode for open repair tasks: worker when a
   # cooperation delivery exists, inbox_fallback when the single-source
-  # canonical message was retained (marker or adopted notify), undeliverable
-  # otherwise. Read-only derivation; the marker shape must match
-  # Runtime.fallback_marker/1.
+  # canonical message was retained (exact source marker only; markerless
+  # notes never count), undeliverable otherwise. Read-only derivation; the
+  # marker shape must match Runtime.fallback_marker/1.
   defp follow_up_delivery([]), do: []
 
   defp follow_up_delivery(repair_tasks) do
@@ -245,12 +245,10 @@ defmodule Agentboard.Delivery.Reads do
           (SELECT coalesce(jsonb_agg(jsonb_build_object('worker', d.worker_id, 'state', d.state) ORDER BY d.id), '[]'::jsonb)
              FROM cooperation_deliveries d WHERE d.event_id = e.id) AS deliveries,
           (SELECT m.id FROM messages m WHERE m.task_id = e.task_id AND
-             (position('[coop-fallback source=' || e.source_key || ']' in m.body) > 0 OR
-              (m.sender_id IN ('ci-accountability', 'cooperation') AND NOT EXISTS (SELECT 1 FROM messages m2 WHERE m2.task_id = e.task_id AND position('[coop-fallback source=' in m2.body) > 0)))
+             position('[coop-fallback source=' || e.source_key || ']' in m.body) > 0
              ORDER BY m.id LIMIT 1) AS fallback_message_id,
           (SELECT m.recipient_id FROM messages m WHERE m.task_id = e.task_id AND
-             (position('[coop-fallback source=' || e.source_key || ']' in m.body) > 0 OR
-              (m.sender_id IN ('ci-accountability', 'cooperation') AND NOT EXISTS (SELECT 1 FROM messages m2 WHERE m2.task_id = e.task_id AND position('[coop-fallback source=' in m2.body) > 0)))
+             position('[coop-fallback source=' || e.source_key || ']' in m.body) > 0
              ORDER BY m.id LIMIT 1) AS fallback_recipient
         FROM cooperation_events e
         WHERE e.task_id = ANY($1) AND e.kind IN ('ci_failure', 'ci_reminder', 'ci_digest', 'pr_conflict')
