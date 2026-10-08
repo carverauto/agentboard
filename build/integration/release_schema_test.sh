@@ -157,7 +157,7 @@ echo 'Schema-14 to 15 retains watches/tasks/history and seeds no availability po
 [[ "$(avail_psql "SELECT coalesce(resolution_reason,'unset') FROM delivery_obligations ORDER BY episode")" == $'legacy\nunset' ]]
 echo 'Schema21 preserves resolved/unresolved obligation prefixes and records legacy without certifying CI.'
 
-# Older-timestamp 20261008001800 pending over a main-21 database must not lower the marker.
+# Older-timestamp 20261008001800 pending over a higher-marker database must not lower the marker.
 "$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_backfill_upgrade
 export DATABASE_NAME=agentboard_backfill_upgrade
 PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=$DATABASE_NAME user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION pg_textsearch VERSION '1.5.1'" >/dev/null
@@ -166,15 +166,15 @@ backfill_psql() {
 }
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(backfill_psql 'SELECT version FROM board_schema WHERE id=1')" == 21 ]]
+installed_marker="$(backfill_psql 'SELECT version FROM board_schema WHERE id=1')"
+[[ "$installed_marker" -ge 21 ]]
 backfill_psql "INSERT INTO agents(id,name,model,harness) VALUES ('retained-backfill','Retained worker','model','codex');
 INSERT INTO tasks(id,title) VALUES ('retained-backfill-task','Retained task');" >/dev/null
 backfill_psql "DELETE FROM schema_migrations WHERE version=20261008001800;
-DROP TABLE mattermost_inbox, mattermost_post_versions, mattermost_channel_recovery, mattermost_inbound_runs;
-UPDATE board_schema SET version=21 WHERE id=1;" >/dev/null
+DROP TABLE mattermost_inbox, mattermost_post_versions, mattermost_channel_recovery, mattermost_inbound_runs;" >/dev/null
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(backfill_psql 'SELECT version FROM board_schema WHERE id=1')" == 21 ]]
+[[ "$(backfill_psql 'SELECT version FROM board_schema WHERE id=1')" == "$installed_marker" ]]
 [[ "$(backfill_psql "SELECT to_regclass('mattermost_inbox')::text||','||to_regclass('mattermost_post_versions')::text||','||to_regclass('mattermost_channel_recovery')::text||','||to_regclass('mattermost_inbound_runs')::text")" == 'mattermost_inbox,mattermost_post_versions,mattermost_channel_recovery,mattermost_inbound_runs' ]]
 [[ "$(backfill_psql "SELECT title FROM tasks WHERE id='retained-backfill-task'")" == 'Retained task' ]]
 [[ "$(backfill_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008001800')" == 1 ]]
-echo 'Backfilled 01800 over marker 21 keeps the higher marker, creates metadata tables and preserves rows.'
+echo "Backfilled 01800 over marker $installed_marker keeps the higher marker, creates metadata tables and preserves rows."

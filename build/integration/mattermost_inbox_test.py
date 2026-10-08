@@ -262,6 +262,7 @@ POSTS['bridge'] = post('bridge', user='shared-bot', props=dict(agentboard_event_
 POSTS['zz-poison-1'] = post('zz-poison-1', '@worker-b ' + 'x' * 70000)
 POSTS['zz-poison-2'] = post('zz-poison-2', '@worker-b poison root', root='missing-root-post')
 POSTS['zz-poison-0-sibling'] = post('zz-poison-0-sibling', '@worker-b valid sibling after poison')
+POSTS['zz-task-1'] = post('zz-task-1', '@worker-b task post', user='shared-bot', props=dict(agent_id='worker-a', msg_id='task-1-msg', task_id='fixture-task'))
 RACE = True
 rpc('Application.put_env(:agentboard, :mattermost_inbound_history_start_ms, 0)')
 rpc('Application.put_env(:agentboard, :mattermost_base_url, ' + json.dumps('http://127.0.0.1:%d' % server.server_port) + ')')
@@ -278,6 +279,7 @@ assert find('bot-peer')['kind'] == 'handoff'
 assert find('human-forged')['sender_agent_id'] is None
 assert read(find('human-forged'))['user_id'] == 'human-2'
 assert find('reply', 'worker-a')['task_id'] == 'fixture-task'
+assert find('zz-task-1')['task_id'] == 'fixture-task'
 room_cov = next(c for c in coverage if c['channel_id'] == 'room')
 assert not room_cov['caught_up'] and not room_cov['history_complete']
 assert 'uninspectable_post' in room_cov['incomplete_reason']
@@ -450,25 +452,30 @@ assert 'store_unavailable' in store, 'store failure must normalize to store_unav
 sql("UPDATE mattermost_inbound_runs SET expires_at = clock_timestamp()")
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, true)')
 wait(lambda: any(c['live_connected'] for c in inbox()[1]))
-# Transient read failure during a scan disconnects cleanly instead of crashing the task.
-kill_reads = ("SELECT coalesce(sum(CASE WHEN pg_terminate_backend(pid) THEN 1 ELSE 0 END),0) FROM pg_stat_activity "
-               "WHERE datname=current_database() AND pid <> pg_backend_pid() AND state='active' AND (" +
-               "query ILIKE '%mattermost_inbox%' OR query ILIKE '%mattermost_post_versions%' OR " +
-               "query ILIKE '%FROM tasks%' OR query ILIKE '%cooperation_subscriptions%' OR " +
-               "query ILIKE '%mattermost_channel_recovery%')")
-hits, reason, seen = 0, 'live', set()
-deadline = time.monotonic() + 60
-while time.monotonic() < deadline:
-    hits += int(sql(kill_reads))
-    reason = sql("SELECT reason FROM mattermost_inbound_runs")
-    seen.add(reason)
-    if reason in ('store_unavailable', 'owner_expired'):
-        break
-    emit('direct_added', {'channel_id': 'new-dm'})
-    time.sleep(0.3)
-assert hits >= 1, 'never landed a read failure on an in-flight scan statement'
-assert 'catch_up_failed' not in seen, 'scan-task crash instead of clean disconnect, saw ' + repr(seen)
-assert reason in ('store_unavailable', 'owner_expired'), 'read failure must disconnect cleanly, got ' + reason
+# Deterministic fault at an unfenced read boundary (task repo lookup) disconnects cleanly.
+sql("ALTER TABLE tasks RENAME TO tasks_hidden")
+probe = rpc('IO.inspect(case Agentboard.Mattermost.Inbound.base_config() do {:ok, b} -> cfg = Map.merge(b, %{source: Agentboard.Mattermost.InboundStore.source(b), bot_id: "shared-bot"}); Agentboard.Mattermost.Inbound.observe(cfg, %{"id" => "probe-task-1", "channel_id" => "room", "user_id" => "shared-bot", "root_id" => "", "create_at" => 1000, "update_at" => 1000, "edit_at" => 0, "delete_at" => 0, "message" => "@worker-b probe", "type" => "", "props" => %{"agent_id" => "worker-b", "msg_id" => "probe-m", "task_id" => "fixture-task"}, "file_ids" => []}) end)')
+assert 'store_unavailable' in probe, 'unfenced read failure must normalize, got ' + probe
+assert find('probe-task-1') is None
+emit('direct_added', {'channel_id': 'new-dm'})
+wait(lambda: sql("SELECT reason FROM mattermost_inbound_runs") == 'store_unavailable')
+assert find('downtime') is not None, 'refused scan must retain earlier inbox rows'
+sql("ALTER TABLE tasks_hidden RENAME TO tasks")
+wait(lambda: any('metadata_capacity_reached' in c['incomplete_reason'] for c in inbox()[1]))
+# Transient lease-store fault keeps the owner process alive without crash or stale write.
+pid_before = rpc('IO.inspect(Agentboard.Mattermost.InboundStream |> Process.whereis() |> :erlang.pid_to_list() |> to_string())')
+sql("CREATE OR REPLACE FUNCTION lease_fault_fn() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture transient lease fault'; END $$")
+sql("CREATE TRIGGER lease_fault_trigger BEFORE UPDATE ON mattermost_inbound_runs FOR EACH ROW EXECUTE FUNCTION lease_fault_fn()")
+try:
+    sql("UPDATE mattermost_inbound_runs SET reason='probe'")
+    raise AssertionError('lease fault trigger not active')
+except subprocess.CalledProcessError:
+    pass
+time.sleep(12)
+assert sql("SELECT count(*) FROM mattermost_inbound_runs WHERE reason='catch_up_failed'") == '0', 'lease fault must not crash the owner'
+pid_after = rpc('IO.inspect(Agentboard.Mattermost.InboundStream |> Process.whereis() |> :erlang.pid_to_list() |> to_string())')
+assert pid_after == pid_before, 'owner process must survive lease store fault'
+sql("DROP TRIGGER lease_fault_trigger ON mattermost_inbound_runs; DROP FUNCTION lease_fault_fn()")
 wait(lambda: any(c['live_connected'] for c in inbox()[1]))
 assert not FAILURES, FAILURES
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')

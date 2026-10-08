@@ -15,6 +15,8 @@ defmodule Agentboard.Mattermost.InboundStore do
     WHERE mattermost_inbound_runs.expires_at<=clock_timestamp()
     """, [source(cfg), cfg.repo, uuid(run)])
     if n == 1, do: {:ok, Map.merge(cfg, %{source: source(cfg), run: run})}, else: {:error, :another_owner}
+  rescue
+    _ in [DBConnection.ConnectionError, Postgrex.Error] -> {:error, :store_unavailable}
   end
 
   def renew(cfg, connected, reason) do
@@ -22,11 +24,16 @@ defmodule Agentboard.Mattermost.InboundStore do
     UPDATE mattermost_inbound_runs SET expires_at=clock_timestamp()+interval '30 seconds',connected=$3,reason=$4
     WHERE source=$1 AND run_id=$2 AND expires_at>clock_timestamp()
     """, [cfg.source, uuid(cfg.run), connected, reason])
-    n == 1
+    {:ok, n == 1}
+  rescue
+    _ in [DBConnection.ConnectionError, Postgrex.Error] -> {:error, :store_unavailable}
   end
 
   def release(cfg, reason, delay \\ 0) do
     Repo.statement!("UPDATE mattermost_inbound_runs SET connected=false,reason=$3,expires_at=clock_timestamp()+$4::integer*interval '1 second' WHERE source=$1 AND run_id=$2", [cfg.source, uuid(cfg.run), reason, delay])
+    :ok
+  rescue
+    _ in [DBConnection.ConnectionError, Postgrex.Error] -> :ok
   end
 
   def fenced(cfg, fun) do
