@@ -38,6 +38,12 @@ defmodule AgentboardWeb.ConversationController do
     end
   end
 
+  # GET /conversations/diagnostics — cached override observations for the
+  # calling registered agent. Read-only; carries no secrets.
+  def diagnostics(conn, _params) do
+    reply(conn, Conversations.diagnostics(actor(conn)))
+  end
+
   defp actor(conn) do
     Map.new(~w(agent model harness), fn key -> {key, List.first(get_req_header(conn, "x-agentboard-" <> key))} end)
   end

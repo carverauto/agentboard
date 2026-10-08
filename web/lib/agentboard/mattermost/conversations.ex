@@ -58,13 +58,15 @@ defmodule Agentboard.Mattermost.Conversations do
   end
 
   # Pluggable posting seam: shared bot now, per-agent bot later. Override
-  # fields render only when farm01 enables the Mattermost override
-  # settings; header plus props carry identity either way.
+  # fields are sent only while the server is observed (or assumed) to
+  # apply them; header plus props carry identity either way.
   def post_as(cfg, agent_id, channel_id, message, props, root_id \\ nil, icon_url \\ nil, msg_id \\ nil) do
-    opts = [root_id: root_id, override_username: agent_id, override_icon_url: icon_url]
+    {username_opt, icon_opt} = override_opts(agent_id, icon_url)
+    opts = [root_id: root_id, override_username: username_opt, override_icon_url: icon_opt]
 
     case Transport.post_agent(cfg, channel_id, message, props, opts) do
       {:ok, 201, %{"id" => _} = post} ->
+        observe_overrides(post, username_opt, icon_opt)
         {:ok, %{"duplicate" => false, "post" => post, "msg_id" => msg_id}}
 
       {:ok, 404, _} ->
@@ -147,6 +149,90 @@ defmodule Agentboard.Mattermost.Conversations do
     case fetch_coverage(agent_id, channel_id) do
       nil -> {:error, "not_found", "No coverage reported"}
       row -> {:ok, Operations.public(row)}
+    end
+  end
+
+  # Read-only diagnostics: cached override observations, never secrets.
+  # stale: true means the cache expired and the next send re-observes.
+  def diagnostics(caller) do
+    with {:ok, _agent_id} <- registered_agent(caller) do
+      support = override_support()
+
+      {:ok,
+       %{
+         "overrides" => %{
+           "username" => support[:username],
+           "icon" => support[:icon],
+           "observed_at" => support[:observed_at],
+           "stale" => not override_fresh?(support[:observed_at]),
+           "source" => if(is_nil(support[:observed_at]), do: "unobserved", else: "observed")
+         }
+       }}
+    end
+  end
+
+  # Override support is observed, never configured: the stored post in a
+  # 201 response keeps the override fields only when the server applied
+  # them (a server with the flags off strips them). Observations are
+  # cached; an expired cache gates as unknown, so the next send
+  # re-observes instead of sticking. Only fields actually sent update
+  # the cache. Nothing here reads or writes server configuration.
+  @override_ttl_s 3_600
+
+  defp override_opts(agent_id, icon_url) do
+    username = if override_gated(:username) == false, do: nil, else: agent_id
+
+    icon =
+      if override_gated(:icon) == false or is_nil(icon_url), do: nil, else: icon_url
+
+    {username, icon}
+  end
+
+  defp override_gated(field) do
+    support = override_support()
+
+    if override_fresh?(support[:observed_at]), do: support[field], else: nil
+  end
+
+  defp observe_overrides(_post, nil, nil), do: :ok
+
+  defp observe_overrides(post, sent_username, sent_icon) do
+    current = override_support()
+
+    observed = %{
+      username: observe_field(post, "override_username", sent_username, current[:username]),
+      icon: observe_field(post, "override_icon_url", sent_icon, current[:icon]),
+      observed_at: System.system_time(:second)
+    }
+
+    Application.put_env(:agentboard, :mattermost_override_support, observed)
+    :ok
+  end
+
+  defp observe_field(_post, _field, nil, current), do: current
+
+  defp observe_field(post, field, sent, _current) do
+    stored = post[field] || get_in(post, ["props", field])
+    stored == sent
+  end
+
+  defp override_support do
+    case Application.get_env(:agentboard, :mattermost_override_support) do
+      %{username: _, icon: _, observed_at: _} = support -> support
+      _ -> %{username: nil, icon: nil, observed_at: nil}
+    end
+  end
+
+  defp override_fresh?(nil), do: false
+
+  defp override_fresh?(observed_at) do
+    System.system_time(:second) - observed_at < override_ttl_s()
+  end
+
+  defp override_ttl_s do
+    case Application.get_env(:agentboard, :mattermost_override_ttl_s, @override_ttl_s) do
+      seconds when is_integer(seconds) and seconds >= 0 -> seconds
+      _ -> @override_ttl_s
     end
   end
 

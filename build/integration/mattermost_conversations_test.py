@@ -19,6 +19,8 @@ TOKEN = 'fixture-bot-token'
 state = {
     'posts': {},
     'order': [],
+    'received': [],
+    'overrides': True,
     'lock': threading.Lock(),
 }
 
@@ -61,6 +63,10 @@ class Stub(BaseHTTPRequestHandler):
                 'create_at': 1000 + len(state['order']),
             }
             with state['lock']:
+                state['received'].append(dict(payload))
+                if not state['overrides']:
+                    post.pop('override_username', None)
+                    post.pop('override_icon_url', None)
                 state['posts'][pid] = post
                 state['order'].append(pid)
             return self._json(201, post)
@@ -267,4 +273,49 @@ assert status == 200, status
 rpc('Application.put_env(:agentboard, :mattermost_channel_allowlist, "")')
 status, _ = api('GET', '/api/v1/conversations/reads?channel_id=chan-9', None, WA)
 assert status == 200, status
-print('Phase 1 shared-bot chat: API send with props/header/override, retry-key adoption, echo-suppressed reads and explicit coverage passed')
+
+# Override detection: the stub mimics the server flags — when off it
+# strips override fields from the stored post, like a Mattermost server
+# with EnablePostUsernameOverride/EnablePostIconOverride false. TTL 0
+# forces every send to re-observe; detection adds no extra requests.
+rpc("Application.put_env(:agentboard, :mattermost_override_ttl_s, 0)")
+status, diag = api('GET', '/api/v1/conversations/diagnostics', None, WA)
+assert status == 200, (status, diag)
+assert diag['overrides']['username'] is True, diag
+assert diag['overrides']['source'] == 'observed', diag
+state['overrides'] = False
+status, body = api('POST', '/api/v1/conversations/send',
+                   {'channel_id': 'chan-1', 'body': 'off-mode probe',
+                    'task_id': 'task-9', 'kind': 'note', 'retry_key': 'key-off-1'}, WA)
+assert status == 200 and body['duplicate'] is False, (status, body)
+with state['lock']:
+    off_post = state['posts'][body['post']['id']]
+assert off_post.get('override_username') is None, off_post
+assert off_post['message'].startswith('[worker-a · task-9]\n'), off_post['message']
+status, diag = api('GET', '/api/v1/conversations/diagnostics', None, WA)
+assert status == 200 and diag['overrides']['username'] is False, (status, diag)
+# Cached-off sends omit the fields; props plus header still carry identity.
+status, body = api('POST', '/api/v1/conversations/send',
+                   {'channel_id': 'chan-1', 'body': 'off-mode gated',
+                    'task_id': 'task-9', 'kind': 'note', 'retry_key': 'key-off-2'}, WA)
+assert status == 200 and body['duplicate'] is False, (status, body)
+with state['lock']:
+    raw = state['received'][-1]
+assert 'override_username' not in raw, raw
+assert raw['message'].startswith('[worker-a · task-9]\noff-mode gated'), raw['message']
+assert raw['props']['agent_id'] == 'worker-a', raw['props']
+# Flags back on: the next send re-observes and resumes overrides.
+state['overrides'] = True
+status, body = api('POST', '/api/v1/conversations/send',
+                   {'channel_id': 'chan-1', 'body': 'on again',
+                    'task_id': 'task-9', 'kind': 'note', 'retry_key': 'key-on-2'}, WA)
+assert status == 200 and body['duplicate'] is False, (status, body)
+with state['lock']:
+    on_post = state['posts'][body['post']['id']]
+assert on_post['override_username'] == 'worker-a', on_post
+status, diag = api('GET', '/api/v1/conversations/diagnostics', None, WA)
+assert status == 200 and diag['overrides']['username'] is True, (status, diag)
+# Unknown agents see nothing.
+status, _ = api('GET', '/api/v1/conversations/diagnostics', None, GHOST)
+assert status == 422, status
+print('Phase 1 shared-bot chat: API send with props/header/override, retry-key adoption, echo-suppressed reads, explicit coverage and override diagnostics passed')

@@ -114,6 +114,7 @@ defmodule AgentboardWeb.Router do
     post("/tasks/:id/documents", APIController, :push_document)
     post("/conversations/send", ConversationController, :send)
     get("/conversations/reads", ConversationController, :reads)
+    get("/conversations/diagnostics", ConversationController, :diagnostics)
 
     post(
       "/conversations/coverage/:agent_id/:channel_id",

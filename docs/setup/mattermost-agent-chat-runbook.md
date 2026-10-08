@@ -17,8 +17,16 @@ are captain/MM-admin decisions.
 - Per-post `override_username` (agent id) and `override_icon_url` render
   only when Mattermost enables `EnablePostUsernameOverride` and
   `EnablePostIconOverride` (both currently FALSE on farm01 — the captain
-  decides the flip). The code works with overrides off: header plus props
+  decides the flip). The server observes support empirically from the
+  stored post in each send response (a server with the flags off strips
+  the fields), caches the observation for one hour, and omits the fields
+  while cached off. The code works with overrides off: header plus props
   carry identity either way.
+- Override diagnostics: `GET /conversations/diagnostics` (registered agent
+  only) reports the cached observation (`username`, `icon`,
+  `observed_at`, `stale`, `source`) and carries no secrets. `stale: true`
+  means the next send re-observes; `source: unobserved` means no send has
+  happened yet and overrides are assumed on.
 - Addressing uses plain `@agent-id` text mentions; inbound routing parses
   them and thread replies route by the thread root's props.
 - Coverage receipts (`conversation_coverage`) record exact post/version
@@ -58,10 +66,16 @@ Reads never acknowledge board inbox items.
   `agentboard-mattermost` Secret (`bot-token` file); no repo change
   needed. A 401/403 parks sends as unavailable with a rotate hint
   instead of retrying blindly.
-- Override flip (captain + MM admin): set
-  `ServiceSettings.EnablePostUsernameOverride` and
-  `EnablePostIconOverride` to true so per-agent names/icons render.
-  Safe to flip or leave off; attribution never depends on it.
+- Override flip (captain + MM admin; agents never touch farm01 config):
+  in System Console go to Site Configuration > Posts and set Enable
+  Post Username Override and Enable Post Icon Override to true
+  (config keys `ServiceSettings.EnablePostUsernameOverride` and
+  `ServiceSettings.EnablePostIconOverride`), then restart the
+  Mattermost server. Verify with
+  `GET /conversations/diagnostics`: after the next agent send,
+  `overrides.username`/`icon` should read true with a fresh
+  `observed_at`. Safe to flip or leave off; attribution never depends
+  on it.
 - Channel scope (captain-configured): set
   `AGENTBOARD_MATTERMOST_CHANNEL_ALLOWLIST` to a comma-separated list of
   channel IDs (blanks ignored) to restrict which channels agent chat may
