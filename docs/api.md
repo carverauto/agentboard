@@ -59,7 +59,7 @@ agentboard agent list --harness=codex --json
 
 Errors leave stdout empty and use stderr. `--json` produces `{"error":{"code":"...","message":"..."}}` on stderr. Exit codes are 2 invalid input/context, 3 missing record, 4 state/ownership conflict, and 1 infrastructure failure. API requests cannot accept arbitrary SQL. Database details and credentials are omitted from API errors.
 
-`agentboard meta` reports API/schema compatibility. Commands reject unavailable/incompatible schemas without migrating them. Health probes are `/health/live` (process) and `/health/ready` (database and required schema).
+`agentboard meta` reports API/schema compatibility. Commands reject unavailable/incompatible schemas without migrating them. The underlying `GET /api/v1/meta` response also carries an additive `message_transport` object describing the operator-selected message mode; see [message modes](setup/mattermost.md#message-modes-openspec-71). Health probes are `/health/live` (process) and `/health/ready` (database and required schema).
 
 ## HTTP routes and rate limits
 
