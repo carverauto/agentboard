@@ -1,0 +1,38 @@
+{
+  "scope": "Proposal artifact only; not deployed dashboard proof",
+  "design_source": "Agentboard existing web/assets/app.css theme tokens",
+  "portable_sha256": "e2f78e042a4987f34b93255004fc2269ab54b483c64b5aca16b3d79193b4c06f",
+  "portable_bytes": 991558,
+  "export": {
+    "unresolved_local_assets": 0,
+    "notices": 0
+  },
+  "browser_checks": [
+    {
+      "viewport": "1440x900",
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "document_scroll_width": 1440
+    },
+    {
+      "viewport": "390x844",
+      "themes": [
+        "dark"
+      ],
+      "document_scroll_width": 390
+    }
+  ],
+  "perceptual_review": {
+    "reviewer": "codex-agent-a-server",
+    "status": "pass",
+    "reviewed": [
+      "desktop light",
+      "desktop dark",
+      "mobile dark",
+      "embedded Archify diagram"
+    ],
+    "limitations": "Chrome wrapper returned screenshot-path reporting errors; actual PNG files were inspected successfully. Read-only local file browser checks; no product runtime or build."
+  }
+}

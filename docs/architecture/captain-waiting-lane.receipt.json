@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Volumes/Build/agentboard-seats-v3/.treehouse/agentboard-agent-a-waiting-base-20261008-115218/1/agentboard-agent-a-waiting-base-20261008/docs/architecture/captain-waiting-lane.workflow.json",
+  "output": "/Volumes/Build/agentboard-seats-v3/.treehouse/agentboard-agent-a-waiting-base-20261008-115218/1/agentboard-agent-a-waiting-base-20261008/docs/architecture/captain-waiting-lane.html",
+  "specification": {
+    "sha256": "98ef2ffca1f9cec19f4f2adbc42e1a9bcd1fe1feceb934fc2a6d7ec97e14452d",
+    "bytes": 3589
+  },
+  "artifact": {
+    "sha256": "2d93673ed364ee343c9053ddc1fae477289fe5551ca85f7ad5fa27a08031362f",
+    "bytes": 712219
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}
