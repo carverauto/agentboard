@@ -7,6 +7,7 @@ defmodule Agentboard.Repo.Migrations.RosterIdentityRetire do
       add(:retired_at, :timestamptz)
       add(:retired_by, :text)
       add(:retire_reason, :text)
+      add(:retire_forced, :boolean, null: false, default: false)
     end
 
     create(

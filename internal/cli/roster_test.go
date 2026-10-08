@@ -15,8 +15,9 @@ import (
 )
 
 type rosterBoard struct {
-	beats  atomic.Int32
-	retire []byte
+	beats    atomic.Int32
+	retire   []byte
+	register []byte
 }
 
 func newRosterBoard(t *testing.T) (string, *rosterBoard) {
@@ -32,6 +33,11 @@ func newRosterBoard(t *testing.T) (string, *rosterBoard) {
 		w.Write([]byte(`{"agent":{"id":"worker-a"}}`))
 	})
 	mux.HandleFunc("POST /api/v1/agents/worker-a/restore", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"agent":{"id":"worker-a"}}`))
+	})
+	mux.HandleFunc("POST /api/v1/agents/register", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		f.register = body
 		w.Write([]byte(`{"agent":{"id":"worker-a"}}`))
 	})
 	mux.HandleFunc("POST /api/v1/agents/worker-a/heartbeat", func(w http.ResponseWriter, r *http.Request) {
@@ -87,6 +93,28 @@ func TestAgentRestorePosts(t *testing.T) {
 	newRosterBoard(t)
 	if err := runRosterCommand("agent", "restore", "worker-a"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAgentRegisterPassesKind(t *testing.T) {
+	_, f := newRosterBoard(t)
+	if err := runRosterCommand("agent", "register", "--name", "worker-a", "--kind", "human"); err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(f.register, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["kind"] != "human" {
+		t.Fatalf("expected kind human, got %s", f.register)
+	}
+}
+
+func TestAgentRegisterRejectsUnknownKind(t *testing.T) {
+	newRosterBoard(t)
+	err := runRosterCommand("agent", "register", "--kind", "bot")
+	if err == nil || !strings.Contains(err.Error(), "--kind must be seat, human, system, or fixture") {
+		t.Fatalf("expected kind error, got %v", err)
 	}
 }
 

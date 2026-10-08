@@ -83,13 +83,21 @@ func (c *commands) show(resource string) *cobra.Command {
 func (c *commands) agents() *cobra.Command {
 	group := &cobra.Command{Use: "agent", Short: "Stable registry and heartbeat identity"}
 	group.AddCommand(c.list("agents", []string{"harness", "status", "availability", "waiting", "kind", "retired"}), c.show("agents"))
-	name, host, backend := "", "", ""
+	name, host, backend, kind := "", "", "", ""
 	caps := []string{}
 	register := &cobra.Command{Use: "register", Short: "Create or refresh this agent; a different harness cannot reuse its ID", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			data := map[string]any{}
 			if name != "" {
 				data["name"] = name
+			}
+			if kind != "" {
+				switch kind {
+				case "seat", "human", "system", "fixture":
+					data["kind"] = kind
+				default:
+					return errors.New("--kind must be seat, human, system, or fixture")
+				}
 			}
 			if host != "" {
 				data["host"] = host
@@ -103,6 +111,7 @@ func (c *commands) agents() *cobra.Command {
 			return c.request(cmd, http.MethodPost, "agents/register", nil, data)
 		}}
 	register.Flags().StringVar(&name, "name", "", "Descriptive agent name")
+	register.Flags().StringVar(&kind, "kind", "", "Identity kind: seat, human, system, or fixture")
 	register.Flags().StringVar(&host, "host", "", "Host/session label")
 	register.Flags().StringSliceVar(&caps, "capability", nil, "Comma-separated capabilities")
 	register.Flags().StringVar(&backend, "backend", "", "Optional backend metadata (e.g. herdr)")

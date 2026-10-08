@@ -578,7 +578,7 @@ defmodule AgentboardWeb.BoardLive do
               <details><summary>Recent attribution evidence</summary><p :for={entry <- @data["authentication"]["recent"]}>{entry["created_at"]} · {entry["outcome"]} · attributed {entry["attributed_agent_id"] || "unregistered"} · verified {entry["verified_agent_id"] || "none"} · {entry["method"]} {entry["route"]}</p></details>
               </div>
             </section>
-            <p><a href="/agents?waiting=true">Seats waiting on captain</a> · <a href="/agents">All seats</a> · <a href="/agents?kind=human">Human</a> · <a href="/agents?kind=system">System</a> · <a href="/agents?kind=fixture">Fixture</a> · <a href="/agents?retired=true">Retired</a></p>
+            <p><a href="/agents?waiting=true">Seats waiting on captain</a> · <a href="/agents">All seats</a> · <a href="/agents?kind=human">Human</a> · <a href="/agents?kind=system">System</a> · <a href="/agents?kind=fixture">Fixture</a> · <a href="/agents?kind=all&retired=true">Retired</a></p>
             <p :if={!Agentboard.Captain.authorized?(@captain)}><a href="/settings">Unlock captain availability controls</a></p>
             <p :if={@data["agents"]==[]} class="empty">No registered agents. Register a stable identity with <code>agentboard agent register</code>.</p>
             <div class="table-scroll"><table><thead><tr><th>Agent / harness</th><th>Model / host</th><th>Activity</th><th>Availability</th><th>Heartbeat (stale after {stale_label(@data["roster_stale_after"])})</th><th>Capabilities</th></tr></thead><tbody>

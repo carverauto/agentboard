@@ -127,7 +127,8 @@ defmodule Agentboard.Board.Operations do
                  attrs = %{
                    retired_at: stamp,
                    retired_by: actor["agent"],
-                   retire_reason: reason
+                   retire_reason: reason,
+                   retire_forced: data["force"] == true
                  }
 
                  %{"agent" => public(update(agent, :retire, attrs, actor))}
@@ -157,7 +158,12 @@ defmodule Agentboard.Board.Operations do
              if agent.retired_at == nil do
                %{"agent" => public(agent)}
              else
-               attrs = %{retired_at: nil, retired_by: nil, retire_reason: nil}
+               attrs = %{
+                 retired_at: nil,
+                 retired_by: nil,
+                 retire_reason: nil,
+                 retire_forced: false
+               }
                %{"agent" => public(update(agent, :restore, attrs, actor))}
              end
            end) do
@@ -171,11 +177,12 @@ defmodule Agentboard.Board.Operations do
   end
 
   defp retire_reason(data) do
-    if Enum.all?(data, fn
-         {"reason", value} -> is_binary(value) and String.trim(value) != ""
-         {"force", value} -> is_boolean(value)
-         _ -> false
-       end) do
+    if is_binary(data["reason"]) and String.trim(data["reason"]) != "" and
+         Enum.all?(data, fn
+           {"reason", value} -> is_binary(value) and String.trim(value) != ""
+           {"force", value} -> is_boolean(value)
+           _ -> false
+         end) do
       {:ok, String.trim(data["reason"])}
     else
       {:error, "invalid_input", "Retire requires a reason"}
@@ -238,8 +245,13 @@ defmodule Agentboard.Board.Operations do
           attrs =
             Agentboard.Board.Transition.attributes(task, action, actor["agent"], data, stamp)
 
-          if action in ~w(assign handoff),
-            do: fetch!(Agent, data["to"], "Assignment target must be registered", "invalid_input")
+          if action in ~w(assign handoff) do
+            target =
+              fetch!(Agent, data["to"], "Assignment target must be registered", "invalid_input")
+
+            if target.retired_at != nil,
+              do: reject("conflict", "Retired identity cannot receive new work")
+          end
 
           attrs = Map.merge(attrs, Agentboard.Availability.admit(task, action, actor, data))
           changed = update(task, action_name(action), attrs, actor, task.revision)
@@ -440,10 +452,13 @@ defmodule Agentboard.Board.Operations do
     if data["kind"] == "task_order" do
       Agentboard.Availability.lock_admission()
 
-      unless Input.slug?(data["to"]) and
-               Agentboard.Availability.active?(
-                 Agentboard.Availability.admission_agent(data["to"])
-               ),
+      recipient =
+        if Input.slug?(data["to"]),
+          do: Agentboard.Availability.admission_agent(data["to"]),
+          else: nil
+
+      unless recipient && is_nil(recipient.retired_at) &&
+               Agentboard.Availability.active?(recipient),
              do: reject("conflict", "Task-order routing requires an active named recipient")
     end
 

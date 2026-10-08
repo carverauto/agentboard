@@ -151,7 +151,7 @@ defmodule Agentboard.Board.Reads do
         invalid("Unknown availability filter")
 
       resource == "agents" and Map.has_key?(filters, "kind") and
-          filters["kind"] not in ~w(seat human system fixture) ->
+          filters["kind"] not in ~w(seat human system fixture all) ->
         invalid("Unknown kind filter")
 
       resource == "agents" and Map.has_key?(filters, "retired") and
@@ -198,13 +198,14 @@ defmodule Agentboard.Board.Reads do
 
     query =
       if resource == "agents" do
-        query
-        |> Ash.Query.filter(kind == ^(filters["kind"] || "seat"))
-        |> then(fn query ->
-          if filters["retired"] == "true",
-            do: Ash.Query.filter(query, not is_nil(retired_at)),
-            else: Ash.Query.filter(query, is_nil(retired_at))
-        end)
+        scoped =
+          if filters["kind"] == "all",
+            do: query,
+            else: Ash.Query.filter(query, kind == ^(filters["kind"] || "seat"))
+
+        if filters["retired"] == "true",
+          do: Ash.Query.filter(scoped, not is_nil(retired_at)),
+          else: Ash.Query.filter(scoped, is_nil(retired_at))
       else
         query
       end

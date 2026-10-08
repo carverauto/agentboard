@@ -40,4 +40,28 @@ defmodule Agentboard.RosterTest do
       assert {:error, "invalid_input", _} = Agentboard.Board.Reads.roster_threshold()
     end
   end
+
+  describe "Operations.retire/3 reason validation" do
+    @admin %{
+      "agent" => "captain",
+      "model" => "human",
+      "harness" => "captain",
+      availability_admin: true
+    }
+
+    test "empty body returns invalid_input instead of raising" do
+      assert {:error, "invalid_input", _} =
+               Agentboard.Board.Operations.retire("worker-a", @admin, %{})
+    end
+
+    test "force-only body without a reason returns invalid_input" do
+      assert {:error, "invalid_input", _} =
+               Agentboard.Board.Operations.retire("worker-a", @admin, %{"force" => true})
+    end
+
+    test "blank reason returns invalid_input" do
+      assert {:error, "invalid_input", _} =
+               Agentboard.Board.Operations.retire("worker-a", @admin, %{"reason" => "   "})
+    end
+  end
 end

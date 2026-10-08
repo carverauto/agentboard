@@ -46,11 +46,11 @@ defmodule Agentboard.Board.Resources.Agent do
     end
 
     update :retire do
-      accept([:retired_at, :retired_by, :retire_reason])
+      accept([:retired_at, :retired_by, :retire_reason, :retire_forced])
     end
 
     update :restore do
-      accept([:retired_at, :retired_by, :retire_reason])
+      accept([:retired_at, :retired_by, :retire_reason, :retire_forced])
     end
 
     update :heartbeat do
@@ -150,6 +150,12 @@ defmodule Agentboard.Board.Resources.Agent do
     attribute :retire_reason, :string do
       constraints(trim?: false, allow_empty?: true)
       public?(true)
+    end
+
+    attribute :retire_forced, :boolean do
+      public?(true)
+      allow_nil?(false)
+      default(false)
     end
   end
 
