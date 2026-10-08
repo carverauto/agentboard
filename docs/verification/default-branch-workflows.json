@@ -1,0 +1,43 @@
+{
+  "diagram_type": "architecture",
+  "specification_sha256": "25f5aa8f52a7ec0dd4cd898e92564ef95240641ad11c245de045639189f5a967",
+  "artifact_sha256": "4296b7c19c9af44ea432a49e103c374b6e175ed10f181130a13c4fa48fbbc507",
+  "validation": "9/9 showcase, 0 errors, 0 warnings",
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "correction_rounds": 2,
+  "perceptual_review": {
+    "reviewer": "codex-agent-b-worker",
+    "scope": "READ, Still; 1440x900 and2048x1320 light/dark screenshots actually inspected",
+    "observations": "Clear main event/signature/cue/collector/ledger path, readable labels, no crossings/cutoff, large-screen vertical rhythm balanced."
+  },
+  "panel_review": {
+    "source": "Actual packaged SSR and fingerprinted Tailwind CSS from invented default_branch_workflows_test, test-created artifact",
+    "viewport": [
+      1440,
+      900
+    ],
+    "scroll": [
+      1440,
+      900
+    ],
+    "observations": "Owner, failed job/step, run attempt, branch/SHA and red timestamp readable; original PR table preserved."
+  },
+  "remote_verification": [
+    {
+      "url": "https://carverauto.buildbuddy.io/invocation/07061853-eb70-4a34-af76-643123a4d91d",
+      "passed": [
+        "default_branch_workflows_test",
+        "release_schema_test"
+      ]
+    },
+    {
+      "url": "https://carverauto.buildbuddy.io/invocation/1ed461c7-d626-49e1-8d0b-240be89077ab",
+      "passed": [
+        "ci_accountability_test",
+        "pr_conflicts_test"
+      ],
+      "failed": "release_schema_test exact-final-version marker24 repaired; subsequently passed07061853"
+    }
+  ]
+}
