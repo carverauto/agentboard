@@ -155,4 +155,3 @@ defmodule Agentboard.Decisions.Waiting do
       )
       |> Base.encode16(case: :lower)
 end
-

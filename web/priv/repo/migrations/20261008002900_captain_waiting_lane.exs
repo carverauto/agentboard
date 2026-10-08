@@ -52,4 +52,3 @@ defmodule Agentboard.Repo.Migrations.CaptainWaitingLane do
 
   def down, do: raise("Preserve captain questions and history; use a compatible image")
 end
-
