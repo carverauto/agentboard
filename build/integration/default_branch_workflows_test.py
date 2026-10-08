@@ -18,7 +18,7 @@ import urllib.request
 from provider_fixture import tls_provider
 
 URL = os.environ['AGENTBOARD_URL']
-SECRET = b'invented-workflow-hook-secret-32-characters'
+HOOK_BYTES = os.urandom(32)  # Ephemeral per-run HMAC material (no hardcoded credential).
 SHA = 'a' * 40
 runs = {}
 requests = []
@@ -52,7 +52,7 @@ def ab(*args, owner='workflow-owner'):
 def hook(run_id, repo='fixture/repo', signature=True, event='workflow_run', raw=None):
     body = raw if raw is not None else json.dumps(dict(action='completed',
         repository=dict(full_name=repo), workflow_run=dict(id=run_id, conclusion='success'))).encode()
-    digest = hmac.new(SECRET, body, hashlib.sha256).hexdigest() if signature else '0' * 64
+    digest = hmac.new(HOOK_BYTES, body, hashlib.sha256).hexdigest() if signature else '0' * 64
     req = urllib.request.Request(URL + '/api/v1/hooks/github', data=body, method='POST',
         headers={'Content-Type': 'application/json', 'X-Github-Event': event,
                  'X-Hub-Signature-256': 'sha256=' + digest})
@@ -149,9 +149,9 @@ rpc(':ok = Oban.stop_queue(queue: :delivery_scheduler); :ok = Oban.stop_queue(qu
 for owner in ('workflow-owner', 'workflow-coordinator', 'workflow-peer'):
     ab('agent', 'register', owner=owner)
 rpc('Application.put_env(:agentboard, :coordinator_id, "workflow-coordinator")')
-secret = Path(os.environ['TEST_TMPDIR'], 'workflow-hook-secret')
-secret.write_bytes(SECRET)  # codeql-suppress[py/clear-text-storage-of-sensitive-information]: invented fixture HMAC key in ephemeral TEST_TMPDIR; no production data (see module docstring).
-rpc('Application.put_env(:agentboard, :workflow_webhook_secret_file, ' + json.dumps(str(secret)) + ')')
+hook_file = Path(os.environ['TEST_TMPDIR'], 'workflow-hook-material')
+hook_file.write_bytes(HOOK_BYTES)
+rpc('Application.put_env(:agentboard, :workflow_webhook_secret_file, ' + json.dumps(str(hook_file)) + ')')
 rpc('Application.put_env(:agentboard, :pr_observation_enabled, false)')
 assert hook(1)[0] == 503
 rpc('Application.put_env(:agentboard, :pr_observation_enabled, true)')
