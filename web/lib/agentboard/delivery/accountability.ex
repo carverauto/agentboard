@@ -395,13 +395,25 @@ defmodule Agentboard.Delivery.Accountability do
       |> List.first()
 
     if last && last.resolution_reason in ~w(repair_done repair_cancelled) && last.head_sha == head do
-      CISnapshot
-      |> Ash.Query.filter(
-        pull_request_id == ^id and observed_at > ^last.resolved_at and
-          ci_state == "passing" and fragment("?->>'policy' = 'verified'", payload)
-      )
-      |> Ash.Query.limit(1)
-      |> Ash.read!() == []
+      recovered =
+        CISnapshot
+        |> Ash.Query.filter(
+          pull_request_id == ^id and observed_at > ^last.resolved_at and
+            ci_state == "passing" and fragment("?->>'policy' = 'verified'", payload)
+        )
+        |> Ash.Query.limit(1)
+        |> Ash.read!()
+
+      reopened =
+        CISnapshot
+        |> Ash.Query.filter(
+          pull_request_id == ^id and observed_at > ^last.resolved_at and
+            lifecycle in ["merged", "closed"]
+        )
+        |> Ash.Query.limit(1)
+        |> Ash.read!()
+
+      recovered == [] and reopened == []
     else
       false
     end

@@ -134,7 +134,17 @@ assert sql("SELECT ci_state FROM delivery_poll_states WHERE id=(SELECT id FROM d
 observe(709, lifecycle='open', failing=True)
 assert obligation(709)['episode'] == 2 and obligation(709)['resolved_at'] is None
 
-# Source completion is not disposition of the independent repair episode.
+task('disposition-close-reopen', 710, status='in_progress')
+observe(710, lifecycle='open', failing=True)
+o = obligation(710)
+api('/tasks/' + o['repair_task_id'] + '/claim', {})
+api('/tasks/' + o['repair_task_id'] + '/update', {'status': 'cancelled', 'note': 'Explicit disposition'})
+assert obligation(710)['resolution_reason'] == 'repair_cancelled'
+observe(710, lifecycle='closed')
+assert obligation(710)['resolution_reason'] == 'repair_cancelled', 'Fenced closed observation rewrote retained disposition'
+observe(710, lifecycle='open', failing=True)
+assert obligation(710)['episode'] == 2 and obligation(710)['resolved_at'] is None, 'Retained closed lifecycle did not end same-head suppression'
+
 task('source-done', 705, status='in_progress')
 observe(705, lifecycle='open', failing=True)
 api('/tasks/source-done/update', {'status': 'done', 'note': 'Source disposition'})
