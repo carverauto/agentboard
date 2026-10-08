@@ -642,14 +642,17 @@ func (c *commands) runDoctor(cmd *cobra.Command, applyFile, overlay, compose str
 	}
 	notes["schema_version"] = meta.Schema
 
+	if applyFile == "" && (overlay != "" || compose != "") {
+		return errors.New("--overlay/--compose require -f; pass an apply file holding desired state")
+	}
 	var af adminFile
 	if applyFile != "" {
 		af, err = loadAdminFile(applyFile)
 		if err != nil {
 			return err
 		}
-		for _, w := range af.Workers {
-			agentIDs = append(agentIDs, w.ID)
+		if af.Config.Overlay != "" && af.Config.Compose != "" {
+			return errors.New("use exactly one of --overlay or --compose")
 		}
 		for _, a := range af.Agents {
 			agentIDs = append(agentIDs, a.ID)
@@ -696,9 +699,9 @@ func (c *commands) runDoctor(cmd *cobra.Command, applyFile, overlay, compose str
 		}
 		t := envTarget{}
 		if af.Config.Overlay != "" || af.Config.Compose != "" {
-			t = envTarget{path: af.Config.Overlay, anchor: "literals:"}
-			if af.Config.Compose != "" {
-				t = envTarget{path: af.Config.Compose, anchor: "environment:"}
+			t, err = resolveEnvTarget(af.Config.Overlay, af.Config.Compose)
+			if err != nil {
+				return err
 			}
 		} else if overlay != "" || compose != "" {
 			var terr error

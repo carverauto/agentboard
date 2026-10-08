@@ -180,6 +180,7 @@ type rolloutFlags struct {
 	migrationName string
 	cnpgCluster   string
 	backupPath    string
+	dbName        string
 	soakSeconds   int
 	timeoutSecs   int
 	recordOut     string
@@ -204,6 +205,7 @@ func (c *commands) adminRollout() *cobra.Command {
 	cmd.Flags().StringVar(&f.migrationName, "migration-job-name", "", "Migration Job name to wait for")
 	cmd.Flags().StringVar(&f.cnpgCluster, "cnpg-cluster", "", "CNPG cluster name for an on-demand Backup")
 	cmd.Flags().StringVar(&f.backupPath, "backup-path", "", "Logical dump destination (pg_dump -f); alternative to --cnpg-cluster")
+	cmd.Flags().StringVar(&f.dbName, "db-name", "", "Database for --backup-path pg_dump (defaults to $PGDATABASE)")
 	cmd.Flags().IntVar(&f.soakSeconds, "soak-seconds", 300, "Post-verify soak window in seconds (0 skips)")
 	cmd.Flags().IntVar(&f.timeoutSecs, "timeout-seconds", 600, "kubectl wait timeout in seconds")
 	cmd.Flags().StringVar(&f.recordOut, "record-out", "", "Write the machine-readable rollout record here")
@@ -297,6 +299,9 @@ func (c *commands) runRollout(cmd *cobra.Command, pin string, f rolloutFlags) er
 			return &adminExit{code: 1, msg: name + ": live pin read failed: " + err.Error()}
 		}
 		previous = strings.TrimSpace(out)
+		if len(strings.Fields(previous)) != 1 {
+			return errors.New("live deployment has multiple container images; --direct requires exactly one")
+		}
 		currentRef = previous
 	}
 	diff := []adminDiff{}
@@ -350,18 +355,26 @@ func (c *commands) runRollout(cmd *cobra.Command, pin string, f rolloutFlags) er
 		backupRef = "cnpg-backup/" + bname
 		noteStep("backup:" + backupRef)
 	} else {
+		dbName := f.dbName
+		if dbName == "" {
+			dbName = os.Getenv("PGDATABASE")
+		}
+		if dbName == "" {
+			return errors.New("--db-name or $PGDATABASE is required for --backup-path")
+		}
 		pg, err := exec.LookPath("pg_dump")
 		if err != nil {
 			return errors.New("pg_dump not found on PATH")
 		}
 		cctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 		defer cancel()
-		dump := exec.CommandContext(cctx, pg, "-f", f.backupPath)
+		dump := exec.CommandContext(cctx, pg, "-f", f.backupPath, dbName)
 		if out, err := dump.CombinedOutput(); err != nil {
 			return &adminExit{code: 1, msg: name + ": logical backup failed: " + strings.TrimSpace(string(out))}
 		}
 		backupRef = "pg_dump:" + f.backupPath
 		noteStep("backup:" + backupRef)
+		record["backup_database"] = dbName
 	}
 	record["pre_migration_backup"] = backupRef
 
@@ -632,16 +645,43 @@ func manifestName(raw string) (string, error) {
 	return "", errors.New("no metadata.name found")
 }
 
-// rewriteManifestImage replaces the first `image:` value with pin.
+func manifestImageRepo(ref string) string {
+	ref = strings.Trim(ref, `"'`)
+	repo := ref
+	if k := strings.Index(repo, "@"); k >= 0 {
+		repo = repo[:k]
+	}
+	if k := strings.LastIndex(repo, ":"); k >= 0 && !strings.Contains(repo[k:], "/") {
+		repo = repo[:k]
+	}
+	return repo
+}
+
+// rewriteManifestImage replaces every `image:` value whose repo matches the
+// rollout pin repo with pin.
 func rewriteManifestImage(raw, pin string) (string, error) {
+	target := pin
+	if k := strings.Index(pin, "@"); k >= 0 {
+		target = pin[:k]
+	}
+	target = manifestImageRepo(target)
 	lines := strings.Split(raw, "\n")
+	matched := false
 	for i, l := range lines {
 		t := strings.TrimSpace(l)
-		if strings.HasPrefix(t, "image:") {
-			indent := l[:len(l)-len(strings.TrimLeft(l, " "))]
-			lines[i] = indent + "image: " + pin
-			return strings.Join(lines, "\n"), nil
+		if !strings.HasPrefix(t, "image:") {
+			continue
 		}
+		ref := strings.TrimSpace(strings.TrimPrefix(t, "image:"))
+		if manifestImageRepo(ref) != target {
+			continue
+		}
+		indent := l[:len(l)-len(strings.TrimLeft(l, " "))]
+		lines[i] = indent + "image: " + pin
+		matched = true
 	}
-	return "", errors.New("no image field found")
+	if !matched {
+		return "", errors.New("migration manifest has no image for " + target)
+	}
+	return strings.Join(lines, "\n"), nil
 }

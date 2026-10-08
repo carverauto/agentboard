@@ -36,15 +36,16 @@ func splitEnvLine(line string) (name, value string, quoted bool, ok bool) {
 		return "", "", false, false
 	}
 	t = strings.TrimSpace(strings.TrimPrefix(t, "- "))
-	if strings.HasPrefix(t, "'") && strings.HasSuffix(t, "'") && len(t) >= 2 {
-		t = t[1 : len(t)-1]
-		quoted = true
-	}
 	i := strings.Index(t, "=")
 	if i < 0 {
 		return "", "", false, false
 	}
-	return t[:i], t[i+1:], quoted, true
+	name, value = t[:i], t[i+1:]
+	if len(value) >= 2 && strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
+		value = strings.ReplaceAll(value[1:len(value)-1], "''", "'")
+		quoted = true
+	}
+	return name, value, quoted, true
 }
 
 func quoteEnvValue(v string) string {

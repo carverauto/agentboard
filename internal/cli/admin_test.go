@@ -496,7 +496,7 @@ func admOverlay(t *testing.T, dir, digest string) string {
 func admJobManifest(t *testing.T, dir string) string {
 	t.Helper()
 	p := filepath.Join(dir, "job.yaml")
-	content := "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: agentboard-migrate\nspec:\n  template:\n    spec:\n      restartPolicy: Never\n      containers:\n      - name: migrate\n        image: old-registry/agentboard/dashboard@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+	content := "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: agentboard-migrate\nspec:\n  template:\n    spec:\n      restartPolicy: Never\n      containers:\n      - name: migrate\n        image: registry.example.com/agentboard/dashboard@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
 	if err := os.WriteFile(p, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -511,7 +511,7 @@ func admRolloutArgs(overlay, job, dump, record string, extra ...string) []string
 	base := []string{"admin", "rollout", admNewPin,
 		"--overlay", overlay, "--image", "registry.example.com/agentboard/dashboard",
 		"--deployment", "agentboard", "--namespace", "test-ns",
-		"--migration-job", job, "--backup-path", dump,
+		"--migration-job", job, "--backup-path", dump, "--db-name", "board",
 		"--soak-seconds", "0", "--timeout-seconds", "30"}
 	if record != "" {
 		base = append(base, "--record-out", record)
@@ -713,5 +713,170 @@ func TestAdminDoctorIsReadOnly(t *testing.T) {
 	}
 	if f.provisions != 0 {
 		t.Fatalf("doctor called a mutating endpoint")
+	}
+}
+
+func TestAdminConfigQuotedValueConverges(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	overlay := filepath.Join(dir, "kustomization.yaml")
+	if err := os.WriteFile(overlay, []byte("configMapGenerator:\n- name: cfg\n  literals:\n  - FOO=bar\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	policies := filepath.Join(dir, "policies.json")
+	if err := os.WriteFile(policies, []byte(`{"a": 1}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	set := []string{"admin", "config", "ci-policies", "set", "--file", policies, "--overlay", overlay}
+	if _, _, err := runAdm(t, set...); err != nil {
+		t.Fatalf("set failed: %v", err)
+	}
+	out, _, err := runAdm(t, set...)
+	if err != nil {
+		t.Fatalf("second set failed: %v", err)
+	}
+	if !strings.Contains(out, "converged") {
+		t.Fatalf("quoted value must converge on second run: %s", out)
+	}
+	spaced := []string{"admin", "config", "coordinator-id", "set", "id with space", "--overlay", overlay}
+	if _, _, err := runAdm(t, spaced...); err != nil {
+		t.Fatalf("spaced set failed: %v", err)
+	}
+	out2, _, err := runAdm(t, spaced...)
+	if err != nil {
+		t.Fatalf("second spaced set failed: %v", err)
+	}
+	if !strings.Contains(out2, "converged") {
+		t.Fatalf("spaced value must converge on second run: %s", out2)
+	}
+}
+
+func TestAdminDoctorSkipsWorkerAgentCheck(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	token := filepath.Join(dir, "worker.token")
+	if err := os.WriteFile(token, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	overlay := filepath.Join(dir, "kustomization.yaml")
+	if err := os.WriteFile(overlay, []byte("configMapGenerator:\n- name: cfg\n  literals:\n  - AGENTBOARD_COORDINATOR_ID=coord-one\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	applyPath := filepath.Join(dir, "admin.yaml")
+	apply := "apiVersion: agentboard.carverauto.dev/v1\nkind: AdminConfig\n" +
+		"workers:\n- id: worker-a\n  action: create\n  host: host-a\n  repos:\n    - owner/repo\n  token_file: " + token + "\n" +
+		"config:\n  overlay: " + overlay + "\n  coordinator_id: coord-one\n"
+	if err := os.WriteFile(applyPath, []byte(apply), 0644); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runAdm(t, "admin", "doctor", "-f", applyPath)
+	if err != nil {
+		t.Fatalf("doctor failed: %v", err)
+	}
+	if !strings.Contains(out, "converged") {
+		t.Fatalf("doctor must converge when only the worker token file is present: %s", out)
+	}
+	if strings.Contains(out, "absent") {
+		t.Fatalf("doctor must not report worker-a as an absent agent: %s", out)
+	}
+}
+
+func TestAdminDoctorRejectsStrayTargetFlags(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	overlay := filepath.Join(dir, "kustomization.yaml")
+	if err := os.WriteFile(overlay, []byte("configMapGenerator:\n- name: cfg\n  literals:\n  - FOO=bar\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, "admin", "doctor", "--overlay", overlay); err == nil || !strings.Contains(err.Error(), "require -f") {
+		t.Fatalf("stray --overlay must error, got %v", err)
+	}
+	compose := filepath.Join(dir, "compose.yaml")
+	if err := os.WriteFile(compose, []byte("services:\n  app:\n    environment:\n    - FOO=bar\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	applyPath := filepath.Join(dir, "admin.yaml")
+	apply := "apiVersion: agentboard.carverauto.dev/v1\nkind: AdminConfig\n" +
+		"config:\n  overlay: " + overlay + "\n  compose: " + compose + "\n  coordinator_id: x\n"
+	if err := os.WriteFile(applyPath, []byte(apply), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, "admin", "doctor", "-f", applyPath); err == nil || !strings.Contains(err.Error(), "exactly one") {
+		t.Fatalf("both config targets must error, got %v", err)
+	}
+}
+
+func TestAdminRolloutMigrationRewritesMatchingRepo(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	admKubectlStub(t, dir)
+	t.Setenv("ADMIN_STUB_LOG", filepath.Join(dir, "kubectl.log"))
+	overlay := admOverlay(t, dir, admOldDigest)
+	job := filepath.Join(dir, "job.yaml")
+	content := "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: agentboard-migrate\nspec:\n  template:\n    spec:\n      restartPolicy: Never\n      containers:\n      - name: sidecar\n        image: busybox:1.36\n      - name: migrate\n        image: registry.example.com/agentboard/dashboard@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+	if err := os.WriteFile(job, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	dump := filepath.Join(dir, "dump.sql")
+	record := filepath.Join(dir, "rollout.json")
+	if _, _, err := runAdm(t, admRolloutArgs(overlay, job, dump, record)...); err != nil {
+		t.Fatalf("rollout failed: %v", err)
+	}
+	log, _ := os.ReadFile(filepath.Join(dir, "kubectl.log"))
+	if !strings.Contains(string(log), "busybox:1.36") {
+		t.Fatalf("sidecar image must be preserved:\n%s", log)
+	}
+	if !strings.Contains(string(log), admNewPin) {
+		t.Fatalf("matching migrate image must be rewritten to the pin:\n%s", log)
+	}
+	if strings.Contains(string(log), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") && !strings.Contains(string(log), "get deployment") {
+		t.Fatalf("old migrate digest must not remain in the applied Job")
+	}
+}
+
+func TestAdminRolloutDirectRejectsMultiImage(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	admBinStub(t, dir, "kubectl", "#!/bin/sh\n"+
+		"case \" $* \" in\n"+
+		"  *\"get deployment\"*) echo \"imgA imgB\"; exit 0;;\n"+
+		"esac\n"+
+		"exit 0\n")
+	admBinStub(t, dir, "pg_dump", "#!/bin/sh\nexit 0\n")
+	job := admJobManifest(t, dir)
+	dump := filepath.Join(dir, "dump.sql")
+	_, _, err := runAdm(t, "admin", "rollout", admNewPin,
+		"--direct", "--deployment", "agentboard", "--namespace", "test-ns",
+		"--container", "app", "--migration-job", job, "--backup-path", dump, "--db-name", "board",
+		"--soak-seconds", "0", "--timeout-seconds", "30")
+	if err == nil || !strings.Contains(err.Error(), "multiple container images") {
+		t.Fatalf("multi-image live read must error, got %v", err)
+	}
+}
+
+func TestAdminRolloutBackupRequiresDatabase(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	admKubectlStub(t, dir)
+	t.Setenv("ADMIN_STUB_LOG", filepath.Join(dir, "kubectl.log"))
+	overlay := admOverlay(t, dir, admOldDigest)
+	job := admJobManifest(t, dir)
+	dump := filepath.Join(dir, "dump.sql")
+	os.Unsetenv("PGDATABASE")
+	args := []string{"admin", "rollout", admNewPin,
+		"--overlay", overlay, "--image", "registry.example.com/agentboard/dashboard",
+		"--deployment", "agentboard", "--namespace", "test-ns",
+		"--migration-job", job, "--backup-path", dump,
+		"--soak-seconds", "0", "--timeout-seconds", "30"}
+	if _, _, err := runAdm(t, args...); err == nil || !strings.Contains(err.Error(), "PGDATABASE") {
+		t.Fatalf("missing database must error naming PGDATABASE, got %v", err)
+	}
+	record := filepath.Join(dir, "rollout.json")
+	if _, _, err := runAdm(t, admRolloutArgs(overlay, job, dump, record)...); err != nil {
+		t.Fatalf("rollout with --db-name failed: %v", err)
+	}
+	rec, _ := os.ReadFile(record)
+	if !strings.Contains(string(rec), `"backup_database": "board"`) {
+		t.Fatalf("record must carry the selected database: %s", rec)
 	}
 }

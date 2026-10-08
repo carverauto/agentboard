@@ -64,7 +64,9 @@ agentboard admin rollout <image@sha256:...> \
 ```
 
 Order is fixed: pre-migration backup (CNPG on-demand `Backup`, or
-`--backup-path` for a `pg_dump` logical dump) → migration Job rewritten to
+`--backup-path` for a `pg_dump` logical dump of `--db-name` (falling back
+to `$PGDATABASE`; one of them is required and the selected database is
+recorded)) → migration Job rewritten to
 the same digest → roll (overlay edit + `kubectl apply -k`, compose
 `up -d`, or `kubectl set image` with `--direct`) → verify (rollout status,
 readiness, `meta` schema, smoke read, soak window, default 300s) → automatic
