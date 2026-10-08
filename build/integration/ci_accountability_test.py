@@ -501,6 +501,39 @@ observe('pending', draft=False)
 assert 'Draft' not in export_review('pending')
 
 
+CAPABILITY = 'fixture-captain-capability-32-characters'
+for restricted in ('ci-oos-owner', 'ci-reserved-target', 'ci-reserved-other'):
+    api('/agents/register', {'name': restricted}, agent=restricted)
+api('/availability', {'agent_id': 'ci-oos-owner', 'state': 'out_of_service', 'reason': 'Fixture maintenance'}, token=CAPABILITY)
+api('/availability', {'agent_id': 'ci-reserved-target', 'state': 'reserved', 'reason': 'Named captain only'}, token=CAPABILITY)
+api('/availability', {'agent_id': 'ci-reserved-other', 'state': 'reserved', 'reason': 'Named captain only'}, token=CAPABILITY)
+api('/tasks', {'id': 'ci-restricted-source', 'title': 'Restricted source', 'repo': 'fixture/repo', 'pr_url': 'https://github.com/fixture/repo/pull/301'}, agent='ci-oos-owner')
+pr301 = sql("SELECT id FROM delivery_pull_requests WHERE number='301'")
+sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 second' WHERE id='" + pr301 + "'")
+reservation301 = json.loads(rpc('{:ok, [r]} = Agentboard.Delivery.Polling.reserve_pr(' + json.dumps(pr301) + '); IO.puts("RESERVATION:" <> Jason.encode!(r))').split('RESERVATION:', 1)[1].strip())
+check301 = dict(identity='check:1:required', latest=True, status='completed', conclusion='failure', source_url='https://github.com/fixture/repo/actions/runs/301')
+payload301 = dict(policy='unknown', coverage='complete_head', tested_ref='head', attempts=[check301], draft=None)
+encoded301 = base64.b64encode(json.dumps(payload301).encode()).decode()
+expression301 = ('result = %{ci_state: "failing", lifecycle: "open", head_sha: ' + json.dumps(HEAD) + ', base_sha: ' + json.dumps(BASE) + ', payload: Jason.decode!(Base.decode64!("' + encoded301 + '"))}; reservation = %{id: ' + json.dumps(reservation301['id']) + ', attempt_id: ' + json.dumps(reservation301['attempt_id']) + ', generation: ' + str(reservation301['generation']) + '}; IO.puts(inspect(Agentboard.Delivery.Polling.commit_observation(reservation, result)))')
+output301 = rpc(expression301)
+assert '{:ok,' in output301, output301
+repair301 = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id='" + pr301 + "'")
+assert sql("SELECT status||','||coalesce(assignee_id,'')||','||assignment_authorized::text FROM tasks WHERE id='" + repair301 + "'") == 'open,,f'
+assert sql("SELECT responsible_id IS NULL AND escalated_at IS NOT NULL FROM delivery_obligations WHERE pull_request_id='" + pr301 + "'") == 't'
+oid301 = sql("SELECT id FROM delivery_obligations WHERE pull_request_id='" + pr301 + "'")
+before301 = sql("SELECT repair_task_id FROM delivery_obligations WHERE id='" + oid301 + "'")
+api('/obligations/' + oid301 + '/responsibility', {'to': 'ci-oos-owner', 'expected_responsible_id': None, 'reason': 'Captain cannot route to outage', 'idempotency_key': 'restricted-oos'}, captain=True, status=409)
+assert sql("SELECT coalesce(responsible_id,'')||','||repair_task_id FROM delivery_obligations WHERE id='" + oid301 + "'") == ',' + before301
+assert sql("SELECT status||','||coalesce(assignee_id,'') FROM tasks WHERE id='" + repair301 + "'") == 'open,'
+api('/obligations/' + oid301 + '/responsibility', {'to': 'ci-reserved-target', 'expected_responsible_id': None, 'reason': 'Captain named assignment', 'idempotency_key': 'restricted-grant'}, captain=True)
+assert sql("SELECT assignee_id||','||assignment_authorized::text||','||status FROM tasks WHERE id='" + repair301 + "'") == 'ci-reserved-target,t,assigned'
+api('/tasks/' + repair301 + '/claim', {}, agent='ci-reserved-target')
+api('/obligations/' + oid301 + '/responsibility', {'to': 'ci-reserved-other', 'expected_responsible_id': 'ci-reserved-target', 'reason': 'Captain reroute', 'idempotency_key': 'restricted-regrant'}, captain=True)
+assert sql("SELECT assignee_id||','||assignment_authorized::text||','||status FROM tasks WHERE id='" + repair301 + "'") == 'ci-reserved-other,t,assigned'
+api('/tasks/' + repair301 + '/claim', {}, agent='ci-reserved-target', status=409)
+api('/tasks/' + repair301 + '/claim', {}, agent='ci-reserved-other')
+print('AVAILABILITY_CI_ROUTING', repair301, flush=True)
+
 api('/workers/ci-peer/resume', {'binding_epoch': 1}, token=host)
 batch = api('/workers/ci-peer/reserve', {'binding_epoch': 1, 'idempotency_key': 'dashboard-uncertain'}, token=host)['batch']
 fences = {key: batch[key] for key in ('binding_epoch', 'dispatch_generation', 'payload_hash')}

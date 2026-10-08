@@ -1,6 +1,6 @@
 defmodule Agentboard.Delivery.Accountability do
   @moduledoc "One unresolved episode per PR; immutable submission provenance, explicit audited responsibility."
-  alias Agentboard.{Repo, Cooperation.Runtime}
+  alias Agentboard.{Availability, Repo, Cooperation.Runtime}
   alias Agentboard.Board.Operations, as: Ops
   alias Agentboard.Delivery.{Obligation, PullRequest, TaskLink}
   alias Agentboard.Board.Resources.Task
@@ -68,6 +68,7 @@ defmodule Agentboard.Delivery.Accountability do
     oid = Ash.UUID.generate()
     task_id = "ci-repair-" <> oid
     source_ids = links |> Enum.map(& &1.task_id) |> Enum.join(", ")
+    Availability.lock_admission()
 
     task =
       Ops.create(
@@ -90,22 +91,34 @@ defmodule Agentboard.Delivery.Accountability do
         @actor
       )
 
-    task =
+    {task, responsible} =
       if owner do
-        Ops.update(
-          task,
-          :assign,
-          %{
-            status: "assigned",
-            assignee_id: owner,
-            assigner_id: "ci-accountability",
-            revision: 2,
-            updated_at: stamp
-          },
-          @actor
-        )
+        try do
+          grant = Availability.admit(task, "assign", @actor, %{"to" => owner})
+
+          assigned =
+            Ops.update(
+              task,
+              :assign,
+              Map.merge(
+                %{
+                  status: "assigned",
+                  assignee_id: owner,
+                  assigner_id: "ci-accountability",
+                  revision: 2,
+                  updated_at: stamp
+                },
+                grant
+              ),
+              @actor
+            )
+
+          {assigned, owner}
+        rescue
+          _ in Agentboard.Board.OperationError -> {task, nil}
+        end
       else
-        task
+        {task, nil}
       end
 
     Ops.project_event(
@@ -133,7 +146,7 @@ defmodule Agentboard.Delivery.Accountability do
           pull_request_id: id,
           episode: episode,
           repair_task_id: task.id,
-          responsible_id: owner,
+          responsible_id: responsible,
           state: "unresolved",
           head_sha: result.head_sha,
           snapshot_id: snapshot_id,
@@ -143,13 +156,13 @@ defmodule Agentboard.Delivery.Accountability do
           reminder_generation: 0,
           window_at: stamp,
           reminders: 0,
-          escalated_at: if(is_nil(owner), do: stamp),
+          escalated_at: if(is_nil(responsible), do: stamp),
           created_at: stamp
         },
         @actor
       )
 
-    capture(obligation, "failure", owner)
+    capture(obligation, "failure", responsible)
     obligation
   end
 
@@ -208,6 +221,7 @@ defmodule Agentboard.Delivery.Accountability do
 
   def responsibility(id, data) do
     Ops.transaction(fn ->
+      Availability.lock_admission()
       initial = Ops.fetch!(Obligation, id, "Obligation not found")
       Ops.lock_task(initial.repair_task_id)
       lock_obligation(id)
@@ -248,19 +262,30 @@ defmodule Agentboard.Delivery.Accountability do
         task = Ops.fetch!(Task, o.repair_task_id, "Repair task missing")
 
         if task.status not in ~w(done cancelled) do
+          grant =
+            Availability.admit(
+              task,
+              "handoff",
+              Map.put(@actor, :availability_admin, true),
+              %{"to" => data["to"]}
+            )
+
           task =
             Ops.update(
               task,
               :handoff,
-              %{
-                status: "assigned",
-                assignee_id: data["to"],
-                assigner_id: "ci-accountability",
-                claimed_at: nil,
-                claim_expires_at: nil,
-                revision: task.revision + 1,
-                updated_at: Ops.now()
-              },
+              Map.merge(
+                %{
+                  status: "assigned",
+                  assignee_id: data["to"],
+                  assigner_id: "ci-accountability",
+                  claimed_at: nil,
+                  claim_expires_at: nil,
+                  revision: task.revision + 1,
+                  updated_at: Ops.now()
+                },
+                grant
+              ),
               @actor
             )
 
