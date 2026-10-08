@@ -34,10 +34,9 @@ Migration from v2: existing seats that already hold leases in the legacy v2 pool
 so it is unaffected. Do not move, prune or reuse those leases with v3. Keep the old
 v2 binary at `~/.local/share/agentboard/tools/treehouse/v2.0.1/treehouse` until
 every v2 lease is returned with that binary's `return PATH`. Launch new seats with
-a v3 root instead. The reference workstation uses
-`/Volumes/Build/agentboard-seats-v3` for Agentboard seats (a new pool; the shared
-`/Volumes/Build` Agentboard v3 pool is full) and `/Volumes/Build` for ServiceRadar
-(the existing v3.1.2 pool its seats already lease with that explicit root).
+an absolute per-repository v3 root (for example `/path/to/agentboard-seats-v3`).
+The maintainers' workstation roots are recorded in
+[reference-farm01.md](../deploy/reference-farm01.md#seat-pool-roots).
 User-level Treehouse hooks may still run; the launcher always checks the resulting
 checkout after acquisition.
 

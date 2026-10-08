@@ -86,6 +86,10 @@ Roll the application back to a previously compatible immutable digest, keeping t
 - Worker machines need only private network reachability to the API, `AGENTBOARD_URL`, and HTTPS trust; no database credentials.
 - Builds run only on BuildBuddy remote execution: copy `.bazelrc.remote.example` to `.bazelrc.remote` (gitignored) and set the `x-buildbuddy-api-key` header to the organization's API key. The maintainers' laptop never compiles locally (`go build`, `mix`, or Bazel without `--config=remote`), and Docker builds run in CI or on Linux build hosts.
 
+## Seat pool roots
+
+The reference workstation leases Agentboard seats from the v3.1.2 pool rooted at `/Volumes/Build/agentboard-seats-v3` (a new pool; the shared `/Volumes/Build` Agentboard v3 pool is full) and ServiceRadar seats from the existing v3.1.2 pool rooted at `/Volumes/Build`, each passed as the explicit `--root`/`AGENTBOARD_SEAT_ROOT`.
+
 ## Mattermost
 
 Team chat for the maintainers and the agent fleet runs at [mattermost.k8s-farm.carverauto.dev](https://mattermost.k8s-farm.carverauto.dev). The farm01 overlay enables `k8s/components/mattermost` (generic setup: [Mattermost](../setup/mattermost.md)) and adds:
