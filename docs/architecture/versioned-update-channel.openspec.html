@@ -1,0 +1,470 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Versioned update channel — OpenSpec</title><style>
+:root{--ink:#172f48;--muted:#5a6572;--canvas:#edf2f8;--paper:#fff;--line:#cfdae6;--accent:#175bb8;--green:#12694c;--soft:#e6edf6;color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+:root[data-theme=dark]{--ink:#e4edf6;--muted:#a4b5c5;--canvas:#152536;--paper:#203246;--line:#3c5268;--accent:#8ebdff;--green:#a2e7ca;--soft:#334b64;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);line-height:1.6}a{color:var(--accent)}header,main,footer{max-width:1120px;margin:auto;padding:24px}header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}h1{font-size:clamp(1.7rem,4vw,2.7rem);line-height:1.12;letter-spacing:-.035em;margin:16px 0}h2,h3,h4,h5{line-height:1.3;scroll-margin-top:24px}p{margin:.6rem 0 1rem}button{font:inherit;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:5px;padding:8px 14px;cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}.eyebrow{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.badge{display:inline-block;padding:3px 9px;border-radius:4px;background:var(--soft);font-size:.8rem}.good{color:var(--green)}.hero{border-left:4px solid var(--accent);background:var(--paper);padding:24px;border-radius:6px}.intro{max-width:78ch;color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:20px 0}.grid>*{min-width:0;overflow-wrap:anywhere}.card{padding:18px;background:var(--paper);border:1px solid var(--line);border-radius:6px}.card h3{margin:4px 0 8px}.card p{font-size:.9rem;margin:0;color:var(--muted)}.pr-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.diagram{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:16px}.diagram svg{display:block;width:100%;height:auto}.diagram svg .c-grid{fill:none;stroke:var(--line);opacity:.25}.diagram svg .a-default{stroke:var(--muted);fill:none;stroke-width:1.5}.diagram svg .m-default,.diagram svg .m-dashed,.diagram svg .m-emphasis,.diagram svg .m-security{fill:var(--muted)}.diagram svg .c-mask{fill:var(--paper)}.diagram svg .c-backend{fill:var(--soft);stroke:var(--accent)}.diagram svg .c-database{fill:var(--soft);stroke:var(--green)}.diagram svg .c-frontend{fill:var(--soft);stroke:var(--accent)}.diagram svg .c-external{fill:var(--canvas);stroke:var(--muted)}.diagram svg .t-primary{fill:var(--ink)}.diagram svg .t-muted{fill:var(--muted)}.diagram svg .semantic-sigil{stroke:var(--muted);fill:none}.diagram svg .sigil-fill{fill:var(--muted)}.caption,.muted{font-size:.86rem;color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0}nav a{padding:6px 11px;border:1px solid var(--line);background:var(--paper);border-radius:4px;text-decoration:none}details{margin:16px 0;border:1px solid var(--line);background:var(--paper);border-radius:6px;min-width:0}summary{padding:16px;cursor:pointer;font-weight:600}.content{padding:0 24px 24px;overflow-wrap:anywhere;min-width:0}.content h3{margin-top:2rem;border-bottom:1px solid var(--line);padding-bottom:.4rem}.content h4{margin-top:1.5rem}.content h5{color:var(--muted);font-size:.9rem}.content li{margin:.45rem 0}.task{list-style:none;margin-left:-1.2rem!important}.table{min-width:0}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:var(--soft)}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;overflow-wrap:anywhere;word-break:break-word;background:var(--soft);padding:1px 3px;border-radius:3px}.mock table{font-size:.85rem}.mock p{margin:0}.footer{font-size:.85rem;color:var(--muted)}@media(max-width:760px){header,main,footer{padding:16px}.grid,.pr-grid{grid-template-columns:minmax(0,1fr)}.hero{padding:18px}.content{padding:0 16px 16px}th,td{padding:6px}.diagram{padding:6px}.mock table{font-size:.72rem}}@media print{button,nav{display:none}details{break-inside:auto}.content{display:block}}
+</style></head><body><header><strong>Agentboard / design review</strong><span class="badge good">Captain policy approved · design only</span><button id="theme">Switch theme</button></header><main><section class="hero"><div class="eyebrow">GH #57 · add-versioned-update-channel</div><h1>Know what changed.<br>Upgrade on your terms.</h1><p class="intro">Versioned CLI and skills, safe explicit updates, and durable opt-in notices. This plan extends #127’s installer and release pipeline into a no-clone bootstrap path. It preserves active tasks, CI follow-up and existing installations.</p><span class="badge">Strict OpenSpec validation passed · 4/4 artifacts</span></section><div class="grid"><article class="card" id="policy-authority"><div class="eyebrow">Approved 01</div><h3>One release authority</h3><p>Immutable, version-pinned GitHub assets. The board caches validated status and visibly retains stale evidence.</p></article><article class="card" id="policy-skills"><div class="eyebrow">Approved 02</div><h3>Skills ship independently</h3><p>Separate tar.gz, SemVer and canonical installed-bundle digest. Offline embedded installation still works.</p></article><article class="card" id="policy-recipients"><div class="eyebrow">Approved 03</div><h3>Opt-in signals</h3><p>Captain summary plus opted-in recent agents. Unknown installs receive no notices; no automatic upgrades or wake hooks.</p></article></div><section class="diagram" id="architecture"><h2>Release authority → durable visibility → explicit action</h2><svg viewBox="0 0 1040 638" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
+        <title id="archify-diagram-title">Versioned update channel — design</title>
+        <desc id="archify-diagram-description">An architecture diagram generated by Archify.</desc>
+        <!-- Definitions -->
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-default" />
+          </marker>
+          <marker id="arrowhead-emphasis" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-emphasis" />
+          </marker>
+          <marker id="arrowhead-security" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-security" />
+          </marker>
+          <marker id="arrowhead-dashed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" class="m-dashed" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" class="c-grid" stroke-width="0.5" />
+          </pattern>
+        </defs>
+
+        <!-- Background Grid -->
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- Boundaries (behind everything) -->
+
+
+        <!-- Connection paths (before components for correct z-order) -->
+        <path data-edge-from="release" data-edge-to="observer" data-edge-label="Validated manifest" data-edge-key="0" data-edge-id="fetch" data-composition-points="220,260;420,260" d="M 220 260 L 420 260" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)" />
+        <path data-edge-from="observer" data-edge-to="state" data-edge-label="Durable snapshot" data-edge-key="1" data-edge-id="commit" data-composition-points="600,260;800,260" d="M 600 260 L 800 260" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)" />
+        <path data-edge-from="cli" data-edge-to="api" data-edge-label="Opt-in installed versions" data-edge-key="2" data-edge-id="report" data-composition-points="240,530;420,530" d="M 240 530 L 420 530" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)" />
+        <path data-edge-from="api" data-edge-to="state" data-edge-label="Ash actions" data-edge-key="3" data-edge-id="query" data-composition-points="510,490;510,395;895,395;895,300" d="M 510 490 L 510 403 Q 510 395 518 395 L 887 395 Q 895 395 895 387 L 895 300" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)" />
+        <path data-edge-from="api" data-edge-to="readers" data-edge-label="Status + notices" data-edge-key="4" data-edge-id="read" data-composition-points="600,530;800,530" d="M 600 530 L 800 530" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)" />
+        <path data-edge-from="release" data-edge-to="cli" data-edge-label="Verified assets" data-edge-key="5" data-edge-id="download" data-composition-points="130,300;130,324;156,324;156,466;140,466;140,490" d="M 130 300 L 130 316 Q 130 324 138 324 L 148 324 Q 156 324 156 332 L 156 458 Q 156 466 148 466 L 148 466 Q 140 466 140 474 L 140 490" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)" />
+
+        <!-- Components -->
+        <g id="node-release" data-node-id="release" data-node-label="Release assets" tabindex="0" role="button" aria-label="Focus Release assets, GitHub immutable authority, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="GitHub immutable authority" data-node-context="Architecture component">
+          <title>Release assets · GitHub immutable authority · Architecture component</title>
+          <rect x="40" y="220" width="180" height="80" rx="6" class="c-mask" />
+          <rect x="40" y="220" width="180" height="80" rx="6" class="c-external" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(46 226) scale(0.6875)">
+            <rect x="2.5" y="5" width="8.5" height="8" rx="1.5" />
+            <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="130" y="258" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Release assets</text>
+        <text data-detail="context" x="130" y="274" class="t-muted" font-size="9" text-anchor="middle">GitHub immutable authority</text>
+        </g>
+
+        <g id="node-observer" data-node-id="observer" data-node-label="AshOban observer" tabindex="0" role="button" aria-label="Focus AshOban observer, Bounded HTTPS fetch, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Bounded HTTPS fetch" data-node-context="Architecture component">
+          <title>AshOban observer · Bounded HTTPS fetch · Architecture component</title>
+          <rect x="420" y="220" width="180" height="80" rx="6" class="c-mask" />
+          <rect x="420" y="220" width="180" height="80" rx="6" class="c-backend" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(426 226) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="510" y="258" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">AshOban observer</text>
+        <text data-detail="context" x="510" y="274" class="t-muted" font-size="9" text-anchor="middle">Bounded HTTPS fetch</text>
+        </g>
+
+        <g id="node-state" data-node-id="state" data-node-label="PostgreSQL" tabindex="0" role="button" aria-label="Focus PostgreSQL, Snapshot + notice receipts, Architecture component" aria-pressed="false" data-node-kind="database" data-node-sublabel="Snapshot + notice receipts" data-node-context="Architecture component">
+          <title>PostgreSQL · Snapshot + notice receipts · Architecture component</title>
+          <rect x="800" y="220" width="190" height="80" rx="6" class="c-mask" />
+          <rect x="800" y="220" width="190" height="80" rx="6" class="c-database" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(806 226) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2" />
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="895" y="258" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">PostgreSQL</text>
+        <text data-detail="context" x="895" y="274" class="t-muted" font-size="9" text-anchor="middle">Snapshot + notice receipts</text>
+        </g>
+
+        <g id="node-cli" data-node-id="cli" data-node-label="CLI + skill installer" tabindex="0" role="button" aria-label="Focus CLI + skill installer, Explicit local upgrades, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="Explicit local upgrades" data-node-context="Architecture component">
+          <title>CLI + skill installer · Explicit local upgrades · Architecture component</title>
+          <rect x="40" y="490" width="200" height="80" rx="6" class="c-mask" />
+          <rect x="40" y="490" width="200" height="80" rx="6" class="c-external" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(46 496) scale(0.6875)">
+            <rect x="2.5" y="5" width="8.5" height="8" rx="1.5" />
+            <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="140" y="528" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">CLI + skill installer</text>
+        <text data-detail="context" x="140" y="544" class="t-muted" font-size="9" text-anchor="middle">Explicit local upgrades</text>
+        </g>
+
+        <g id="node-api" data-node-id="api" data-node-label="Phoenix / Ash API" tabindex="0" role="button" aria-label="Focus Phoenix / Ash API, Reports + update reads, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Reports + update reads" data-node-context="Architecture component">
+          <title>Phoenix / Ash API · Reports + update reads · Architecture component</title>
+          <rect x="420" y="490" width="180" height="80" rx="6" class="c-mask" />
+          <rect x="420" y="490" width="180" height="80" rx="6" class="c-backend" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(426 496) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="510" y="528" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Phoenix / Ash API</text>
+        <text data-detail="context" x="510" y="544" class="t-muted" font-size="9" text-anchor="middle">Reports + update reads</text>
+        </g>
+
+        <g id="node-readers" data-node-id="readers" data-node-label="Dashboard + inbox" tabindex="0" role="button" aria-label="Focus Dashboard + inbox, Actionable version notices, Architecture component" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Actionable version notices" data-node-context="Architecture component">
+          <title>Dashboard + inbox · Actionable version notices · Architecture component</title>
+          <rect x="800" y="490" width="200" height="80" rx="6" class="c-mask" />
+          <rect x="800" y="490" width="200" height="80" rx="6" class="c-frontend" stroke-width="1.5" />
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(806 496) scale(0.6875)">
+            <rect x="2" y="3" width="12" height="10" rx="2" />
+            <path d="M2 6.5h12" />
+            <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill" />
+            <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill" />
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="900" y="528" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Dashboard + inbox</text>
+        <text data-detail="context" x="900" y="544" class="t-muted" font-size="9" text-anchor="middle">Actionable version notices</text>
+        </g>
+
+        <!-- Connection labels -->
+        <g data-detail="context" data-edge-from="release" data-edge-to="observer" data-edge-label="Validated manifest" data-edge-key="0" data-edge-id="fetch">
+          <rect x="271.8" y="240" width="96.39999999999999" height="14" rx="3" class="c-mask" />
+          <text x="320" y="250" class="t-muted" font-size="8" text-anchor="middle">Validated manifest</text>
+        </g>
+        <g data-detail="context" data-edge-from="observer" data-edge-to="state" data-edge-label="Durable snapshot" data-edge-key="1" data-edge-id="commit">
+          <rect x="656.6" y="240" width="86.8" height="14" rx="3" class="c-mask" />
+          <text x="700" y="250" class="t-muted" font-size="8" text-anchor="middle">Durable snapshot</text>
+        </g>
+        <g data-detail="context" data-edge-from="cli" data-edge-to="api" data-edge-label="Opt-in installed versions" data-edge-key="2" data-edge-id="report">
+          <rect x="265" y="510" width="130" height="14" rx="3" class="c-mask" />
+          <text x="330" y="520" class="t-muted" font-size="8" text-anchor="middle">Opt-in installed versions</text>
+        </g>
+        <g data-detail="context" data-edge-from="api" data-edge-to="state" data-edge-label="Ash actions" data-edge-key="3" data-edge-id="query">
+          <rect x="671.1" y="375" width="62.8" height="14" rx="3" class="c-mask" />
+          <text x="702.5" y="385" class="t-muted" font-size="8" text-anchor="middle">Ash actions</text>
+        </g>
+        <g data-detail="context" data-edge-from="api" data-edge-to="readers" data-edge-label="Status + notices" data-edge-key="4" data-edge-id="read">
+          <rect x="656.6" y="510" width="86.8" height="14" rx="3" class="c-mask" />
+          <text x="700" y="520" class="t-muted" font-size="8" text-anchor="middle">Status + notices</text>
+        </g>
+        <g data-detail="context" data-edge-from="release" data-edge-to="cli" data-edge-label="Verified assets" data-edge-key="5" data-edge-id="download">
+          <rect x="102" y="304" width="82" height="14" rx="3" class="c-mask" />
+          <text x="143" y="314" class="t-muted" font-size="8" text-anchor="middle">Verified assets</text>
+        </g>
+
+        <!-- Boundary labels (foreground masks keep routes out of titles) -->
+
+
+        <!-- Legend -->
+        <g data-legend="" data-legend-bridge="">
+          <text x="40" y="602" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="Frontend" data-legend-x="40" data-legend-baseline="622" data-legend-width="83">
+            <rect x="40" y="613" width="16" height="10" rx="2.5" class="c-frontend" stroke-width="1" />
+            <text x="62" y="622" class="t-muted" font-size="10" font-weight="500">Frontend</text>
+          </g>
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Backend" data-legend-x="145" data-legend-baseline="622" data-legend-width="78">
+            <rect x="145" y="613" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1" />
+            <text x="167" y="622" class="t-muted" font-size="10" font-weight="500">Backend</text>
+          </g>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Database" data-legend-x="245" data-legend-baseline="622" data-legend-width="83">
+            <rect x="245" y="613" width="16" height="10" rx="2.5" class="c-database" stroke-width="1" />
+            <text x="267" y="622" class="t-muted" font-size="10" font-weight="500">Database</text>
+          </g>
+          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="External" data-legend-x="350" data-legend-baseline="622" data-legend-width="83">
+            <rect x="350" y="613" width="16" height="10" rx="2.5" class="c-external" stroke-width="1" />
+            <text x="372" y="622" class="t-muted" font-size="10" font-weight="500">External</text>
+          </g>
+        </g>
+      </svg><p class="caption">The SVG is retained from the separately validated Archify source. Top path: job-process fetch and durable snapshots. Bottom path: explicit installation reports through the Phoenix API; no CLI database connection and no singleton query broker.</p></section><section class="mock card" id="dashboard-preview"><div class="eyebrow">Proposed Agentboard summary · illustrative data</div><h2>Drift is visible without guessing</h2><table><thead><tr><th>Installation</th><th>CLI / skills</th><th>Evidence</th><th>Next action</th></tr></thead><tbody><tr><td>Opted-in seat A</td><td>CLI update available<br>Skills current</td><td>Recent self-report<br>Fresh catalog</td><td>Check target, explicitly apply</td></tr><tr><td>Opted-in seat B</td><td>Unknown</td><td>Report older than 7 days</td><td>Check / report; no notice</td></tr><tr><td>Unreported agent</td><td>Unknown</td><td>No installation evidence</td><td>No notification eligibility inferred</td></tr></tbody></table><p class="caption">A reported version does not certify installation attestation, refreshed agent context or completed PR/CI obligations. Existing Kanban layout remains intact.</p></section><section id="handoffs"><h2>Four PRs with their own proof</h2><div class="grid pr-grid"><article class="card"><h3>1 · Catalog</h3><p>Manifest/schema, canonical skill package, publisher attachment. Fake-provider and consumer proofs.</p></article><article class="card"><h3>2 · Local updater</h3><p>Safe transport, read checks, consent, managed writes, report wire contract. CLI/filesystem proofs.</p></article><article class="card"><h3>3 · Board observer</h3><p>Ash resources, fenced AshOban, cached API, bounded notices and dashboard. Packaged races/API proofs.</p></article><article class="card"><h3>4 · Compose bundle</h3><p>All support files, pinned images, fresh-directory fetch. Clean Linux bootstrap proof before advertisement.</p></article></div></section><nav aria-label="Planning sections"><a href="#proposal">Proposal</a><a href="#design">Design</a><a href="#requirements">Requirements</a><a href="#tasks">Tasks</a><a href="#policy">Decision record</a></nav><details id="proposal" open><summary>Proposal — what changes</summary><div class="content"><h2 id="proposal-1">Proposal</h2>
+<h3 id="proposal-2">Why</h3>
+<p>Agents and operators install Agentboard once, then lose visibility into CLI and workflow changes. A versioned update channel will make drift actionable without interrupting active work, and extend the separate installer/release proposal into a deployment path that needs no repository checkout.</p>
+<h3 id="proposal-3">What Changes</h3>
+<ul>
+<li>Publish a bounded, versioned <code>update-manifest.json</code> alongside immutable release assets. Track CLI semver/build identity, independently versioned skills and their canonical content digest, compatibility requirements, checksums, release notes, and an optional complete Compose bundle.</li>
+<li>Add read-only <code>agentboard update check</code> and <code>agentboard skills outdated</code>, with explicit component results and freshness. Add consent-based <code>update apply</code> and <code>skills upgrade</code>, preserving managed-file ownership, offline skill installation, and existing command exit-code conventions.</li>
+<li>Add a dedicated Ash domain, audited resources and AshOban observer for release snapshots, opted-in installation reports and durable notification receipts. Expose cached status through the Phoenix API and dashboard; use the board inbox as the durable agent signal and existing Mattermost delivery only when enabled.</li>
+<li>Package Compose together with every runtime support file, pinned application/database images and a non-secret environment template. Download/stage it explicitly; start services only through the operator&#x27;s subsequent <code>docker compose up</code>.</li>
+<li>Split implementation into four cohesive PRs: manifest contract/packaging; local update commands; Ash observer/API/notifications/dashboard; no-clone Compose distribution and onboarding.</li>
+</ul>
+<p>This PR is <strong>planning only</strong>. It does not implement an updater, change authentication, start jobs, install routines, cut releases, merge or deploy. No breaking change to existing board APIs or offline <code>skills install</code> is proposed. Updates never silently replace utilities, restart agents, alter leases, modify third-party skills/hooks, or roll Kubernetes images.</p>
+<h3 id="proposal-4">Capabilities</h3>
+<h4 id="proposal-5">New Capabilities</h4>
+<ul>
+<li><code>artifact-update-channel</code>: trusted release catalog, independent artifact identities, explicit local update lifecycle, durable drift reporting and bounded notifications, and complete versioned Compose distribution.</li>
+</ul>
+<h4 id="proposal-6">Modified Capabilities</h4>
+<p>None. There are no canonical specs in <code>openspec/specs/</code> at the inspected baseline. The in-flight <code>add-release-pipeline-and-installer</code> change owns <code>release-pipeline</code> and <code>cli-installer</code>; this change consumes its output without rewriting those capabilities or making #127 depend on #57.</p>
+<h3 id="proposal-7">Impact</h3>
+<ul>
+<li>Planning source: <a href="https://github.com/carverauto/agentboard/issues/57">GH #57</a>; prerequisite contract: <a href="https://github.com/carverauto/agentboard/issues/127">GH #127</a> and <code>add-release-pipeline-and-installer</code>.</li>
+<li>Expected implementation areas: <code>.github/workflows/release.yml</code>, <code>scripts/publish-release</code>, <code>build/release/</code>, embedded skills packaging, <code>internal/cli/</code>, <code>internal/client/</code>, new <code>web/lib/agentboard/updates/</code> resources/domain, runtime queue configuration, Phoenix routes/LiveView, Compose packaging, and generic setup/release docs.</li>
+<li>Additive PostgreSQL migrations require a schema ordinal allocated against current main at implementation time; this proposal reserves none. CLI board writes remain API-only; no singleton GenServer broker serializes SQL or provider requests.</li>
+<li>Captain-approved policy (board message 1193, 2026-10-08): GitHub immutable release-attached, version-pinned manifest/assets are authoritative; skills ship separately with semver and the existing canonical bundle digest; captain summary plus opted-in recent agents receive signals, with none for unknown installations. This approves the design policies; runtime implementation remains a separate authorization.</li>
+<li>Review material: <code>docs/architecture/versioned-update-channel.html</code> and a portable Lavish rendering of this change. Maintainer-specific rollout remains separately authorized work.</li>
+</ul></div></details><details id="design"><summary>Design — contracts, boundaries and recovery</summary><div class="content"><h2 id="design-1">Design</h2>
+<h3 id="design-2">Context</h3>
+<p>See <code>proposal.md</code> for the user goal. This design follows the captain&#x27;s three approved policies recorded in <code>policy-review.md</code> and board message 1193. It extends the separately planned #127 release pipeline and installer; neither that change nor its files are modified here.</p>
+<p>Observed on main <code>63c76bc</code>: <code>internal/cli/skills.go</code> installs embedded, rewritten Markdown/reference files into verified content-addressed bundles and changes only owned discovery symlinks. Its digest hashes sorted relative paths and file contents, each followed by a NUL byte. <code>version</code> and release packaging are still pinned to 0.1.0. Compose currently requires build contexts, certificate and initdb files. The Phoenix application already uses pooled Ecto connections, Ash resources/audit, AshOban and PostgreSQL scheduling/receipt records. GitHub provider admission currently depends on the PR-observation flag; reusing that flag as update enablement would couple unrelated features. Agent API tokens have off/observe modes, not enforced authentication.</p>
+<h3 id="design-3">Goals / Non-Goals</h3>
+<p><strong>Goals:</strong> identify installed and available artifacts independently; offer explicit safe updates; retain drift/freshness and notification state through pod restarts; provide complete release-pinned Compose distribution; give implementing agents concrete contracts and failure proofs.</p>
+<p><strong>Non-Goals:</strong> automatic upgrades, running downloaded scripts from a manifest, restarting live agents, altering claims/PR follow-up, replacing other tools or skills, installing harness hooks, maintaining a workstation polling singleton, changing auth enforcement, or automating image/deployment rollouts. Mattermost is a gated projection of a board notice, not the notification authority. NATS/Dgraph are unnecessary for this catalog and receipt data.</p>
+<h3 id="design-4">Decisions</h3>
+<h4 id="design-5">1. Authority, channel resolution and identity</h4>
+<p>GitHub immutable release assets are the sole authority. A release has its own version-pinned <code>update-manifest.json</code>; the board caches its validated normalized meaning and provenance, never authors a competing manifest. The default <code>stable</code> channel selects the highest eligible SemVer release from complete bounded GitHub release enumeration: published, non-draft, non-prerelease, immutable, with tag/commit and required assets validated. No eligible release means <code>unavailable</code>, not “current”. Explicit <code>--version</code> selects an exact release; preview releases are outside v1 channel support. A moved GitHub “latest” marker cannot downgrade an accepted channel. Pin the repository/API origin in trusted operator configuration; remote content cannot choose another repository.</p>
+<p>Manifest v1 is JSON, maximum 256 KiB, duplicate-key rejection, supported major schema only, no unknown executable fields. The release publisher generates it from verified outputs and validates it before publication. <code>generatedAt</code> is informational; database observation time controls freshness. Required fields:</p>
+<div class="table"><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>schemaVersion</code>, <code>channel</code>, <code>generatedAt</code></td><td><code>1</code>, <code>stable</code>, UTC RFC3339</td></tr>
+<tr><td><code>release</code></td><td>repository owner/name, numeric release ID, tag, full source commit, version-pinned notes URL</td></tr>
+<tr><td><code>cli</code></td><td>SemVer, full build commit, minimum compatible updater version, supported board API range, required board schema floor, four platform assets keyed by OS/architecture</td></tr>
+<tr><td>Each CLI asset</td><td>release asset name/ID, HTTPS URL, byte size, archive SHA-256, extracted binary SHA-256; <code>SHA256SUMS</code> agrees</td></tr>
+<tr><td><code>skills</code></td><td>independent SemVer, canonical bundle digest, minimum installer version, archive asset identity/size/SHA-256, exact bundle layout/format version</td></tr>
+<tr><td><code>compose</code></td><td>optional complete-bundle SemVer, archive asset identity/size/SHA-256, supported engine platforms, minimum Compose version, application/database image references by digest, registry-login prerequisites</td></tr>
+</tbody></table></div>
+<p>SemVer is parsed, never compared lexically. Reusing a published artifact version with changed digest/commit is a conflict. A CLI release can reuse unchanged skills version/digest; changed skill payload requires a version bump. Stable publication cannot silently regress a component. Checksums provide byte integrity under the trusted GitHub/HTTPS release origin, not an independent signature against compromised maintainers or release authority. Require GitHub&#x27;s immutable-release indicator; publishing a mutable draft is insufficient for enrollment. Do not claim signatures/attestations are verified in v1. GitHub&#x27;s <a href="https://docs.github.com/en/rest/releases/releases">release API</a> exposes draft/prerelease/immutable status and asset identities; platform fixtures must prove parsing of their actual representation.</p>
+<p>A separate remote mirror or OCI skills service adds another authority and delivery lifecycle, so it is excluded by the approved policy. #127 may continue its pre-manifest install path; adding a manifest must not force old releases or installers to fabricate one.</p>
+<h4 id="design-6">2. Separate skills distribution using the existing ownership contract</h4>
+<p>Package the <strong>post-rewrite installed bundle</strong>, including skill-local fragments and referenced API/quota/participation/context/charter files. Use one canonical bundle producer for embedded installation and release archives so release identity matches <code>skillDigest</code>, rather than hashing raw <code>skills/</code> sources. Archive SHA-256 and canonical tree digest are distinct values and both must match. Metadata is outside the digested payload; the archive contains only declared regular files/directories, no links, devices, absolute paths, traversal, duplicate names, excess entries, or oversized decompressed data. Limits: 8 MiB compressed, 32 MiB extracted, 2,000 files, 128 path segments; fail before writes outside private staging.</p>
+<p><code>skills install</code> remains offline with the embedded bundle. A verified remote <code>skills upgrade</code> stages a new immutable content-addressed bundle, preflights every destination and old bundle, then uses the existing installer lock and per-link atomic replacement. It never overwrites foreign directories/links or edited bundles. Preserve verified prior bundles. A protected local receipt/journal binds version/digest to each selected discovery directory; after interruption it records exactly which owned links advanced. A resumed operation revalidates actual files and completes or restores only matching owned links. Do not promise an atomic switch of all directories: links change individually. No background cleanup removes an old bundle still referenced by any recorded installation.</p>
+<p>An older install with no version receipt is <code>unknown</code> unless its verified digest exactly identifies a catalog payload; a receipt cannot override edited actual bytes. New CLI install does not imply installed skills changed. The human or agent must explicitly re-read changed workflows in its current session; discovering new files does not prove refreshed model context or an installed wake loop.</p>
+<h4 id="design-7">3. Read checks, explicit apply and bounded transports</h4>
+<p>Proposed interfaces:</p>
+<div class="table"><table><thead><tr><th>Command</th><th>Effect</th></tr></thead><tbody>
+<tr><td><code>update check [--version V] [--source board|release] --json</code></td><td>Compare local CLI/skills receipts and actual identities; default board cached view, explicit <code>release</code> reads GitHub when board is unavailable</td></tr>
+<tr><td><code>skills outdated [--dir DIR] --json</code></td><td>Same catalog comparison for the chosen discovery directory; no installation/report mutation</td></tr>
+<tr><td><code>update apply --component cli|skills --version V</code></td><td>Explicit exact-version install; default CLI destination <code>~/.local/bin/agentboard</code>; never implicitly updates both</td></tr>
+<tr><td><code>skills upgrade --version V --dir DIR</code></td><td>Explicit independent skills upgrade through the shared owned-bundle path</td></tr>
+<tr><td><code>update report [--notifications on|off] --json</code></td><td>Explicit API report/enrollment; off cancels pending future agent notices</td></tr>
+<tr><td><code>update compose fetch --version V --dir DIR</code></td><td>Verify and stage a fresh complete Compose directory; does not start or upgrade services</td></tr>
+</tbody></table></div>
+<p>Local checks can read local receipts without an agent ID; board reads use existing transport conventions. <code>--source release</code> needs no board capability and never forwards Agentboard credentials to GitHub. Machine result schema version 1 gives installed/target identities per component, <code>current</code>, <code>update_available</code>, <code>ahead</code>, <code>unknown</code>, <code>incompatible</code>, or <code>conflict</code>, source provenance, observed time, <code>fresh</code>/<code>stale</code>/<code>unavailable</code>, and a next action. “Updates available” is a successful comparison (exit 0), not an error. Existing exit codes remain 2 invalid input/context, 3 missing exact release/asset, 4 ownership/version conflicts, 1 infrastructure/compatibility failure. Stale results can inform the user but do not authorize apply. The board schema floor and API range concern the target CLI; the updater&#x27;s minimum version is checked separately, and an incompatible board is never auto-migrated.</p>
+<p>Apply downloads an exact release manifest anew, validates provenance/compatibility, and shows components, versions, destinations and checksums before consent. Interactive consent comes from the controlling TTY; unattended use needs explicit <code>--confirm</code>, and neither stdin piping nor a read-only check is consent. This updater flag does <strong>not</strong> authorize No-mistakes gates. Downgrades and ambiguous dev builds refuse in v1. CLI replacement requires a verified managed-install receipt shared with #127, actual current-file fingerprint and a writable safe parent. Foreign/package-manager installations get manual instructions; no sudo or package-manager bypass. Stage beside the destination, verify archive and binary hashes/version on the supported execution platform, fsync as appropriate, recheck destination/receipt under a local lock, then atomic rename. Failure before rename preserves the original. Keep a prior verified binary and receipt; rollback is an explicit local recovery action only when board compatibility permits. A running agent process keeps its already-loaded executable; no harness/session restart is attempted.</p>
+<p>All requests have cancellation, capped bytes and deadlines. Initial limits: manifest 256 KiB; CLI archive 64 MiB compressed/128 MiB extracted/8 files; skills above; Compose 8 MiB compressed/32 MiB extracted/2,000 files; 20-second metadata and 120-second download deadlines; at most three redirect hops/retries. Authenticate GitHub metadata only at configured API origin using an operator GitHub credential if configured, never laptop OAuth auto-discovery. Asset redirects are separately allowed only to explicitly configured GitHub download hosts, HTTPS public endpoints, no userinfo/private/loopback/link-local destinations, and no authorization or board identity headers after a host change. Check every redirect and resolved connection destination; an arbitrary manifest URL cannot become an SSRF endpoint. The existing board client rejects redirects and bounds 429 retries; extend via a separate release-download transport rather than relaxing board transport globally. Honor Retry-After and GitHub reset/secondary-limit signals; if delay exceeds the command deadline, return a typed retry time instead of sleeping past it. Errors expose safe status/code, never token/query strings, remote raw bodies or downloaded release notes as executable instructions.</p>
+<h4 id="design-8">4. Ash domain and replica-safe observer</h4>
+<p>Add <code>Agentboard.Updates</code> with AshPostgres resources: channel policy/cursor, immutable release snapshots, attributed installation reports, and notification intents/receipts. Meaningful mutations use AshPaperTrail and AshEvents in the transaction; exclude raw manifests and frequent unchanged report/fetch chatter from audit copies. Report identity: local random installation UUID, declared board agent, CLI version/build/binary digest, verified skills version/digest, selected channel and notification consent. No hostname, absolute path, repo inventory, secrets or arbitrary text payload. One agent can have multiple installs; the dashboard shows each, rather than overwriting one seat&#x27;s facts with another&#x27;s. Reports are self-reported attribution in off/observe auth mode, not trusted software attestation. Use the current principal-mismatch protections when a verified principal exists; #57 never enables auth enforcement or grants report submission new board privileges.</p>
+<p>An independently gated <code>AGENTBOARD_UPDATES_ENABLED=false</code> by default controls a dedicated <code>updates</code> AshOban queue (concurrency 2) and scheduled action. Schedule wakes every minute but PostgreSQL <code>next_poll_at</code> admits one channel fetch per 6 hours with jitter; failures back off up to 24 hours, respecting longer provider retry floors. A short row lock creates a lease + monotonic fence, then commits before network I/O. Success or error is recorded only if the same fence is still current; expired/crashed work is recovered by a later job, and a stale worker cannot replace a newer snapshot. Ordinary SQL and HTTP run in job/request processes through Repo&#x27;s pool, not a query/poll GenServer. Queue concurrency is a bound, not the ownership lock. A temporary provider outage never makes readiness fail or blocks board/CI work.</p>
+<p>Refactor provider admission&#x27;s <strong>enablement input</strong> so update observation can use the same PostgreSQL GitHub credential budget/backoff while PR observation remains off. Do not introduce a competing budget for the same token or unpause existing delivery queues. Allocate only short budget locks; no network under transaction. Fetch/cache ETag per exact representation/origin. A validated 304 refreshes the matching cached object&#x27;s observation time; 304 with no corresponding bytes is incomplete. Malformed/oversized/unsupported manifest, incomplete release enumeration, moved version identity, unauthorized or failed fetch records failure/freshness but preserves last-known-good bytes. Fresh means a fully validated success no more than 24 hours old; older snapshots stay visible as stale. A CLI apply always revalidates the authoritative exact release.</p>
+<h4 id="design-9">5. Reporting API, dashboard and notices</h4>
+<p>New proposed routes: <code>GET /api/v1/updates?channel=stable</code>, <code>POST /api/v1/updates/installations/report</code>, <code>GET /api/v1/updates/installations</code> (captain capability), and a captain-protected update-policy mutation route. GET shows validated latest snapshot/provenance/freshness and no raw remote HTML. Reports support a stable idempotency key and monotonically increasing local sequence; same-key different-body conflicts, delayed reports never overwrite a newer install/consent record. Server observation time defines recency. Repeated identical reports refresh liveness without producing repeated audit/notices. Reuse Phoenix compatibility/auth/rate-limit plugs and input error envelopes; reads/writes remain API-only. Allocate new schema floor at implementation time; older servers return schema_unavailable before these writes and never receive a speculative new route request after incompatible meta.</p>
+<p>Recent means report seen within 7 days. Only a report explicitly enrolled for notices can generate its agent inbox signal. Missing, incompatible or stale target/installation evidence is “unknown”/“stale”, not drift. Captain summary lists available release, count of current/outdated/unknown/ahead/conflicted opted-in reports, supported components and observation/error times. Agent detail shows rows per install with exact next check/apply action and session re-read guidance. Preserve existing theme tokens, Tailwind v4 and Kanban; this is a settings/agent-detail addition, not a board layout redesign.</p>
+<p>Freeze notice intent with recipient, installation, component, target version/digest and generation. Unique database identity yields at most one <strong>board inbox</strong> notice per recipient/component/target identity across installs, replicas and retries; select a bounded recent-install summary for its body. Recheck consent, recency, target and installed mismatch before committing a new notice. Consent-off cancels unsent intents; it cannot erase an already-delivered message. Produce the inbox message and its delivered receipt in one transaction. New target versions are coalesced while pending, and notices are capped at one summary per recipient/day; do not send daily reminders for an unchanged version. Enrolling/reporting after a release triggers the same reconciler, so late reporters are not missed. Offline old seats get no backlog blast on re-enrollment. Captain visibility is always a dashboard summary, not a DM to every captain identity. An optional configured captain inbox recipient gets the same bounded summary policy.</p>
+<p>If existing Mattermost bridge/provisioning is enabled and routing is configured, project the committed notice through its retained outbox and idempotency rules; outage leaves the board message accessible. Do not claim physical exactly-once external chat effects or turn the bridge on. v1 does not wake Herdr panes or install native routines; ordinary agent inbox check-in can discover update notices while retaining PR/CI responsibility.</p>
+<h4 id="design-10">6. Complete no-clone Compose distribution</h4>
+<p>A release may omit <code>compose</code> until a disposable Linux smoke test proves a complete bundle. The bundle includes release-specific <code>compose.yaml</code>, non-secret <code>.env.example</code>, setup README, database certificate/init scripts and every local file referenced by Compose. No <code>build:</code> stanza or source checkout dependency. Application and migration use the same immutable dashboard digest; include a published database image containing the pinned pg_textsearch extension, certificate-generation image and optional CLI/Mattermost image digests. Do not advertise missing/unpullable artifacts. Record image platforms and minimum tested Compose version, rather than assume four CLI platforms imply four container platforms. Initial guaranteed container platform is Linux amd64; unsupported engine platforms refuse with instructions. Optional registry authentication is a documented operator precondition; a public artifact is not a promise of anonymous image access. Never embed registry credentials or require maintainer-only farm01 settings.</p>
+<p>Operator flow: install CLI through #127 → <code>update compose fetch --version V --dir NEW_DIR</code> → inspect/fill <code>.env</code> using documented secret generation and private permissions → optional explicit registry login → <code>docker compose --project-directory NEW_DIR up -d --wait</code> → check health/meta → register/install skills. Manual download/extract of the verified same bundle is also supported. Optional chat remains a profile; update observation is off until explicitly configured. The updater refuses a populated destination, so it cannot overwrite <code>.env</code>, mounts or an existing deployment. Upgrading an existing installation is a reviewed migration/deployment runbook, not this bootstrap command. Never prune volumes on failure or rollback. A source checkout&#x27;s developer Compose can remain separate; avoid altering #127&#x27;s first-install UX while consuming its installed CLI.</p>
+<h3 id="design-11">Risks / Trade-offs</h3>
+<ul>
+<li><strong>Trusted release compromise</strong> → integrity checks do not authenticate a different publisher; explicit origin pins, immutable-release enrollment and no manifest execution reduce the surface. Stronger attestations require a separate proposal.</li>
+<li><strong>Partial local multi-link update</strong> → stage/preflight, per-link journal and guarded recovery; report partial result honestly, retain old bundles.</li>
+<li><strong>Self-reported installation evidence</strong> → label attribution and freshness; no security enforcement or claim disposition depends on it.</li>
+<li><strong>Provider contention</strong> → shared credential budget, six-hour cadence, independent queue/flag; CI observation retains its current gates and proofs.</li>
+<li><strong>Notification noise/late reports</strong> → opt-in only, once per target, daily summary cap, new-report reconciliation; unknown installs receive no notices.</li>
+<li><strong>False no-clone promise</strong> → real bundled support-file validation and clean Linux image-pull/bootstrap proof; no manifest Compose entry until it passes.</li>
+<li><strong>Updater/schema drift</strong> → independent manifest, updater, board API and migration compatibility fields; preserve offline path and explicit operator rollout.</li>
+</ul>
+<h3 id="design-12">Migration Plan</h3>
+<p>Ship the four implementation PRs in <code>tasks.md</code> only after a separate apply authorization. PR1 consumes #127&#x27;s release interfaces; it can add compatible validation/packaging without modifying that proposal. CLI and server work then share its checked schema. Allocate additive schema ordinal against then-current main with coordinator approval; use monotonic schema markers and verify upgrade from an existing board. Default queue/observer off. Enable on a disposable installation, exercise release/report/notice failures, then separately authorize deployment/activation. No captain tag or real release is cut by an implementing worker without explicit permission.</p>
+<p>Rollback disables updates queue/cron admission and preserves snapshots/reports/receipts. Compatible prior app images retain the additive schema marker; do not lower it or delete tables/history. CLI/skills recover only to retained verified compatible versions through explicit local action; existing running harnesses are not restarted. Compose rollback belongs to its deployment runbook and retains data volumes and environment files.</p>
+<h3 id="design-13">Open Questions</h3>
+<p>None blocking. The three material policy decisions are approved. Exact future migration ordinal and immutable image digests are implementation-time allocation/output values, not design choices; they must be verified before their respective PR or release is published.</p></div></details><details id="requirements"><summary>Requirements — externally observable behavior</summary><div class="content"><h2 id="requirements-1">Spec Delta</h2>
+<h3 id="requirements-2">Purpose</h3>
+<p>Give operators and agents trustworthy, actionable visibility into CLI and skill drift, with explicit local upgrades and a complete release-pinned Compose bootstrap path that preserves existing work and data.</p>
+<h3 id="requirements-3">ADDED Requirements</h3>
+<h4 id="requirements-4">Requirement: Release-pinned authoritative catalog</h4>
+<p>The system SHALL consume a supported versioned manifest from the configured GitHub repository&#x27;s immutable published release. The board SHALL expose only validated cached status and provenance. Stable selection SHALL exclude drafts/prereleases and SHALL NOT silently downgrade an accepted component or reinterpret a published version with changed identity.</p>
+<h5 id="requirements-5">Scenario: Published eligible release</h5>
+<ul>
+<li><strong>WHEN</strong> complete bounded release enumeration identifies a higher eligible stable SemVer with matching manifest, source and asset identities</li>
+<li><strong>THEN</strong> the catalog records those verified component identities and exact release provenance</li>
+</ul>
+<h5 id="requirements-6">Scenario: Missing or changed authority</h5>
+<ul>
+<li><strong>WHEN</strong> no eligible release exists, enumeration is incomplete, the release is mutable, or an existing version&#x27;s digest changes</li>
+<li><strong>THEN</strong> the result identifies unavailability/incompleteness/conflict, retains the last validated snapshot and does not advertise a fresh update</li>
+</ul>
+<h4 id="requirements-7">Requirement: Independent artifact identities</h4>
+<p>The manifest SHALL identify CLI SemVer/build/binary and archive digests, independently versioned skills with archive and canonical installed-tree digests, compatibility requirements and supported platforms. Unchanged skills SHALL retain their identity across CLI releases; changed skill payloads SHALL receive a new version. Hash validation SHALL NOT be described as independent publisher authentication.</p>
+<h5 id="requirements-8">Scenario: CLI-only release</h5>
+<ul>
+<li><strong>WHEN</strong> a release advances CLI identity while retaining the installed verified skills version/digest</li>
+<li><strong>THEN</strong> the comparison reports the CLI update separately and reports those skills as current</li>
+</ul>
+<h5 id="requirements-9">Scenario: Distinct skills hashes</h5>
+<ul>
+<li><strong>WHEN</strong> an archive checksum matches but its extracted tree differs from the advertised canonical installed-bundle digest</li>
+<li><strong>THEN</strong> skill installation refuses without changing discovery links</li>
+</ul>
+<h4 id="requirements-10">Requirement: Read-only update checks</h4>
+<p><code>update check</code> and <code>skills outdated</code> SHALL compare actual local identities and receipts with the selected catalog without installation, enrollment or board mutation. Results SHALL expose per-component state, compatibility, source/freshness and next action in human and versioned JSON output. Update availability SHALL return exit 0; existing error-code conventions SHALL remain intact.</p>
+<h5 id="requirements-11">Scenario: Outdated installed component</h5>
+<ul>
+<li><strong>WHEN</strong> a read-only check finds a newer compatible component with fresh validated catalog evidence</li>
+<li><strong>THEN</strong> it reports <code>update_available</code>, installed/target identities and explicit next action, exits successfully and changes no binary, skill link, report or notice</li>
+</ul>
+<h5 id="requirements-12">Scenario: Unknown, ahead or stale install</h5>
+<ul>
+<li><strong>WHEN</strong> an installation lacks provable identity, is newer than the selected target, or catalog evidence is stale/unavailable</li>
+<li><strong>THEN</strong> it reports <code>unknown</code>, <code>ahead</code> or the explicit freshness failure rather than claiming it is current</li>
+</ul>
+<h4 id="requirements-13">Requirement: Explicit compatible local updates</h4>
+<p>Updates SHALL target an exact version and one named component, require controlling-TTY consent or explicit unattended confirmation, and verify provenance/hashes/compatibility before replacing managed content. Declined consent, unsupported platform, incompatible updater/board or downgrade SHALL preserve the original installation. Checks SHALL never imply consent or migrate the board.</p>
+<h5 id="requirements-14">Scenario: Unattended refusal</h5>
+<ul>
+<li><strong>WHEN</strong> <code>update apply</code> has no controlling TTY and no explicit confirmation</li>
+<li><strong>THEN</strong> it refuses before replacing anything and explains how to confirm the exact operation</li>
+</ul>
+<h5 id="requirements-15">Scenario: Compatible CLI update</h5>
+<ul>
+<li><strong>WHEN</strong> the approved exact CLI release is compatible and its archive/binary/version are verified against a managed destination and current fingerprint</li>
+<li><strong>THEN</strong> it atomically replaces that destination, records the installed identity and retains verified recovery material without restarting a harness or changing claims</li>
+</ul>
+<h5 id="requirements-16">Scenario: Compatibility refusal</h5>
+<ul>
+<li><strong>WHEN</strong> the target requires a newer updater, unsupported platform/API range or higher board schema floor</li>
+<li><strong>THEN</strong> apply identifies the unmet requirement and changes no installed component or database schema</li>
+</ul>
+<h4 id="requirements-17">Requirement: Managed skill ownership and interruption recovery</h4>
+<p>Offline embedded <code>skills install</code> SHALL remain available. Remote upgrade SHALL preserve the existing verified bundle/owned-link contract and retain old bundles. Foreign or edited content SHALL cause refusal. Interrupted per-link changes SHALL be recorded truthfully and recovered only after revalidating matching owned destinations; all-directory atomicity SHALL NOT be claimed.</p>
+<h5 id="requirements-18">Scenario: Foreign or edited skills</h5>
+<ul>
+<li><strong>WHEN</strong> a chosen discovery destination is foreign, an old bundle is edited or a link changes during staging</li>
+<li><strong>THEN</strong> upgrade refuses that overwrite, preserves user content and reports the conflict and any already-committed owned-link changes</li>
+</ul>
+<h5 id="requirements-19">Scenario: Interrupted switch</h5>
+<ul>
+<li><strong>WHEN</strong> a process stops after some owned links advance</li>
+<li><strong>THEN</strong> recovery can identify their exact prior/new identities, revalidate them and explicitly complete or restore matching links without overwriting intervening manual changes</li>
+</ul>
+<h5 id="requirements-20">Scenario: Existing agent session</h5>
+<ul>
+<li><strong>WHEN</strong> new skill files have been installed</li>
+<li><strong>THEN</strong> output instructs the agent to re-read the changed workflow and does not claim model context, routines or wake hooks refreshed automatically</li>
+</ul>
+<h4 id="requirements-21">Requirement: Bounded trusted download transport</h4>
+<p>Metadata and downloads SHALL have byte/extraction limits, deadlines, cancellation and bounded retry/redirect handling. Every destination SHALL satisfy configured HTTPS/public-origin rules. Board credentials SHALL never be sent to release hosts; API credentials SHALL NOT follow a cross-host asset redirect. Rate limits SHALL retain provider retry floors within bounded operation time.</p>
+<h5 id="requirements-22">Scenario: Malicious archive or redirect</h5>
+<ul>
+<li><strong>WHEN</strong> a response exceeds limits, resolves to a private endpoint, redirects outside approved hosts, or an archive contains traversal, links, special files or duplicate paths</li>
+<li><strong>THEN</strong> the operation refuses, preserves original installed content and emits a safe typed error without secret/raw-body output</li>
+</ul>
+<h5 id="requirements-23">Scenario: Throttled provider</h5>
+<ul>
+<li><strong>WHEN</strong> a 429 or GitHub secondary limit requests a delay beyond the command&#x27;s deadline</li>
+<li><strong>THEN</strong> the command returns a retry time instead of spinning or silently ignoring the provider floor</li>
+</ul>
+<h4 id="requirements-24">Requirement: Durable independent release observation</h4>
+<p>Board observation SHALL be independently enabled, bounded and durable across replicas/restarts. It SHALL retain last-known-good snapshots on errors, reject stale-worker commits and show fresh/stale/unavailable observation state. Provider outages SHALL NOT block board readiness, CI work or pooled concurrent requests. HTTP SHALL occur outside ownership/budget transactions.</p>
+<h5 id="requirements-25">Scenario: Concurrent or crashed observers</h5>
+<ul>
+<li><strong>WHEN</strong> two replicas race or an admitted observer dies and a later worker recovers its lease</li>
+<li><strong>THEN</strong> only the current fenced observation can commit; old results cannot overwrite newer state and the board continues serving</li>
+</ul>
+<h5 id="requirements-26">Scenario: Observation independent of PR flag</h5>
+<ul>
+<li><strong>WHEN</strong> updates are enabled while PR observation is disabled</li>
+<li><strong>THEN</strong> release observation can proceed under its own gate while sharing the configured GitHub credential budget, and no PR queue is unpaused</li>
+</ul>
+<h5 id="requirements-27">Scenario: Invalid provider response</h5>
+<ul>
+<li><strong>WHEN</strong> fetch is malformed/oversized/unauthorized, or a 304 has no matching validated cached representation</li>
+<li><strong>THEN</strong> error/freshness metadata is recorded, previous valid bytes remain visible and no fresh target or notification is created from the failure</li>
+</ul>
+<h4 id="requirements-28">Requirement: Explicit attributed installation reports</h4>
+<p>Installations SHALL report only through an explicit API operation, with random local installation identity, component identities, channel, report sequence/idempotency key and notification consent. Reports SHALL contain no secrets, host paths or repo inventory. Newer reports SHALL win; identical retries SHALL be idempotent and changed reuse SHALL conflict. Evidence SHALL be labeled self-reported under existing auth policy.</p>
+<h5 id="requirements-29">Scenario: Multiple seats for one agent</h5>
+<ul>
+<li><strong>WHEN</strong> one agent reports two installations with different versions</li>
+<li><strong>THEN</strong> both installations remain distinguishable without one overwriting the other or exposing workstation paths</li>
+</ul>
+<h5 id="requirements-30">Scenario: Delayed or conflicting report</h5>
+<ul>
+<li><strong>WHEN</strong> an old sequence arrives after a newer report or the same idempotency key is reused with changed content</li>
+<li><strong>THEN</strong> it cannot replace newer identity/consent and reports stale sequence or conflict</li>
+</ul>
+<h5 id="requirements-31">Scenario: Verified principal mismatch</h5>
+<ul>
+<li><strong>WHEN</strong> a report&#x27;s declared agent conflicts with the verified principal under the existing principal-mismatch policy</li>
+<li><strong>THEN</strong> the existing guard applies without #57 weakening it or turning on auth enforcement</li>
+</ul>
+<h4 id="requirements-32">Requirement: Opt-in bounded agent signals</h4>
+<p>Captain summary SHALL show catalog freshness and reported drift. Agent notices SHALL require explicit opt-in, recent installation evidence and a valid compatible target mismatch. Unknown installs SHALL receive no notices. The board SHALL durably deduplicate each recipient/component/target identity across installs, retries and replicas, coalesce pending releases and cap summaries at one per recipient/day.</p>
+<h5 id="requirements-33">Scenario: Late report and repeated job</h5>
+<ul>
+<li><strong>WHEN</strong> an opted-in recent report arrives after release discovery and multiple reconciliation attempts process it</li>
+<li><strong>THEN</strong> it produces at most one durable inbox notice for that recipient/component/target identity with a concrete check/apply action</li>
+</ul>
+<h5 id="requirements-34">Scenario: Unknown or withdrawn installation</h5>
+<ul>
+<li><strong>WHEN</strong> no verified report exists, its report is older than seven days, or the recipient turns consent off</li>
+<li><strong>THEN</strong> no new agent notice is sent; unsent withdrawn intents are cancelled and delivered history remains</li>
+</ul>
+<h5 id="requirements-35">Scenario: Mattermost outage or disabled bridge</h5>
+<ul>
+<li><strong>WHEN</strong> chat routing is disabled or Mattermost is unavailable</li>
+<li><strong>THEN</strong> the committed board notice remains accessible, chat failures do not affect core work, and no bridge or Herdr wake adapter is enabled automatically</li>
+</ul>
+<h4 id="requirements-36">Requirement: Honest dashboard status</h4>
+<p>The dashboard SHALL show available/installed component identities, installation recency, catalog/error time, compatibility and unknown/stale/conflict states with actionable next steps. It SHALL preserve the existing Kanban and theme. The summary SHALL NOT infer that every registered agent reported an installation, that skills were re-read, or that CI responsibilities were discharged.</p>
+<h5 id="requirements-37">Scenario: Self-reported stale seat</h5>
+<ul>
+<li><strong>WHEN</strong> a seat has an outdated report and fresh target information</li>
+<li><strong>THEN</strong> its row identifies stale self-reported evidence separately from the available release and suggests a check/report, rather than certifying current installation state</li>
+</ul>
+<h4 id="requirements-38">Requirement: Complete release-pinned Compose bootstrap</h4>
+<p>A manifest SHALL advertise Compose only after the complete bundle has passed disposable Linux bootstrap proof. It SHALL include all referenced local support files, secret-free templates, image digests/platforms and registry-access prerequisites, with no build/source dependency. Fetch SHALL stage into a fresh directory only and SHALL NOT start services, modify an existing <code>.env</code>, migrate a live deployment or prune data.</p>
+<h5 id="requirements-39">Scenario: Clean no-clone installation</h5>
+<ul>
+<li><strong>WHEN</strong> an operator fetches a verified supported-platform bundle, fills its private environment and meets stated registry/Compose prerequisites</li>
+<li><strong>THEN</strong> <code>docker compose up -d --wait</code> can start from that bundle alone, run migration and dashboard from the same image digest, and expose healthy API/meta without cloning source</li>
+</ul>
+<h5 id="requirements-40">Scenario: Existing destination or missing image</h5>
+<ul>
+<li><strong>WHEN</strong> the fetch destination is populated or a required image/platform/support file is unavailable</li>
+<li><strong>THEN</strong> fetch refuses the destination overwrite or the release omits Compose advertisement; no existing environment or volume is altered</li>
+</ul>
+<h4 id="requirements-41">Requirement: Additive compatibility and safe disablement</h4>
+<p>The update channel SHALL preserve prior offline CLI/skill paths and existing API behavior. New board writes SHALL negotiate a separately allocated schema floor before mutation. Disabling or rolling back observation SHALL preserve reports/snapshots/receipts and SHALL NOT lower schema markers, delete history, restart agent sessions or apply Kubernetes rollout changes.</p>
+<h5 id="requirements-42">Scenario: Older board and disablement</h5>
+<ul>
+<li><strong>WHEN</strong> an updater encounters an older board schema or an operator disables update observation</li>
+<li><strong>THEN</strong> unsupported board writes fail safely, compatible offline operations remain available, and retained update history and ordinary task/CI work are preserved</li>
+</ul></div></details><details id="tasks"><summary>Implementation handoffs — four cohesive PRs</summary><div class="content"><h2 id="tasks-1">Tasks</h2>
+<p>Implementation requires a separate apply authorization. The captain approved the three design policies in message1193; this planning PR does not authorize runtime code, release/tag creation or deployment. Keep four cohesive PRs with their own behavior proofs and docs. All compile/test/asset work runs remotely through <code>./scripts/bazel</code>; never build on the maintainer Mac. Claim the assigned card, use one leased Treehouse v3 slot, fetch main, retain pipeline custody, publish via native No-mistakes without <code>--yes</code>, never merge. Publish safe BuildBuddy invocation URLs and selected non-secret results only; no raw BEP/execution/profile logs in evidence or PR artifacts.</p>
+<h3 id="tasks-2">1. PR1 — manifest contract and independent skills packaging</h3>
+<p>Depends on #127&#x27;s delivered stamped platform archives/release interfaces; #127 does not depend on this work. Owner boundary: <code>build/release/</code>, canonical bundle producer, publication manifest attachment. Deliver schema/fixtures as the durable handoff for PR2/PR3; PR4 consumes optional Compose slot.</p>
+<ul>
+<li class="task">☐ 1.1 Add the typed manifest-v1 schema/parser/normalization and stable exact-release selector, including independent versions, binary/archive/tree hashes and compatibility fields; verify remote consumer tests reject duplicate keys, malformed SemVer, changed same-version identity, drafts/mutable/prereleases, incomplete enumeration and component regressions, and accept a CLI-only change with unchanged skills.</li>
+<li class="task">☐ 1.2 Extract the existing installed-bundle producer without changing offline installation output; package post-rewrite skills/reference files with the existing canonical digest and an independently bumped version; verify remote executable installer/package round trips, resolvable emitted Markdown links, unchanged embedded digest parity and edited/foreign-content refusal.</li>
+<li class="task">☐ 1.3 Extend the approved release publisher to generate/validate/attach manifest + skills archive/checksums from verified outputs before immutable publication; preserve #127&#x27;s sole image-tag owner and phase ordering; verify disposable fake-GitHub publisher scenarios, partial publication refusal and no Compose advertisement until its proof exists, without cutting a live tag/release.</li>
+<li class="task">☐ 1.4 Document versions, limits, authority/integrity boundary, stable selection and sample consumed JSON in generic release docs; deliver Archify/source and safe remote proof URLs, and verify schema examples with the real parser plus current-head PR CI before linking the handoff to the board.</li>
+</ul>
+<h3 id="tasks-3">2. PR2 — local checks, consent-based upgrades and explicit reports</h3>
+<p>Depends on PR1 schema/bundle fixtures and #127 managed-install contract. Owner boundary: CLI/local metadata/release transport. Coordinate the report wire schema with PR3 before either publishes; fake API fixtures permit independent remote tests without enabling production.</p>
+<ul>
+<li class="task">☐ 2.1 Add a separate release/download transport with origin/DNS/redirect/credential boundaries, bounded downloads/extraction, cancellation and provider retry floors; verify remote HTTP/archive fixtures for cross-host credential omission, private-address redirects/rebinding, traversal/duplicates/links/devices, oversize/timeouts, 429/secondary limits and safe errors, while existing board transport behavior remains unchanged.</li>
+<li class="task">☐ 2.2 Add <code>update check</code>/<code>skills outdated</code> and versioned JSON comparison states, board-vs-explicit-release source, old-install unknown/dev handling and existing exit codes; verify real command tests assert output and zero installation/report/API write effects, including stale/current/ahead/incompatible/conflict and unchanged skills across CLI updates.</li>
+<li class="task">☐ 2.3 Add exact-component/version CLI apply with explicit TTY/<code>--confirm</code>, compatible managed destination/receipt/fingerprint guards, staged verified binary replacement and retained recovery; verify remote filesystem/TTY command tests refuse unconfirmed, foreign, unsupported, mismatched, interrupted and downgrade cases without losing the previous binary.</li>
+<li class="task">☐ 2.4 Add independent remote skills upgrade through the shared owned-bundle path with protected receipt/journal and interruption recovery; verify real CLI tests cover all-link preflight, per-link failure reporting, intervening edits, retained old bundles, repeat/recovery behavior and continued offline embedded install, without claiming atomicity across directories.</li>
+<li class="task">☐ 2.5 Add explicit <code>update report</code> with stable installation UUID, ordered idempotent reports and notice consent; verify real CLI/fake API tests negotiate meta before unsupported writes, send the agreed bounded schema with current identity/token rules, preserve 429 behavior, and never report implicitly from checks or include host paths/secrets.</li>
+<li class="task">☐ 2.6 Document generic install/check/apply/report/recovery and workflow re-read instructions without automatic hooks/session restarts; deliver Archify and safe remote invocation receipts, then verify current-head CLI acceptance/PR CI and link the PR to its task.</li>
+</ul>
+<h3 id="tasks-4">3. PR3 — Ash observer, cached API, dashboard and opted-in notices</h3>
+<p>Depends on PR1 normalized contract; share report/output fixtures with PR2. Owner boundary: new Updates domain/resources + API/UI + independently gated worker queue; do not enable production flags or change auth enforcement.</p>
+<ul>
+<li class="task">☐ 3.1 Allocate an additive schema ordinal against current main with coordinator approval, add Ash resources/PaperTrail/AshEvents for policy/cursor/snapshot/report/notice state and database constraints, and implement captain policies/current attributed-agent rules; verify packaged PostgreSQL upgrade/backfill tests preserve monotonic schema/history and rollback on failed meaningful audit writes.</li>
+<li class="task">☐ 3.2 Add independently gated AshOban scheduling with due-time admission, short lease/fence transactions, six-hour jitter/backoff and no network under locks; refactor shared GitHub budget enablement without weakening PR gates; verify real multi-process packaged tests cover race, crash recovery, late results, PR-off/update-on, shared budget exhaustion and concurrent board requests during a stalled provider.</li>
+<li class="task">☐ 3.3 Add bounded provider fetch/validated ETag cache and failure/freshness persistence; verify packaged HTTP fixtures preserve good snapshots on unauthorized/invalid/oversized/incomplete/mutable responses, reject orphan304 and version changes, accept matching304 correctly, and keep health/CI queues independent.</li>
+<li class="task">☐ 3.4 Expose the agreed <code>/api/v1/updates</code> catalog/report/captain-installation/policy actions through existing compatible/rate/auth plugs; verify actual public API tests cover two installs/one agent, delayed sequences, exact retries/changed-key conflict, consent withdrawal, unknown input, capability denial, principal-mismatch behavior and unsupported schema before mutation.</li>
+<li class="task">☐ 3.5 Implement once-per-target durable notice reconciliation and transactionally recorded board inbox delivery, including late enrollment, pending-target coalescing, seven-day recency, daily summary cap and consent recheck; verify packaged races/retries/restarts produce one eligible board notice, none for unknown/stale/opt-out reports, and preserve delivered history. Test optional existing Mattermost routing without claiming physical exactly-once chat or enabling its flag.</li>
+<li class="task">☐ 3.6 Add captain summary and per-install agent details using existing Tailwind v4 tokens/Kanban, explicit freshness/self-reported status and check/apply/re-read actions; verify remote LiveView behaviors plus capable-browser light/dark/narrow rendering, no horizontal overflow, and that stale/unknown evidence never displays current. Document queue defaults, routes/audit/compatibility/activation rollback and no-native-wake boundary; deliver Archify and full-head CI evidence with the PR.</li>
+</ul>
+<h3 id="tasks-5">4. PR4 — complete no-clone Compose distribution and onboarding</h3>
+<p>Depends on PR1 optional Compose manifest interface and PR2 download/staging interface. Registry/platform outputs must actually exist; omit advertisement rather than invent digests or anonymous availability. Owner boundary: release Compose bundle/published database-image packaging + CLI fresh-directory fetch + setup docs; preserve #127 publisher/tag ownership.</p>
+<ul>
+<li class="task">☐ 4.1 Package release <code>compose.yaml</code>, every referenced certificate/init script, secret-free template and README, removing build/source dependencies and pinning dashboard/migrate to the same digest plus all database/support/optional-chat images; verify normalized <code>docker compose config</code> from only the extracted bundle and actual image platform/pull metadata in a disposable Linux environment.</li>
+<li class="task">☐ 4.2 Add <code>update compose fetch</code> and manual verified download path into a fresh directory only, recording supported platform/minimum Compose and registry requirements; verify remote command/archive fixtures reject populated/symlinked destinations, incompatible engine, unsafe archive, absent bundle and missing image without touching existing <code>.env</code> or volumes.</li>
+<li class="task">☐ 4.3 Prove bootstrap from a clean disposable Linux host with only the bundle and documented registry prerequisites: explicit secret setup, <code>docker compose up -d --wait</code>, migration/image parity, health/meta/API register, skill install and default-off observation; verify runtime behavior, retain safe evidence and only then attach the Compose manifest entry. No smoke test uses maintainer data or local Mac builds.</li>
+<li class="task">☐ 4.4 Document clone-free and manual flows, supported platforms/auth prerequisites, optional chat, explicit migration/update/rollback and data-volume preservation with generic hostnames; verify commands against the same tested release fixture, ship updated Archify/OpenSpec documentation and current-head CI, and link the final PR/evidence on its assigned board card.</li>
+</ul></div></details><details id="policy"><summary>Captain decision — approved policies and alternatives</summary><div class="content"><h2 id="policy-1">Approved update-channel policy</h2>
+<p>Captain decision delivered in board message 1193 on 2026-10-08 approves all three recommendations below as written. This record preserves the choices and their alternatives. The change remains design-only; it authorizes completion and publication of planning, not runtime implementation.</p>
+<h3 id="policy-2">Approved decisions</h3>
+<p>1. <strong>Manifest authority:</strong> recommend GitHub release-attached, version-pinned manifest/assets. Board API caches validated status; no farm01 static host dependency. Alternative: a separately operated static authority/mirror (adds publishing, retention and trust obligations). 2. <strong>Independent skills:</strong> recommend a release-attached skills tar.gz, its archive SHA-256, independent semver, and the existing canonical installed-bundle digest. Preserve offline embedded <code>skills install</code> and owned-link/conflict handling. Alternative: upgrade embedded skills only by upgrading the CLI (simpler but no independent delivery), or an OCI/API bundle distributor (additional transport/hosting scope). 3. <strong>Recipients:</strong> recommend captain dashboard summary plus board notices for opted-in recent installation reporters; unknown installations remain unknown. Optional existing Mattermost delivery respects its enable flag. Alternative: broadcast to all registered agents (noise and no installed-version evidence), or notify captain only (agents lack actionable check-in reminders).</p>
+<p>The question was recorded in messages 1094/1100; message 1193 is the canonical captain ruling. Complete design/specs/tasks, strict OpenSpec validation, portable Lavish review and native No-mistakes publication. Keep #127 untouched and independently shippable; never merge, cut tags, create releases or roll out under this planning task.</p>
+<h3 id="policy-3">Grounded findings</h3>
+<p>Initial inspection: <code>origin/main</code> at <code>171b44c</code> (including the #127 proposal merged as #135). Resumption fetched and rebased the preserved checkpoint onto <code>63c76bc</code>; the leased Treehouse v3.1.2 slot and original planning work are retained.</p>
+<ul>
+<li><code>internal/cli/skills.go</code>: offline embedded installation, canonical sorted path/NUL/content/NUL SHA-256, verified content-addressed bundles, owned symlinks, preflight conflicts, installation lock. There is no independent remote skills updater.</li>
+<li><code>internal/cli/root.go</code>: version is still constant <code>0.1.0</code>; update commands are absent.</li>
+<li><code>.github/workflows/release.yml</code> and <code>scripts/publish-release</code>: manual draft publication pinned to <code>v0.1.0</code>; #127 separately owns the tag-triggered release/installer replacement.</li>
+<li><code>docker-compose.yml</code>: runtime requires certificate script/initdb files plus application/database build contexts. A standalone Compose YAML cannot satisfy the no-clone path. Complete support-file packaging, published image digests/platform coverage and registry access requirements must be designed.</li>
+<li><code>web/lib/agentboard/application.ex</code>: existing independent AshOban queues and feature gates provide the pattern; no new singleton query/poll broker is needed.</li>
+<li><code>web/lib/agentboard/delivery/github_http.ex</code>: existing bounded read-only provider admission transport rejects redirects and uses a configured GitHub token; release-asset download transport must address GitHub&#x27;s asset redirects separately and must not forward credentials to asset hosts.</li>
+<li><code>add-release-pipeline-and-installer</code>: #127 is independently shippable. #57 must consume its semver/platform assets and ownership/consent contract, without rewriting its planning or making it depend on this work.</li>
+</ul>
+<h3 id="policy-4">Validation completed</h3>
+<p>Archify source <code>docs/architecture/versioned-update-channel.architecture.json</code> delivered atomically to <code>docs/architecture/versioned-update-channel.html</code>: 9/9 showcase checks, zero errors/warnings. Automated browser measurements passed at 1440×900, 1600×1000, 1920×1080 and 2048×1320. Both endpoint themes were separately inspected through their actual screenshots; receipt and screenshots are retained. This proves diagram output, not runtime update behavior.</p>
+<p>These checks describe the original checkpoint only. Final artifact receipts and publication/CI evidence are reported separately after design completion.</p></div></details></main><footer class="footer">Rendered from the proposal, design, delta requirements, tasks and approved policy record. Design source: Agentboard’s existing light/dark tokens from web/assets/app.css. No external assets, runtimes or fonts. No implementation, tag, release, merge or rollout is authorized by this page.</footer><script>const r=document.documentElement;r.dataset.theme=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.getElementById('theme').addEventListener('click',()=>r.dataset.theme=r.dataset.theme==='dark'?'light':'dark');document.querySelectorAll('nav a').forEach(a=>a.addEventListener('click',()=>{document.querySelector(a.getAttribute('href')).open=true;}));</script></body></html>
