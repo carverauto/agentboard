@@ -388,3 +388,11 @@ sh_test(
     size = "large",
     timeout = "long",
 )
+
+sh_test(
+    name = "details_hook_test",
+    srcs = ["details_hook_test.sh"],
+    data = ["details_hook_test.mjs", "//web:assets/app.js", "@worker_node_linux_x64//:bin/node"],
+    args = ["$(rlocationpath //web:assets/app.js)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
+    size = "small",
+)

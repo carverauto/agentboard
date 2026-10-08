@@ -20,7 +20,7 @@ defmodule AgentboardWeb.DecisionPanel do
           <p class="break-all">Gate {r["gate_ref"]} · decision {r["id"]}</p>
           <p>Waiting {AgentboardWeb.RelativeTime.age(r["created_at"])} · lease timestamp {r["claim_expires_at"] || "none"}</p>
           <pre class="whitespace-pre-wrap break-all max-h-80 overflow-auto min-w-0 mt-3">{r["question"]}</pre>
-          <details class="mt-3 min-w-0">
+          <details id={"decision-findings-#{r["id"]}"} phx-hook="CompletedCard" class="mt-3 min-w-0">
             <summary>Verbatim findings</summary>
             <pre class="whitespace-pre-wrap break-all max-h-96 overflow-auto min-w-0">{r["findings"]}</pre>
           </details>
