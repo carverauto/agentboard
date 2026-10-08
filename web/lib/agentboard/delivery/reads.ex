@@ -29,6 +29,7 @@ defmodule Agentboard.Delivery.Reads do
       %{
         prs: Enum.map(selected, &record/1),
         github_budget: budget(),
+        default_branch_health: Agentboard.Delivery.WorkflowMonitor.health(),
         next_cursor: if(length(rows) > 20, do: List.last(selected).id, else: nil)
       }
     end)

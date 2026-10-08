@@ -524,6 +524,8 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Cooperation.Receipt,
              Agentboard.Delivery.Obligation,
              Agentboard.Delivery.BaseWatch,
+             Agentboard.Delivery.WorkflowRun,
+             Agentboard.Delivery.WorkflowHealth,
              Agentboard.Delivery.RebaseFollowUp
            ],
            fun,

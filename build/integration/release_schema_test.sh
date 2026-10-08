@@ -212,10 +212,10 @@ INSERT INTO task_events(task_id,actor_id,model,harness,kind,new_revision) VALUES
 INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html,digest) VALUES ('upgrade-card','upgrade-owner','model','codex','archify','Upgrade diagram','<!doctype html><p>Retained</p>',repeat('d',64));" >/dev/null
 before_duplicate="$(duplicate_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d))")"
 # A pre-existing higher stamp must survive this additive migration as well.
-duplicate_psql 'UPDATE board_schema SET version=25 WHERE id=1' >/dev/null
+duplicate_psql 'UPDATE board_schema SET version=29 WHERE id=1' >/dev/null
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(duplicate_psql 'SELECT version FROM board_schema WHERE id=1')" == 28 ]]
+[[ "$(duplicate_psql 'SELECT version FROM board_schema WHERE id=1')" == 29 ]]
 [[ "$(duplicate_psql 'SELECT count(*) FROM delivery_duplicate_findings')" == 0 ]]
 [[ "$(duplicate_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d))")" == "$before_duplicate" ]]
 echo 'Schema22 upgrade retains task/event/document prefixes, seeds no duplicate findings and raises the aggregate marker while preserving retained evidence.'
