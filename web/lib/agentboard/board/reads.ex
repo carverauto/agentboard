@@ -41,6 +41,21 @@ defmodule Agentboard.Board.Reads do
     end
   end
 
+  def count(resource, filters) do
+    with {:ok, {module, _order, fields}} <- spec(resource),
+         :ok <- validate(filters, fields, resource),
+         {:ok, query} <- filtered(module, filters, fields, resource),
+         {:ok, total} <- Ash.count(Agentboard.Repo.read_query(query), domain: Agentboard.Board) do
+      {:ok, total}
+    else
+      {:error, code, message} -> {:error, code, message}
+      _ -> {:error, "unavailable", "Board database is unavailable"}
+    end
+  rescue
+    DBConnection.ConnectionError -> {:error, "unavailable", "Board database is unavailable"}
+    Postgrex.Error -> {:error, "unavailable", "Board database is unavailable"}
+  end
+
   def page(resource, filters), do: read(resource, filters, false)
   def snapshot(resource, filters), do: read(resource, Map.drop(filters, ~w(limit cursor)), true)
 

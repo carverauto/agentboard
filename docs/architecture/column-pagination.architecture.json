@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Agentboard column pagination",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1180,
+      640
+    ],
+    "repository": {
+      "url": "https://github.com/carverauto/agentboard",
+      "revision": "1cf97599af846676d346c7dc21b7a2a6a7059466"
+    }
+  },
+  "components": [
+    {
+      "id": "kanban-browser",
+      "type": "frontend",
+      "label": "Kanban board",
+      "sublabel": "Prev / Next per lane",
+      "pos": [
+        45,
+        245
+      ],
+      "size": [
+        215,
+        85
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard_web/live/board_live.ex",
+          "label": "Column controls"
+        }
+      ]
+    },
+    {
+      "id": "column-state",
+      "type": "backend",
+      "label": "LiveView page state",
+      "sublabel": "Cursor + history per status",
+      "pos": [
+        460,
+        245
+      ],
+      "size": [
+        245,
+        85
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard_web/live/board_live.ex",
+          "label": "Page events and reload"
+        }
+      ]
+    },
+    {
+      "id": "ash-task-reads",
+      "type": "backend",
+      "label": "Ash task reads",
+      "sublabel": "Filtered count + keyset page",
+      "pos": [
+        895,
+        245
+      ],
+      "size": [
+        240,
+        85
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/board/reads.ex",
+          "label": "Shared filters"
+        }
+      ]
+    },
+    {
+      "id": "filter-reset",
+      "type": "frontend",
+      "label": "Repo / owner filters",
+      "sublabel": "Reset all lane histories",
+      "pos": [
+        460,
+        55
+      ],
+      "size": [
+        245,
+        85
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard_web/live/board_live.ex",
+          "label": "handle_params"
+        }
+      ]
+    },
+    {
+      "id": "refresh-source",
+      "type": "backend",
+      "label": "Push + fallback refresh",
+      "sublabel": "Keep selected page cursors",
+      "pos": [
+        460,
+        455
+      ],
+      "size": [
+        245,
+        85
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard_web/live/board_live.ex",
+          "label": "handle_info"
+        }
+      ]
+    },
+    {
+      "id": "postgres-tasks",
+      "type": "database",
+      "label": "PostgreSQL tasks",
+      "sublabel": "Active / archived predicate",
+      "pos": [
+        895,
+        455
+      ],
+      "size": [
+        240,
+        85
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/board/resources/task.ex",
+          "label": "Ash task resource"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "click-lane",
+      "from": "kanban-browser",
+      "to": "column-state",
+      "label": "LiveView event"
+    },
+    {
+      "id": "page-read",
+      "from": "column-state",
+      "to": "ash-task-reads",
+      "label": "Lane cursor"
+    },
+    {
+      "id": "query-tasks",
+      "from": "ash-task-reads",
+      "to": "postgres-tasks",
+      "label": "Read-only SQL",
+      "labelDy": 24
+    },
+    {
+      "id": "reset-pages",
+      "from": "filter-reset",
+      "to": "column-state",
+      "label": "Reset",
+      "labelDy": 24
+    },
+    {
+      "id": "refresh-page",
+      "from": "refresh-source",
+      "to": "column-state",
+      "label": "Reload"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Independent lanes",
+      "items": [
+        "Prev / Next changes one lane cursor",
+        "Headers show total matching tasks",
+        "Page size remains 20 cards"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Shared read contract",
+      "items": [
+        "Reuse repo, owner, label and archive filters",
+        "Opaque API cursors retain their ordering",
+        "No database singleton or new migration"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Live state",
+      "items": [
+        "Filters reset all cursor histories",
+        "Refresh preserves selected pages",
+        "Failed reads retain the last cards and cursor"
+      ]
+    }
+  ]
+}
