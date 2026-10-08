@@ -16,7 +16,7 @@ on:
       - internal/**
       - skill_bundle.go
       - skills/**
-      - GROK_BOT.md
+      - docs/coordinator/adapters/grok-bot.md
       - docs/api.md
       - docs/quota.md
       - docs/context.md
@@ -47,7 +47,7 @@ on:
       - internal/**
       - skill_bundle.go
       - skills/**
-      - GROK_BOT.md
+      - docs/coordinator/adapters/grok-bot.md
       - docs/api.md
       - docs/quota.md
       - docs/context.md

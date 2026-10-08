@@ -89,10 +89,11 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 			"../../docs/quota.md", "references/quota.md",
 			"../../docs/participation.md", "references/participation.md",
 			"../../docs/context.md", "references/context.md",
+			"../../docs/coordinator/role.md", "https://github.com/carverauto/agentboard/blob/main/docs/coordinator/role.md",
 		).Replace(string(body)))
 		if name == "agentboard-grok" {
-			body = []byte(strings.ReplaceAll(string(body), "../../GROK_BOT.md", "references/GROK_BOT.md"))
-			charter, err := fs.ReadFile(payload.Skills, "GROK_BOT.md")
+			body = []byte(strings.ReplaceAll(string(body), "../../docs/coordinator/adapters/grok-bot.md", "references/GROK_BOT.md"))
+			charter, err := fs.ReadFile(payload.Skills, "docs/coordinator/adapters/grok-bot.md")
 			if err != nil {
 				return result, err
 			}
@@ -100,8 +101,12 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 			// references through the sibling canonical and captain workflows.
 			charterText := string(charter)
 			charterText = strings.ReplaceAll(charterText, "(AGENTS.md)", "(https://github.com/carverauto/agentboard/blob/main/AGENTS.md)")
+			charterText = strings.ReplaceAll(charterText, "(../../../AGENTS.md)", "(https://github.com/carverauto/agentboard/blob/main/AGENTS.md)")
+			charterText = strings.ReplaceAll(charterText, "(../../../docs/quota.md)", "(../../agentboard/references/quota.md)")
+			charterText = strings.ReplaceAll(charterText, "(../../../skills/", "(../../")
 			charterText = strings.ReplaceAll(charterText, "(skills/", "(../../")
 			charterText = strings.ReplaceAll(charterText, "(docs/quota.md)", "(../../agentboard/references/quota.md)")
+			charterText = strings.ReplaceAll(charterText, "(../role.md)", "(https://github.com/carverauto/agentboard/blob/main/docs/coordinator/role.md)")
 			files["skills/"+name+"/references/GROK_BOT.md"] = []byte(charterText)
 		}
 		files["skills/"+name+"/SKILL.md"] = body

@@ -48,4 +48,4 @@ No automatic hooks, lease sweeper, provider routing, merges, or deployments are 
 
 All harnesses inherit the canonical visual delivery rule: feature/design PRs include validated Archify source and HTML; OpenSpec proposals automatically render in Lavish. Upload portable HTML with `agentboard doc push` and link its durable task viewer before completion. See [documentation delivery](documents.md).
 
-The repository [GROK_BOT.md](../GROK_BOT.md) defines the maintainers' Grok assistant role (quota routine and PR follow-up). Its portable copy is included with the Grok skill. [Installer architecture](architecture/global-skills.html) shows the offline bundle and discovery-link boundary.
+The repository [Grok Bot adapter](coordinator/adapters/grok-bot.md) defines the maintainers' Grok assistant role (quota routine and PR follow-up) under the [coordinator role](coordinator/role.md). Its portable copy is included with the Grok skill. [Installer architecture](architecture/global-skills.html) shows the offline bundle and discovery-link boundary.

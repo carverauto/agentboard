@@ -13,4 +13,4 @@ For a Herdr-hosted Grok session, keep `harness=grok` and use `agentboard agent r
 
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.
 
-For the captain assistant or quota-routine role, also read [Grok Bot guidance](../../GROK_BOT.md). It complements the shared ownership workflow; it does not install a routine or make this agent a mandatory coordinator.
+For the captain assistant, quota-routine, or coordinator role, also read [Grok Bot guidance](../../docs/coordinator/adapters/grok-bot.md) and the [coordinator role](../../docs/coordinator/role.md). It complements the shared ownership workflow; it installs no routine — coordination runs through board claims, messages, and captain-approved policy.

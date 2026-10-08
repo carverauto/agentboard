@@ -67,30 +67,11 @@ func TestSkillsInstallOfflineAndRepeat(t *testing.T) {
 			if link != filepath.Join(result.Bundle, "skills", name) {
 				t.Fatalf("skill points outside reported bundle: %s", link)
 			}
-			body, err := os.ReadFile(filepath.Join(dir, name, "SKILL.md"))
-			if err != nil || len(body) == 0 {
-				t.Fatalf("skill not readable: %s: %v", name, err)
-			}
-			// Relative file references are an intentional installed-output contract;
-			// resolve the emitted Markdown links rather than asserting source tokens.
-			text := string(body)
-			for _, fragment := range strings.Split(text, "](")[1:] {
-				link := strings.SplitN(fragment, ")", 2)[0]
-				if strings.HasPrefix(link, "https:") {
-					continue
-				}
-				// A '#fragment' names a heading, not part of the file path.
-				target, anchor, _ := strings.Cut(link, "#")
-				path := filepath.Join(dir, name, "SKILL.md")
-				if target != "" {
-					path = filepath.Join(dir, name, target)
-				}
-				if _, err := os.Stat(path); err != nil {
-					t.Fatalf("broken installed documentation link %s/%s: %v", name, link, err)
-				}
-				if anchor != "" && !markdownHasAnchor(t, path, anchor) {
-					t.Fatalf("broken installed documentation anchor %s/%s: no heading #%s in %s", name, link, anchor, path)
-				}
+			checkInstalledMarkdownLinks(t, dir, name, "SKILL.md")
+			if _, err := os.Stat(filepath.Join(dir, name, "references", "GROK_BOT.md")); err == nil {
+				checkInstalledMarkdownLinks(t, dir, name, filepath.Join("references", "GROK_BOT.md"))
+			} else if !os.IsNotExist(err) {
+				t.Fatal(err)
 			}
 		}
 	}
@@ -141,6 +122,33 @@ func TestSkillsInstallPreservesConflictingOrEditedContent(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func checkInstalledMarkdownLinks(t *testing.T, dir, name, doc string) {
+	t.Helper()
+	host := filepath.Join(dir, name, doc)
+	body, err := os.ReadFile(host)
+	if err != nil || len(body) == 0 {
+		t.Fatalf("skill not readable: %s/%s: %v", name, doc, err)
+	}
+	base := filepath.Dir(host)
+	for _, fragment := range strings.Split(string(body), "](")[1:] {
+		link := strings.SplitN(fragment, ")", 2)[0]
+		if strings.HasPrefix(link, "https:") {
+			continue
+		}
+		target, anchor, _ := strings.Cut(link, "#")
+		path := host
+		if target != "" {
+			path = filepath.Join(base, target)
+		}
+		if _, err := os.Lstat(path); err != nil {
+			t.Fatalf("broken installed documentation link %s/%s: %v", name, link, err)
+		}
+		if anchor != "" && !markdownHasAnchor(t, path, anchor) {
+			t.Fatalf("broken installed documentation anchor %s/%s: no heading #%s in %s", name, link, anchor, path)
+		}
 	}
 }
 
