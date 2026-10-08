@@ -2,12 +2,12 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "Proposed stale-seat recovery",
+    "title": "Disabled stale-seat recovery checkpoint",
     "locale": "en",
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/carverauto/agentboard",
-      "revision": "2c4b70a9bdf5d89e279d98cfcc13278568292810"
+      "revision": "125f269eb9e9bfb5a9d59c93f43ad0285a1819b0"
     },
     "viewBox": [
       1250,
@@ -18,8 +18,8 @@
     {
       "id": "heartbeat",
       "type": "external",
-      "label": "Seat heartbeat",
-      "sublabel": "Known cadence / enrolled seat",
+      "label": "Admission input",
+      "sublabel": "Explicit enrolled snapshot",
       "pos": [
         40,
         310
@@ -30,16 +30,16 @@
       ],
       "sources": [
         {
-          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
-          "label": "Proposed design; not deployed"
+          "path": "web/lib/agentboard/recovery/machine.ex",
+          "label": "Implemented boundary"
         }
       ]
     },
     {
       "id": "policy",
       "type": "security",
-      "label": "Approved policy",
-      "sublabel": "Proposed #154 admission",
+      "label": "Policy snapshot",
+      "sublabel": "Dry-run / #154 blocked",
       "pos": [
         360,
         50
@@ -50,16 +50,16 @@
       ],
       "sources": [
         {
-          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
-          "label": "Proposed design; not deployed"
+          "path": "web/lib/agentboard/recovery.ex",
+          "label": "Implemented boundary"
         }
       ]
     },
     {
       "id": "episode",
       "type": "backend",
-      "label": "Recovery episode",
-      "sublabel": "Proposed bounded detector",
+      "label": "Schema 31 ledger",
+      "sublabel": "Detected episode + audit",
       "pos": [
         360,
         310
@@ -70,16 +70,16 @@
       ],
       "sources": [
         {
-          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
-          "label": "Proposed design; not deployed"
+          "path": "web/lib/agentboard/recovery/episode.ex",
+          "label": "Implemented boundary"
         }
       ]
     },
     {
       "id": "wake",
       "type": "messagebus",
-      "label": "seat.restart",
-      "sublabel": "Proposed #156 reservation",
+      "label": "Restart contract",
+      "sublabel": "#156 delivery blocked",
       "pos": [
         680,
         310
@@ -90,16 +90,16 @@
       ],
       "sources": [
         {
-          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
-          "label": "Proposed design; not deployed"
+          "path": "openspec/changes/automate-stale-seat-recovery/contracts/restart-boundary.json",
+          "label": "Blocked integration contract"
         }
       ]
     },
     {
       "id": "host",
       "type": "backend",
-      "label": "Owned host adapter",
-      "sublabel": "Journal / #141 isolation",
+      "label": "Owned session",
+      "sublabel": "No native restart in this PR",
       "pos": [
         1000,
         310
@@ -110,16 +110,16 @@
       ],
       "sources": [
         {
-          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
-          "label": "Proposed design; not deployed"
+          "path": "openspec/changes/automate-stale-seat-recovery/checkpoint.md",
+          "label": "Blocked integration contract"
         }
       ]
     },
     {
       "id": "restored",
       "type": "backend",
-      "label": "Verified new seat",
-      "sublabel": "Generation + startup proof",
+      "label": "Startup contract",
+      "sublabel": "Reducer proof inputs only",
       "pos": [
         1000,
         540
@@ -130,16 +130,16 @@
       ],
       "sources": [
         {
-          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
-          "label": "Proposed design; not deployed"
+          "path": "web/lib/agentboard/recovery/machine.ex",
+          "label": "Implemented boundary"
         }
       ]
     },
     {
       "id": "ledger",
       "type": "database",
-      "label": "Held work + answers",
-      "sublabel": "Original task / gate / audit",
+      "label": "Retained claims",
+      "sublabel": "Rows and answers preserved",
       "pos": [
         360,
         540
@@ -150,8 +150,8 @@
       ],
       "sources": [
         {
-          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
-          "label": "Proposed design; not deployed"
+          "path": "web/lib/agentboard/decisions.ex",
+          "label": "Implemented boundary"
         }
       ]
     }
@@ -161,13 +161,13 @@
       "id": "detect",
       "from": "heartbeat",
       "to": "episode",
-      "label": "stale age"
+      "label": "preview only"
     },
     {
       "id": "admit",
       "from": "policy",
       "to": "episode",
-      "label": "approved version",
+      "label": "dry-run admission",
       "labelAt": [
         465,
         210
@@ -177,19 +177,19 @@
       "id": "reserve",
       "from": "episode",
       "to": "wake",
-      "label": "reserve once"
+      "label": "future intent"
     },
     {
       "id": "dispatch",
       "from": "wake",
       "to": "host",
-      "label": "HTTPS intent"
+      "label": "future host"
     },
     {
       "id": "verify",
       "from": "host",
       "to": "restored",
-      "label": "startup proof",
+      "label": "future proof",
       "labelAt": [
         1105,
         463
@@ -199,13 +199,13 @@
       "id": "catchup",
       "from": "restored",
       "to": "ledger",
-      "label": "canonical catch-up"
+      "label": "future catch-up"
     },
     {
       "id": "retain",
       "from": "episode",
       "to": "ledger",
-      "label": "audit + retain",
+      "label": "preserve refs",
       "labelAt": [
         465,
         463
@@ -215,18 +215,18 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "Admission stays explicit",
+      "title": "Disabled checkpoint",
       "items": [
-        "Disabled until captain approval and per-host restart proof.",
-        "Active availability and a declared heartbeat cadence are required."
+        "Active persistence is refused; only dry-run capture is available.",
+        "No scheduled detector, host command or production activation."
       ]
     },
     {
       "dot": "emerald",
-      "title": "Recover without replay",
+      "title": "Integration still held",
       "items": [
-        "Preserve WIP, Treehouse lease and native pipeline custody.",
-        "After three failures: one escalation, with claims and decisions held."
+        "Real #154 policy, #155 transport and #156 host intents are blocked.",
+        "Kill/restart and original native gate proof remain follow-ups."
       ]
     }
   ]
