@@ -124,3 +124,12 @@ pass alone does not prove native wake/receipt behavior or production readiness.
 The approved design is retained under
 `openspec/changes/add-codex-worker-adapter/`; its proposal review and architecture
 HTML are in `docs/architecture/`. Production activation remains a separate gate.
+
+The implementation diagram is
+[`codex-worker-implementation.html`](architecture/codex-worker-implementation.html);
+the proposal diagram remains historical review evidence. See the change's
+`implementation.md` for completed proof and remaining delivery gates. A
+disposable installed-model exercise passed with Codex 0.160.1, its default
+model and existing login against a synthetic scoped API. It exercised actual
+check-in and exact received/handled tools without live enrollment or production
+delivery; its owned processes, profile and temporary state were cleaned up.
