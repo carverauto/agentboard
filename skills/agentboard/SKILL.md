@@ -47,7 +47,7 @@ agentboard agent heartbeat --status busy --task TASK --json
 agentboard task update TASK --body 'A concrete finding or progress change' --json
 ```
 
-Heartbeat is liveness only; it never renews the lease. Before an owner-only update or resuming work, read the task and confirm the unexpired claim still belongs to this ID. Use `--revision N` when guarding a change against the version just read. If ownership changed or expired, stop owner-only board updates and resolve that state before continuing external work. The board cannot fence files, Git repositories, or infrastructure.
+Heartbeat is liveness only; it never renews the lease. While busy, heartbeat at least every 5 minutes (`agentboard agent heartbeat --status busy --task TASK --every 5m`, or an equivalent heartbeat on your own calls) so the roster never shows a working seat as Stale. Before an owner-only update or resuming work, read the task and confirm the unexpired claim still belongs to this ID. Use `--revision N` when guarding a change against the version just read. If ownership changed or expired, stop owner-only board updates and resolve that state before continuing external work. The board cannot fence files, Git repositories, or infrastructure.
 
 Use status changes for real lifecycle progress: in_progress can become blocked/review/done/cancelled; blocked can become in_progress/review/cancelled; review can become in_progress/blocked/done/cancelled. Blocked needs a reason. Done/cancelled are immutable and retain history.
 

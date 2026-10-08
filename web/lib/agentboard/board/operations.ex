@@ -2,6 +2,7 @@ defmodule Agentboard.Board.Operations do
   @moduledoc "Transactional Ash writes; SQL handles scoped locks, the clock and the compatible append-only timeline projection."
   alias Agentboard.{Input, Repo}
   alias Agentboard.Board.Resources.{Agent, Task, TaskEvent, Message}
+  alias Agentboard.Decisions.Request
   require Ash.Query
   require Ash.Expr
 
@@ -31,6 +32,13 @@ defmodule Agentboard.Board.Operations do
                %Agent{harness: harness} = agent ->
                  if harness != actor["harness"],
                    do: reject("conflict", "That agent ID belongs to another harness")
+
+                 if agent.retired_at != nil,
+                   do:
+                     reject(
+                       "conflict",
+                       "That identity is retired; restore it before re-registering"
+                     )
 
                  attrs = Map.merge(data, %{"model" => actor["model"], "updated_at" => now})
                  %{"agent" => public(update(agent, :register, attrs, actor))}
@@ -92,6 +100,107 @@ defmodule Agentboard.Board.Operations do
     else
       false -> {:error, "invalid_input", "Invalid heartbeat fields or caller"}
       error -> error
+    end
+  end
+
+  def retire(id, actor, data) do
+    with {:ok, actor} <- Input.actor(actor),
+         true <- actor[:availability_admin] == true,
+         true <- Input.slug?(id) and is_map(data),
+         {:ok, reason} <- retire_reason(data) do
+      case transaction(fn ->
+             lock_agent(id)
+             agent = fetch!(Agent, id, "Agent is not registered")
+             stamp = now()
+
+             cond do
+               agent.retired_at != nil ->
+                 %{"agent" => public(agent)}
+
+               retirement_blocked?(id, stamp) and data["force"] != true ->
+                 reject(
+                   "conflict",
+                   "Identity holds a live claim or open decision; use force with a reason"
+                 )
+
+               true ->
+                 attrs = %{
+                   retired_at: stamp,
+                   retired_by: actor["agent"],
+                   retire_reason: reason
+                 }
+
+                 %{"agent" => public(update(agent, :retire, attrs, actor))}
+             end
+           end) do
+        {:ok, _} = ok ->
+          Agentboard.Mattermost.ElasticBots.retire(id)
+          ok
+
+        error ->
+          error
+      end
+    else
+      false -> {:error, "invalid_input", "Invalid retire request or caller"}
+      error -> error
+    end
+  end
+
+  def restore(id, actor, data) do
+    with {:ok, actor} <- Input.actor(actor),
+         true <- actor[:availability_admin] == true,
+         true <- Input.slug?(id) and is_map(data) and Enum.all?(data, &match?({_, _}, &1)) do
+      case transaction(fn ->
+             lock_agent(id)
+             agent = fetch!(Agent, id, "Agent is not registered")
+
+             if agent.retired_at == nil do
+               %{"agent" => public(agent)}
+             else
+               attrs = %{retired_at: nil, retired_by: nil, retire_reason: nil}
+               %{"agent" => public(update(agent, :restore, attrs, actor))}
+             end
+           end) do
+        {:ok, _} = ok -> ok
+        error -> error
+      end
+    else
+      false -> {:error, "invalid_input", "Invalid restore request or caller"}
+      error -> error
+    end
+  end
+
+  defp retire_reason(data) do
+    if Enum.all?(data, fn
+         {"reason", value} -> is_binary(value) and String.trim(value) != ""
+         {"force", value} -> is_boolean(value)
+         _ -> false
+       end) do
+      {:ok, String.trim(data["reason"])}
+    else
+      {:error, "invalid_input", "Retire requires a reason"}
+    end
+  end
+
+  defp retirement_blocked?(agent_id, now) do
+    with {:ok, tasks} <-
+           Task
+           |> Ash.Query.filter(
+             assignee_id == ^agent_id and not is_nil(claim_expires_at) and
+               claim_expires_at > ^now
+           )
+           |> Ash.Query.limit(1)
+           |> Ash.read(),
+         {:ok, decisions} <-
+           Request
+           |> Ash.Query.filter(
+             requester_id == ^agent_id and (status == "open" or status == "answered")
+           )
+           |> Ash.Query.limit(1)
+           |> Ash.read() do
+      tasks != [] or decisions != []
+    else
+      _ -> true
     end
   end
 

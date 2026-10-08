@@ -5,19 +5,25 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
 func (c *commands) heartbeat() *cobra.Command {
 	status, task, backend := "", "", ""
+	var every time.Duration
 	cmd := &cobra.Command{Use: "heartbeat", Short: "Report busy/idle and owned current task without renewing a lease", Args: cobra.NoArgs}
 	cmd.Flags().StringVar(&status, "status", "", "busy or idle (required)")
 	cmd.Flags().StringVar(&task, "task", "", "Owned current task; omitted clears it")
 	cmd.Flags().StringVar(&backend, "backend", "", "Optional current backend")
+	cmd.Flags().DurationVar(&every, "every", 0, "Repeat the heartbeat on this cadence until interrupted (e.g. 5m)")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if status != "busy" && status != "idle" {
 			return errors.New("--status must be busy or idle")
+		}
+		if every < 0 {
+			return errors.New("--every must be a positive duration")
 		}
 		data := map[string]any{"status": status}
 		if task != "" {
@@ -26,7 +32,27 @@ func (c *commands) heartbeat() *cobra.Command {
 		if backend != "" {
 			data["backend"] = backend
 		}
-		return c.request(cmd, http.MethodPost, "agents/"+c.cfg.Actor.ID+"/heartbeat", nil, data)
+		beat := func() error {
+			return c.request(cmd, http.MethodPost, "agents/"+c.cfg.Actor.ID+"/heartbeat", nil, data)
+		}
+		if err := beat(); err != nil {
+			return err
+		}
+		if every == 0 {
+			return nil
+		}
+		ticker := time.NewTicker(every)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-cmd.Context().Done():
+				return nil
+			case <-ticker.C:
+				if err := beat(); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	return cmd
 }

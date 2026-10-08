@@ -35,13 +35,22 @@ defmodule Agentboard.Board.Resources.Agent do
         :host,
         :capabilities,
         :metadata,
+        :kind,
         :created_at,
         :updated_at
       ])
     end
 
     update :register do
-      accept([:name, :model, :host, :capabilities, :metadata, :updated_at])
+      accept([:name, :model, :host, :capabilities, :metadata, :kind, :updated_at])
+    end
+
+    update :retire do
+      accept([:retired_at, :retired_by, :retire_reason])
+    end
+
+    update :restore do
+      accept([:retired_at, :retired_by, :retire_reason])
     end
 
     update :heartbeat do
@@ -118,6 +127,27 @@ defmodule Agentboard.Board.Resources.Agent do
     end
 
     attribute :current_task_id, :string do
+      constraints(trim?: false, allow_empty?: true)
+      public?(true)
+    end
+
+    attribute :kind, :string do
+      constraints(trim?: false, allow_empty?: true)
+      public?(true)
+      allow_nil?(false)
+      default("seat")
+    end
+
+    attribute :retired_at, :utc_datetime_usec do
+      public?(true)
+    end
+
+    attribute :retired_by, :string do
+      constraints(trim?: false, allow_empty?: true)
+      public?(true)
+    end
+
+    attribute :retire_reason, :string do
       constraints(trim?: false, allow_empty?: true)
       public?(true)
     end

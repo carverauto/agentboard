@@ -21,6 +21,8 @@ defmodule Agentboard.Board do
   # Public domain boundary; mutations use real Ash writes and transactional audit hooks.
   def register(actor, data), do: Agentboard.Board.Operations.register(actor, data)
   def heartbeat(id, actor, data), do: Agentboard.Board.Operations.heartbeat(id, actor, data)
+  def retire(id, actor, data), do: Agentboard.Board.Operations.retire(id, actor, data)
+  def restore(id, actor, data), do: Agentboard.Board.Operations.restore(id, actor, data)
 
   def mutate(id, action, actor, data),
     do: Agentboard.Board.Operations.mutate(id, action, actor, data)
