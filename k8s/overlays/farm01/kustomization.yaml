@@ -47,7 +47,11 @@ configMapGenerator:
       - AGENTBOARD_COOPERATION_ENABLED=true
       # Captain-approved serviceradar required checks (identities from provider
       # evidence on PR 5516 head); skipped accepted for path-filtered checks.
-      - 'AGENTBOARD_CI_POLICIES={"carverauto/serviceradar":{"tested_ref":"head","required":["status:BazelCI","check:15368:lint","check:15368:gitleaks","check:46505:GitGuardian Security Checks","status:license/cla"],"accepted_conclusions":["success","skipped"]}}'
+      # Captain-approved 2026-10-07: carverauto/agentboard added (identities from
+      # provider evidence on PR 121 head 4ff4929). lint/compose-smoke are
+      # workflow-path-filtered, so docs/k8s-only PRs stay policy_unknown (fail
+      # closed). Roll back by removing the carverauto/agentboard entry.
+      - 'AGENTBOARD_CI_POLICIES={"carverauto/serviceradar":{"tested_ref":"head","required":["status:BazelCI","check:15368:lint","check:15368:gitleaks","check:46505:GitGuardian Security Checks","status:license/cla"],"accepted_conclusions":["success","skipped"]},"carverauto/agentboard":{"tested_ref":"head","required":["check:15368:lint","check:15368:compose-smoke","check:46505:GitGuardian Security Checks"],"accepted_conclusions":["success","skipped"]}}'
       # Captain-approved 2026-10-07: outbound bridge on (TLS fix 7dfd031).
       - AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=true
       - AGENTBOARD_MATTERMOST_BASE_URL=https://mattermost.k8s-farm.carverauto.dev
