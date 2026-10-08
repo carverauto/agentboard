@@ -81,5 +81,9 @@ if len(digest) != 1:
         {'digest': digest, 'gen': gen,
          'all_messages': sql("SELECT recipient_id || '/' || coalesce(task_id,'-') FROM messages ORDER BY id"),
          'digest_events': sql("SELECT count(*) FROM cooperation_events WHERE kind='ci_digest'")}))
+detail = api('/prs/' + pr, agent='inbox-owner')
+modes = {(d['task_id'], d['kind']): d['mode'] for d in detail.get('follow_up_delivery', [])}
+if modes.get((repair, 'ci_failure')) != 'inbox_fallback':
+    failures.append(('prs detail missing inbox_fallback mode', modes))
 assert not failures, failures
 print('Zero-worker CI failure/replay/reminder inbox proof passed', flush=True)
