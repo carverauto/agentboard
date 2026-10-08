@@ -2,6 +2,7 @@ defmodule Agentboard.Board.Operations do
   @moduledoc "Transactional Ash writes; SQL handles scoped locks, the clock and the compatible append-only timeline projection."
   alias Agentboard.{Input, Repo}
   alias Agentboard.Board.Resources.{Agent, Task, TaskEvent, Message}
+  alias Agentboard.Decisions.Request
   require Ash.Query
   require Ash.Expr
 
@@ -32,7 +33,26 @@ defmodule Agentboard.Board.Operations do
                  if harness != actor["harness"],
                    do: reject("conflict", "That agent ID belongs to another harness")
 
-                 attrs = Map.merge(data, %{"model" => actor["model"], "updated_at" => now})
+                 if agent.retired_at != nil,
+                   do:
+                     reject(
+                       "conflict",
+                       "That identity is retired; restore it before re-registering"
+                     )
+
+                 if Map.has_key?(data, "kind") and data["kind"] != agent.kind,
+                   do:
+                     reject(
+                       "invalid_input",
+                       "Identity kind is set at registration"
+                     )
+
+                 attrs =
+                   Map.merge(Map.delete(data, "kind"), %{
+                     "model" => actor["model"],
+                     "updated_at" => now
+                   })
+
                  %{"agent" => public(update(agent, :register, attrs, actor))}
              end
            end) do
@@ -95,6 +115,121 @@ defmodule Agentboard.Board.Operations do
     end
   end
 
+  def retire(id, actor, data) do
+    with {:ok, actor} <- Input.actor(actor),
+         true <- actor[:availability_admin] == true,
+         true <- Input.slug?(id) and is_map(data),
+         {:ok, reason} <- retire_reason(data) do
+      case transaction(fn ->
+             lock_agent(id)
+             agent = fetch!(Agent, id, "Agent is not registered")
+             stamp = now()
+
+             cond do
+               agent.retired_at != nil ->
+                 %{"agent" => public(agent)}
+
+               retirement_blocked?(id, stamp) and data["force"] != true ->
+                 reject(
+                   "conflict",
+                   "Identity holds a live claim or open decision; use force with a reason"
+                 )
+
+               true ->
+                 attrs = %{
+                   retired_at: stamp,
+                   retired_by: actor["agent"],
+                   retire_reason: reason,
+                   retire_forced: data["force"] == true
+                 }
+
+                 %{"agent" => public(update(agent, :retire, attrs, actor))}
+             end
+           end) do
+        {:ok, _} = ok ->
+          Agentboard.Mattermost.ElasticBots.retire(id)
+          ok
+
+        error ->
+          error
+      end
+    else
+      false -> {:error, "invalid_input", "Invalid retire request or caller"}
+      error -> error
+    end
+  end
+
+  def restore(id, actor, data) do
+    with {:ok, actor} <- Input.actor(actor),
+         true <- actor[:availability_admin] == true,
+         true <- Input.slug?(id) and data == %{} do
+      case transaction(fn ->
+             lock_agent(id)
+             agent = fetch!(Agent, id, "Agent is not registered")
+
+             if agent.retired_at == nil do
+               {%{"agent" => public(agent)}, false}
+             else
+               attrs = %{
+                 retired_at: nil,
+                 retired_by: nil,
+                 retire_reason: nil,
+                 retire_forced: false
+               }
+               {%{"agent" => public(update(agent, :restore, attrs, actor))}, true}
+             end
+           end) do
+        {:ok, {result, true}} ->
+          Agentboard.Mattermost.ElasticBots.ensure(id)
+          {:ok, result}
+
+        {:ok, {result, false}} ->
+          {:ok, result}
+
+        error ->
+          error
+      end
+    else
+      false -> {:error, "invalid_input", "Invalid restore request or caller"}
+      error -> error
+    end
+  end
+
+  defp retire_reason(data) do
+    if is_binary(data["reason"]) and String.trim(data["reason"]) != "" and
+         Enum.all?(data, fn
+           {"reason", value} -> is_binary(value) and String.trim(value) != ""
+           {"force", value} -> is_boolean(value)
+           _ -> false
+         end) do
+      {:ok, String.trim(data["reason"])}
+    else
+      {:error, "invalid_input", "Retire requires a reason"}
+    end
+  end
+
+  defp retirement_blocked?(agent_id, now) do
+    with {:ok, tasks} <-
+           Task
+           |> Ash.Query.filter(
+             assignee_id == ^agent_id and not is_nil(claim_expires_at) and
+               claim_expires_at > ^now
+           )
+           |> Ash.Query.limit(1)
+           |> Ash.read(),
+         {:ok, decisions} <-
+           Request
+           |> Ash.Query.filter(
+             requester_id == ^agent_id and (status == "open" or status == "answered")
+           )
+           |> Ash.Query.limit(1)
+           |> Ash.read() do
+      tasks != [] or decisions != []
+    else
+      _ -> true
+    end
+  end
+
   def mutate(id, action, actor, data) do
     with {:ok, actor} <- Input.actor(actor),
          :ok <- Input.task(action, data),
@@ -129,8 +264,13 @@ defmodule Agentboard.Board.Operations do
           attrs =
             Agentboard.Board.Transition.attributes(task, action, actor["agent"], data, stamp)
 
-          if action in ~w(assign handoff),
-            do: fetch!(Agent, data["to"], "Assignment target must be registered", "invalid_input")
+          if action in ~w(assign handoff) do
+            target =
+              fetch!(Agent, data["to"], "Assignment target must be registered", "invalid_input")
+
+            if target.retired_at != nil,
+              do: reject("conflict", "Retired identity cannot receive new work")
+          end
 
           attrs = Map.merge(attrs, Agentboard.Availability.admit(task, action, actor, data))
           changed = update(task, action_name(action), attrs, actor, task.revision)
@@ -333,10 +473,13 @@ defmodule Agentboard.Board.Operations do
     if data["kind"] == "task_order" do
       Agentboard.Availability.lock_admission()
 
-      unless Input.slug?(data["to"]) and
-               Agentboard.Availability.active?(
-                 Agentboard.Availability.admission_agent(data["to"])
-               ),
+      recipient =
+        if Input.slug?(data["to"]),
+          do: Agentboard.Availability.admission_agent(data["to"]),
+          else: nil
+
+      unless recipient && is_nil(recipient.retired_at) &&
+               Agentboard.Availability.active?(recipient),
              do: reject("conflict", "Task-order routing requires an active named recipient")
     end
 

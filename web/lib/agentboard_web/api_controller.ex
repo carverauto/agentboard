@@ -60,6 +60,12 @@ defmodule AgentboardWeb.APIController do
   def heartbeat(conn, %{"id" => id}),
     do: reply(conn, Board.heartbeat(id, actor(conn), conn.body_params))
 
+  def retire(conn, %{"id" => id}),
+    do: reply(conn, Board.retire(id, privileged_actor(conn), conn.body_params))
+
+  def restore(conn, %{"id" => id}),
+    do: reply(conn, Board.restore(id, privileged_actor(conn), conn.body_params))
+
   def send_message(conn, _), do: reply(conn, Board.message(nil, actor(conn), conn.body_params))
 
   def read_message(conn, %{"id" => id}) do

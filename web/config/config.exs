@@ -26,6 +26,8 @@ config :agentboard, :rate_limits,
   watch_agent: 5,
   max_watches: 1_000
 
+config :agentboard, :roster, stale_after: "20m"
+
 config :agentboard, AgentboardWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   url: [host: "localhost"],

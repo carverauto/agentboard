@@ -85,6 +85,9 @@ func TestFeatureCommandsRequireCompatibleServer(t *testing.T) {
 			{20, []string{"decision", "answer", "00000000-0000-4000-8000-000000000001", "--answer", "Approved"}},
 			{20, []string{"decision", "ack", "00000000-0000-4000-8000-000000000001"}},
 			{20, []string{"agent", "list", "--waiting", "true"}},
+			{31, []string{"agent", "retire", "worker-a", "--reason", "fixture cleanup"}},
+			{31, []string{"agent", "restore", "worker-a"}},
+			{31, []string{"agent", "register", "--kind", "human"}},
 		} {
 			version, _ := strconv.Atoi(schema)
 			if version >= feature.minimum {
