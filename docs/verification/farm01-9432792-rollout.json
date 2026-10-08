@@ -1,0 +1,115 @@
+{
+  "verified_at": "2026-10-08T00:12:00Z",
+  "commit": "9432792a57019ae9d3aa6245cda229044adc7ab4",
+  "source_prs": [
+    "https://github.com/carverauto/agentboard/pull/87",
+    "https://github.com/carverauto/agentboard/pull/85"
+  ],
+  "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37704796955",
+  "docker_workflow": "https://github.com/carverauto/agentboard/actions/runs/37704796888",
+  "rollout_operator": "grok-serviceradar-oss",
+  "image": "registry.carverauto.dev/agentboard/dashboard@sha256:76af4541a0598501d210b1d37d12b97c2a2d161ed68bddbd24d3e1e096f566a3",
+  "cli_image": "registry.carverauto.dev/agentboard/cli@sha256:4a5668f81e0839a8c3fab81c3235110d87d65ed44d2ccc57806112297ee0b05e",
+  "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:2285d2159d2b78f3e1357220fcf5d1e962daca78e3967b043b8ad114b598b01a",
+  "migration": {
+    "job": "agentboard-migrate-9432792",
+    "started_at": "2026-10-08T00:10:10Z",
+    "completed_at": "2026-10-08T00:10:19Z",
+    "succeeded": true,
+    "migrations": [
+      "20261007000600_mattermost_conversations",
+      "20261007000601_mattermost_outbox_index"
+    ],
+    "literal_env_overrides": {
+      "PHX_SERVER": "false",
+      "AGENTBOARD_PR_DISCOVERY_ENABLED": "false",
+      "AGENTBOARD_PR_OBSERVATION_ENABLED": "false",
+      "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "false",
+      "AGENTBOARD_COOPERATION_ENABLED": "false"
+    },
+    "completed_before_dashboard_started": true
+  },
+  "schema": {
+    "before": 11,
+    "after": 12,
+    "api_version": 1,
+    "required_schema_version": 12
+  },
+  "dashboard": {
+    "pod": "agentboard-dashboard-6f8d8d894-zrnds",
+    "started_at": "2026-10-08T00:10:23Z",
+    "image_id": "registry.carverauto.dev/agentboard/dashboard@sha256:76af4541a0598501d210b1d37d12b97c2a2d161ed68bddbd24d3e1e096f566a3",
+    "ready": true,
+    "restarts": 0
+  },
+  "flags": {
+    "AGENTBOARD_PR_DISCOVERY_ENABLED": "true",
+    "AGENTBOARD_PR_OBSERVATION_ENABLED": "true",
+    "AGENTBOARD_COOPERATION_ENABLED": "false",
+    "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "true",
+    "AGENTBOARD_CI_POLICIES": "unchanged"
+  },
+  "changed_resources": [
+    "Job/agentboard-migrate-9432792",
+    "Deployment/agentboard-dashboard image"
+  ],
+  "new_secrets_required": [],
+  "optional_unset_config": [
+    "AGENTBOARD_MATTERMOST_TEAM_ID"
+  ],
+  "http": {
+    "/health/live": 200,
+    "/health/ready": 200,
+    "/": 200,
+    "/prs": 200,
+    "/api/v1/meta": 200
+  },
+  "cli_task_list": "ok",
+  "mattermost_bridge": "new board events delivered (outbox state sent with remote post ids) after rollout",
+  "rollback_performed": false,
+  "roll_forward": {
+    "commit": "3c6e5b3",
+    "source_pr": "https://github.com/carverauto/agentboard/pull/88",
+    "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/37706265335",
+    "docker_workflow": "https://github.com/carverauto/agentboard/actions/runs/37706265383",
+    "image": "registry.carverauto.dev/agentboard/dashboard@sha256:b892c442a7578c814ba756afc644b0feb96c6004925f4b8869420f232835015c",
+    "cli_image": "registry.carverauto.dev/agentboard/cli@sha256:4d76e5b5d515de68d42d128c8d2686dde849ead4013d6308f9388b9b6bc2b11e",
+    "migration": {
+      "job": "agentboard-migrate-3c6e5b3",
+      "started_at": "2026-10-08T00:15:50Z",
+      "completed_at": "2026-10-08T00:15:57Z",
+      "succeeded": true,
+      "result": "Migrations already up"
+    },
+    "schema": {
+      "before": 12,
+      "after": 12
+    },
+    "dashboard": {
+      "pod": "agentboard-dashboard-58c967496b-sc48l",
+      "started_at": "2026-10-08T00:15:58Z",
+      "ready": true,
+      "restarts": 0
+    },
+    "message_transport": {
+      "requested": "board",
+      "effective": "board",
+      "cutover_ready": false
+    },
+    "new_secrets_required": [],
+    "optional_unset_config": [
+      "AGENTBOARD_MESSAGE_MODE",
+      "AGENTBOARD_MATTERMOST_TEAM_ID"
+    ],
+    "http": {
+      "/health/live": 200,
+      "/health/ready": 200,
+      "/": 200,
+      "/prs": 200,
+      "/api/v1/meta": 200
+    },
+    "cli_task_list": "ok",
+    "mattermost_bridge": "new board event delivered (outbox sent with remote post id) at 2026-10-08T00:16:38Z",
+    "current_pin": true
+  }
+}
