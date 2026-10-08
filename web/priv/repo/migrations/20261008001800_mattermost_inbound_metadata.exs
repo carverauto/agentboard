@@ -56,7 +56,7 @@ defmodule Agentboard.Repo.Migrations.MattermostInboundMetadata do
     create(index(:mattermost_inbox, [:worker_id, :repo, :seq]))
     create(index(:mattermost_inbox, [:worker_id, :handled_at, :id]))
     execute("ALTER TABLE mattermost_inbox ADD CONSTRAINT mattermost_inbox_version_fk FOREIGN KEY (source,channel_id,post_id,version) REFERENCES mattermost_post_versions(source,channel_id,post_id,version)")
-    execute("UPDATE board_schema SET version=18 WHERE id=1")
+    execute("UPDATE board_schema SET version=GREATEST(version,18) WHERE id=1")
   end
 
   def down, do: raise("Retain pending Mattermost versions and receipts; roll back a schema-compatible image")

@@ -103,7 +103,9 @@ defmodule Agentboard.Mattermost.InboundStore do
 
   def known_posts(cfg, channel) do
     %{rows: rows} = Repo.statement!("SELECT DISTINCT post_id FROM mattermost_post_versions WHERE source=$1 AND channel_id=$2 ORDER BY post_id", [cfg.source, channel])
-    Enum.map(rows, &hd/1)
+    {:ok, Enum.map(rows, &hd/1)}
+  rescue
+    _ in [DBConnection.ConnectionError, Postgrex.Error] -> {:error, :store_unavailable}
   end
 
   def page(subscription, data) do
