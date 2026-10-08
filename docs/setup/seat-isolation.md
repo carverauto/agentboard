@@ -50,7 +50,7 @@ file, then invoke from the source repository root:
 ```sh
 scripts/launch-seat --repo "$PWD" --root "$AGENTBOARD_SEAT_ROOT" --brief "$TASK_BRIEF" -- codex '{brief_text}'
 # For a native CLI that accepts a prompt file:
-scripts/launch-seat --repo "$PWD" --brief "$TASK_BRIEF" -- "$HARNESS_BIN" --prompt-file '{brief}'
+scripts/launch-seat --repo "$PWD" --root "$AGENTBOARD_SEAT_ROOT" --brief "$TASK_BRIEF" -- "$HARNESS_BIN" --prompt-file '{brief}'
 ```
 
 Arguments after `--` are native argv, never a shell string. Include `{brief_text}`
