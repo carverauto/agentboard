@@ -258,7 +258,15 @@ with tls_provider(Provider) as (api_url, ca, server):
     assert 'invalidated' in invalidate(watch, 1)
     assert sql("SELECT expected_base_sha FROM delivery_poll_states WHERE id='" + pr + "'") == MOVED
     assert int(sql("SELECT generation FROM delivery_poll_states WHERE id='" + pr + "'")) > int(generation)
-    assert 'superseded' in poll(pr), 'Old-base result was committed'
+    # GitHub preserves pull.base.sha on an idle PR after the branch advances.
+    # A stable watch during collection must still admit its fresh observation.
+    snapshots_before = int(sql('SELECT count(*) FROM delivery_ci_snapshots'))
+    assert 'observed' in poll(pr), 'Idle PR was rejected because payload base.sha lagged the branch tip'
+    assert int(sql('SELECT count(*) FROM delivery_ci_snapshots')) == snapshots_before + 1
+    assert sql("SELECT base_sha||','||expected_base_sha FROM delivery_poll_states WHERE id='" + pr + "'") == BASE + ',' + MOVED
+    assert detail(pr)['fresh'] is True and detail(pr)['merge_state'] == 'conflicting'
+    assert json.loads(sql("SELECT payload FROM delivery_ci_snapshots WHERE id=(SELECT snapshot_id FROM delivery_poll_states WHERE id='" + pr + "')"))['base_watch_sha'] == MOVED
+    assert sql("SELECT next_poll_at>clock_timestamp() AND attempt_id IS NULL FROM delivery_poll_states WHERE id='" + pr + "'") == 't'
     # A valid new-base observation clears stale evidence. Replaying the same page
     # must retain a newly reserved attempt rather than repeatedly canceling work.
     prs[101]['base'] = MOVED
@@ -327,21 +335,26 @@ with tls_provider(Provider) as (api_url, ca, server):
     assert sql('SELECT count(*) FROM delivery_rebase_follow_ups') == '2'
     assert sql("SELECT count(*) FROM messages WHERE recipient_id='conflict-owner'") == '2'
     assert sql(source_query) == source_before, 'Original Done/current work/attribution changed'
-    # An old in-flight PR response is fenced after a real base check/page;
+    # A real branch move DURING collection must reject and visibly retry,
+    # including the gap before the invalidation page gets to this PR.
     # the branch request and unrelated board write can proceed while HTTP waits.
     entered.clear()
     release.clear()
     reads[101] = 0
     slow_pull = True
     reset_budget()
+    snapshots_before = sql('SELECT count(*) FROM delivery_ci_snapshots')
     with concurrent.futures.ThreadPoolExecutor(2) as pool:
         future = pool.submit(poll, pr)
         assert entered.wait(5)
         branch_sha = 'e' * 40
         assert 'changed: true' in check_branch(watch)
-        invalidate(watch, 2)
         release.set()
-        assert 'superseded' in future.result(timeout=25)
+        rejected = future.result(timeout=25)
+        assert 'deferred' in rejected and 'base_changed' in rejected, rejected
+    assert sql('SELECT count(*) FROM delivery_ci_snapshots') == snapshots_before
+    assert sql("SELECT last_error||','||(attempt_id IS NULL)::text||','||(next_poll_at>clock_timestamp())::text FROM delivery_poll_states WHERE id='" + pr + "'") == 'base_changed,true,true'
+    invalidate(watch, 2)
     slow_pull = False
     prs[101]['base'] = branch_sha
     reset_budget()

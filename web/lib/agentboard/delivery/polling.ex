@@ -155,7 +155,13 @@ defmodule Agentboard.Delivery.Polling do
   def defer_poll(id, attempt_id, generation, delay_seconds, reason)
       when is_binary(id) and is_binary(attempt_id) and is_integer(generation) and
              generation > 0 and is_integer(delay_seconds) and delay_seconds in 1..604_800 and
-             reason in ["unavailable", "rate_limited", "unauthorized", "incomplete"] do
+             reason in [
+               "unavailable",
+               "rate_limited",
+               "unauthorized",
+               "incomplete",
+               "base_changed"
+             ] do
     if enabled?() do
       Operations.transaction(fn ->
         Repo.statement!("SELECT id FROM delivery_poll_states WHERE id=$1 FOR UPDATE", [id])
@@ -195,6 +201,8 @@ defmodule Agentboard.Delivery.Polling do
   def commit_observation(reservation, result) do
     if enabled?() do
       Operations.transaction(fn ->
+        base_watch_sha = Agentboard.Delivery.BaseMonitor.assert_current!(reservation, result)
+
         Repo.statement!("SELECT id FROM delivery_poll_states WHERE id=$1 FOR UPDATE", [
           reservation.id
         ])
@@ -205,7 +213,7 @@ defmodule Agentboard.Delivery.Polling do
         assert_reservation!(state, reservation.attempt_id, reservation.generation, stamp)
 
         pr = Operations.fetch!(PullRequest, state.id, "PR not found")
-        Agentboard.Delivery.BaseMonitor.assert_current!(pr, state, result)
+        result = %{result | payload: Map.put(result.payload, "base_watch_sha", base_watch_sha)}
         result = Policy.classify(pr, result)
 
         policy_error =
@@ -255,7 +263,7 @@ defmodule Agentboard.Delivery.Polling do
               head_sha: result.head_sha,
               base_sha: result.base_sha,
               base_ref: result.payload["base_ref"],
-              expected_base_sha: result.base_sha,
+              expected_base_sha: base_watch_sha,
               ci_state: result.ci_state,
               lifecycle: result.lifecycle,
               observed_at: stamp,
@@ -333,6 +341,7 @@ defmodule Agentboard.Delivery.Polling do
       url: pr.url,
       owner: pr.owner,
       repo: pr.repo,
+      base_watches: Agentboard.Delivery.BaseMonitor.capture(pr),
       number: pr.number
     }
   end

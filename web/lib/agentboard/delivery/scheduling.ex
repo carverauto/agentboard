@@ -46,7 +46,7 @@ defmodule Agentboard.Delivery.Scheduling do
       {:ok, observation} ->
         case Polling.commit_observation(reservation, observation) do
           {:ok, projection} ->
-            # Separate transaction: never acquire a branch lock while holding PollState.
+            # Enrollment uses a separate transaction, preserving branch -> PR order.
             case Agentboard.Delivery.BaseMonitor.enroll(reservation, observation) do
               {:ok, _} -> {:ok, %{observed: projection["ci_state"]}}
               {:error, _code, message} -> {:error, message}
@@ -54,6 +54,9 @@ defmodule Agentboard.Delivery.Scheduling do
 
           {:error, "disabled", _} ->
             snooze()
+
+          {:error, "base_changed", _} ->
+            defer(reservation, 60, "base_changed")
 
           {:error, "conflict", _} ->
             {:ok, %{superseded: true}}
