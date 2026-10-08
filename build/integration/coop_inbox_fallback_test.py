@@ -88,8 +88,8 @@ if modes.get((repair, 'ci_failure')) != 'inbox_fallback':
 rpc('Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-32-characters")')
 before = sql("SELECT count(*) FROM messages WHERE task_id='" + repair + "'")
 api('/workers/provision', {'worker_id': 'inbox-owner', 'host_id': 'sunset-host', 'idempotency_key': 'sunset-key-1', 'repos': ['fixture/repo'], 'model': 'fixture-model', 'harness': 'codex'}, agent='inbox-owner', captain=True)
-if sql("SELECT count(*) FROM cooperation_deliveries d JOIN cooperation_events e ON e.id = d.event_id WHERE e.task_id='" + repair + "'") != '0':
-    failures.append(('bootstrap replayed inbox-delivered occurrence', repair))
+if sql("SELECT count(*) FROM cooperation_deliveries d JOIN cooperation_events e ON e.id = d.event_id WHERE e.task_id='" + repair + "'") != '1':
+    failures.append(('bootstrap did not adopt inbox-delivered occurrence exactly once', repair))
 if sql("SELECT count(*) FROM messages WHERE task_id='" + repair + "'") != before:
     failures.append(('bootstrap sent second message', (before, repair)))
 pr2 = source(402)

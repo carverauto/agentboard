@@ -221,8 +221,7 @@ defmodule Agentboard.Delivery.Rebase do
              String.downcase(pr.owner <> "/" <> pr.repo) in subscription.repos do
           e = capture_event(f, pr)
 
-          unless Runtime.fallback_claimed?(e),
-            do: Runtime.ensure_delivery(e, subscription.id, @actor)
+          Runtime.ensure_delivery(e, subscription.id, @actor)
         end
       end)
     end

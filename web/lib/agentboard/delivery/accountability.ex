@@ -433,8 +433,7 @@ defmodule Agentboard.Delivery.Accountability do
       if String.downcase(pr.owner <> "/" <> pr.repo) in subscription.repos do
         e = capture(o, "failure", subscription.id)
 
-        unless Runtime.fallback_claimed?(e),
-          do: Runtime.ensure_delivery(e, subscription.id, @actor)
+        Runtime.ensure_delivery(e, subscription.id, @actor)
       end
     end)
   end

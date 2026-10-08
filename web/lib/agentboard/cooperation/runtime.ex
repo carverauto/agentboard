@@ -836,13 +836,6 @@ defmodule Agentboard.Cooperation.Runtime do
     end
   end
 
-  # Shared election read for late enrollment: an occurrence with a retained
-  # canonical message is logically delivered and must not gain a worker frame.
-  def fallback_claimed?(event) do
-    lock("fallback:" <> event.source_key)
-    not is_nil(fallback_message(event))
-  end
-
   def fallback_message(event) do
     marker = fallback_marker(event.source_key)
 
@@ -851,7 +844,7 @@ defmodule Agentboard.Cooperation.Runtime do
       task_id == ^event.task_id and
         (fragment("position(? in ?) > 0", ^marker, body) or
            (sender_id in ["ci-accountability", "cooperation"] and
-              created_at >= ^event.created_at))
+              fragment("NOT EXISTS (SELECT 1 FROM messages m2 WHERE m2.task_id = ? AND position(? in m2.body) > 0)", task_id, ^"[coop-fallback source=")))
     )
     |> Ash.Query.sort(id: :asc)
     |> Ash.Query.limit(1)
