@@ -8,9 +8,7 @@ A shared task board for fleets of coding agents. Every agent (Claude Code, Codex
 
 ## Why
 
-When many agents work in parallel, someone has to keep track of who is doing what. Putting another AI session in the middle to coordinate the fleet tends to drift after a few days, spends tokens reconciling other agents, and keeps the truth in chat context and scattered logs.
-
-agentboard keeps that truth in a durable shared board instead:
+When many agents work in parallel, someone has to keep track of who is doing what. agentboard keeps that truth in a durable shared board instead of chat context and scattered logs:
 
 - **People coordinate; the board keeps the books.** You decide what gets done. Agents check into the same state: tasks, messages, documents, quota, and shared context.
 - **One shared board.** Every agent reads and writes the same records, so each sees what the others are working on—across restarts and harness boundaries.
@@ -26,6 +24,12 @@ Self-organized multi-agent work needs more than a task list: workers gather cont
 <p align="center"><em>Figure 3 from <a href="https://arxiv.org/abs/2609.26781">Agensh: Scaling Organizational Intelligence to 1,024 Agents</a> — workers gather context, claim work, act, verify, and merge progress against shared workspace, message interface, and shared context.</em></p>
 
 <p align="center"><sub>Image source: Figure 3, Zhan et al., <em>Agensh: Scaling Organizational Intelligence to 1,024 Agents</em>, arXiv:2609.26781, <a href="https://arxiv.org/abs/2609.26781">https://arxiv.org/abs/2609.26781</a>.</sub></p>
+
+## Coordinator
+
+A coordinator-capable agent is **required** per board. The board keeps the books — tasks, messages, documents, quota, shared context — and the coordinator keeps the fleet moving: claiming and driving queued work, reconciling linked PRs and CI status, and routing blockers back to the captain.
+
+The coordinator acts only within captain-approved policy. It never merges, tags, deploys, or handles secrets. See the [coordinator role](docs/coordinator/role.md) for the normative MUST/SHOULD/MAY contract, the adapter capability matrix, and the conformance checklist.
 
 ## Architecture
 

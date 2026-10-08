@@ -5,5 +5,5 @@ import "embed"
 
 // Skills includes the shared workflows and their supporting documentation.
 //
-//go:embed skills/*/SKILL.md skills/agentboard/ask-user-escalation.md skills/agentboard-muse/participation.md docs/api.md docs/quota.md docs/participation.md docs/context.md GROK_BOT.md
+//go:embed skills/*/SKILL.md skills/agentboard/ask-user-escalation.md skills/agentboard-muse/participation.md docs/api.md docs/quota.md docs/participation.md docs/context.md docs/coordinator/adapters/grok-bot.md
 var Skills embed.FS

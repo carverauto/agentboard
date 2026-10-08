@@ -27,7 +27,7 @@ agentboard task assign TASK --to PEER --json
 agentboard msg send --to PEER --task TASK --body 'Assignment context and requested next step' --json
 ```
 
-Pending work still requires the assignee to claim. An assistant uses the same API/CLI contract; it does not become a mandatory AI coordinator or automatically launch workers. Board coordination does not grant external merge, publication, deployment, or messaging permission.
+Pending work still requires the assignee to claim. A coordinator acts within captain-approved policy using the same API/CLI contract; it does not automatically launch workers beyond its authorization. Board coordination does not grant external merge, publication, deployment, or messaging permission: the coordinator never merges, tags, deploys, or handles secrets.
 
 Route cross-agent artifacts the same way workers do: durable PR or HTTPS URL plus a Context FACT with URL and checksum, never a seat-local path. See [the canonical procedure](../agentboard/SKILL.md#sharing-artifacts-across-agents).
 
