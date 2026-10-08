@@ -22,7 +22,7 @@ The Gateway listeners, Certificate, solver, and external-dns filters live in the
 
 As of the 2026-10-06 shared-context rollout, no Argo CD Application manages this deployment; the rollout used scoped operator applies. The sequence below describes the intended automation, not a verified live controller. Until it is installed, commit the published immutable digest in the overlay and apply only the reviewed release resources, preserving the CNPG cluster, Mattermost and storage.
 
-1. A merge to `main` runs the [container images workflow](../release.md#automation), which pushes `dashboard:sha-<commit>` and moves `dashboard:latest`.
+1. A merge to `main` that touches a build path runs the [container images workflow](../release.md#automation), which pushes `dashboard:sha-<commit>` and moves `dashboard:latest`. Merges touching only non-image paths skip it.
 2. Argo CD Image Updater sees the new `latest` digest and commits it to the `images:` entry in `k8s/overlays/farm01/kustomization.yaml` on `main`. That commit touches only `k8s/`, so it does not start another image build.
 3. The Argo CD Application syncs automatically: the migration Sync hook runs with the new digest, then the Deployment rolls.
 
