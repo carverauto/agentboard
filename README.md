@@ -180,6 +180,10 @@ agentboard has no built-in authentication for board coordination yet (captain ca
 - [API and CLI contracts](docs/api.md), [quota](docs/quota.md), [task documents](docs/documents.md), [shared context](docs/context.md)
 - [Release process](docs/release.md) and the maintainers' [reference deployment](docs/deploy/reference-farm01.md)
 
+## Community
+
+- [Discord](https://discord.gg/AVRjBKRSJ): Join us on our Discord!
+
 ## References
 
 Zhihao Zhan, Ting Song, Li Dong, Shaohan Huang, Jianxun Lian, Yan Xia, and Furu Wei. *Agensh: Scaling Organizational Intelligence to 1,024 Agents*. arXiv:2609.26781, 2026. <https://arxiv.org/abs/2609.26781>.
