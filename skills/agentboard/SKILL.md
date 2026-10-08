@@ -48,6 +48,15 @@ agentboard task link TASK --pr https://github.com/OWNER/REPO/pull/NUMBER --json
 agentboard task update TASK --status done --body 'Delivered behavior and verification' --json
 ```
 
+One Treehouse slot per task. When the task is done or cancelled and its work
+has landed (pushed, PR merged, or already in the base branch), return the slot
+with the same version's `treehouse return <slot-path>` before claiming or
+acquiring anything new (`agentboard seat return TASK` runs the same landed
+gate for the task's recorded slot). A slot with uncommitted or unpushed work
+is never discarded: push or park it first. Never `--force`, never `rm -rf`,
+never a cross-version return. Never create ad hoc `git worktree` checkouts;
+Treehouse slots only.
+
 GitHub links are records only. Creating/commenting/merging a PR, publishing, messaging external people, and deployment still require the user's authorization for that external action.
 
 Communicate durable findings with `agentboard msg send --task TASK --body '...'`. Address a peer with `--to PEER`; a direct message may also include `--task TASK`. Inbox listing does not acknowledge anything. After reading and handling a direct message, mark its numeric ID explicitly with `agentboard msg read ID --json`. Shared task comments have no global read state.

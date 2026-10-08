@@ -55,6 +55,8 @@ scripts/launch-seat --repo "$PWD" --root "$AGENTBOARD_SEAT_ROOT" --brief "$TASK_
 
 Arguments after `--` are native argv, never a shell string. Include `{brief_text}`
 or `{brief}` as a whole argument so the generated brief is actually delivered.
+Pass `--task TASK` when the seat serves an agentboard task so the slot is
+recorded on the task and the gated return can run after exit.
 Check your harness's native prompt/file option before choosing argv. The launcher
 calls only the real v3 interface,
 `treehouse get --lease --lease-holder "$AGENT_ID" --root "$ROOT"`; it does not pass
@@ -88,9 +90,15 @@ worktree. Do not silently fall back to the primary checkout.
 
 The persistent Treehouse lease stays held after native process exit, including
 launch failures after acquisition. Inspect the reported path, preserve all work,
-and coordinate recovery. Keep it through PR review and green CI. Return only your
-own worktree explicitly using the pinned tool's `return PATH` after cleanup is
-authorized (v3 finds the pool from the path; legacy v2 leases use the v2 binary). Never prune another seat.
+and coordinate recovery. Keep it through PR review and green CI. Return it only
+through the landed gate: with `--task TASK` the launcher records the slot
+(`agentboard-seat` update) and attempts the gated return after exit when the task
+is done/cancelled and landed, and `agentboard seat return TASK` runs the same
+gate manually (clean tree, HEAD reachable from a remote ref; same-version
+`treehouse return`, never `--force`, never `rm -rf`). A merged task also carries
+the return instruction in its completion message. Without a gated return, return
+only your own worktree explicitly with the pinned tool after cleanup is authorized
+(v3 finds the pool from the path; legacy v2 leases use the v2 binary). Never prune another seat.
 A full pool is a blocker, not permission to clear someone else's checkout.
 
 Optional SessionStart or turn-end backstops can invoke the source launcher with

@@ -215,11 +215,62 @@ defmodule Agentboard.Board.Operations do
     notify_task_owner(
       changed,
       actor,
-      "Review completed by system: #{url} was observed merged at #{snapshot.observed_at}. CI qualification is unchanged; investigate any outstanding CI repair obligations before taking new work.",
+      "Review completed by system: #{url} was observed merged at #{snapshot.observed_at}. CI qualification is unchanged; investigate any outstanding CI repair obligations before taking new work." <>
+        seat_return_nudge(task.id),
       stamp
     )
 
     result
+  end
+
+  # Board-side safety net for Treehouse leases nobody returned (#107): when
+  # the task records a launch-seat slot (`agentboard-seat ...` update body),
+  # the merge-completion message carries the return instruction. Best-effort;
+  # any read failure means no nudge, never a failed disposition.
+  defp seat_return_nudge(task_id) do
+    case Repo.statement(
+           "SELECT body FROM task_events WHERE task_id = $1 AND body LIKE 'agentboard-seat %' ORDER BY id DESC LIMIT 1",
+           [task_id],
+           timeout: 2_000
+         ) do
+      {:ok, %{rows: [[body]]}} ->
+        path = seat_slot_path(body)
+        if path do
+          quoted = if String.contains?(path, " "), do: "\"#{path}\"", else: path
+          " Seat slot #{quoted}: return it with the same-version `treehouse return #{quoted}` before claiming new work; never --force, never rm -rf."
+        else
+          ""
+        end
+
+      _ ->
+        ""
+    end
+  end
+
+  defp seat_slot_path(body) when is_binary(body) do
+    rest =
+      case String.split(body, "agentboard-seat ", parts: 2) do
+        [_, payload] -> String.trim(payload)
+        _ -> ""
+      end
+
+    if String.starts_with?(rest, "{") do
+      case Jason.decode(rest) do
+        {:ok, %{"worktree" => path}} when is_binary(path) and path != "" -> path
+        _ -> legacy_seat_path(body)
+      end
+    else
+      legacy_seat_path(body)
+    end
+  end
+
+  defp seat_slot_path(_), do: nil
+
+  defp legacy_seat_path(body) do
+    case Regex.run(~r/worktree=(\S+)/, body || "") do
+      [_, path] -> path
+      _ -> nil
+    end
   end
 
   # Internal system notifications share the same audited message + notice path.

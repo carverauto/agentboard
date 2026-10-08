@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import time
@@ -21,6 +22,98 @@ def run(argv, cwd, timeout=15):
 
 def git(cwd, *args):
     return run(["git", *args], cwd)
+
+
+def probe(argv, cwd, timeout=15):
+    """Run argv without raising; return (returncode, stdout, stderr)."""
+    try:
+        result = subprocess.run(argv, cwd=cwd, text=True, capture_output=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError) as error:
+        return 127, "", str(error)
+    return result.returncode, result.stdout.strip(), result.stderr.strip()
+
+
+SEAT_RECORD_PREFIX = "agentboard-seat"
+
+
+def seat_body(worktree, root, holder):
+    payload = json.dumps({"worktree": str(worktree), "treehouse_version": VERSION, "treehouse_root": str(root), "lease_holder": holder}, separators=(",", ":"))
+    return f"{SEAT_RECORD_PREFIX} {payload}"
+
+
+def record_slot(task, worktree, root, holder):
+    """Best-effort slot record on the task. Warns only; never blocks launch."""
+    exe = shutil.which("agentboard")
+    if not exe:
+        print("agentboard CLI not on PATH; skipping slot record", file=sys.stderr)
+        return False
+    code, _, _ = probe([exe, "task", "update", task, "--body", seat_body(worktree, root, holder)], str(worktree))
+    if code:
+        print(f"slot record on task {task} failed; continuing without it", file=sys.stderr)
+        return False
+    return True
+
+
+def task_state(task, worktree):
+    """Return (status, pr_url) or (None, None) when unreadable."""
+    exe = shutil.which("agentboard")
+    if not exe:
+        return None, None
+    code, out, _ = probe([exe, "task", "show", task, "--json"], str(worktree))
+    if code:
+        return None, None
+    try:
+        data = json.loads(out)
+    except ValueError:
+        return None, None
+    record = data.get("task", data) if isinstance(data, dict) else {}
+    if not isinstance(record, dict):
+        return None, None
+    return record.get("status"), record.get("pr_url")
+
+
+def landed(worktree):
+    """Firstmate-style landed gate. Returns (True, '') or (False, reason)."""
+    code, dirty, _ = probe(["git", "status", "--porcelain"], str(worktree))
+    if code or dirty:
+        return False, "uncommitted changes" if dirty else "cannot read worktree status"
+    code, head, _ = probe(["git", "rev-parse", "HEAD"], str(worktree))
+    if code or not head:
+        return False, "cannot read HEAD"
+    code, remotes, _ = probe(["git", "branch", "-r", "--contains", head], str(worktree))
+    if not code and remotes.strip():
+        return True, ""
+    code, _, _ = probe(["git", "merge-base", "--is-ancestor", head, "origin/main"], str(worktree))
+    if not code:
+        return True, ""
+    return False, "HEAD is not reachable from any remote branch"
+
+
+def note_slot(task, worktree, text):
+    exe = shutil.which("agentboard")
+    if not exe:
+        return
+    probe([exe, "task", "update", task, "--body", text], str(worktree))
+
+
+def maybe_return_slot(task, worktree, root, binary, holder):
+    """Gated return after session exit. Never --force; retains on any doubt."""
+    status, _ = task_state(task, worktree)
+    if status not in ("done", "cancelled"):
+        print(f"Retained lease at {worktree}; task {task} is {status or 'unreadable'}, not done/cancelled.", file=sys.stderr)
+        return
+    ok, reason = landed(worktree)
+    if not ok:
+        print(f"Retained lease at {worktree}; landed gate refused: {reason}.", file=sys.stderr)
+        note_slot(task, worktree, f"slot retained: {reason} at {worktree}; push or park first, never --force")
+        return
+    code, out, err = probe([binary, "return", str(worktree), "--if-lease-holder", holder, "--root", str(root)], str(worktree), timeout=120)
+    if code:
+        detail = err.strip() or out.strip()
+        print(f"Retained lease at {worktree}; treehouse return failed: {detail}.", file=sys.stderr)
+        note_slot(task, worktree, f"slot retained: return failed at {worktree}; lease still held")
+        return
+    print(f"Returned Treehouse v{VERSION} lease at {worktree} after task {task} landed.", file=sys.stderr)
 
 
 def repository(source):
@@ -93,6 +186,10 @@ and mark your owned task blocked after checking its live claim. Resume only
 in the correctly leased disposable worktree. Backend hosting is not isolation.
 Keep this STOP condition in subsequent ship briefs. Hooks are backstops only.
 Retain the worktree lease through PR review and green CI; do not merge.
+When the task is done or cancelled and its work has landed (pushed, PR
+merged, or already in base), return the slot with the same-version
+`treehouse return` before claiming or acquiring anything new; never
+--force, never rm -rf.
 For ask-user gates, read the installed agentboard ask-user-escalation procedure.
 On schema20 create one durable decision with verbatim findings, notify the
 configured coordinator, and end the turn only after delivery. Resume by reading
@@ -109,6 +206,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, required=True, help="source repository root")
     parser.add_argument("--brief", type=Path, help="authorized task brief")
+    parser.add_argument("--task", help="agentboard task id: record the leased slot on it, and after session exit run the gated return when the task is done/cancelled and landed")
     parser.add_argument("--root", help="absolute Treehouse v3 pool root (default: $AGENTBOARD_SEAT_ROOT)")
     parser.add_argument("--check", action="store_true", help="check current cwd against seat environment; no acquisition or launch")
     parser.add_argument("command", nargs=argparse.REMAINDER, help="native argv after --; use {brief_text} or {brief} as a whole argument")
@@ -165,8 +263,14 @@ def main():
         command = [str(brief_path) if arg == "{brief}" else emitted if arg == "{brief_text}" else arg for arg in command]
         env = dict(os.environ, AGENTBOARD_SEAT_WORKTREE=str(worktree), AGENTBOARD_SEAT_SOURCE=str(source), AGENTBOARD_SEAT_BRIEF=str(brief_path), AGENTBOARD_SEAT_ROOT=str(root))
         isolated(worktree, source, common)
-        print(f"Seat cwd: {worktree}; retained Treehouse v{VERSION} lease holder: {os.environ['AGENT_ID']} (root {root})", file=sys.stderr)
-        return subprocess.call(command, cwd=worktree, env=env)
+        holder = os.environ["AGENT_ID"]
+        if args.task:
+            record_slot(args.task, worktree, root, holder)
+        print(f"Seat cwd: {worktree}; retained Treehouse v{VERSION} lease holder: {holder} (root {root})", file=sys.stderr)
+        code = subprocess.call(command, cwd=worktree, env=env)
+        if args.task:
+            maybe_return_slot(args.task, worktree, root, binary, holder)
+        return code
     except Exception:
         print(f"Retained lease at {candidate}; inspect before any explicit 'treehouse return {candidate}'.", file=sys.stderr)
         raise
