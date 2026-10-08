@@ -25,7 +25,7 @@ defmodule Agentboard.Mattermost.ElasticBots do
           enqueue_bot_job("provision", agent_id)
 
         %{state: "retired"} = row ->
-          Operations.update(row, :mark_stale, Map.merge(%{state: "pending", last_error: nil}, stamps()), @actor)
+          Operations.update(row, :mark_stale, Map.merge(%{state: "pending", last_error: nil}, touched()), @actor)
           enqueue_bot_job("provision", agent_id)
 
         %{state: "pending"} ->
@@ -56,7 +56,7 @@ defmodule Agentboard.Mattermost.ElasticBots do
         :ok
 
       row ->
-        Operations.update(row, :retire, Map.merge(%{state: "retired", token: nil, last_error: nil}, stamps()), @actor)
+        Operations.update(row, :retire, Map.merge(%{state: "retired", token: nil, last_error: nil}, touched()), @actor)
         retire_remote(row)
         :ok
     end
@@ -209,7 +209,7 @@ defmodule Agentboard.Mattermost.ElasticBots do
         :mark_active,
         Map.merge(
           %{mm_user_id: user_id, mm_username: username, display_name: row.agent_id, token: token, state: "active", last_error: nil},
-          stamps()
+          touched()
         ),
         @actor
       )
@@ -217,11 +217,11 @@ defmodule Agentboard.Mattermost.ElasticBots do
       {:ok, :active}
     else
       {:error, reason} ->
-        Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:#{inspect(reason)}"}, stamps()), @actor)
+        Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:#{inspect(reason)}"}, touched()), @actor)
         {:error, reason}
 
       _ ->
-        Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:unconfirmed"}, stamps()), @actor)
+        Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:unconfirmed"}, touched()), @actor)
         {:error, :unconfirmed}
     end
   rescue
@@ -243,12 +243,15 @@ defmodule Agentboard.Mattermost.ElasticBots do
   end
 
   defp ensure_bot_user(cfg, %{mm_user_id: user_id}, _username) do
-    _ = Transport.set_bot_active(cfg, user_id, true)
-    {:ok, user_id}
+    case Transport.set_bot_active(cfg, user_id, true) do
+      :ok -> {:ok, user_id}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :unconfirmed}
+    end
   end
 
   defp try_stale(row, error) do
-    Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:#{Exception.message(error) |> String.slice(0, 120)}"}, stamps()), @actor)
+    Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: "provision:#{Exception.message(error) |> String.slice(0, 120)}"}, touched()), @actor)
   rescue
     _ -> :ok
   end
@@ -272,12 +275,21 @@ defmodule Agentboard.Mattermost.ElasticBots do
     end)
   end
 
+  defp retire_remote(%{mm_user_id: "pending:" <> _}), do: :ok
+  defp retire_remote(%{mm_user_id: nil}), do: :ok
+  defp retire_remote(%{mm_user_id: ""}), do: :ok
+
   defp retire_remote(row) do
     case provisioner_config() do
       {:ok, cfg} ->
-        _ = Transport.set_bot_active(cfg, row.mm_user_id, false)
-        _ = revoke_all(cfg, row.mm_user_id)
-        :ok
+        with :ok <- Transport.set_bot_active(cfg, row.mm_user_id, false),
+             :ok <- revoke_all(cfg, row.mm_user_id) do
+          :ok
+        else
+          _ ->
+            enqueue_bot_job("retire", row.agent_id)
+            :ok
+        end
 
       _ ->
         enqueue_bot_job("retire", row.agent_id)
@@ -290,12 +302,13 @@ defmodule Agentboard.Mattermost.ElasticBots do
   defp revoke_all(cfg, user_id) do
     case Transport.list_user_tokens(cfg, user_id) do
       {:ok, tokens} ->
-        Enum.each(tokens, fn
-          %{"id" => token_id} -> Transport.revoke_user_token(cfg, user_id, token_id)
-          _ -> :ok
-        end)
+        results =
+          Enum.map(tokens, fn
+            %{"id" => token_id} -> Transport.revoke_user_token(cfg, user_id, token_id)
+            _ -> :ok
+          end)
 
-        :ok
+        if Enum.all?(results, &(&1 == :ok)), do: :ok, else: {:error, :unconfirmed}
 
       _ ->
         {:error, :unconfirmed}
@@ -303,14 +316,18 @@ defmodule Agentboard.Mattermost.ElasticBots do
   end
 
   defp mark_stale(row, reason) do
-    Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: reason}, stamps()), @actor)
+    Operations.update(row, :mark_stale, Map.merge(%{state: "stale", last_error: reason}, touched()), @actor)
   rescue
     _ -> :ok
   end
 
-  defp stamps do
+  defp created_stamps do
     now = Operations.now()
     %{created_at: now, updated_at: now}
+  end
+
+  defp touched do
+    %{updated_at: Operations.now()}
   end
 
   defp error(_), do: {:error, :no_bot}
@@ -321,7 +338,7 @@ defmodule Agentboard.Mattermost.ElasticBots do
       :open,
       Map.merge(
         %{agent_id: agent_id, mm_user_id: "pending:#{agent_id}", mm_username: short_name(agent_id), display_name: agent_id, state: "pending"},
-        stamps()
+        created_stamps()
       ),
       @actor
     )
