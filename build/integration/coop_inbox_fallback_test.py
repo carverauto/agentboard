@@ -55,6 +55,7 @@ def observe(pr, failing=True, dirty=False, lifecycle='open'):
         '}; IO.puts(inspect(Agentboard.Delivery.Polling.commit_observation(r,result)))')
     assert '{:ok,' in rpc(expression)
 
+failures = []
 for owner in ('inbox-owner', 'inbox-coordinator'):
     api('/agents/register', {'name': owner}, agent=owner)
 rpc(':ok=Oban.pause_queue(queue: :delivery_scheduler); :ok=Oban.pause_queue(queue: :delivery_polling); Application.put_env(:agentboard,:pr_observation_enabled,true); Application.put_env(:agentboard,:coordinator_id,"inbox-coordinator"); Application.put_env(:agentboard,:cooperation_enabled,true)')
@@ -63,7 +64,19 @@ observe(pr)
 repair = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id='" + pr + "'")
 messages = api('/messages?unread=true', agent='inbox-owner')['messages']
 owned = [m for m in messages if m['task_id'] == repair]
-assert len(owned) == 1, ('Zero-worker CI failure must reach responsible board inbox exactly once', owned)
+if len(owned) != 1:
+    failures.append(('first-delivery not exactly-once to responsible', owned))
 observe(pr)
-assert sql("SELECT count(*) FROM messages WHERE task_id='" + repair + "'") == '1'
-print('Zero-worker CI failure/replay inbox proof passed', flush=True)
+if sql("SELECT count(*) FROM messages WHERE task_id='" + repair + "'") != '1':
+    failures.append(('repair-task inbox count != 1 after replay', sql("SELECT count(*) FROM messages WHERE task_id='" + repair + "'")))
+sql("UPDATE delivery_obligations SET next_reminder_at=clock_timestamp()-interval '1 second' WHERE repair_task_id='" + repair + "'")
+rpc('{:ok, %{checked: n}} = Agentboard.Delivery.Accountability.tick(); if n < 1, do: raise("tick checked nothing")')
+gen = sql("SELECT reminder_generation FROM delivery_obligations WHERE repair_task_id='" + repair + "'")
+if int(gen) < 1:
+    failures.append(('reminder never fired', gen))
+coord = api('/messages?unread=true', agent='inbox-coordinator')['messages']
+digest = [m for m in coord if m['task_id'] == repair]
+if len(digest) != 1:
+    failures.append(('escalated digest missing from coordinator inbox', digest))
+assert not failures, failures
+print('Zero-worker CI failure/replay/reminder inbox proof passed', flush=True)
