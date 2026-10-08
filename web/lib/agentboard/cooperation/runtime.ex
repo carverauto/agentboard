@@ -786,8 +786,8 @@ defmodule Agentboard.Cooperation.Runtime do
   # :recipient / :exclude_recipient scoping. Returns {:disabled | :worker, event}
   # | {:adopted | :sent, message} | {:undeliverable, :no_task | :no_registered_recipient}.
   #
-  # The caller owns the canonical transaction and calls this only for events
-  # whose pinned audience is empty. The delivery mode is elected atomically
+  # The caller owns the canonical transaction and calls this for every
+  # captured signal. The delivery mode is elected atomically
   # under the source election lock (pg_advisory_xact_lock on
   # "fallback:" <> source_key) BEFORE any worker/delivery insertion: a live
   # subscription that appeared meanwhile (unrevoked, repo-enrolled, recipient

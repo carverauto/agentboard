@@ -160,19 +160,17 @@ defmodule Agentboard.Delivery.Rebase do
         stamp
       )
 
-      if event.audience == [] do
-        assignee =
-          case Ash.get!(Task, f.repair_task_id, not_found_error?: false) do
-            nil -> nil
-            current -> current.assignee_id
-          end
+      assignee =
+        case Ash.get!(Task, f.repair_task_id, not_found_error?: false) do
+          nil -> nil
+          current -> current.assignee_id
+        end
 
-        # The notify above carries the exact source marker, so the fallback
-        # adopts it instead of a second DM. Markerless notes are never adopted.
-        Runtime.fallback(event, [assignee], @actor,
-          recipient: f.responsible_id || "captain"
-        )
-      end
+      # The notify above carries the exact source marker, so the fallback
+      # adopts it instead of a second DM. Markerless notes are never adopted.
+      Runtime.fallback(event, [assignee], @actor,
+        recipient: f.responsible_id || "captain"
+      )
 
       event
     end

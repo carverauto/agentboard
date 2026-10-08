@@ -525,9 +525,7 @@ defmodule Agentboard.Delivery.Accountability do
         recipient: recipient || "captain"
       )
 
-    if event.audience == [] do
-      Runtime.fallback(event, [], @actor, recipient: recipient || "captain")
-    end
+    Runtime.fallback(event, [], @actor, recipient: recipient || "captain")
 
     event
   end

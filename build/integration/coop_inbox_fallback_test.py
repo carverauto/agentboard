@@ -104,6 +104,17 @@ detail2 = api('/prs/' + pr2, agent='inbox-owner')
 modes2 = {(d['task_id'], d['kind']): d['mode'] for d in detail2.get('follow_up_delivery', [])}
 if modes2.get((repair2, 'ci_failure')) != 'worker':
     failures.append(('prs detail missing worker mode', modes2))
+sql("UPDATE cooperation_subscriptions SET paused=true WHERE id='inbox-owner'")
+pr3 = source(403)
+observe(pr3)
+repair3 = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id='" + pr3 + "'")
+if sql("SELECT count(*) FROM messages WHERE task_id='" + repair3 + "'") != '1':
+    failures.append(('paused-only pinned audience lost signal', repair3))
+detail3 = api('/prs/' + pr3, agent='inbox-owner')
+modes3 = {(d['task_id'], d['kind']): d['mode'] for d in detail3.get('follow_up_delivery', [])}
+if modes3.get((repair3, 'ci_failure')) != 'inbox_fallback':
+    failures.append(('prs detail missing inbox_fallback paused mode', modes3))
+sql("UPDATE cooperation_subscriptions SET paused=false WHERE id='inbox-owner'")
 pr4 = source(404)
 observe(pr4)
 repair4 = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id='" + pr4 + "'")
