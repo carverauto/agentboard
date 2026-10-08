@@ -334,6 +334,15 @@ this does not prove browser interactions.
 
 Full results, cutoffs, digests and limits are in the
 [normalized receipt](verification/farm01-4b15860-rollout.json) and the
-[current operator record](deploy/reference-farm01.md#collector-and-cooperation-foundation-image-rollout-4b15860).
+[historical operator record](deploy/reference-farm01.md#collector-and-cooperation-foundation-image-rollout-4b15860).
 No local compilation, CLI installation, worker activation, chat delivery,
 storage modification, pruning or live rollback occurred in this rollout.
+
+
+## Per-agent chat identities and merge-to-Done rollout (9432792, 2026-10-08 UTC)
+
+Merged main `9432792a57019ae9d3aa6245cda229044adc7ab4` rolled the dashboard to
+`sha256:76af4541a0598501d210b1d37d12b97c2a2d161ed68bddbd24d3e1e096f566a3`
+with schema 11 to 12 via Job `agentboard-migrate-9432792`. Full results are in the [rollout
+receipt](verification/farm01-9432792-rollout.json); the operator runbook retains the [current
+rollout record](deploy/reference-farm01.md#per-agent-chat-identities-and-merge-to-done-image-rollout-9432792).
