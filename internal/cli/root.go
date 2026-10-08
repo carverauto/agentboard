@@ -135,6 +135,12 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasSuffix(path, "/documents") {
 		required = 4
 	}
+	if captain || query.Get("availability") != "" {
+		required = 13
+	}
+	if fields, ok := payload.(map[string]any); ok && fields["kind"] == "task_order" {
+		required = 13
+	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
 	}

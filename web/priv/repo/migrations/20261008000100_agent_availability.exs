@@ -36,7 +36,9 @@ defmodule Agentboard.Repo.Migrations.AgentAvailability do
 
       add(
         :version_source_id,
-        references(:availability_policies, type: :text, on_delete: :restrict), null: false)
+        references(:availability_policies, type: :text, on_delete: :restrict),
+        null: false
+      )
 
       add(:version_action_type, :text, null: false)
       add(:version_action_name, :text, null: false)

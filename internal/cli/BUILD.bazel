@@ -16,7 +16,7 @@ go_library(
 go_test(
     name = "cli_test",
     srcs = ["root_test.go", "skills_test.go", "chat_test.go"],
-    deps = [":cli"],
+    deps = [":cli", "//internal/client"],
     size = "small",
 )
 
