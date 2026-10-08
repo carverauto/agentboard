@@ -9,6 +9,8 @@ defmodule Agentboard.Board do
     resource(Agentboard.Board.AuditEvent)
     resource(Agentboard.Decisions.Request)
     resource(Agentboard.Decisions.Wake)
+    resource(Agentboard.Recovery.Episode)
+    resource(Agentboard.Recovery.Attempt)
     resource(Agentboard.Availability.Policy)
     resource(Agentboard.Board.Resources.Agent)
     resource(Agentboard.Board.Resources.Task)

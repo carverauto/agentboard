@@ -1,0 +1,117 @@
+{
+  "status": "implementation interface checkpoint; proposed wire fields, no deployed restart API",
+  "decision_id": "6f947f2e-62ee-4f73-a36b-c44aeb8c4cd6",
+  "protocol_revision": 1,
+  "intent": {
+    "type": "seat.restart",
+    "subject": "recovery:<episode_id>:<attempt_number>",
+    "agent_id": "<registered agent slug>",
+    "host_id": "<enrolled host>",
+    "repo": "<owner/repo>",
+    "episode_id": "<uuid>",
+    "attempt_id": "<uuid>",
+    "attempt_number": 1,
+    "expected_enrollment_revision": "<exact enrollment revision>",
+    "expected_binding_epoch": 1,
+    "expected_session_id": "<native session identity>",
+    "policy_id": "<captain-approved policy id>",
+    "policy_version": 1,
+    "task_id": "<live owned task>",
+    "seat_reference": "<locally registered seat manifest reference>",
+    "expires_at": "<server UTC timestamp>"
+  },
+  "host_result": {
+    "episode_id": "<same uuid>",
+    "attempt_id": "<same uuid>",
+    "expected_binding_epoch": 1,
+    "status": "uncertain",
+    "reason": "spawn_result_unknown",
+    "journal_reference": "<opaque exact journal reference>"
+  },
+  "host_terminal_statuses": [
+    "still_alive",
+    "known_absent",
+    "restarted",
+    "refused",
+    "uncertain"
+  ],
+  "startup_proof": {
+    "episode_id": "<same uuid>",
+    "attempt_id": "<same uuid>",
+    "binding_epoch": 2,
+    "session_id": "<new native session identity>",
+    "validated_lease_id": "<same exact local lease id>",
+    "isolated_cwd_verified": true,
+    "heartbeat_at": "<correlated fresh server UTC timestamp>",
+    "canonical_check_in_complete": true
+  },
+  "authorization": {
+    "required": "host-scoped credential; enrollment, host and old/new incarnation fences",
+    "not_authority": [
+      "agent attribution headers",
+      "backend=herdr",
+      "unscoped heartbeat",
+      "caller-selected shell or filesystem path"
+    ]
+  },
+  "policy": {
+    "minimum_stale_seconds": 600,
+    "cadence_multiplier": 3,
+    "recommended_maximum_cadence_seconds": 120,
+    "max_attempts": 3,
+    "retry_delays_seconds": [
+      60,
+      300
+    ],
+    "startup_deadline_seconds": 180,
+    "final_action": "escalate_preserve",
+    "activation": "disabled until separate captain policy/rollout decisions"
+  },
+  "seat_cli": {
+    "dependency_pr": 167,
+    "dependency_head": "a3160e23a1da7bc29a3bed64542a2d454bf1d6b8",
+    "operations": [
+      "seat ensure TASK --json",
+      "seat env TASK --json",
+      "seat check TASK --json"
+    ],
+    "json_top_level": [
+      "binding",
+      "environment"
+    ],
+    "binding_fields": [
+      "task_id",
+      "source",
+      "worktree",
+      "treehouse_root",
+      "treehouse_version",
+      "lease_holder",
+      "lease_id"
+    ],
+    "environment_fields": [
+      "AGENT_ID",
+      "AGENTBOARD_HARNESS",
+      "AGENTBOARD_MODEL",
+      "AGENTBOARD_URL",
+      "AGENTBOARD_SEAT_WORKTREE",
+      "AGENTBOARD_SEAT_SOURCE",
+      "AGENTBOARD_SEAT_ROOT",
+      "AGENTBOARD_SEAT_BRIEF"
+    ],
+    "must_refuse": [
+      "foreign/expired/terminal claim",
+      "foreign or mismatched lease",
+      "unpreserved WIP",
+      "primary/legacy/foreign cwd",
+      "conflicting retained metadata"
+    ],
+    "credentials": "never copied into resolution JSON",
+    "owner_confirmation_message": 1408,
+    "recovery_constraints": [
+      "Require preserved expected lease and WIP before ensure; never allocate blindly on missing custody",
+      "Inspect native No-mistakes branch_sync separately; refuse unresolved or unpreserved custody",
+      "Task-aware launcher attachment generates/checks STOP brief; exported brief path alone is not proof",
+      "Preserve retained credential environment; refuse incompatible metadata"
+    ]
+  }
+}

@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Disabled stale-seat recovery checkpoint",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/carverauto/agentboard",
+      "revision": "125f269eb9e9bfb5a9d59c93f43ad0285a1819b0"
+    },
+    "viewBox": [
+      1250,
+      690
+    ]
+  },
+  "components": [
+    {
+      "id": "heartbeat",
+      "type": "external",
+      "label": "Admission input",
+      "sublabel": "Explicit enrolled snapshot",
+      "pos": [
+        40,
+        310
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/recovery/machine.ex",
+          "label": "Implemented boundary"
+        }
+      ]
+    },
+    {
+      "id": "policy",
+      "type": "security",
+      "label": "Policy snapshot",
+      "sublabel": "Dry-run / #154 blocked",
+      "pos": [
+        360,
+        50
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/recovery.ex",
+          "label": "Implemented boundary"
+        }
+      ]
+    },
+    {
+      "id": "episode",
+      "type": "backend",
+      "label": "Schema 31 ledger",
+      "sublabel": "Detected episode + audit",
+      "pos": [
+        360,
+        310
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/recovery/episode.ex",
+          "label": "Implemented boundary"
+        }
+      ]
+    },
+    {
+      "id": "wake",
+      "type": "messagebus",
+      "label": "Restart contract",
+      "sublabel": "#156 delivery blocked",
+      "pos": [
+        680,
+        310
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "openspec/changes/automate-stale-seat-recovery/contracts/restart-boundary.json",
+          "label": "Blocked integration contract"
+        }
+      ]
+    },
+    {
+      "id": "host",
+      "type": "backend",
+      "label": "Owned session",
+      "sublabel": "No native restart in this PR",
+      "pos": [
+        1000,
+        310
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "openspec/changes/automate-stale-seat-recovery/checkpoint.md",
+          "label": "Blocked integration contract"
+        }
+      ]
+    },
+    {
+      "id": "restored",
+      "type": "backend",
+      "label": "Startup contract",
+      "sublabel": "Reducer proof inputs only",
+      "pos": [
+        1000,
+        540
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/recovery/machine.ex",
+          "label": "Implemented boundary"
+        }
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "Retained claims",
+      "sublabel": "Rows and answers preserved",
+      "pos": [
+        360,
+        540
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/decisions.ex",
+          "label": "Implemented boundary"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "detect",
+      "from": "heartbeat",
+      "to": "episode",
+      "label": "preview only"
+    },
+    {
+      "id": "admit",
+      "from": "policy",
+      "to": "episode",
+      "label": "dry-run admission",
+      "labelAt": [
+        465,
+        210
+      ]
+    },
+    {
+      "id": "reserve",
+      "from": "episode",
+      "to": "wake",
+      "label": "future intent"
+    },
+    {
+      "id": "dispatch",
+      "from": "wake",
+      "to": "host",
+      "label": "future host"
+    },
+    {
+      "id": "verify",
+      "from": "host",
+      "to": "restored",
+      "label": "future proof",
+      "labelAt": [
+        1105,
+        463
+      ]
+    },
+    {
+      "id": "catchup",
+      "from": "restored",
+      "to": "ledger",
+      "label": "future catch-up"
+    },
+    {
+      "id": "retain",
+      "from": "episode",
+      "to": "ledger",
+      "label": "preserve refs",
+      "labelAt": [
+        465,
+        463
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Disabled checkpoint",
+      "items": [
+        "Active persistence is refused; only dry-run capture is available.",
+        "No scheduled detector, host command or production activation."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Integration still held",
+      "items": [
+        "Real #154 policy, #155 transport and #156 host intents are blocked.",
+        "Kill/restart and original native gate proof remain follow-ups."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "output": "docs/architecture/stale-seat-recovery.html",
+  "specification_sha256": "a813cc5bf468f3ca03e942bf6c1e31f45d4143b6960857993b74a87e2228be34",
+  "artifact_sha256": "acde76878161d004831cee122ab353139e3929cfe3f7d256cc22776b18577b36",
+  "artifact_bytes": 711465,
+  "source_revision": "125f269eb9e9bfb5a9d59c93f43ad0285a1819b0",
+  "validation": {
+    "profile": "showcase",
+    "passed": 9,
+    "total": 9,
+    "errors": 0,
+    "warnings": 0,
+    "repository_references_verified": 7
+  },
+  "browser_evidence": "passed",
+  "browser_receipt": "docs/architecture/stale-seat-recovery.visual-check.json",
+  "visual_review": "passed",
+  "reviewer": "codex-agent-b-worker image-capable review",
+  "review_scope": {
+    "screenshots": [
+      "1440x900.light",
+      "1440x900.dark",
+      "2048x1320.light",
+      "2048x1320.dark"
+    ],
+    "observations": "Current disabled-checkpoint labels/arrows and both theme endpoint captures inspected at1440x900 and2048x1320; all readable and contained, balanced full desktop composition."
+  },
+  "correction_rounds": 0,
+  "implementation": "disabled recovery resources/reducer checkpoint; real154/155/156 and end-to-end restart/answer proof remain blocked; no activation",
+  "remote_verification": {
+    "scope": "implementation tree before remote formatting; native exact-head pipeline still required",
+    "suite": "https://carverauto.buildbuddy.io/invocation/d94ce061-97bb-4059-8c0e-6443a4d1a33c",
+    "targets_passed": [
+      "//web:recovery_machine_test",
+      "//build/integration:recovery_checkpoint_test",
+      "//build/integration:release_schema_test",
+      "//build/integration:seat_attachment_test"
+    ],
+    "epoch_identity": "https://carverauto.buildbuddy.io/invocation/2e6552af-2c4c-4791-8783-2acae7d2de11",
+    "remote_format": "https://carverauto.buildbuddy.io/invocation/cf2bb579-6e90-4129-a065-f3f82e9b378b",
+    "native_restart_proof": "blocked-on real154/155/156",
+    "activation": "disabled"
+  },
+  "portable_browser_review": {
+    "status": "pass",
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900,
+        "overflow_x": false
+      },
+      {
+        "requested_width": 390,
+        "actual_width": 500,
+        "height": 844,
+        "overflow_x": false
+      }
+    ],
+    "limit": "Chrome native minimum yielded500px viewport; no390px pass claimed",
+    "perceptual_review": "Three captured images inspected; coherent product theme, readable prose/table and contained overview diagram"
+  }
+}

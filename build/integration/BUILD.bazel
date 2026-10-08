@@ -417,3 +417,13 @@ sh_test(
     args = ["$(rlocationpath //web:assets/app.js)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
     size = "small",
 )
+
+sh_test(
+    name = "recovery_checkpoint_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "recovery_checkpoint_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["recovery_checkpoint_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)
