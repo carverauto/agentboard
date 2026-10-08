@@ -1,0 +1,17 @@
+{
+  "status": "passed",
+  "reviewer": "codex-agent-a-server",
+  "scope": "standalone Archify delivered HTML, not dashboard mock",
+  "screenshots": [
+    "docs/architecture/captain-waiting-lane.visual-check.2048x1320.light.png",
+    "docs/architecture/captain-waiting-lane.visual-check.1440x900.dark.png",
+    "docs/architecture/captain-waiting-lane.visual-check.2048x1320.dark.png",
+    "docs/architecture/captain-waiting-lane.visual-check.1440x900.light.png"
+  ],
+  "observations": [
+    "Main intake path and informal recovery branch readable in both themes at endpoint sizes",
+    "No overlapping labels or routes observed; clear authority and unstructured labels",
+    "No visual correction rounds after delivered artifact; existing source frozen"
+  ],
+  "correction_rounds": 0
+}

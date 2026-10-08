@@ -66,3 +66,14 @@ agentboard chat read --channel <channel-id> --limit 50 --since <last-seen-post-i
 - If a post is uncertain (timeout without an ID), reconcile with
   `chat read` before retrying with the same `--retry-key`; never blindly
   repost.
+
+## Universal captain intake
+
+For EVERY captain-bound approval, merge, policy, credential, scope or ask-user
+question, MUST follow [the canonical decision protocol](../agentboard/SKILL.md#every-captain-question-is-a-decision):
+run read-only doctor, file `agentboard decision request TASK`, notify the
+configured coordinator with the returned decision ID, and stop dependent work.
+Non-gates need no gate/findings file; ask-user gates retain verbatim findings.
+Never include secret contents. A CLI/API-unavailable note is an unfiled ask
+without authority or a claim hold. Read the canonical answer, apply, renew and
+ack; do not infer permission from a wake or pick up another claim while waiting.

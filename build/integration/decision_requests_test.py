@@ -13,7 +13,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from liveview_client import LiveView, Page, contains
+from liveview_client import LiveView, Page, contains, RenderedView
 
 URL = os.environ["AGENTBOARD_URL"]
 CAPTAIN = "fixture-decision-capability-0123456789"
@@ -57,8 +57,8 @@ def ab(*args, actor="decision-seat", code=0):
     assert CAPTAIN not in p.stdout + p.stderr
     return json.loads(p.stderr if code else p.stdout)
 
-def create_task(id, owner="decision-seat"):
-    api("tasks", {"id": id, "title": "Decision fixture", "repo": "fixture/decisions"})
+def create_task(id, owner="decision-seat", repo="fixture/decisions"):
+    api("tasks", {"id": id, "title": "Decision fixture", "repo": repo})
     api("tasks/" + id + "/claim", {}, actor=owner)
 
 def request(task="decision-task", gate="run/gate", question="  Exact question?\n", findings="<script>verbatim</script>\nF1 critical file.ex:7 authority ask-user\n"):
@@ -75,6 +75,233 @@ rpc('Application.put_env(:agentboard,:coordinator_id,"decision-coordinator")')
 for actor in ["decision-seat", "decision-other", "decision-coordinator", "captain", "decision-worker"]:
     api("agents/register", {"name": actor}, actor=actor)
 assert api("meta")["schema_version"] >= 20
+# Universal intake protects the public CLI contract: positional task, optional
+# non-gate evidence, and server-authoritative Unicode/whitespace retry identity.
+create_task("universal-task")
+u = ab("decision", "request", "universal-task", "--kind", "scope",
+       "--question", "  Café\u00a0release?  ", "--option", "Proceed")["decision"]
+assert u["question"] == "  Café\u00a0release?  " and u["findings"] == ""
+retry = api("decisions", {"task":"universal-task","kind":"scope",
+            "question":"Cafe\u0301 \nrelease?","options":["Proceed"]})["decision"]
+assert retry["id"] == u["id"] and retry["question"] == u["question"]
+api("decisions", {"task":"universal-task","kind":"scope",
+    "question":"Café release?","options":["Changed"]}, status=409)
+assert sql("SELECT count(*) FROM task_events WHERE task_id='universal-task' AND kind='decision_requested'") == "1"
+
+# Retained terminal retries do not reopen; an intentional re-ask has a stable
+# retry key and still produces one event under concurrent transport retries.
+api("decisions/" + u["id"] + "/answer", {"answer":"Proceed"}, actor="decision-coordinator", captain=True)
+waiting = ab("decision","waiting","--task","universal-task")
+assert waiting["total"] == 0 and waiting["answered_total"] == 1
+ab("decision","ack",u["id"])
+assert ab("decision","request","universal-task","--kind","scope","--question","Café release?","--option","Proceed")["decision"]["id"] == u["id"]
+assert not api("tasks/universal-task")["task"]["held_by_decision"]
+new_payload={"task":"universal-task","kind":"scope","question":"Café release?","options":["Proceed"],"new":True,"request_key":"fixture-reask-1"}
+with concurrent.futures.ThreadPoolExecutor(2) as pool:
+    rerequests=list(pool.map(lambda _: api("decisions",new_payload),range(2)))
+assert rerequests[0]["decision"]["id"] == rerequests[1]["decision"]["id"] != u["id"]
+api("decisions",dict(new_payload,request_key="another-generation"),status=409)
+ab("decision","request","universal-task","--task","other-task","--question","Mismatch",code=2)
+ab("decision","request","universal-task","--kind","ask_user_gate","--question","Missing evidence",code=2)
+api("decisions",{"task":"universal-task","kind":"ask_user_gate","gate":"missing-file","question":"Missing"},status=422)
+for kind in ("approval","merge","policy","credential","scope","blocked_decision","other"):
+    create_task("kind-"+kind.replace("_","-"))
+    assert ab("decision","request","kind-"+kind.replace("_","-"),"--kind",kind,"--question","Capability question")["decision"]["kind"] == kind
+
+# Read-only informal recovery: latest owner source, quoted/negated markers,
+# explicit authority, revision/source CAS and retained terminal suppression.
+create_task("unfiled-task")
+api("tasks/unfiled-task/update",{"status":"blocked","note":"CAPTAIN DECISION: approve invented scope <script>raw</script>"})
+informal=ab("decision","waiting","--task","unfiled-task")
+assert informal["total"] == 1 and informal["answered_total"] == 0
+source=informal["decisions"][0]
+assert source["status"] == "unfiled" and not source["held_by_decision"]
+assert not api("tasks/unfiled-task")["task"]["held_by_decision"]
+promotion={"task":"unfiled-task","source_type":source["source_type"],"source_id":source["source_id"],"revision":source["revision"],"kind":"scope","question":"Approve invented scope?","options":["Proceed"]}
+api("decisions/promote",promotion,actor="decision-other",status=403)
+api("tasks/unfiled-task/update",{"note":"Waiting on captain: revised invented scope"})
+api("decisions/promote",promotion,actor="decision-coordinator",captain=True,status=409)
+source=ab("decision","waiting","--task","unfiled-task")["decisions"][0]
+promoted=ab("decision","promote","unfiled-task","--source-type",source["source_type"],"--source-id",source["source_id"],"--revision",str(source["revision"]),"--kind","scope","--question","Approve revised scope?","--option","Proceed",actor="decision-coordinator")["decision"]
+assert promoted["requester_id"] == "decision-seat" and promoted["promoted_by"] == "decision-coordinator"
+assert promoted["findings"] == "Waiting on captain: revised invented scope"
+p_retry=dict(promotion,source_type=source["source_type"],source_id=source["source_id"],revision=source["revision"],question="Approve revised scope?")
+assert api("decisions/promote",p_retry,actor="decision-coordinator",captain=True)["decision"]["id"] == promoted["id"]
+ab("decision","supersede",promoted["id"],"--reason","Source resolved",actor="decision-coordinator")
+assert ab("decision","waiting","--task","unfiled-task")["total"] == 0
+api("tasks/unfiled-task/update",{"note":"CAPTAIN DECISION: a new source"})
+assert ab("decision","waiting","--task","unfiled-task")["total"] == 1
+api("tasks/unfiled-task/update",{"note":"No captain decision needed; continuing"})
+assert ab("decision","waiting","--task","unfiled-task")["total"] == 0
+api("tasks/unfiled-task/update",{"note":"> CAPTAIN DECISION: quoted old ask"})
+assert ab("decision","waiting","--task","unfiled-task")["total"] == 0
+ab("msg","send","--to","decision-coordinator","--task","unfiled-task","--body","waiting on captain: newest owner message")
+assert ab("decision","waiting","--task","unfiled-task")["decisions"][0]["source_type"] == "message"
+api("tasks/unfiled-task/update",{"note":"Non-captain progress removes informal ask"})
+assert ab("decision","waiting","--task","unfiled-task")["total"] == 0
+api("tasks/unfiled-task/update",{"note":"CAPTAIN DECISION: terminal ask"})
+api("tasks/unfiled-task/update",{"status":"cancelled","note":"Cancelled"})
+assert ab("decision","waiting","--task","unfiled-task")["total"] == 0
+
+# Exact32-row total remains independent of20-row paging and task/status views.
+create_task("lane-task",repo="fixture/lane")
+lane_ids=[api("decisions",{"task":"lane-task","question":"Lane question "+str(i)})["decision"]["id"] for i in range(32)]
+sql("UPDATE decision_requests SET created_at='2026-01-02T00:00:00Z' WHERE task_id='lane-task'")
+lane=api("decisions/waiting?task=lane-task&limit=20")
+assert lane["total"] == 32 and len(lane["decisions"]) == 20 and lane["next_cursor"]
+api("decisions/waiting?task=unfiled-task&cursor="+urllib.parse.quote(lane["next_cursor"]),status=422)
+tail=api("decisions/waiting?task=lane-task&limit=20&cursor="+urllib.parse.quote(lane["next_cursor"]))
+assert tail["total"] == 32 and len(tail["decisions"]) == 12 and not tail["next_cursor"]
+assert [r["id"] for r in lane["decisions"]+tail["decisions"]] == sorted(lane_ids)
+lane_view=LiveView(URL,"/?repo=fixture%2Fdecisions&status=review")
+assert contains(lane_view.initial,"captain-waiting-count") and contains(lane_view.initial,"data-count")
+lane_view.close()
+task_lane=LiveView(URL,"/tasks/lane-task")
+Path(os.environ["TEST_UNDECLARED_OUTPUTS_DIR"],"waiting-lane-connected.json").write_text(json.dumps(task_lane.initial))
+assert contains(task_lane.initial,"32") and contains(task_lane.initial,"Next waiting decisions")
+task_lane.close()
+
+create_task("mixed-lane-task",repo="fixture/lane")
+api("tasks/mixed-lane-task/update",{"status":"blocked","note":"CAPTAIN DECISION: mixed source"})
+mixed=api("decisions/waiting?repo=fixture%2Flane&limit=20")
+assert mixed["total"] == 33 and len(mixed["decisions"]) == 20
+mixed_tail=api("decisions/waiting?repo=fixture%2Flane&limit=20&cursor="+urllib.parse.quote(mixed["next_cursor"]))
+assert mixed_tail["total"] == 33 and len(mixed_tail["decisions"]) == 13
+assert mixed_tail["decisions"][-1]["status"] == "unfiled"
+board_lane=RenderedView(URL,"/?repo=fixture%2Flane&status=review")
+# Decode the actual connected wire result through the pinned Phoenix consumer.
+lane_html=board_lane.document
+assert lane_html.index('id="captain-waiting"') < lane_html.index('class="board-columns"')
+assert 'data-count="33"' in lane_html and "33" in lane_html
+styles_page=urllib.request.urlopen(URL+"/",timeout=15).read().decode()
+styles=[]
+for css_path in re.findall(r'<link[^>]+href="([^" ]+\.css[^" ]*)"',styles_page):
+    styles.append(urllib.request.urlopen(urllib.parse.urljoin(URL,css_path),timeout=15).read().decode())
+Path(os.environ["TEST_UNDECLARED_OUTPUTS_DIR"],"waiting-lane-preview.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agentboard waiting lane — remote fixture</title><style>'+''.join(styles)+'</style><body>'+lane_html+'</body></html>')
+sql("ALTER TABLE decision_requests RENAME COLUMN source_type TO fixture_missing_source")
+try:
+    assert api("decisions/waiting?task=lane-task",status=503)["error"]["code"] == "unavailable"
+    unavailable=board_lane.live.wait(lambda e:e[3]=="diff" and contains(e,"count and freshness are unknown"),timeout=8)
+    assert unavailable
+    board_lane.diffs.extend(event[4] for event in board_lane.live.events if event[3]=="diff")
+    board_lane.live.events.clear()
+    retained=board_lane.render()
+    assert 'data-count="?"' in retained and "Lane question" in retained
+finally:
+    sql("ALTER TABLE decision_requests RENAME COLUMN fixture_missing_source TO source_type")
+    board_lane.close()
+
+create_task("promotion-ownership")
+api("tasks/promotion-ownership/update",{"status":"blocked","note":"CAPTAIN DECISION: owner question"})
+owned_source=ab("decision","waiting","--task","promotion-ownership")["decisions"][0]
+api("tasks/promotion-ownership/handoff",{"to":"decision-other","note":"Explicit handoff"})
+lost={"task":"promotion-ownership","source_type":owned_source["source_type"],"source_id":owned_source["source_id"],"revision":owned_source["revision"],"kind":"scope","question":"Owner question"}
+api("decisions/promote",lost,actor="decision-coordinator",captain=True,status=409)
+assert api("tasks/promotion-ownership")["task"]["assignee_id"] == "decision-other"
+assert sql("SELECT count(*) FROM decision_requests WHERE task_id='promotion-ownership'") == "0"
+
+# Connected board Promote keeps the selected non-default kind/options: the same
+# reducer the CLI promote path proves, driven through the real LiveView form.
+create_task("board-promote-task")
+api("tasks/board-promote-task/update",{"status":"blocked","note":"CAPTAIN DECISION: board scope ask"})
+board_source=ab("decision","waiting","--task","board-promote-task")["decisions"][0]
+assert board_source["status"] == "unfiled"
+# Current revision with no qualifying source refuses with conflict, never a crash.
+create_task("board-promote-nonsource")
+current_revision=api("tasks/board-promote-nonsource")["task"]["revision"]
+api("decisions/promote",{"task":"board-promote-nonsource","source_type":"message","source_id":"00000000-0000-4000-8000-000000000000","revision":current_revision,"kind":"scope","question":"No qualifying source"},actor="decision-coordinator",captain=True,status=409)
+assert sql("SELECT count(*) FROM decision_requests WHERE task_id='board-promote-nonsource'") == "0"
+# An observer browser session cannot promote through the board form.
+observer_view=LiveView(URL,"/tasks/board-promote-task")
+observer_view.send(["1","observer-promote",observer_view.topic,"event",{"type":"form","event":"decision_promote","value":urllib.parse.urlencode({"task":"board-promote-task","source_type":board_source["source_type"],"source_id":board_source["source_id"],"revision":str(board_source["revision"]),"question":"Board promote scope question?","kind":"scope","options":"Proceed\nDefer"})}])
+observer_reply=observer_view.wait(lambda e:e[3] == "phx_reply" and e[1] == "observer-promote")
+assert observer_reply and contains(observer_reply,"Unlock captain controls before promotion")
+assert sql("SELECT count(*) FROM decision_requests WHERE task_id='board-promote-task'") == "0"
+observer_view.close()
+board_jar=http.cookiejar.CookieJar()
+board_browser=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(board_jar))
+board_settings=Page();board_settings.feed(board_browser.open(URL+"/settings",timeout=10).read().decode())
+board_unlock=urllib.request.Request(URL+"/settings/unlock",data=urllib.parse.urlencode({"token":CAPTAIN,"_csrf_token":board_settings.csrf}).encode(),headers={"Content-Type":"application/x-www-form-urlencoded","Origin":URL})
+assert board_browser.open(board_unlock,timeout=10).status == 200
+board_cookie='; '.join(c.name+'='+c.value for c in board_jar)
+board_view=LiveView(URL,"/tasks/board-promote-task",board_cookie)
+board_view.send(["1","board-promote",board_view.topic,"event",{"type":"form","event":"decision_promote","value":urllib.parse.urlencode({"task":"board-promote-task","source_type":board_source["source_type"],"source_id":board_source["source_id"],"revision":str(board_source["revision"]),"question":"Board promote scope question?","kind":"scope","options":"Proceed\nDefer"})}])
+assert board_view.wait(lambda e:e[3] == "phx_reply" and e[1] == "board-promote")
+board_view.close()
+board_promoted=ab("decision","list","--task","board-promote-task")["decisions"][0]
+assert board_promoted["kind"] == "scope" and board_promoted["options"] == ["Proceed","Defer"]
+assert board_promoted["question"] == "Board promote scope question?"
+assert board_promoted["findings"] == "CAPTAIN DECISION: board scope ask"
+assert board_promoted["requester_id"] == "decision-seat" and board_promoted["promoted_by"] == "captain"
+assert board_promoted["source_type"] == board_source["source_type"] and board_promoted["source_id"] == board_source["source_id"]
+print("Board LiveView promote preserves selected kind/options with provenance proof passed")
+
+# Default-off cleanup and explicit TTL retirement retain audit and emit no
+# answer/inbox/wake. Expiry payload changes conflict instead of mutating history.
+create_task("expiry-task")
+expiry=ab("decision","request","expiry-task","--kind","policy","--question","Expiry fixture","--expires-in","60")["decision"]
+api("decisions",{"task":"expiry-task","kind":"policy","question":"Expiry fixture","expires_in":120},status=409)
+sql("UPDATE decision_requests SET expires_at=clock_timestamp()-interval '1 second' WHERE task_id='expiry-task'")
+rpc('Agentboard.Decisions.cleanup()')
+assert api("decisions/"+expiry["id"])["decision"]["status"] == "open"
+prior=counts("expiry-task")
+rpc('Application.put_env(:agentboard,:decision_cleanup_enabled,true); {:ok,_}=Agentboard.Decisions.cleanup()')
+expired=api("decisions/"+expiry["id"])["decision"]
+assert expired["status"] == "superseded" and expired["close_reason"] == "expired: explicit non-gate TTL"
+assert expired["answer"] is None
+assert json.loads(counts("expiry-task"))[0:1]+json.loads(counts("expiry-task"))[2:] == json.loads(prior)[0:1]+json.loads(prior)[2:]
+create_task("merge-expiry-task")
+merge_url="https://github.com/fixture/decisions/pull/729"
+api("tasks/merge-expiry-task/link",{"pr_url":merge_url})
+merge=ab("decision","request","merge-expiry-task","--kind","merge","--question","Review this PR?")["decision"]
+assert merge["bound_pr"] == merge_url
+pr_id=sql("SELECT id FROM delivery_pull_requests WHERE url='"+merge_url+"'")
+sql("UPDATE delivery_poll_states SET lifecycle='merged',observed_at=clock_timestamp()-interval '1 hour' WHERE id='"+pr_id+"'")
+rpc('Agentboard.Decisions.cleanup()')
+assert api("decisions/"+merge["id"])["decision"]["status"] == "open"
+sql("UPDATE delivery_poll_states SET observed_at=clock_timestamp() WHERE id='"+pr_id+"'")
+api("tasks/merge-expiry-task/link",{"pr_url":"https://github.com/fixture/decisions/pull/730"})
+rpc('Agentboard.Decisions.cleanup()')
+assert api("decisions/"+merge["id"])["decision"]["status"] == "open"
+api("tasks/merge-expiry-task/link",{"pr_url":merge_url})
+prior=counts("merge-expiry-task")
+rpc('Agentboard.Decisions.cleanup()')
+closed=api("decisions/"+merge["id"])["decision"]
+assert closed["status"] == "superseded" and closed["close_reason"] == "bound PR terminal: merged"
+assert json.loads(counts("merge-expiry-task"))[0] == json.loads(prior)[0] and closed["answer"] is None
+assert sql("SELECT count(*) FROM decision_wakes WHERE task_id='merge-expiry-task'") == "0"
+# Scheduling isolation: one poisoned cleanup candidate neither stalls delivery
+# scheduling nor starves a healthy peer retirement. A trigger fails updates to
+# the poison row through the real public cleanup and schedule_due actions.
+create_task("cleanup-healthy-task")
+create_task("cleanup-poison-task")
+healthy=ab("decision","request","cleanup-healthy-task","--kind","policy","--question","Healthy TTL fixture","--expires-in","60")["decision"]
+poison=ab("decision","request","cleanup-poison-task","--kind","policy","--question","Poison TTL fixture","--expires-in","60")["decision"]
+sql("UPDATE decision_requests SET expires_at=clock_timestamp()-interval '1 second' WHERE task_id IN ('cleanup-healthy-task','cleanup-poison-task')")
+sql("CREATE FUNCTION poison_decision_cleanup() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.task_id='cleanup-poison-task' THEN RAISE EXCEPTION 'fixture cleanup poison'; END IF; RETURN NEW; END $$")
+sql("CREATE TRIGGER poison_decision_cleanup BEFORE UPDATE ON decision_requests FOR EACH ROW EXECUTE FUNCTION poison_decision_cleanup()")
+rpc('Application.put_env(:agentboard,:decision_cleanup_enabled,true)')
+rpc('Application.put_env(:agentboard,:pr_observation_enabled,true)')
+try:
+    rpc('{:ok,_}=Agentboard.Decisions.cleanup()')
+    assert api("decisions/"+healthy["id"])["decision"]["status"] == "superseded"
+    assert api("decisions/"+poison["id"])["decision"]["status"] == "open"
+    rpc('input = Ash.ActionInput.for_action(Agentboard.Delivery.Observation, :schedule_due, %{}, actor: %{role: :system}); {:ok, %{enrolled: _}} = Ash.run_action(input)')
+    assert api("decisions/"+healthy["id"])["decision"]["status"] == "superseded"
+    assert api("decisions/"+poison["id"])["decision"]["status"] == "open"
+    sql("ALTER TABLE decision_requests RENAME TO decision_requests_fixture_hidden")
+    try:
+        rpc('input = Ash.ActionInput.for_action(Agentboard.Delivery.Observation, :schedule_due, %{}, actor: %{role: :system}); {:ok, %{enrolled: _}} = Ash.run_action(input)')
+    finally:
+        sql("ALTER TABLE decision_requests_fixture_hidden RENAME TO decision_requests")
+finally:
+    sql("DROP TRIGGER poison_decision_cleanup ON decision_requests")
+    sql("DROP FUNCTION poison_decision_cleanup()")
+    rpc('Application.put_env(:agentboard,:pr_observation_enabled,false)')
+print("Poisoned cleanup candidate cannot stall scheduling or starve peer retirement proof passed")
+rpc('Application.put_env(:agentboard,:decision_cleanup_enabled,false)')
+print("Universal requests, retained retries, re-ask, derived intake, promotion, paging and default-off TTL proof passed")
+
 create_task("decision-task")
 before = api("tasks/decision-task")
 api("decisions", request(), actor="decision-other", status=409)

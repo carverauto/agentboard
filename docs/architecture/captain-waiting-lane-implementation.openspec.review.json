@@ -1,0 +1,44 @@
+[
+  {
+    "viewport": [
+      1440,
+      900
+    ],
+    "theme": "light",
+    "measurements": {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "sections": 4,
+      "iframe": true,
+      "status": "Captain-approved implementation"
+    }
+  },
+  {
+    "viewport": [
+      1440,
+      900
+    ],
+    "theme": "dark",
+    "measurements": {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "sections": 4,
+      "iframe": true,
+      "status": "Captain-approved implementation"
+    }
+  },
+  {
+    "viewport": [
+      390,
+      844
+    ],
+    "theme": "dark",
+    "measurements": {
+      "width": 390,
+      "scrollWidth": 390,
+      "sections": 4,
+      "iframe": true,
+      "status": "Captain-approved implementation"
+    }
+  }
+]

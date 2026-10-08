@@ -27,5 +27,16 @@ const CompletedCard = {
   beforeUpdate() { this.expanded = this.el.open },
   updated() { this.el.open = this.expanded }
 }
-const liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}, hooks: {QuotaDialog, CompletedCard}})
+const CaptainWaitingCount = {
+  mounted() { this.updated() },
+  updated() {
+    const badge = document.getElementById("captain-waiting-nav-count")
+    if (badge) badge.textContent = this.el.dataset.count || "?"
+  },
+  destroyed() {
+    const badge = document.getElementById("captain-waiting-nav-count")
+    if (badge) badge.textContent = "?"
+  }
+}
+const liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}, hooks: {QuotaDialog, CompletedCard, CaptainWaitingCount}})
 liveSocket.connect()

@@ -1,0 +1,10 @@
+{
+  "artifact": {
+    "sha256": "ddff24199cb5a3d3db7bdf4d2e5788f3f2bb91d1e0a5906bdeca05a3ce353e57",
+    "bytes": 712234
+  },
+  "status": "passed",
+  "scope": "Inspected light2048x1320 and dark1440x900 delivered screenshots; legible labels, sparse recovery path and no overlapping routes. Automated four-viewport containment is separate. Source behavior implemented, deployment not claimed.",
+  "reviewer": "codex-agent-a-server",
+  "correction_rounds": 0
+}

@@ -173,8 +173,14 @@ decision_psql 'UPDATE board_schema SET version=22 WHERE id=1' >/dev/null
 [[ "$(decision_psql 'SELECT count(*) FROM decision_wakes')" == 0 ]]
 echo 'Pending schema-20 migration preserves higher schema21 and seeds no requests/wakes.'
 
+decision_psql "INSERT INTO agents(id,name,model,harness) VALUES ('legacy-decision-owner','Legacy decision owner','fixture','codex');
+INSERT INTO tasks(id,title) VALUES ('legacy-decision-card','Retained legacy decision');
+INSERT INTO decision_requests(id,task_id,requester_id,kind,gate_ref,question,findings,options,status,created_at,updated_at)
+VALUES ('11111111-1111-4111-8111-111111111129','legacy-decision-card','legacy-decision-owner','ask_user_gate','legacy-gate','  Retained question?  ','Retained findings','{}','open',clock_timestamp(),clock_timestamp());" >/dev/null
+legacy_decision="$(decision_psql "SELECT to_jsonb(d) FROM decision_requests d")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 [[ "$(decision_psql 'SELECT version FROM board_schema WHERE id=1')" == 31 ]]
+[[ "$(decision_psql "SELECT to_jsonb(d)-'question_key'-'normalization_version'-'retry_key'-'expires_at'-'expires_in'-'bound_pr'-'source_type'-'source_id'-'promoted_by' FROM decision_requests d")" == "$legacy_decision" ]]
 
 # Older-timestamp 20261008001800 pending over a higher-marker database must not lower the marker.
 "$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_backfill_upgrade

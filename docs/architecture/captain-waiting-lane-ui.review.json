@@ -1,0 +1,104 @@
+{
+  "scope": "Actual connected LiveView HTML and remotely compiled CSS; offline fixture. No running API/JS hook or destination navigation proof.",
+  "views": [
+    {
+      "viewport": [
+        1440,
+        900
+      ],
+      "theme": "light",
+      "geometry": {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "panelTop": 215.75,
+        "columnsTop": 5223,
+        "count": "33",
+        "badgeCount": "33",
+        "displayed": 20,
+        "links": [
+          "/tasks/lane-task",
+          "/agents?id=decision-seat",
+          "/tasks/lane-task",
+          "/agents?id=decision-seat"
+        ]
+      },
+      "screenshot": "captain-waiting-lane-ui/1440x900-light.png",
+      "wrapper_exit": 1
+    },
+    {
+      "viewport": [
+        1440,
+        900
+      ],
+      "theme": "dark",
+      "geometry": {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "panelTop": 215.75,
+        "columnsTop": 5223,
+        "count": "33",
+        "badgeCount": "33",
+        "displayed": 20,
+        "links": [
+          "/tasks/lane-task",
+          "/agents?id=decision-seat",
+          "/tasks/lane-task",
+          "/agents?id=decision-seat"
+        ]
+      },
+      "screenshot": "captain-waiting-lane-ui/1440x900-dark.png",
+      "wrapper_exit": 1
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "theme": "light",
+      "geometry": {
+        "width": 390,
+        "scrollWidth": 390,
+        "panelTop": 279.5,
+        "columnsTop": 7611.75,
+        "count": "33",
+        "badgeCount": "33",
+        "displayed": 20,
+        "links": [
+          "/tasks/lane-task",
+          "/agents?id=decision-seat",
+          "/tasks/lane-task",
+          "/agents?id=decision-seat"
+        ]
+      },
+      "screenshot": "captain-waiting-lane-ui/390x844-light.png",
+      "wrapper_exit": 1
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "theme": "dark",
+      "geometry": {
+        "width": 390,
+        "scrollWidth": 390,
+        "panelTop": 279.5,
+        "columnsTop": 7611.75,
+        "count": "33",
+        "badgeCount": "33",
+        "displayed": 20,
+        "links": [
+          "/tasks/lane-task",
+          "/agents?id=decision-seat",
+          "/tasks/lane-task",
+          "/agents?id=decision-seat"
+        ]
+      },
+      "screenshot": "captain-waiting-lane-ui/390x844-dark.png",
+      "wrapper_exit": 1
+    }
+  ],
+  "keyboard": "Focused actual findings SUMMARY; Enter expanded DETAILS in earlier browser check.",
+  "capture_limitation": "Wrapper exits1 without reported path; actual requested PNG files were saved and inspected separately.",
+  "visual_review": "passed: inspected all four actual screenshots; readable wrapping, theme contrast and focus outline; no horizontal overflow."
+}

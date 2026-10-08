@@ -1,0 +1,173 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Captain decision intake",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "lanes": [
+    {
+      "id": "durable",
+      "label": "Every captain question"
+    },
+    {
+      "id": "recovery",
+      "label": "Informal ask recovery",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "seat-question",
+    "durable-request",
+    "top-lane",
+    "captain-answer",
+    "answer-intent",
+    "seat-ack"
+  ],
+  "nodes": [
+    {
+      "id": "seat-question",
+      "lane": "durable",
+      "col": 0,
+      "type": "external",
+      "label": "Seat question",
+      "sublabel": "Approval, policy or gate",
+      "width": 140
+    },
+    {
+      "id": "durable-request",
+      "lane": "durable",
+      "col": 1,
+      "type": "database",
+      "label": "One request",
+      "sublabel": "Normalized question key",
+      "width": 140
+    },
+    {
+      "id": "top-lane",
+      "lane": "durable",
+      "col": 2,
+      "type": "frontend",
+      "label": "Top board lane",
+      "sublabel": "Count, age, oldest first",
+      "width": 140
+    },
+    {
+      "id": "captain-answer",
+      "lane": "durable",
+      "col": 3,
+      "type": "security",
+      "label": "Captain answer",
+      "sublabel": "Protected capability",
+      "width": 140
+    },
+    {
+      "id": "answer-intent",
+      "lane": "durable",
+      "col": 4,
+      "type": "messagebus",
+      "label": "One answer intent",
+      "sublabel": "Board inbox and wake",
+      "width": 140
+    },
+    {
+      "id": "seat-ack",
+      "lane": "durable",
+      "col": 5,
+      "type": "backend",
+      "label": "Seat applies",
+      "sublabel": "Renew then acknowledge",
+      "width": 140
+    },
+    {
+      "id": "unfiled",
+      "lane": "recovery",
+      "col": 1,
+      "type": "frontend",
+      "label": "Unfiled question",
+      "sublabel": "Derived, read only",
+      "width": 140
+    },
+    {
+      "id": "promote",
+      "lane": "recovery",
+      "col": 2,
+      "type": "security",
+      "label": "Promote ask",
+      "sublabel": "Owner + promoter retained",
+      "width": 140
+    }
+  ],
+  "edges": [
+    {
+      "id": "file",
+      "from": "seat-question",
+      "to": "durable-request",
+      "label": "file",
+      "role": "main"
+    },
+    {
+      "id": "show",
+      "from": "durable-request",
+      "to": "top-lane",
+      "label": "show",
+      "role": "main"
+    },
+    {
+      "id": "decide",
+      "from": "top-lane",
+      "to": "captain-answer",
+      "label": "decide",
+      "role": "main"
+    },
+    {
+      "id": "deliver",
+      "from": "captain-answer",
+      "to": "answer-intent",
+      "label": "commit",
+      "role": "main"
+    },
+    {
+      "id": "apply",
+      "from": "answer-intent",
+      "to": "seat-ack",
+      "label": "apply",
+      "role": "main"
+    },
+    {
+      "id": "discover",
+      "from": "unfiled",
+      "to": "top-lane",
+      "label": "show unstructured",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "promote-ask",
+      "from": "unfiled",
+      "to": "promote",
+      "label": "explicit promotion",
+      "role": "branch",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Waiting count",
+      "items": [
+        "One SQL snapshot: exact count and bounded pages",
+        "Answered requests await ack separately"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Preserved authority",
+      "items": [
+        "Unfiled sources confer no hold or wake",
+        "Cleanup defaults off; schema 29 is additive"
+      ]
+    }
+  ]
+}

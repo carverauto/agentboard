@@ -16,11 +16,19 @@ config :agentboard, :captain_token, System.get_env("AGENTBOARD_CAPTAIN_TOKEN")
 
 # GitHub hook secret is separate from agent/captain/worker capabilities. Intake
 # and recovery stay behind the existing PR observation flag.
-config :agentboard, :workflow_webhook_secret_file,
+config :agentboard,
+       :workflow_webhook_secret_file,
        System.get_env("AGENTBOARD_WORKFLOW_WEBHOOK_SECRET_FILE")
-config :agentboard, :workflow_repositories,
-       System.get_env("AGENTBOARD_WORKFLOW_REPOSITORIES", "carverauto/agentboard,carverauto/serviceradar")
-       |> String.split(",", trim: true) |> Enum.map(&String.trim/1) |> Enum.take(20)
+
+config :agentboard,
+       :workflow_repositories,
+       System.get_env(
+         "AGENTBOARD_WORKFLOW_REPOSITORIES",
+         "carverauto/agentboard,carverauto/serviceradar"
+       )
+       |> String.split(",", trim: true)
+       |> Enum.map(&String.trim/1)
+       |> Enum.take(20)
 
 # Inventory catch-up only. Provider observation and CI gates are separate stages.
 config :agentboard,
@@ -229,17 +237,27 @@ ci_policies =
 config :agentboard, :ci_policies, ci_policies
 
 # Shared-bot inbound is a separate opt-in; deploying code does not activate chat cutover.
-config :agentboard, :mattermost_inbound_enabled,
-  System.get_env("AGENTBOARD_MATTERMOST_INBOUND_ENABLED", "false") in ["true", "1"]
-config :agentboard, :mattermost_inbound_repo,
-  System.get_env("AGENTBOARD_MATTERMOST_INBOUND_REPO")
+config :agentboard,
+       :mattermost_inbound_enabled,
+       System.get_env("AGENTBOARD_MATTERMOST_INBOUND_ENABLED", "false") in ["true", "1"]
+
+config :agentboard, :mattermost_inbound_repo, System.get_env("AGENTBOARD_MATTERMOST_INBOUND_REPO")
 # Unset means each worker's enrollment time. An explicit non-negative epoch
 # cutoff permits an operator-approved bounded historical bootstrap.
-history_start = case System.get_env("AGENTBOARD_MATTERMOST_INBOUND_HISTORY_START_MS") do
-  nil -> nil
-  value -> case Integer.parse(value) do
-    {stamp, ""} when stamp >= 0 -> stamp
-    _ -> :invalid
+history_start =
+  case System.get_env("AGENTBOARD_MATTERMOST_INBOUND_HISTORY_START_MS") do
+    nil ->
+      nil
+
+    value ->
+      case Integer.parse(value) do
+        {stamp, ""} when stamp >= 0 -> stamp
+        _ -> :invalid
+      end
   end
-end
+
 config :agentboard, :mattermost_inbound_history_start_ms, history_start
+
+config :agentboard,
+       :decision_cleanup_enabled,
+       System.get_env("AGENTBOARD_DECISION_CLEANUP_ENABLED") == "true"

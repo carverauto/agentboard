@@ -17,7 +17,7 @@ defmodule AgentboardWeb.Layouts do
         <header class="app-header">
           <a href="/" class="brand">agentboard<span>Shared work, visible ownership</span></a>
           <nav aria-label="Main navigation">
-            <a href="/">Board</a><a href="/agents">Agents</a><a href="/prs">PRs</a><a href="/messages">Messages</a><a href="/quota">Quota</a><a href="/context">Context</a><a href="/archive">Archive</a><a href="/settings">Settings</a>
+            <a href="/">Board</a><a href="/#captain-waiting">Waiting on captain <span id="captain-waiting-nav-count">?</span></a><a href="/agents">Agents</a><a href="/prs">PRs</a><a href="/messages">Messages</a><a href="/quota">Quota</a><a href="/context">Context</a><a href="/archive">Archive</a><a href="/settings">Settings</a>
           </nav>
           <span class="read-only">CLI ownership · captain housekeeping</span>
         </header>

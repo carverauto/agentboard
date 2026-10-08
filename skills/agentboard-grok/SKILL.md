@@ -14,3 +14,14 @@ For a Herdr-hosted Grok session, keep `harness=grok` and use `agentboard agent r
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.
 
 For the captain assistant, quota-routine, or coordinator role, also read [Grok Bot guidance](../../docs/coordinator/adapters/grok-bot.md) and the [coordinator role](../../docs/coordinator/role.md). It complements the shared ownership workflow; it installs no routine — coordination runs through board claims, messages, and captain-approved policy.
+
+## Universal captain intake
+
+For EVERY captain-bound approval, merge, policy, credential, scope or ask-user
+question, MUST follow [the canonical decision protocol](../agentboard/SKILL.md#every-captain-question-is-a-decision):
+run read-only doctor, file `agentboard decision request TASK`, notify the
+configured coordinator with the returned decision ID, and stop dependent work.
+Non-gates need no gate/findings file; ask-user gates retain verbatim findings.
+Never include secret contents. A CLI/API-unavailable note is an unfiled ask
+without authority or a claim hold. Read the canonical answer, apply, renew and
+ack; do not infer permission from a wake or pick up another claim while waiting.

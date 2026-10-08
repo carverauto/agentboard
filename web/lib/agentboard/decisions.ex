@@ -5,8 +5,9 @@ defmodule Agentboard.Decisions do
   alias Agentboard.Board.Resources.Task
   alias Agentboard.Decisions.{Request, Wake}
   require Ash.Query
+  require Logger
   @active ~w(open answered)
-  @kinds ~w(ask_user_gate approval blocked_decision other)
+  @kinds ~w(ask_user_gate approval merge policy credential scope blocked_decision other)
 
   def held?(task_id, owner_id) do
     %{rows: [[held]]} = Repo.statement!("SELECT board_decision_hold($1,$2)", [task_id, owner_id])
@@ -14,58 +15,264 @@ defmodule Agentboard.Decisions do
   end
 
   def request(actor, data) do
-    with {:ok, actor} <- Input.actor(actor), :ok <- valid_request(data) do
+    with {:ok, actor} <- Input.actor(actor), {:ok, data} <- prepare_request(data) do
+      Ops.transaction(fn ->
+        Ops.identity!(actor)
+        request_locked(task!(data["task"]), actor, data)
+      end)
+    end
+  end
+
+  defp request_locked(task, actor, data, promotion \\ %{}) do
+    key = if is_nil(data["gate"]), do: question_key(data["question"])
+
+    gate =
+      data["gate"] ||
+        "question:" <>
+          key <>
+          if(data["new"],
+            do:
+              ":retry:" <>
+                (:crypto.hash(:sha256, data["request_key"]) |> Base.encode16(case: :lower)),
+            else: ""
+          )
+
+    prior =
+      Request |> Ash.Query.filter(task_id == ^task.id and gate_ref == ^gate) |> Ash.read_one!()
+
+    if prior do
+      unless prior.requester_id == task.assignee_id and
+               prior.requester_id == Map.get(promotion, :requester_id, actor["agent"]) and
+               same_request?(prior, data),
+             do: Ops.reject("conflict", "Retained request has different ownership or content")
+
+      envelope(prior)
+    else
+      requester = Map.get(promotion, :requester_id, actor["agent"])
+      owner!(task, %{"agent" => requester})
+
+      if data["new"] do
+        latest =
+          Request
+          |> Ash.Query.filter(task_id == ^task.id and question_key == ^key)
+          |> Ash.Query.sort(created_at: :desc, id: :desc)
+          |> Ash.Query.limit(1)
+          |> Ash.read!()
+
+        unless match?([%{status: status}] when status not in @active, latest),
+          do: Ops.reject("conflict", "A new generation requires a retained terminal question")
+      end
+
+      stamp = Ops.now()
+
+      attrs = %{
+        id: Ash.UUID.generate(),
+        task_id: task.id,
+        requester_id: requester,
+        kind: data["kind"],
+        gate_ref: gate,
+        question: data["question"],
+        findings: data["findings"],
+        options: data["options"],
+        status: "open",
+        question_key: key,
+        normalization_version: if(key, do: 1),
+        retry_key: data["request_key"],
+        expires_in: data["expires_in"],
+        expires_at: if(data["expires_in"], do: DateTime.add(stamp, data["expires_in"])),
+        bound_pr: if(data["kind"] == "merge", do: task.pr_url),
+        created_at: stamp,
+        updated_at: stamp
+      }
+
+      r = Ops.create(Request, :create, Map.merge(attrs, promotion), actor)
+
+      blocked =
+        Ops.update(
+          task,
+          :update,
+          %{status: "blocked", revision: task.revision + 1, updated_at: stamp},
+          actor,
+          task.revision
+        )
+
+      event(blocked, task, r, "decision_requested", actor, stamp, data["question"])
+      envelope(r)
+    end
+  end
+
+  # Identity is owned by the server; clients transmit the original text.
+  defp question_key(text) do
+    canonical =
+      text
+      |> String.normalize(:nfc)
+      |> String.replace(
+        ~r/[\x{0009}-\x{000D}\x{0020}\x{0085}\x{00A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}]+/u,
+        " "
+      )
+      |> String.trim()
+
+    :crypto.hash(:sha256, canonical) |> Base.encode16(case: :lower)
+  end
+
+  def promote(actor, data) do
+    with {:ok, actor} <- Input.actor(actor),
+         true <-
+           is_map(data) and
+             Enum.all?(
+               Map.keys(data),
+               &(&1 in ~w(task kind question options source_type source_id revision))
+             ),
+         true <-
+           data["source_type"] in ~w(task_event message) and
+             bounded?(data["source_id"], 128) and is_integer(data["revision"]),
+         {:ok, request} <- prepare_request(Map.take(data, ~w(task kind question options))) do
       Ops.transaction(fn ->
         Ops.identity!(actor)
         task = task!(data["task"])
+        if task.assignee_id != actor["agent"], do: authority!(actor)
 
         prior =
           Request
-          |> Ash.Query.filter(task_id == ^task.id and gate_ref == ^data["gate"])
+          |> Ash.Query.filter(
+            task_id == ^task.id and
+              source_type == ^data["source_type"] and source_id == ^data["source_id"]
+          )
           |> Ash.read_one!()
 
         if prior do
-          unless prior.requester_id == actor["agent"] and same_request?(prior, data),
-            do: Ops.reject("conflict", "Task/gate request already exists with different content")
+          unless prior.requester_id == task.assignee_id and
+                   prior.kind == request["kind"] and
+                   question_key(prior.question) == question_key(request["question"]) and
+                   prior.options == request["options"],
+                 do: Ops.reject("conflict", "Promotion retry differs from the retained request")
 
           envelope(prior)
         else
-          owner!(task, actor)
-          stamp = Ops.now()
+          owner!(task, %{"agent" => task.assignee_id})
+          source = Agentboard.Decisions.Waiting.source(task.id)
 
-          request =
-            Ops.create(
-              Request,
-              :create,
-              %{
-                id: Ash.UUID.generate(),
-                task_id: task.id,
-                requester_id: actor["agent"],
-                kind: data["kind"],
-                gate_ref: data["gate"],
-                question: data["question"],
-                findings: data["findings"],
-                options: Map.get(data, "options", []),
-                status: "open",
-                created_at: stamp,
-                updated_at: stamp
-              },
-              actor
-            )
+          unless task.revision == data["revision"] &&
+                   not is_nil(source) &&
+                   source["source_type"] == data["source_type"] &&
+                   source["source_id"] == data["source_id"],
+                 do:
+                   Ops.reject(
+                     "conflict",
+                     "Owner source or task revision changed; reload before promotion"
+                   )
 
-          blocked =
-            Ops.update(
-              task,
-              :update,
-              %{status: "blocked", revision: task.revision + 1, updated_at: stamp},
-              actor,
-              task.revision
-            )
+          promoted =
+            case prepare_request(Map.put(request, "findings", source["findings"])) do
+              {:ok, validated} -> validated
+              {:error, code, message} -> Ops.reject(code, message)
+            end
 
-          event(blocked, task, request, "decision_requested", actor, stamp, data["question"])
-          envelope(request)
+          request_locked(task, actor, promoted, %{
+            requester_id: task.assignee_id,
+            source_type: source["source_type"],
+            source_id: source["source_id"],
+            promoted_by: actor["agent"]
+          })
         end
       end)
+    else
+      false -> {:error, "invalid_input", "Promotion requires source identity and task revision"}
+      error -> error
+    end
+  end
+
+  # Invoked by the existing scheduled observation action, independent of polling.
+  # Default-off and bounded; normal close retains audit and frozen wake custody.
+  def cleanup do
+    if Application.get_env(:agentboard, :decision_cleanup_enabled, false) do
+      actor = %{"agent" => "decision-maintenance", "model" => "system", "harness" => "ash"}
+      Ops.register(actor, %{"name" => "Decision maintenance"})
+
+      %{rows: rows} =
+        Repo.statement!(
+          """
+          SELECT r.id::text,r.task_id FROM decision_requests r JOIN tasks t ON t.id=r.task_id
+          WHERE r.status='open' AND r.kind<>'ask_user_gate' AND (
+            r.expires_at <= clock_timestamp() OR
+            (r.kind='merge' AND r.bound_pr=t.pr_url AND EXISTS (
+              SELECT 1 FROM delivery_pull_requests pr JOIN delivery_poll_states p ON p.id=pr.id
+              WHERE pr.url=r.bound_pr AND p.lifecycle IN ('merged','closed')
+                AND p.observed_at >= r.created_at
+                AND p.observed_at > clock_timestamp()-interval '180 seconds'
+            )))
+          ORDER BY r.created_at,r.id LIMIT 100
+          """,
+          []
+        )
+
+      retired = Enum.count(rows, &retire_candidate(&1, actor))
+      {:ok, %{retired: retired}}
+    else
+      {:ok, %{retired: 0, enabled: false}}
+    end
+  end
+
+  defp retire_candidate([id, task_id], actor) do
+    Ops.transaction(fn ->
+      task = task!(task_id)
+
+      Repo.statement!(
+        "SELECT id FROM decision_requests WHERE id=$1::text::uuid FOR UPDATE",
+        [id]
+      )
+
+      r = Ops.fetch!(Request, id, "Decision not found")
+      reason = cleanup_reason(r, task, Ops.now())
+
+      if r.status == "open" and reason do
+        close(task, r, "superseded", actor, reason, Ops.now())
+        true
+      else
+        false
+      end
+    end)
+    |> case do
+      {:ok, true} -> true
+      {:ok, false} -> false
+      {:error, _} ->
+        Logger.warning("decision cleanup candidate skipped: #{id}")
+        false
+    end
+  rescue
+    _ ->
+      Logger.warning("decision cleanup candidate skipped: #{id}")
+      false
+  end
+
+  defp cleanup_reason(r, task, stamp) do
+    cond do
+      r.kind == "ask_user_gate" ->
+        nil
+
+      r.expires_at && DateTime.compare(r.expires_at, stamp) != :gt ->
+        "expired: explicit non-gate TTL"
+
+      (r.kind == "merge" and r.bound_pr) && r.bound_pr == task.pr_url ->
+        %{rows: rows} =
+          Repo.statement!(
+            """
+            SELECT p.lifecycle FROM delivery_pull_requests pr
+            JOIN delivery_poll_states p ON p.id=pr.id
+            WHERE pr.url=$1 AND p.lifecycle IN ('merged','closed')
+              AND p.observed_at >= $2::timestamptz
+              AND p.observed_at > clock_timestamp()-interval '180 seconds'
+            """,
+            [r.bound_pr, r.created_at]
+          )
+
+        case rows do
+          [[state]] -> "bound PR terminal: " <> state
+          _ -> nil
+        end
+
+      true ->
+        nil
     end
   end
 
@@ -582,18 +789,40 @@ defmodule Agentboard.Decisions do
       )
       |> Base.encode16(case: :lower)
 
-  defp valid_request(data) when is_map(data) do
-    if Enum.all?(Map.keys(data), &(&1 in ~w(task kind gate question findings options))) and
-         Input.slug?(data["task"]) and data["kind"] in @kinds and bounded?(data["gate"], 512) and
-         bounded?(data["question"], 8192) and is_binary(data["findings"]) and
-         String.valid?(data["findings"]) and byte_size(data["findings"]) <= 65536 and
-         is_list(Map.get(data, "options", [])) and length(Map.get(data, "options", [])) <= 20 and
-         Enum.all?(Map.get(data, "options", []), &bounded?(&1, 1024)),
-       do: :ok,
+  defp prepare_request(data) when is_map(data) do
+    has_findings = Map.has_key?(data, "findings")
+
+    data =
+      data
+      |> Map.put_new("kind", "approval")
+      |> Map.put_new("findings", "")
+      |> Map.put_new("options", [])
+
+    gate = data["gate"]
+
+    if Enum.all?(
+         Map.keys(data),
+         &(&1 in ~w(task kind gate question findings options new request_key expires_in))
+       ) and
+         Input.slug?(data["task"]) and data["kind"] in @kinds and
+         (is_nil(gate) or bounded?(gate, 512)) and bounded?(data["question"], 8192) and
+         is_binary(data["findings"]) and String.valid?(data["findings"]) and
+         not String.contains?(data["findings"], <<0>>) and byte_size(data["findings"]) <= 65536 and
+         is_list(data["options"]) and length(data["options"]) <= 20 and
+         Enum.all?(data["options"], &bounded?(&1, 1024)) and
+         (data["kind"] != "ask_user_gate" or (not is_nil(gate) and has_findings)) and
+         (is_nil(data["new"]) or is_boolean(data["new"])) and
+         (data["new"] != true or (is_nil(gate) and bounded?(data["request_key"], 128))) and
+         (is_nil(data["request_key"]) or
+            (data["new"] == true and bounded?(data["request_key"], 128))) and
+         (is_nil(data["expires_in"]) or
+            (data["kind"] != "ask_user_gate" and
+               is_integer(data["expires_in"]) and data["expires_in"] in 60..2_592_000)),
+       do: {:ok, data},
        else: {:error, "invalid_input", "Invalid or oversized decision request"}
   end
 
-  defp valid_request(_), do: {:error, "invalid_input", "Decision payload must be an object"}
+  defp prepare_request(_), do: {:error, "invalid_input", "Decision payload must be an object"}
 
   defp valid_action(action, data) when is_map(data) do
     valid =
@@ -622,7 +851,9 @@ defmodule Agentboard.Decisions do
   defp valid_action(_, _), do: {:error, "invalid_input", "Decision payload must be an object"}
 
   defp bounded?(v, n),
-    do: is_binary(v) and String.valid?(v) and String.trim(v) != "" and byte_size(v) <= n
+    do:
+      is_binary(v) and String.valid?(v) and String.trim(v) != "" and
+        not String.contains?(v, <<0>>) and byte_size(v) <= n
 
   defp uuid(id),
     do:
@@ -666,8 +897,12 @@ defmodule Agentboard.Decisions do
 
   defp same_request?(r, data),
     do:
-      r.kind == data["kind"] and r.question == data["question"] and r.findings == data["findings"] and
-        r.options == Map.get(data, "options", [])
+      r.kind == data["kind"] and
+        if(r.question_key,
+          do: question_key(r.question) == question_key(data["question"]),
+          else: r.question == data["question"]
+        ) and r.findings == data["findings"] and
+        r.options == Map.get(data, "options", []) and r.expires_in == data["expires_in"]
 
   defp event(task, prior, r, kind, actor, stamp, body),
     do:

@@ -250,3 +250,40 @@ heartbeats. Never release, hand off or finish a held task; apply the canonical
 answer, explicitly renew, then ack. Captain/coordinator supersede is audited
 recovery before ordinary explicit reclaim. `agent list --waiting true` filters
 waiting seats. Decision answers always use board delivery, never Mattermost.
+
+## Every captain question is a decision
+
+Before needing captain authority, run the read-only `agentboard doctor --json`
+compatibility check. A seat launcher refuses an older CLI or unavailable
+decision-intake server before acquisition or editing; upgrade only from a
+SHA256SUMS-verified release. Schema 29 supports universal intake; explicit
+legacy task/gate requests remain compatible with schema 20.
+
+For EVERY approval, merge, policy, credential, scope or ask-user question,
+while holding your task claim, you MUST file a durable request:
+
+```sh
+agentboard decision request TASK --kind approval --question 'Exact question' \
+  --option 'Approve' --option 'Revise' --json
+agentboard msg send --to "$AGENTBOARD_COORDINATOR_ID" --task TASK \
+  --body 'Decision ID awaits captain; read decision show ID.'
+```
+
+Use the appropriate kind: approval (default), merge, policy, credential,
+scope, ask_user_gate, blocked_decision or other. Non-gates may omit gate and
+findings; ask_user_gate MUST provide a stable --gate and a regular bounded
+UTF-8 --findings-file containing the findings verbatim. Never include secrets.
+Do not substitute a pane, chat question or task note for a filed decision.
+Notify with its returned ID, heartbeat on the task, then stop dependent work.
+
+After reading the canonical answer, apply it, explicitly renew, and ack the
+decision. Do not infer merge, credential or scope authority from a wake.
+A lost response is handled by reading before retry; normalized non-gate
+questions retain original text and changed choices conflict. An intentional
+re-ask after terminal disposition uses --new --request-key STABLE-KEY.
+
+If the CLI/API is unavailable, record the exact blocker and an explicit
+`waiting on captain:` or `CAPTAIN DECISION:` task note, notify the coordinator,
+and stop dependent work. The board may show a read-only unfiled ask; it creates
+no decision hold or authority. Upgrade/recovery remains explicit. Do not take
+another task unless the captain authorizes parking/routing.

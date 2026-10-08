@@ -9,7 +9,13 @@ defmodule AgentboardWeb.BoardLive do
     socket =
       assign(socket,
         data: %{},
-        decisions: %{"decisions" => [], "next_cursor" => nil},
+        decisions: %{
+          "decisions" => [],
+          "answered" => [],
+          "total" => nil,
+          "answered_total" => 0,
+          "next_cursor" => nil
+        },
         decision_unavailable: false,
         workers: %{},
         review_ci: %{},
@@ -153,6 +159,61 @@ defmodule AgentboardWeb.BoardLive do
     end
   end
 
+  def handle_event("decision_promote", params, socket) do
+    if Agentboard.Captain.authorized?(socket.assigns.captain) do
+      actor = %{
+        "agent" => "captain",
+        "model" => "human",
+        "harness" => "captain",
+        :decision_admin => true
+      }
+
+      kind =
+        if(is_binary(params["kind"]) and params["kind"] != "",
+          do: params["kind"],
+          else: "approval"
+        )
+
+      options =
+        case params["options"] do
+          nil ->
+            []
+
+          values when is_list(values) ->
+            values |> Enum.map(&String.trim(to_string(&1))) |> Enum.reject(&(&1 == ""))
+
+          value when is_binary(value) ->
+            value
+            |> String.split(~r/\r?\n/)
+            |> Enum.map(&String.trim/1)
+            |> Enum.reject(&(&1 == ""))
+
+          _ ->
+            []
+        end
+
+      data =
+        Map.take(params, ~w(task source_type source_id question))
+        |> Map.merge(%{"kind" => kind, "options" => options})
+
+      result =
+        with {revision, ""} <- Integer.parse(params["revision"] || ""),
+             {:ok, _} <- Board.register(actor, %{"name" => "Captain"}) do
+          Agentboard.Decisions.promote(actor, Map.put(data, "revision", revision))
+        else
+          {:error, _, _} = error -> error
+          _ -> {:error, "invalid_input", "Current task revision required"}
+        end
+
+      case result do
+        {:ok, _} -> {:noreply, socket |> assign(archive_error: nil) |> reload()}
+        {:error, _, message} -> {:noreply, assign(socket, archive_error: message)}
+      end
+    else
+      {:noreply, assign(socket, archive_error: "Unlock captain controls before promotion")}
+    end
+  end
+
   def handle_event(event, params, socket) when event in ~w(decision_answer decision_supersede) do
     if Agentboard.Captain.authorized?(socket.assigns.captain) do
       actor = %{
@@ -280,7 +341,7 @@ defmodule AgentboardWeb.BoardLive do
         )
 
       {:error, _, _} ->
-        assign(socket, unavailable: true)
+        assign(socket, unavailable: true, decision_unavailable: true)
     end
   end
 
@@ -289,7 +350,10 @@ defmodule AgentboardWeb.BoardLive do
       filters |> Map.take(~w(owner repo)) |> Map.put("waiting", "true") |> Map.put("limit", "20")
 
     query = if view == :task, do: Map.put(query, "task", filters["id"]), else: query
-    Agentboard.Decisions.page(put_cursor(query, filters["decision_cursor"]))
+
+    Agentboard.Decisions.Waiting.page(
+      put_cursor(Map.delete(query, "waiting"), filters["decision_cursor"])
+    )
   end
 
   defp load_decisions(_, _), do: {:ok, %{"decisions" => [], "next_cursor" => nil}}
@@ -450,7 +514,10 @@ defmodule AgentboardWeb.BoardLive do
     tasks = (data["columns"] || %{}) |> Map.values() |> Enum.flat_map(&(&1["tasks"] || []))
     tasks = tasks ++ if(data["task"], do: [data["task"]], else: [])
     urls = tasks |> Enum.map(& &1["pr_url"]) |> Enum.reject(&is_nil/1) |> Enum.uniq()
-    urls |> Enum.chunk_every(20) |> Enum.reduce_while({:ok, %{}}, fn chunk, {:ok, accumulated} ->
+
+    urls
+    |> Enum.chunk_every(20)
+    |> Enum.reduce_while({:ok, %{}}, fn chunk, {:ok, accumulated} ->
       case Agentboard.Delivery.Reads.review(chunk) do
         {:ok, records} -> {:cont, {:ok, Map.merge(accumulated, records)}}
         error -> {:halt, error}
@@ -517,6 +584,11 @@ defmodule AgentboardWeb.BoardLive do
               <label>Owner <input name="owner" value={@filters["owner"]} placeholder="All agents" /></label>
               <button type="submit">Filter board</button><a href={path(@live_action)}>Clear filters</a><a :if={@live_action==:board} href="/archive">Archived tasks</a>
             </form>
+            <div :if={@live_action == :board} id="captain-waiting-count" phx-hook="CaptainWaitingCount" data-count={if @decision_unavailable, do: "?", else: @decisions["total"]} class="min-w-0">
+              <a href="#captain-waiting">Waiting on captain <span class="count">{if @decision_unavailable, do: "?", else: @decisions["total"]}</span></a>
+            </div>
+            <AgentboardWeb.DecisionPanel.waiting :if={@live_action == :board} records={@decisions["decisions"]} answered={@decisions["answered"]} total={@decisions["total"]} answered_total={@decisions["answered_total"]} captain={@captain} unavailable={@decision_unavailable} />
+            <a :if={@live_action == :board and @decisions["next_cursor"]} href={page_link(:board,@filters,@decisions["next_cursor"],"decision_cursor")}>Next waiting decisions</a>
             <div class={if @live_action==:archive,do: "board-columns archive-columns",else: "board-columns"}>
               <section :for={status <- @statuses} :if={Map.has_key?(@data["columns"],status)} class="column" aria-label={label(status)}>
                 <h2><span class={"status-marker "<>status}></span>{label(status)}<span class="count">{@data["columns"][status]["total"]}</span></h2>
@@ -542,8 +614,7 @@ defmodule AgentboardWeb.BoardLive do
 
               </section>
             </div>
-            <AgentboardWeb.DecisionPanel.waiting :if={@live_action == :board} records={@decisions["decisions"]} captain={@captain} unavailable={@decision_unavailable} />
-            <a :if={@live_action == :board and @decisions["next_cursor"]} href={page_link(:board,@filters,@decisions["next_cursor"],"decision_cursor")}>Next waiting decisions</a>
+
           <% :task -> %>
             <article class="task-detail">
               <div class="card-meta">{@data["task"]["id"]} <span class="flag">{label(@data["task"]["status"])} / P{@data["task"]["priority"]}</span></div>
@@ -555,7 +626,7 @@ defmodule AgentboardWeb.BoardLive do
               <div class="links"><a :if={@data["task"]["issue_url"]} href={@data["task"]["issue_url"]} target="_blank" rel="noopener noreferrer">GitHub issue</a><a :if={@data["task"]["pr_url"]} href={@data["task"]["pr_url"]} target="_blank" rel="noopener noreferrer">GitHub pull request</a></div>
             </article>
             <AgentboardWeb.DuplicateNotice.notice finding={get_in(@review_ci, [@data["task"]["pr_url"], :duplicate_of])} />
-            <AgentboardWeb.DecisionPanel.waiting records={@decisions["decisions"]} captain={@captain} unavailable={@decision_unavailable} />
+            <AgentboardWeb.DecisionPanel.waiting records={@decisions["decisions"]} answered={@decisions["answered"]} total={@decisions["total"]} answered_total={@decisions["answered_total"]} captain={@captain} unavailable={@decision_unavailable} />
             <a :if={@decisions["next_cursor"]} href={page_link(:task,@filters,@decisions["next_cursor"],"decision_cursor")}>Next waiting decisions</a>
             <section class="timeline"><h2>Task history</h2>
               <article :for={event <- @data["events"]}><div class="event-heading"><strong>{label(event["kind"])}</strong><time>{event["created_at"]}</time></div><p class="attribution">{event["actor_id"]} / {event["model"]} / {event["harness"]} / revision {event["new_revision"]}</p><p :if={event["body"]} class="description">{event["body"]}</p></article>
