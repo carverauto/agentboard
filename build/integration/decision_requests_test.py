@@ -13,7 +13,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from liveview_client import LiveView, Page, contains, html, merge
+from liveview_client import LiveView, Page, contains, RenderedView
 
 URL = os.environ["AGENTBOARD_URL"]
 CAPTAIN = "fixture-decision-capability-0123456789"
@@ -168,11 +168,9 @@ assert mixed["total"] == 33 and len(mixed["decisions"]) == 20
 mixed_tail=api("decisions/waiting?repo=fixture%2Flane&limit=20&cursor="+urllib.parse.quote(mixed["next_cursor"]))
 assert mixed_tail["total"] == 33 and len(mixed_tail["decisions"]) == 13
 assert mixed_tail["decisions"][-1]["status"] == "unfiled"
-board_lane=LiveView(URL,"/?repo=fixture%2Flane&status=review")
-# Decode the actual connected wire result through the shared Phoenix consumer.
-import copy
-lane_tree=copy.deepcopy(board_lane.initial)
-lane_html=html(lane_tree)
+board_lane=RenderedView(URL,"/?repo=fixture%2Flane&status=review")
+# Decode the actual connected wire result through the pinned Phoenix consumer.
+lane_html=board_lane.document
 assert lane_html.index('id="captain-waiting"') < lane_html.index('class="board-columns"')
 assert 'data-count="33"' in lane_html and "33" in lane_html
 styles_page=urllib.request.urlopen(URL+"/",timeout=15).read().decode()
@@ -183,9 +181,11 @@ Path(os.environ["TEST_UNDECLARED_OUTPUTS_DIR"],"waiting-lane-preview.html").writ
 sql("ALTER TABLE decision_requests RENAME COLUMN source_type TO fixture_missing_source")
 try:
     assert api("decisions/waiting?task=lane-task",status=503)["error"]["code"] == "unavailable"
-    unavailable=board_lane.wait(lambda e:e[3]=="diff" and contains(e,"count and freshness are unknown"),timeout=8)
+    unavailable=board_lane.live.wait(lambda e:e[3]=="diff" and contains(e,"count and freshness are unknown"),timeout=8)
     assert unavailable
-    retained=html(merge(lane_tree,unavailable[4]))
+    board_lane.diffs.extend(event[4] for event in board_lane.live.events if event[3]=="diff")
+    board_lane.live.events.clear()
+    retained=board_lane.render()
     assert 'data-count="?"' in retained and "Lane question" in retained
 finally:
     sql("ALTER TABLE decision_requests RENAME COLUMN fixture_missing_source TO source_type")
