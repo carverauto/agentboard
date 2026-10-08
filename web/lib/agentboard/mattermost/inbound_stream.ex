@@ -47,8 +47,12 @@ defmodule Agentboard.Mattermost.InboundStream do
         end
         {:noreply, flush(state)}
       {:live, {:error, {:rate_limited, seconds}}, _} -> {:noreply, %{disconnect(state, "rate_limited", seconds) | retry_at: now() + seconds * 1000}}
+      {:live, {:error, :owner_expired}, _} -> {:noreply, disconnect(state, "owner_expired")}
+      {:live, {:error, :store_unavailable}, _} -> {:noreply, disconnect(state, "store_unavailable")}
       {:live, _, _} -> {:noreply, disconnect(state, "catch_up_incomplete")}
       {:error, {:rate_limited, seconds}} -> {:noreply, %{disconnect(state, "rate_limited", seconds) | retry_at: now() + seconds * 1000}}
+      {:error, :owner_expired} -> {:noreply, disconnect(state, "owner_expired")}
+      {:error, :store_unavailable} -> {:noreply, disconnect(state, "store_unavailable")}
       _ -> {:noreply, disconnect(state, "catch_up_incomplete")}
     end
   end
@@ -198,6 +202,8 @@ defmodule Agentboard.Mattermost.InboundStream do
             case Inbound.observe(cfg, post) do
               {:ok, _} -> {:cont, {:ok, gaps, false}}
               {:error, :metadata_capacity_reached} -> {:halt, {:ok, gaps, true}}
+              {:error, :owner_expired} = error -> {:halt, error}
+              {:error, :store_unavailable} = error -> {:halt, error}
               {:error, reason} when reason in [:invalid_or_disallowed_post, :thread_root_unavailable] ->
                 {:cont, {:ok, [{post["channel_id"], post["id"]} | gaps], false}}
               error -> {:halt, error}

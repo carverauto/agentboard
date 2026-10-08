@@ -412,12 +412,14 @@ DENIED.add('room')
 assert read(find('downtime'))['source_state'] == 'source_unavailable'
 assert find('downtime') is not None, 'unavailable inspection must retain pending state'
 # Metadata capacity leaves an explicit gap instead of a crash loop; pending retained.
+DENIED.discard('room')
 source = sql("SELECT source FROM mattermost_inbound_runs")
 sql("INSERT INTO mattermost_post_versions(source,channel_id,post_id,version,user_id,root_id,update_at,delete_at,observed_at) SELECT '%s','seed-chan','seed-'||g,'v'||g,'u','',0,0,clock_timestamp() FROM generate_series(1,100000) g ON CONFLICT DO NOTHING" % source)
 assert int(sql("SELECT count(*) FROM mattermost_post_versions WHERE source='%s'" % source)) >= 100000
 run_before = sql("SELECT run_id::text FROM mattermost_inbound_runs")
 with LOCK:
-    emit('posted', {'post': json.dumps(post('cap-probe', '@worker-b capacity probe'))})
+    POSTS['cap-probe'] = post('cap-probe', '@worker-b capacity probe')
+    emit('posted', {'post': json.dumps(POSTS['cap-probe'])})
 wait(lambda: any('metadata_capacity_reached' in c['incomplete_reason'] for c in inbox()[1]))
 assert find('cap-probe') is None, 'new versions are refused at capacity'
 with LOCK:
@@ -428,6 +430,26 @@ assert find('downtime') is not None, 'pending versions retained at capacity'
 time.sleep(6)
 assert sql("SELECT run_id::text FROM mattermost_inbound_runs") == run_before, 'no hot re-claim loop at capacity'
 assert any(c['live_connected'] for c in inbox()[1]), 'owner stays connected at capacity'
+# Lease supersession aborts cleanly: typed owner_expired, no stale writes, reclaim recovers.
+inbox_before = len(inbox()[0])
+versions_before = int(sql("SELECT count(*) FROM mattermost_post_versions WHERE source='%s'" % source))
+run_before = sql("SELECT run_id::text FROM mattermost_inbound_runs")
+rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
+wait(lambda: sql("SELECT reason FROM mattermost_inbound_runs") == 'disabled')
+taken = rpc('IO.inspect(case Agentboard.Mattermost.Inbound.base_config() do {:ok, b} -> Agentboard.Mattermost.InboundStore.claim(b); e -> e end)')
+assert ':ok' in taken, 'takeover of expired lease must succeed, got ' + taken
+assert sql("SELECT run_id::text FROM mattermost_inbound_runs") != run_before, 'takeover must install a new run'
+stale = rpc('IO.inspect(case Agentboard.Mattermost.Inbound.base_config() do {:ok, b} -> stale = Map.merge(b, %{source: Agentboard.Mattermost.InboundStore.source(b), run: Ecto.UUID.cast!("' + run_before + '")}); {Agentboard.Mattermost.InboundStore.coverage(stale, "room", nil, false, "stale-write-probe"), Agentboard.Mattermost.Inbound.reconcile(stale)}; e -> e end)')
+assert stale.count('owner_expired') == 2, 'stale owner calls must return typed owner_expired, got ' + stale
+assert len(inbox()[0]) == inbox_before, 'superseded owner must not persist inbox rows'
+assert int(sql("SELECT count(*) FROM mattermost_post_versions WHERE source='%s'" % source)) == versions_before, 'superseded owner must not persist versions'
+assert not any('stale-write-probe' in c['incomplete_reason'] for c in inbox()[1]), 'superseded owner must not persist coverage'
+run_new = sql("SELECT run_id::text FROM mattermost_inbound_runs")
+store = rpc('IO.inspect(case Agentboard.Mattermost.Inbound.base_config() do {:ok, b} -> cfg = Map.merge(b, %{source: Agentboard.Mattermost.InboundStore.source(b), run: Ecto.UUID.cast!("' + run_new + '")}); Agentboard.Mattermost.InboundStore.fenced(cfg, fn -> Agentboard.Repo.statement!("SELECT * FROM no_such_table_xyz") end); e -> e end)')
+assert 'store_unavailable' in store, 'store failure must normalize to store_unavailable, got ' + store
+sql("UPDATE mattermost_inbound_runs SET expires_at = clock_timestamp()")
+rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, true)')
+wait(lambda: any(c['live_connected'] for c in inbox()[1]))
 assert not FAILURES, FAILURES
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
 server.shutdown()

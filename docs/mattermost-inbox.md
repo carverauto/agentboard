@@ -43,7 +43,9 @@ recipients or block processing other posts.
 
 Recovery persists unfinished page diagnostics and rereads from page zero after
 restart, rather than trusting unstable offset pagination or a timestamp cursor.
-A 30-second owner lease fences metadata commits across replicas. Buffer/response,
+A 30-second owner lease fences metadata commits across replicas. A superseded
+owner aborts cleanly with an explicit owner failure instead of persisting rows
+or releasing another run lease. Buffer/response,
 page, channel, missing-post and metadata-capacity budgets leave explicit gaps;
 pending versions are retained. HTTP 429 cooldown prevents a new owner from
 immediately claiming the same stream. Socket sequence gaps, lost connections,

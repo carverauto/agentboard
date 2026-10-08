@@ -138,22 +138,51 @@ defmodule Agentboard.Mattermost.Inbound do
       Enum.each(prior_channels, fn [channel] ->
         if channel not in channels, do: InboundStore.coverage(cfg, channel, nil, false, "membership_or_allowlist_revoked")
       end)
-      results = Enum.map(channels, fn channel ->
-        InboundStore.coverage(cfg, channel, 0, false, "catch_up_in_progress")
-        case stable_scan(cfg, channel, nil, 0) do
-          {:ok, _, [], [], false} -> InboundStore.coverage(cfg, channel, 0, true, @historical_gap)
-          {:ok, _, scan_gaps, missing_gaps, capacity} ->
-            InboundStore.coverage(cfg, channel, nil, false, hole_reason(scan_gaps, missing_gaps, capacity))
-            {:gap, :post_gap}
-          {:error, reason} ->
-            InboundStore.coverage(cfg, channel, nil, false, reason_text(reason))
-            {:gap, reason}
-        end
-      end)
-      case Enum.find(results, fn result -> match?({:gap, {:rate_limited, _}}, result) end) do
-        {:gap, rate_limit} -> {:error, rate_limit}
-        _ -> {:ok, channels, results}
+      outcome =
+        Enum.reduce_while(channels, [], fn channel, acc ->
+          case scan_channel(cfg, channel) do
+            {:error, :owner_expired} = error -> {:halt, error}
+            {:error, :store_unavailable} = error -> {:halt, error}
+            result -> {:cont, [result | acc]}
+          end
+        end)
+      case outcome do
+        {:error, :owner_expired} = error -> error
+        {:error, :store_unavailable} = error -> error
+        results ->
+          case Enum.find(results, fn result -> match?({:gap, {:rate_limited, _}}, result) end) do
+            {:gap, rate_limit} -> {:error, rate_limit}
+            _ -> {:ok, channels, results}
+          end
       end
+    end
+  end
+
+  defp scan_channel(cfg, channel) do
+    with {:ok, :ok} <- InboundStore.coverage(cfg, channel, 0, false, "catch_up_in_progress"),
+         {:ok, versions, scan_gaps, missing_gaps, capacity} <- stable_scan(cfg, channel, nil, 0) do
+      if scan_gaps == [] and missing_gaps == [] and not capacity do
+        case InboundStore.coverage(cfg, channel, 0, true, @historical_gap) do
+          {:ok, :ok} -> {:ok, channel}
+          {:error, :owner_expired} = error -> error
+          {:error, :store_unavailable} = error -> error
+        end
+      else
+        case InboundStore.coverage(cfg, channel, nil, false, hole_reason(scan_gaps, missing_gaps, capacity)) do
+          {:ok, :ok} -> {:gap, :post_gap}
+          {:error, :owner_expired} = error -> error
+          {:error, :store_unavailable} = error -> error
+        end
+      end
+    else
+      {:error, :owner_expired} = error -> error
+      {:error, :store_unavailable} = error -> error
+      {:error, reason} ->
+        case InboundStore.coverage(cfg, channel, nil, false, reason_text(reason)) do
+          {:ok, :ok} -> {:gap, reason}
+          {:error, :owner_expired} = error -> error
+          {:error, :store_unavailable} = error -> error
+        end
     end
   end
 
@@ -164,6 +193,10 @@ defmodule Agentboard.Mattermost.Inbound do
       gaps = {Enum.uniq(scan_gaps) |> Enum.take(8), Enum.uniq(missing_gaps) |> Enum.take(8)}
       capacity = scan_capacity or missing_capacity
       if versions == prior, do: {:ok, versions, elem(gaps, 0), elem(gaps, 1), capacity}, else: stable_scan(cfg, channel, versions, round + 1)
+    else
+      {:error, :owner_expired} = error -> error
+      {:error, :store_unavailable} = error -> error
+      {:error, _} = error -> error
     end
   end
 
@@ -178,8 +211,14 @@ defmodule Agentboard.Mattermost.Inbound do
           {:ok, versions, gaps} ->
             with {:ok, :ok} <- InboundStore.coverage(cfg, channel, page + 1, false, "catch_up_in_progress") do
               if length(order) < 60, do: {:ok, versions, gaps, false}, else: scan(cfg, channel, page + 1, versions, gaps)
+            else
+              {:error, :owner_expired} = error -> error
+              {:error, :store_unavailable} = error -> error
+              {:error, _} = error -> error
             end
           {:capacity, versions, gaps} -> {:ok, versions, gaps, true}
+          {:error, :owner_expired} = error -> error
+          {:error, :store_unavailable} = error -> error
           error -> error
         end
       else
@@ -198,6 +237,8 @@ defmodule Agentboard.Mattermost.Inbound do
         case observe(cfg, post) do
           {:ok, version} -> {:cont, {:ok, Map.put(acc, id, version), gaps}}
           {:error, :metadata_capacity_reached} -> {:halt, {:capacity, acc, gaps}}
+          {:error, :owner_expired} = error -> {:halt, error}
+          {:error, :store_unavailable} = error -> {:halt, error}
           {:error, reason} when reason in [:invalid_or_disallowed_post, :thread_root_unavailable] ->
             {:cont, {:ok, acc, add_gap(gaps, id)}}
           error -> {:halt, error}
@@ -231,6 +272,8 @@ defmodule Agentboard.Mattermost.Inbound do
           {:ok, post} -> case observe(cfg, post) do
             {:ok, _} -> {:cont, {:ok, gaps, false}}
             {:error, :metadata_capacity_reached} -> {:halt, {:ok, gaps, true}}
+            {:error, :owner_expired} = error -> {:halt, error}
+            {:error, :store_unavailable} = error -> {:halt, error}
             {:error, reason} when reason in [:invalid_or_disallowed_post, :thread_root_unavailable] ->
               {:cont, {:ok, add_gap(gaps, id), false}}
             error -> {:halt, error}
