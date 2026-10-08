@@ -150,7 +150,7 @@ for owner in ('workflow-owner', 'workflow-coordinator', 'workflow-peer'):
     ab('agent', 'register', owner=owner)
 rpc('Application.put_env(:agentboard, :coordinator_id, "workflow-coordinator")')
 secret = Path(os.environ['TEST_TMPDIR'], 'workflow-hook-secret')
-secret.write_bytes(SECRET)  # codeql[py/clear-text-storage-of-sensitive-information]: invented fixture HMAC key in ephemeral TEST_TMPDIR; no production data (see module docstring).
+secret.write_bytes(SECRET)  # codeql-suppress[py/clear-text-storage-of-sensitive-information]: invented fixture HMAC key in ephemeral TEST_TMPDIR; no production data (see module docstring).
 rpc('Application.put_env(:agentboard, :workflow_webhook_secret_file, ' + json.dumps(str(secret)) + ')')
 rpc('Application.put_env(:agentboard, :pr_observation_enabled, false)')
 assert hook(1)[0] == 503
