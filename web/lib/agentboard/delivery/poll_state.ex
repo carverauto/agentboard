@@ -38,7 +38,7 @@ defmodule Agentboard.Delivery.PollState do
     end
 
     update :invalidate_base do
-      accept([:generation, :expected_base_sha, :next_poll_at])
+      accept([:generation, :expected_base_sha, :next_poll_at, :last_error])
       change(set_attribute(:attempt_id, nil))
       change(set_attribute(:lease_expires_at, nil))
     end

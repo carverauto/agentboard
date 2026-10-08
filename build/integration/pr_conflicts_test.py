@@ -258,7 +258,15 @@ with tls_provider(Provider) as (api_url, ca, server):
     assert 'invalidated' in invalidate(watch, 1)
     assert sql("SELECT expected_base_sha FROM delivery_poll_states WHERE id='" + pr + "'") == MOVED
     assert int(sql("SELECT generation FROM delivery_poll_states WHERE id='" + pr + "'")) > int(generation)
-    assert 'superseded' in poll(pr), 'Old-base result was committed'
+    # GitHub preserves pull.base.sha on an idle PR after the branch advances.
+    # A stable watch during collection must still admit its fresh observation.
+    snapshots_before = int(sql('SELECT count(*) FROM delivery_ci_snapshots'))
+    assert 'observed' in poll(pr), 'Idle PR was rejected because payload base.sha lagged the branch tip'
+    assert int(sql('SELECT count(*) FROM delivery_ci_snapshots')) == snapshots_before + 1
+    assert sql("SELECT base_sha||','||expected_base_sha FROM delivery_poll_states WHERE id='" + pr + "'") == BASE + ',' + MOVED
+    assert detail(pr)['fresh'] is True and detail(pr)['merge_state'] == 'conflicting'
+    assert json.loads(sql("SELECT payload FROM delivery_ci_snapshots WHERE id=(SELECT snapshot_id FROM delivery_poll_states WHERE id='" + pr + "')"))['base_watch_sha'] == MOVED
+    assert sql("SELECT next_poll_at>clock_timestamp() AND attempt_id IS NULL FROM delivery_poll_states WHERE id='" + pr + "'") == 't'
     # A valid new-base observation clears stale evidence. Replaying the same page
     # must retain a newly reserved attempt rather than repeatedly canceling work.
     prs[101]['base'] = MOVED
@@ -327,21 +335,26 @@ with tls_provider(Provider) as (api_url, ca, server):
     assert sql('SELECT count(*) FROM delivery_rebase_follow_ups') == '2'
     assert sql("SELECT count(*) FROM messages WHERE recipient_id='conflict-owner'") == '2'
     assert sql(source_query) == source_before, 'Original Done/current work/attribution changed'
-    # An old in-flight PR response is fenced after a real base check/page;
+    # A real branch move DURING collection must reject and visibly retry,
+    # including the gap before the invalidation page gets to this PR.
     # the branch request and unrelated board write can proceed while HTTP waits.
     entered.clear()
     release.clear()
     reads[101] = 0
     slow_pull = True
     reset_budget()
+    snapshots_before = sql('SELECT count(*) FROM delivery_ci_snapshots')
     with concurrent.futures.ThreadPoolExecutor(2) as pool:
         future = pool.submit(poll, pr)
         assert entered.wait(5)
         branch_sha = 'e' * 40
         assert 'changed: true' in check_branch(watch)
-        invalidate(watch, 2)
         release.set()
-        assert 'superseded' in future.result(timeout=25)
+        rejected = future.result(timeout=25)
+        assert 'deferred' in rejected and 'base_changed' in rejected, rejected
+    assert sql('SELECT count(*) FROM delivery_ci_snapshots') == snapshots_before
+    assert sql("SELECT last_error||','||(attempt_id IS NULL)::text||','||(next_poll_at>clock_timestamp())::text FROM delivery_poll_states WHERE id='" + pr + "'") == 'base_changed,true,true'
+    invalidate(watch, 2)
     slow_pull = False
     prs[101]['base'] = branch_sha
     reset_budget()
@@ -487,5 +500,39 @@ with tls_provider(Provider) as (api_url, ca, server):
         denied = subprocess.run([os.environ['AB_BINARY'], '--json', 'task', 'claim', repair], env=env, capture_output=True, text=True, timeout=25)
         assert denied.returncode != 0, (restricted, repair, denied.stdout, denied.stderr)
         assert sql("SELECT status FROM tasks WHERE id='" + repair + "'") == 'open'
+    # Nil-baseline fence: a watch enrolled between two same-branch reservations
+    # must not defer the second committer when its head matches provider base;
+    # a minimal reservation must resolve scope without KeyError, and a genuine
+    # move must still reject even when the provider matches the new head.
+    fence_expr = '''
+    alias Agentboard.Delivery.BaseMonitor
+    pr_row = Ash.get!(Agentboard.Delivery.PullRequest, "''' + pr + '''")
+    ref = "fence-regression"
+    sha = "cccccccccccccccccccccccccccccccccccccccc"
+    new_sha = "dddddddddddddddddddddddddddddddddddddddd"
+    key = BaseMonitor.id(pr_row.owner, pr_row.repo, ref)
+    Agentboard.Repo.statement!("DELETE FROM delivery_base_watches WHERE id=$1", [key])
+    before_res = %{id: pr_row.id, attempt_id: "11111111-1111-1111-1111-111111111111", generation: 1, owner: pr_row.owner, repo: pr_row.repo, base_watches: %{}}
+    result = %{lifecycle: "open", base_sha: sha, payload: %{"base_ref" => ref}}
+    first = try do BaseMonitor.assert_current!(before_res, result); :admitted rescue e in Agentboard.Board.OperationError -> {:rejected, e.code} end
+    unless first == :admitted, do: raise("fence case1 no-watch must admit, got " <> inspect(first))
+    {:ok, _} = BaseMonitor.enroll(pr_row, result)
+    second = try do BaseMonitor.assert_current!(before_res, result); :admitted rescue e in Agentboard.Board.OperationError -> {:rejected, e.code} end
+    unless second == :admitted, do: raise("fence case2 revision-zero convergence must admit, got " <> inspect(second))
+    minimal = %{id: pr_row.id, attempt_id: "11111111-1111-1111-1111-111111111111", generation: 1}
+    main_result = %{lifecycle: "open", base_sha: sha, payload: %{"base_ref" => "main"}}
+    third = try do BaseMonitor.assert_current!(minimal, main_result); :admitted rescue e in Agentboard.Board.OperationError -> {:rejected, e.code}; _e in KeyError -> :crashed end
+    if third == :crashed, do: raise("fence case3 minimal reservation crashed")
+    Agentboard.Repo.statement!("UPDATE delivery_base_watches SET revision = revision + 1, head_sha = $2 WHERE id = $1", [key, new_sha])
+    moved_result = %{lifecycle: "open", base_sha: new_sha, payload: %{"base_ref" => ref}}
+    fourth = try do BaseMonitor.assert_current!(before_res, moved_result); :admitted rescue e in Agentboard.Board.OperationError -> {:rejected, e.code} end
+    unless fourth == {:rejected, "base_changed"}, do: raise("fence case4 genuine move must reject, got " <> inspect(fourth))
+    established = %{id: pr_row.id, attempt_id: "11111111-1111-1111-1111-111111111111", generation: 1, owner: pr_row.owner, repo: pr_row.repo, base_watches: %{ref => {0, sha}}}
+    fifth = try do BaseMonitor.assert_current!(established, moved_result); :admitted rescue e in Agentboard.Board.OperationError -> {:rejected, e.code} end
+    unless fifth == {:rejected, "base_changed"}, do: raise("fence case5 established move must reject despite provider match, got " <> inspect(fifth))
+    Agentboard.Repo.statement!("DELETE FROM delivery_base_watches WHERE id=$1", [key])
+    IO.puts("FENCE_OK")
+    '''
+    assert 'FENCE_OK' in rpc(fence_expr), 'nil-baseline fence regression failed'
     print('Restricted merge-conflict owners retain observation with open unassigned repair work and no grant.')
 print('Conflict observations, independent CI, base revision fences, owner inbox/worker frame, once per head, rollback and terminal pruning passed.')

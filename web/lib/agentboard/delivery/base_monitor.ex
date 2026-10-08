@@ -8,10 +8,12 @@ defmodule Agentboard.Delivery.BaseMonitor do
     BaseInvalidationWorker,
     Github,
     PollState,
+    PullRequest,
     Scheduling
   }
 
   alias Agentboard.Repo
+  require Ash.Query
   @actor %{"agent" => "delivery-observation", "model" => "system", "harness" => "ash"}
 
   def id(owner, repo, ref),
@@ -28,19 +30,62 @@ defmodule Agentboard.Delivery.BaseMonitor do
 
   def expected_sha(_, _, fallback), do: fallback
 
-  def assert_current!(pr, state, result) do
-    if result.lifecycle != "open", do: :ok, else: fence!(pr, state, result)
+  # Capture before provider I/O without taking a branch lock under PollState.
+  # GitHub pull.base.sha may lag an idle PR's current branch indefinitely.
+  def capture(pr) do
+    BaseWatch
+    |> Ash.Query.filter(owner == ^pr.owner and repo == ^pr.repo)
+    |> Ash.read!()
+    |> Map.new(fn watch -> {watch.ref, {watch.revision, watch.head_sha}} end)
   end
 
-  defp fence!(pr, state, result) do
+  def assert_current!(reservation, %{lifecycle: "open"} = result) do
     ref = result.payload["base_ref"]
 
     if is_binary(ref) do
-      fallback = if state.base_ref == ref, do: state.expected_base_sha
-      expected = expected_sha(pr, ref, fallback)
+      {owner, repo} = resolve_scope(reservation)
+      key = id(owner, repo, ref)
+      # Commit acquires this lock BEFORE PollState, matching invalidation's
+      # branch -> PR order. It also closes the check-to-commit race.
+      Repo.statement!("SELECT id FROM delivery_base_watches WHERE id=$1 FOR SHARE", [key])
+      watch = Ash.get!(BaseWatch, key, not_found_error?: false)
+      current = if watch, do: {watch.revision, watch.head_sha}
 
-      if expected && expected != result.base_sha,
-        do: Ops.reject("conflict", "Base revision changed during collection")
+      watches =
+        Map.get(reservation, :base_watches, Map.get(reservation, "base_watches", %{})) || %{}
+
+      before = Map.get(watches, ref)
+
+      admitted? =
+        before == current or
+          (is_nil(before) and match?({0, _}, current) and elem(current, 1) == result.base_sha)
+
+      unless admitted?,
+        do: Ops.reject("base_changed", "Base watch changed during collection")
+
+      if watch && watch.last_success_at, do: watch.head_sha, else: result.base_sha
+    else
+      result.base_sha
+    end
+  end
+
+  def assert_current!(_reservation, result), do: result.base_sha
+
+  defp resolve_scope(reservation) do
+    owner = Map.get(reservation, :owner, Map.get(reservation, "owner"))
+    repo = Map.get(reservation, :repo, Map.get(reservation, "repo"))
+
+    if is_binary(owner) and is_binary(repo) do
+      {owner, repo}
+    else
+      pr =
+        Ops.fetch!(
+          PullRequest,
+          Map.get(reservation, :id, Map.get(reservation, "id")),
+          "PR not found"
+        )
+
+      {pr.owner, pr.repo}
     end
   end
 
@@ -225,6 +270,7 @@ defmodule Agentboard.Delivery.BaseMonitor do
                   %{
                     generation: s.generation + 1,
                     expected_base_sha: b.head_sha,
+                    last_error: "base_changed",
                     next_poll_at: Ops.now()
                   },
                   @actor

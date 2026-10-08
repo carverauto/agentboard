@@ -175,7 +175,10 @@ defmodule Agentboard.Delivery.Reads do
     expected =
       Agentboard.Delivery.BaseMonitor.expected_sha(pr, s && s.base_ref, s && s.expected_base_sha)
 
-    fresh = fresh?(s, expected)
+    # New snapshots bind the branch watch sampled before collection. Keep the
+    # original provider base_sha intact; older snapshots retain their old rule.
+    observed_base = payload["base_watch_sha"] || (s && s.base_sha)
+    fresh = fresh?(s, expected, observed_base)
 
     %{
       ci_state: ci_state(s, fresh),
@@ -199,26 +202,30 @@ defmodule Agentboard.Delivery.Reads do
 
   defp fresh?(
          %{lifecycle: lifecycle, observed_at: %DateTime{} = observed, last_error: error},
-         _expected
+         _expected,
+         _observed_base
        )
        when lifecycle in ["merged", "closed"],
        do: DateTime.diff(Ops.now(), observed) <= 180 and error in [nil, "policy_unknown"]
 
   defp fresh?(
-         %{observed_at: %DateTime{} = observed, last_error: error, base_sha: base},
-         expected
+         %{observed_at: %DateTime{} = observed, last_error: error},
+         expected,
+         observed_base
        ),
        do:
          DateTime.diff(Ops.now(), observed) <= 180 and error in [nil, "policy_unknown"] and
-           (is_nil(expected) or expected == base)
+           (is_nil(expected) or expected == observed_base)
 
-  defp fresh?(_, _), do: false
+  defp fresh?(_, _, _), do: false
 
   defp ci_state(nil, _), do: "unknown"
   defp ci_state(%{observed_at: nil}, _), do: "unknown"
+
   defp ci_state(%{lifecycle: lifecycle, ci_state: state}, _)
        when lifecycle in ["merged", "closed"],
        do: state
+
   defp ci_state(_, false), do: "stale"
   defp ci_state(%{ci_state: "passing", last_error: "policy_unknown"}, _), do: "unknown"
   defp ci_state(s, _), do: s.ci_state

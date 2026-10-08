@@ -1,0 +1,135 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Polling after an idle PR base moves",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "poll",
+      "label": "Per-PR observation"
+    },
+    {
+      "id": "retry",
+      "label": "Watch changed during collection"
+    }
+  ],
+  "mainPath": [
+    "capture",
+    "collect",
+    "lock",
+    "commit"
+  ],
+  "nodes": [
+    {
+      "id": "capture",
+      "lane": "poll",
+      "col": 0,
+      "type": "database",
+      "label": "Capture watch",
+      "sublabel": "Revision + branch SHA",
+      "width": 140
+    },
+    {
+      "id": "collect",
+      "lane": "poll",
+      "col": 1,
+      "type": "external",
+      "label": "Collect PR",
+      "sublabel": "HTTPS outside locks",
+      "width": 140
+    },
+    {
+      "id": "lock",
+      "lane": "poll",
+      "col": 2,
+      "type": "security",
+      "label": "Fence watch",
+      "sublabel": "Branch lock before PR",
+      "width": 140
+    },
+    {
+      "id": "commit",
+      "lane": "poll",
+      "col": 3,
+      "type": "database",
+      "label": "Commit snapshot",
+      "sublabel": "Bind watch for freshness",
+      "width": 156
+    },
+    {
+      "id": "defer",
+      "lane": "retry",
+      "col": 2,
+      "type": "backend",
+      "label": "Record retry",
+      "sublabel": "base_changed + due time",
+      "width": 156
+    },
+    {
+      "id": "again",
+      "lane": "retry",
+      "col": 3,
+      "type": "cloud",
+      "label": "Normal poll",
+      "sublabel": "Retry after 60 seconds",
+      "width": 140
+    }
+  ],
+  "edges": [
+    {
+      "from": "capture",
+      "to": "collect",
+      "label": "saved watch token"
+    },
+    {
+      "from": "collect",
+      "to": "lock",
+      "label": "completed response"
+    },
+    {
+      "from": "lock",
+      "to": "commit",
+      "label": "unchanged watch"
+    },
+    {
+      "from": "lock",
+      "to": "defer",
+      "label": "watch changed",
+      "role": "error",
+      "variant": "security"
+    },
+    {
+      "from": "defer",
+      "to": "again",
+      "label": "live reservation"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Keep provider facts",
+      "items": [
+        "Raw PR base.sha can remain older",
+        "Snapshot also records base_watch_sha"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Fence real races",
+      "items": [
+        "Stable watch permits fresh observations",
+        "Concurrent branch movement retries visibly"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Preserve lifecycle",
+      "items": [
+        "Terminal PRs retain metadata-only polling",
+        "No migration or deployment flag change"
+      ]
+    }
+  ]
+}
