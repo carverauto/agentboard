@@ -427,4 +427,3 @@ sh_test(
     size = "medium",
     timeout = "long",
 )
-)

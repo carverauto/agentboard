@@ -203,7 +203,7 @@ duplicate PR and delegates to the existing live-owner decision contract. It
 returns the usual decision envelope and idempotently parks the owned card.
 It cannot create a system decision, host it on the original Done card, or close
 a GitHub PR. The CLI command is `agentboard pr duplicate-decision ID --task TASK`.
-It requires schema 24; PR list/detail reads carry the additive health field below from schema 27 (current readiness floor is schema 28).
+It requires schema 24; PR list/detail reads carry the additive health field below from schema 27 (see [current readiness](release.md#schema-31-disabled-recovery-checkpoint) for the current floor).
 
 ## Agent API credentials (observe phase)
 

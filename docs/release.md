@@ -405,8 +405,9 @@ Migrate and serve the same schema-27 image. Migration `20261008002700` adds
 the `delivery_workflow_runs` obligation table (unique repository/run key, run
 lease/generation, attempt evidence, immutable-submitter routing, resolution
 pointers) and the `delivery_workflow_health` per-workflow green-watermark
-table, plus unresolved-run indexes; current readiness requires schema 28 and both
-tables alongside the shipped auth and poll-credit tables. Existing board, evidence, delivery, obligation, and bot history is
+table, plus unresolved-run indexes; readiness at that stage required schema 27 and both
+tables alongside the shipped auth and poll-credit tables. Current readiness is in
+[Schema 31](#schema-31-disabled-recovery-checkpoint). Existing board, evidence, delivery, obligation, and bot history is
 preserved; repeat migration is harmless, and no obligations are seeded. The
 stamp uses `GREATEST(version, 27)`, so it never lowers a higher stamp (25 is
 the shipped credential schema above, 26 remains reserved for parked work; 28
@@ -420,3 +421,24 @@ not here.
 Roll back by retaining the schema-27 tables and deploying a compatible prior
 digest. The down migration refuses a destructive downgrade; no down migration
 or obligation deletion is permitted.
+
+## Schema 31: disabled recovery checkpoint
+
+Migrate and serve the same schema-31 image. Migration `20261008003100` adds
+the audited `recovery_episodes` and `recovery_attempts` tables with immutable
+version history, incarnation uniqueness and per-attempt identity constraints;
+readiness now requires schema 31. Existing board, evidence, delivery,
+obligation, and bot history is preserved; repeat migration is harmless, and
+capture produces detected dry-run episodes only, never a real restart intent
+or attempt. The stamp uses `GREATEST(version, 31)`, so it never lowers a
+higher stamp (29 and 30 belong to concurrent seats; 99-range stamps in upgrade
+proofs stand in for any higher marker).
+
+Behavior, admission bounds and blocked follow-ups live in the
+[stale-seat recovery checkpoint](../openspec/changes/automate-stale-seat-recovery/checkpoint.md),
+not here. There is no detector schedule, host restart delivery or escalation
+transport in this stage; active capture refuses until the real policy store
+and authenticated host boundary ship.
+
+Roll back by retaining the schema-31 tables and deploying a compatible prior
+digest. The down migration raises instead of deleting recovery evidence.
