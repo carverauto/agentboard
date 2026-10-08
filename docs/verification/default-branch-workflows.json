@@ -25,7 +25,22 @@
   },
   "remote_verification": [
     {
+      "url": "https://carverauto.buildbuddy.io/invocation/d4a1f449-ce7d-4046-9232-5f0f4d8563bc",
+      "passed": [
+        "default_branch_workflows_test"
+      ],
+      "note": "current rebased-head pass (45.2s remote); see test-results.md"
+    },
+    {
+      "url": "https://carverauto.buildbuddy.io/invocation/74997cb6-9996-4fe1-bd9e-9dfda47307f9",
+      "passed": [
+        "release_schema_test"
+      ],
+      "note": "current rebased-head pass after auth24 schema-27 plus workflow-table correction (50.4s remote); see test-results.md"
+    },
+    {
       "url": "https://carverauto.buildbuddy.io/invocation/07061853-eb70-4a34-af76-643123a4d91d",
+      "status": "historical",
       "passed": [
         "default_branch_workflows_test",
         "release_schema_test"
@@ -33,6 +48,7 @@
     },
     {
       "url": "https://carverauto.buildbuddy.io/invocation/1ed461c7-d626-49e1-8d0b-240be89077ab",
+      "status": "historical",
       "passed": [
         "ci_accountability_test",
         "pr_conflicts_test"
