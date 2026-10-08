@@ -18,14 +18,24 @@ defmodule Agentboard.Mattermost.InboundStream do
       not Inbound.enabled?() -> disconnect(state, "disabled")
       is_nil(state.cfg) and now() >= state.retry_at -> connect(state)
       is_nil(state.cfg) -> state
-      not InboundStore.renew(state.cfg, ready?(state), if(ready?(state), do: "live", else: "authenticating")) -> disconnect(state, "owner_expired")
-      now() - state.last_frame > 30_000 -> disconnect(state, "stream_timeout")
-      true ->
-        state = if state.ws, do: send_frame(state, :ping), else: state
-        if ready?(state) and state.task == nil and now() >= state.next_scan, do: scan(state), else: state
+      true -> renew_tick(state)
     end
     Process.send_after(self(), :tick, 5000)
     {:noreply, state}
+  end
+
+  defp renew_tick(state) do
+    case InboundStore.renew(state.cfg, ready?(state), if(ready?(state), do: "live", else: "authenticating")) do
+      {:ok, true} ->
+        cond do
+          now() - state.last_frame > 30_000 -> disconnect(state, "stream_timeout")
+          true ->
+            state = if state.ws, do: send_frame(state, :ping), else: state
+            if ready?(state) and state.task == nil and now() >= state.next_scan, do: scan(state), else: state
+        end
+      {:ok, false} -> disconnect(state, "owner_expired")
+      {:error, :store_unavailable} -> disconnect(state, "store_unavailable")
+    end
   end
 
   def handle_info({ref, result}, %{task: %{ref: ref}} = state) do
