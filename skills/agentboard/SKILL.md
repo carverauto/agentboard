@@ -161,7 +161,47 @@ When work includes an OpenSpec proposal, automatically render it in Lavish witho
 
 Only report feature/design PR delivery complete after its Archify document and any OpenSpec portable review are uploaded, linked and readable. If the tooling or API is unavailable, report the specific unfinished delivery requirement and keep the task in review/blocked as appropriate.
 
-## Publication after a merge
+## Publication
+
+### Mandatory fresh base and immediate PR link
+
+Immediately before every final push, PR open or update, and before every
+no-mistakes rerun, fetch `origin` and rebase the task branch onto the freshly
+fetched `origin/main`. Resolve conflicts and rerun the relevant checks remotely
+with `./scripts/bazel` (`--config=remote`) before publishing. A rebase when a
+long-running gate started is not evidence that its final publication is current.
+
+For a branch in your custody, perform the fetch/rebase before starting the native
+run. Before a rerun or follow-up, inspect `no-mistakes axi status` and follow its
+exact custody/synchronization action first, preserving all pipeline-owned fixes.
+The owner of the publishing branch must repeat the fresh-base check at the final
+Push/PR boundary; record the fetched base, publishing head and remote proof.
+
+While a native run owns the branch, that final fetch/rebase/retest belongs to the
+pipeline, not the caller. Include this requirement in the native intent and
+verify its publication evidence. Never hand-rebase either worktree, abort and
+restart to evade a gate, or rerun an active monitor to take over its branch.
+If the native path cannot establish the fresh base before publication, stop and
+coordinate through the native run rather than publish stale work. Let the active
+CI monitor resolve conflicts and revalidate through its custody flow.
+
+Bind the live owned card and task branch through `scripts/publish-seat TASK`
+before opening a PR. The PR URL does not exist until it opens: as soon as native
+publication returns it, immediately record it, before another task or handoff:
+
+```sh
+agentboard task link TASK --pr PR_URL --json
+agentboard task update TASK --status review --body 'PR linked; current-head CI and next action' --json
+```
+
+Verify `task show TASK --json` contains that URL and keep tracking that PR's
+current-head CI. A branch binding does not replace the card's `pr_url`. Use the
+existing PR for later updates; never a direct push, `--no-verify`, or a second PR
+to bypass a refusal. These are mandatory agent/pipeline instructions; this
+documentation change does not itself add server-side freshness or auto-link
+enforcement (GH169).
+
+### Terminal publication fence
 
 Before starting or reattaching a native run, responding to a publication gate,
 rerunning, pushing or creating a PR, read the card and linked PR state and
