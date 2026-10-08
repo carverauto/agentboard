@@ -1,6 +1,7 @@
 defmodule AgentboardWeb.Plugs.AgentAuth do
   @moduledoc "Observe ordinary board writes; worker and captain endpoints retain their verifiers."
   import Plug.Conn
+  require Logger
   def init(opts), do: opts
 
   def call(conn, _) do
@@ -28,15 +29,13 @@ defmodule AgentboardWeb.Plugs.AgentAuth do
           assign(conn, :authenticated_agent, principal)
 
         {:error, _, _} ->
-          conn
-          |> put_resp_content_type("application/json")
-          |> send_resp(
-            503,
-            Jason.encode!(%{
-              error: %{code: "unavailable", message: "Authentication observation unavailable"}
-            })
-          )
-          |> halt()
+          :telemetry.execute([:agentboard, :auth, :write], %{count: 1}, %{
+            mode: "observe",
+            outcome: "observation_unavailable"
+          })
+
+          Logger.info("agentboard auth observe outcome=observation_unavailable")
+          assign(conn, :authenticated_agent, nil)
       end
     else
       conn

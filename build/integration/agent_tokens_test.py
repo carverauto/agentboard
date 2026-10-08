@@ -119,6 +119,20 @@ assert json.loads(issued_cli.stdout)['token_file']==str(outfile)
 before=sql('SELECT count(*) FROM agent_api_credentials')
 cli('agent','token','issue','token-owner','--out',str(outfile),code=2)
 assert sql('SELECT count(*) FROM agent_api_credentials')==before
+dangling=root/'dangling-agent.token';missing=root/'dangling-target.token'
+for path in (dangling,missing):
+    try:
+        if path.is_symlink() or path.exists(): path.unlink()
+    except FileNotFoundError: pass
+dangling.symlink_to(missing)
+assert dangling.is_symlink() and not missing.exists()
+before_dangling=sql('SELECT count(*) FROM agent_api_credentials')
+dangling_issue=cli('agent','token','issue','token-owner','--out',str(dangling),code=2)
+dangling_rotate=cli('agent','token','rotate','token-owner','--out',str(dangling),code=2)
+assert not missing.exists() and dangling.is_symlink()
+assert sql('SELECT count(*) FROM agent_api_credentials')==before_dangling
+assert cli_token not in dangling_issue.stdout+dangling_issue.stderr+dangling_rotate.stdout+dangling_rotate.stderr
+dangling.unlink()
 cli('task','create','--id','auth-cli-env','--title','CLI transport',env=dict(base,AGENTBOARD_TOKEN=cli_token))
 cli('task','create','--id','auth-cli-file','--title','CLI protected file',env=dict(base,AGENTBOARD_TOKEN='',AGENTBOARD_TOKEN_FILE=str(outfile)))
 # Observe must retain effective attribution for CLI mismatch too.
@@ -164,6 +178,41 @@ request=urllib.request.Request(URL+'/settings/agent-tokens/revoke',data=urllib.p
 assert browser.open(request,timeout=10).status==200
 create('auth-ui-revoked',ui_token,'token-other')
 assert api('auth/observations')['recent'][0]['outcome']=='invalid'
+# Observe degrades open with a nil principal when recording fails; roster survives.
+sql('ALTER TABLE agent_auth_observations RENAME TO fixture_hidden_observations')
+try:
+    degraded=api('tasks',{'id':'auth-degraded-record','title':'Degraded record'},actor='token-owner',token=token)
+    assert degraded['task']['id']=='auth-degraded-record'
+    assert api('tasks/auth-degraded-record')['events'][0]['actor_id']=='token-owner'
+    degraded_report=api('auth/observations',status=503)
+    assert degraded_report['error']['code']=='unavailable'
+    assert token not in json.dumps(degraded_report) and CAPTAIN not in json.dumps(degraded_report)
+    degraded_view=LiveView(URL,'/agents')
+    assert contains(degraded_view.initial,'token-owner') and contains(degraded_view.initial,'unavailable')
+    degraded_view.close()
+    plug_expr='conn = Plug.Test.conn(:post, "/api/v1/tasks", "{}") |> Plug.Conn.put_req_header("content-type", "application/json") |> Plug.Conn.put_req_header("x-agentboard-agent", "token-owner") |> Plug.Conn.put_req_header("authorization", "Bearer abt_" <> String.duplicate("a", 43)); out = AgentboardWeb.Plugs.AgentAuth.call(conn, AgentboardWeb.Plugs.AgentAuth.init([])); IO.inspect({out.assigns[:authenticated_agent], out.halted}, label: "plug_degraded")'
+    plug_result=subprocess.run([os.environ['AGENTBOARD_BIN'],'rpc',plug_expr],capture_output=True,text=True,timeout=30)
+    assert plug_result.returncode==0, plug_result.stderr
+    assert 'plug_degraded: {nil, false}' in plug_result.stdout, plug_result.stdout
+    assert 'abt_' not in plug_result.stdout+plug_result.stderr
+finally:
+    sql('ALTER TABLE fixture_hidden_observations RENAME TO agent_auth_observations')
+# Observe degrades open when verification fails; invalid bearers never yield a principal.
+sql('ALTER TABLE agent_api_credentials RENAME TO fixture_hidden_credentials')
+try:
+    unverified=api('tasks',{'id':'auth-degraded-verify','title':'Degraded verify'},actor='token-owner',token=token)
+    assert unverified['task']['id']=='auth-degraded-verify'
+    assert api('tasks/auth-degraded-verify')['events'][0]['actor_id']=='token-owner'
+    degraded_tokens=api('agents/token-owner/tokens',captain=True,status=503)
+    assert degraded_tokens['error']['code'] not in ('forbidden',)
+    assert token not in json.dumps(degraded_tokens) and CAPTAIN not in json.dumps(degraded_tokens)
+    api('agents/token-owner/tokens/issue',{},status=403)
+    plug_result=subprocess.run([os.environ['AGENTBOARD_BIN'],'rpc',plug_expr],capture_output=True,text=True,timeout=30)
+    assert plug_result.returncode==0, plug_result.stderr
+    assert 'plug_degraded: {nil, false}' in plug_result.stdout, plug_result.stdout
+finally:
+    sql('ALTER TABLE fixture_hidden_credentials RENAME TO agent_api_credentials')
+assert api('auth/observations')['counts']['matched']>=1
 # Off rollback stops new observations without deleting earlier evidence.
 count=sql('SELECT count(*) FROM agent_auth_observations')
 rpc('Application.put_env(:agentboard,:agent_auth_mode,"off")')

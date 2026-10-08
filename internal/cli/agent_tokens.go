@@ -27,6 +27,11 @@ func (c *commands) agentTokens() *cobra.Command {
 				if out == "" {
 					return errors.New("--out is required; credentials are never printed")
 				}
+				if _, err := os.Lstat(out); err == nil {
+					return errors.New("--out must name a new protected credential file")
+				} else if !os.IsNotExist(err) {
+					return errors.New("--out must name a new protected credential file")
+				}
 				var err error
 				destination, err = os.OpenFile(out, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 				if err != nil {

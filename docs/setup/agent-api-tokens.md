@@ -7,6 +7,11 @@ anonymous, invalid/revoked and actor-mismatch writes. The Agents page and
 `GET /api/v1/auth/observations` expose 24-hour counts and the latest 50 events.
 Audit fields contain registered IDs, a normalized route, method, outcome and
 time. Neither audit events nor telemetry contain credential values or hashes.
+When observation storage or verification is unavailable in observe mode,
+ordinary writes still succeed with a nil verified principal and an
+observation_unavailable outcome; the Agents roster retains actual agents with
+an explicit unavailable status and no invented counts, while the API report
+stays an honest error. A future enforce mode fails closed on such errors.
 
 This release accepts only `off` and `observe`. Enforcement, privileged external
 system scopes and an enforcement deployment require a separately directed,

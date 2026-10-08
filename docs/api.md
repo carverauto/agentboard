@@ -215,6 +215,10 @@ capabilities retain their separate verification paths.
 `AGENTBOARD_AUTH_MODE` defaults to `off`. With `observe`, ordinary mutating API
 routes resolve an optional bearer principal while preserving legacy write
 attribution, then record matched, anonymous, invalid or actor-mismatch evidence.
+If observation recording or verification fails in observe mode, the write still
+succeeds with a nil principal and an observation_unavailable outcome; the Agents
+roster keeps actual agents with an explicit unavailable report, while the report
+API returns its honest error and a future enforce mode fails closed.
 `GET /api/v1/auth/observations` reports the mode, 24-hour outcome counts and 50
 recent secret-free observations. Read access follows the existing read model.
 Enforcement is a separate captain-approved follow-up; see the credential setup
