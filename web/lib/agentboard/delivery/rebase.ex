@@ -205,14 +205,15 @@ defmodule Agentboard.Delivery.Rebase do
              String.downcase(pr.owner <> "/" <> pr.repo) in subscription.repos do
           e = capture(f, pr)
 
-          Runtime.ensure_delivery(e, subscription.id, @actor)
+          unless Runtime.fallback_claimed?(e),
+            do: Runtime.ensure_delivery(e, subscription.id, @actor)
         end
       end)
     end
   end
 
-  defp capture(f, pr),
-    do:
+  defp capture(f, pr) do
+    event =
       Runtime.capture(
         %{
           source_key: "rebase:#{f.id}",
@@ -226,6 +227,21 @@ defmodule Agentboard.Delivery.Rebase do
         },
         recipient: f.responsible_id || "captain"
       )
+
+    if event.audience == [] do
+      assignee =
+        case Ash.get!(Task, f.repair_task_id, not_found_error?: false) do
+          nil -> nil
+          task -> task.assignee_id
+        end
+
+      Runtime.fallback(event, [assignee], @actor,
+        recipient: f.responsible_id || "captain"
+      )
+    end
+
+    event
+  end
 
   defp enabled?, do: Application.get_env(:agentboard, :cooperation_enabled, false)
 end

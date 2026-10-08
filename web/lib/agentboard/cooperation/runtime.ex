@@ -776,6 +776,122 @@ defmodule Agentboard.Cooperation.Runtime do
     end
   end
 
+  # Single-source inbox fallback for cooperation-enabled CI/conflict signals.
+  # The caller owns the canonical transaction and calls this only for events
+  # whose pinned audience is empty. The delivery mode is elected atomically
+  # under the source election lock BEFORE any worker/delivery insertion:
+  # a subscription that appeared meanwhile sends the event down the worker
+  # path, otherwise exactly one canonical Board.Message is retained (adopted
+  # when a notify already created it, sent otherwise). Late enrollment runs
+  # the same election through fallback_claimed?/1, so a logically delivered
+  # occurrence is never replayed as a worker frame.
+  def fallback_marker(source_key), do: "[coop-fallback source=#{source_key}]"
+
+  def fallback(event, recipient_ids, actor, opts \\ []) do
+    cond do
+      not Application.get_env(:agentboard, :cooperation_enabled, false) ->
+        {:disabled, event}
+
+      event.audience != [] ->
+        {:worker, event}
+
+      is_nil(event.task_id) ->
+        {:undeliverable, :no_task}
+
+      true ->
+        elect(event, recipient_ids, actor, opts)
+    end
+  end
+
+  # The "captain" capture filter is a sentinel meaning "no specific worker",
+  # never a recipient: escalations carrying it resolve to the configured
+  # coordinator, never back to the owner.
+  @captain_sentinel "captain"
+
+  defp elect(event, recipient_ids, actor, opts) do
+    lock("fallback:" <> event.source_key)
+
+    subs = Subscription |> Ash.Query.filter(revoked == false) |> Ash.read!()
+    recipient = Keyword.get(opts, :recipient)
+    excluded = Keyword.get(opts, :exclude_recipient)
+
+    audience =
+      Enum.filter(
+        subs,
+        &(event.repo in &1.repos and &1.id != excluded and
+            (is_nil(recipient) or recipient == &1.id))
+      )
+
+    if audience == [] do
+      # Capture filter leads: a real recipient owns the fallback, the
+      # sentinel falls through to extras, then the configured coordinator.
+      ids = [Keyword.get(opts, :recipient) | recipient_ids]
+
+      case fallback_message(event) do
+        nil -> send_fallback(event, ids, actor)
+        message -> {:adopted, message}
+      end
+    else
+      {:worker, event}
+    end
+  end
+
+  # Shared election read for late enrollment: an occurrence with a retained
+  # canonical message is logically delivered and must not gain a worker frame.
+  def fallback_claimed?(event) do
+    lock("fallback:" <> event.source_key)
+    not is_nil(fallback_message(event))
+  end
+
+  def fallback_message(event) do
+    marker = fallback_marker(event.source_key)
+
+    Agentboard.Board.Resources.Message
+    |> Ash.Query.filter(
+      task_id == ^event.task_id and
+        (fragment("position(? in ?) > 0", ^marker, body) or
+           (sender_id in ["ci-accountability", "cooperation"] and
+              created_at >= ^event.created_at))
+    )
+    |> Ash.Query.sort(id: :asc)
+    |> Ash.Query.limit(1)
+    |> Ash.read_one!()
+  end
+
+  defp send_fallback(event, recipient_ids, actor) do
+    chain =
+      recipient_ids
+      |> Enum.reject(&(&1 in [nil, @captain_sentinel]))
+      |> Enum.uniq()
+      |> Kernel.++([Application.get_env(:agentboard, :coordinator_id)])
+
+    recipient =
+      Enum.find(chain, fn id ->
+        case get(Agentboard.Board.Resources.Agent, id) do
+          %{retired_at: nil} -> true
+          _ -> false
+        end
+      end)
+
+    if recipient do
+      message =
+        Ops.send_message(
+          actor,
+          %{
+            "to" => recipient,
+            "task" => event.task_id,
+            "kind" => "note",
+            "body" => event.summary <> "\n" <> fallback_marker(event.source_key)
+          },
+          Ops.now()
+        )
+
+      {:sent, message}
+    else
+      {:undeliverable, :no_registered_recipient}
+    end
+  end
+
   def route do
     %{rows: rows} =
       Repo.statement!(

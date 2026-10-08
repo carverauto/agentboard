@@ -77,6 +77,9 @@ if int(gen) < 1:
 coord = api('/messages?unread=true', agent='inbox-coordinator')['messages']
 digest = [m for m in coord if m['task_id'] == repair]
 if len(digest) != 1:
-    failures.append(('escalated digest missing from coordinator inbox', digest))
+    failures.append(('escalated digest missing from coordinator inbox',
+        {'digest': digest, 'gen': gen,
+         'all_messages': sql("SELECT recipient_id || '/' || coalesce(task_id,'-') FROM messages ORDER BY id"),
+         'digest_events': sql("SELECT count(*) FROM cooperation_events WHERE kind='ci_digest'")}))
 assert not failures, failures
 print('Zero-worker CI failure/replay/reminder inbox proof passed', flush=True)
