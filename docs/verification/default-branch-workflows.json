@@ -1,7 +1,7 @@
 {
   "diagram_type": "architecture",
-  "specification_sha256": "25f5aa8f52a7ec0dd4cd898e92564ef95240641ad11c245de045639189f5a967",
-  "artifact_sha256": "4296b7c19c9af44ea432a49e103c374b6e175ed10f181130a13c4fa48fbbc507",
+  "specification_sha256": "b31dc37047ac30617716a36ebd3a6e8a15545c998fd5f6890af2bcae2d9c97f1",
+  "artifact_sha256": "ce63f0ea67a2996284b41b7e51dcaa9fa4df891fce2f9a930ce4491a2e5e1f24",
   "validation": "9/9 showcase, 0 errors, 0 warnings",
   "browser_evidence": "passed",
   "visual_review": "passed",
