@@ -93,6 +93,10 @@ and mark your owned task blocked after checking its live claim. Resume only
 in the correctly leased disposable worktree. Backend hosting is not isolation.
 Keep this STOP condition in subsequent ship briefs. Hooks are backstops only.
 Retain the worktree lease through PR review and green CI; do not merge.
+When the task is done or cancelled and its work has landed (pushed, PR
+merged, or already in base), return the slot with the same-version
+`treehouse return` before claiming or acquiring anything new; never
+--force, never rm -rf.
 For ask-user gates, read the installed agentboard ask-user-escalation procedure.
 On schema20 create one durable decision with verbatim findings, notify the
 configured coordinator, and end the turn only after delivery. Resume by reading
