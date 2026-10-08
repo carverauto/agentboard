@@ -452,8 +452,10 @@ with tls_provider(Provider) as (api_url, ca, server):
     invalidate(watch, 5, next_page['cursor'])
     unknown_pr = hashlib.sha256(b'https://github.com/fixture/repo/pull/202').hexdigest()
     prs[202] = dict(head='1' * 40, base=branch_sha, mergeable=False, mergeable_state='dirty')
+    sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()+interval '1 hour' WHERE id<>\'" + unknown_pr + "\'")
+    sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 second',attempt_id=NULL,lease_expires_at=NULL WHERE id=\'" + unknown_pr + "\'")
     reset_budget()
-    poll(unknown_pr)
+    assert 'observed' in poll(unknown_pr)
     unknown_follow = detail(unknown_pr)['rebase_follow_up']
     assert unknown_follow['responsible_id'] is None
     assert ab('task', 'show', unknown_follow['repair_task_id'])['task']['status'] == 'open'
@@ -488,6 +490,8 @@ with tls_provider(Provider) as (api_url, ca, server):
         pid = sql("SELECT id FROM delivery_pull_requests WHERE number='" + str(number) + "'")
         sql("UPDATE delivery_poll_states SET head_sha='" + HEAD + "', base_sha='" + branch_sha + "', base_ref='main', expected_base_sha='" + branch_sha + "', next_poll_at=clock_timestamp()-interval '1 second' WHERE id='" + pid + "'")
         prs[number] = dict(head='3' * 40, base=branch_sha, mergeable=False, mergeable_state='dirty')
+        sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()+interval '1 hour' WHERE id<>\'" + pid + "\'")
+        sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 second',attempt_id=NULL,lease_expires_at=NULL WHERE id='" + pid + "'")
         reset_budget()
         assert 'observed' in poll(pid)
         repair = sql("SELECT repair_task_id FROM delivery_rebase_follow_ups WHERE pull_request_id='" + pid + "'")
