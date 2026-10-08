@@ -103,6 +103,7 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 			charterText = strings.ReplaceAll(charterText, "(AGENTS.md)", "(https://github.com/carverauto/agentboard/blob/main/AGENTS.md)")
 			charterText = strings.ReplaceAll(charterText, "(../../../AGENTS.md)", "(https://github.com/carverauto/agentboard/blob/main/AGENTS.md)")
 			charterText = strings.ReplaceAll(charterText, "(../../../docs/quota.md)", "(../../agentboard/references/quota.md)")
+			charterText = strings.ReplaceAll(charterText, "(../../../skills/", "(../../")
 			charterText = strings.ReplaceAll(charterText, "(skills/", "(../../")
 			charterText = strings.ReplaceAll(charterText, "(docs/quota.md)", "(../../agentboard/references/quota.md)")
 			charterText = strings.ReplaceAll(charterText, "(../role.md)", "(https://github.com/carverauto/agentboard/blob/main/docs/coordinator/role.md)")

@@ -143,7 +143,7 @@ func checkInstalledMarkdownLinks(t *testing.T, dir, name, doc string) {
 		if target != "" {
 			path = filepath.Join(base, target)
 		}
-		if _, err := os.Stat(path); err != nil {
+		if _, err := os.Lstat(path); err != nil {
 			t.Fatalf("broken installed documentation link %s/%s: %v", name, link, err)
 		}
 		if anchor != "" && !markdownHasAnchor(t, path, anchor) {
