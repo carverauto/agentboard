@@ -411,8 +411,8 @@ tables alongside the shipped auth and poll-credit tables. Current readiness is i
 preserved; repeat migration is harmless, and no obligations are seeded. The
 stamp uses `GREATEST(version, 27)`, so it never lowers a higher stamp (25 is
 the shipped credential schema above, 26 remains reserved for parked work; 28
-is the shipped poll-fairness schema above and 30 is the higher-stamp upgrade
-proof marker).
+is the shipped poll-fairness schema above, 30 belongs to a concurrent seat,
+and 99 is the higher-stamp upgrade proof marker).
 
 Behavior, intake, routing, recovery, and the operator rollout prerequisites
 live in [default-branch workflow accountability](default-branch-workflows.md),
