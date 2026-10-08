@@ -33,11 +33,7 @@ defmodule AgentboardWeb.CaptainController do
       end)
 
   defp authorized(conn, fun) do
-    capability =
-      case get_req_header(conn, "authorization") do
-        ["Bearer " <> token] -> Captain.authenticate(token)
-        _ -> nil
-      end
+    capability = Captain.authenticate_header(conn)
 
     if Captain.authorized?(capability),
       do: AgentboardWeb.APIController.reply(conn, fun.()),
@@ -47,4 +43,3 @@ defmodule AgentboardWeb.CaptainController do
         |> json(%{error: %{code: "forbidden", message: "Captain capability required"}})
   end
 end
-

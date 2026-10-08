@@ -30,9 +30,11 @@ defmodule Agentboard.Board.Reads do
   def show("agents", id, filters) do
     with true <- Agentboard.Input.slug?(id),
          {:ok, query} <- load_flags(Agent |> Ash.Query.filter(id == ^id), "agents", filters),
+         {:ok, _} <- Agentboard.Availability.expire_due(),
          {:ok, agent} <- fetch(query) do
+      history = Agentboard.Availability.history(agent)
       [agent] = decorate([agent], "agents")
-      {:ok, %{"agent" => agent}}
+      {:ok, Map.merge(%{"agent" => agent}, history)}
     else
       false -> invalid("Invalid agent ID")
       error -> error
@@ -51,6 +53,8 @@ defmodule Agentboard.Board.Reads do
          query = Ash.Query.sort(query, order),
          query = if(snapshot?, do: query, else: Ash.Query.limit(query, limit + 1)),
          {:ok, query} <- load_flags(query, resource, filters),
+         {:ok, _} <-
+           if(resource == "agents", do: Agentboard.Availability.expire_due(), else: {:ok, %{}}),
          {:ok, records} <- ash_read(query) do
       rows = decorate(records, resource)
       rows = if snapshot?, do: rows, else: Enum.take(rows, limit)
@@ -82,7 +86,14 @@ defmodule Agentboard.Board.Reads do
         }}}
 
   defp spec("agents"),
-    do: {:ok, {Agent, [id: :asc], %{"harness" => :harness, "status" => :reported_status}}}
+    do:
+      {:ok,
+       {Agent, [id: :asc],
+        %{
+          "harness" => :harness,
+          "status" => :reported_status,
+          "availability" => :availability_state
+        }}}
 
   defp spec("messages"),
     do:
@@ -109,6 +120,10 @@ defmodule Agentboard.Board.Reads do
 
       Map.has_key?(filters, "unread") and filters["unread"] not in ~w(true false) ->
         invalid("Unknown unread filter")
+
+      resource == "agents" and Map.has_key?(filters, "availability") and
+          filters["availability"] not in ~w(active reserved out_of_service) ->
+        invalid("Unknown availability filter")
 
       resource == "agents" ->
         case threshold(filters) do
@@ -200,8 +215,12 @@ defmodule Agentboard.Board.Reads do
 
   defp load_flags(query, "agents", filters) do
     case threshold(filters) do
-      {:ok, seconds} -> {:ok, Ash.Query.load(query, stale: %{seconds: seconds})}
-      error -> error
+      {:ok, seconds} ->
+        {:ok,
+         Ash.Query.load(query, [:availability, :availability_state, stale: %{seconds: seconds}])}
+
+      error ->
+        error
     end
   end
 
@@ -220,7 +239,11 @@ defmodule Agentboard.Board.Reads do
 
   defp decorate(records, "agents") do
     Enum.map(records, fn row ->
-      row |> Operations.public() |> Map.put("stale", row.stale)
+      row
+      |> Operations.public()
+      |> Map.put("stale", row.stale)
+      |> Map.put("availability", row.availability)
+      |> Map.put("routing_eligible", row.availability_state == "active")
     end)
   end
 
@@ -316,4 +339,3 @@ defmodule Agentboard.Board.Reads do
 
   defp invalid(message), do: {:error, "invalid_input", message}
 end
-

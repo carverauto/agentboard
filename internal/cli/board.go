@@ -82,7 +82,7 @@ func (c *commands) show(resource string) *cobra.Command {
 }
 func (c *commands) agents() *cobra.Command {
 	group := &cobra.Command{Use: "agent", Short: "Stable registry and heartbeat identity"}
-	group.AddCommand(c.list("agents", []string{"harness", "status"}), c.show("agents"))
+	group.AddCommand(c.list("agents", []string{"harness", "status", "availability"}), c.show("agents"))
 	name, host, backend := "", "", ""
 	caps := []string{}
 	register := &cobra.Command{Use: "register", Short: "Create or refresh this agent; a different harness cannot reuse its ID", Args: cobra.NoArgs,
@@ -106,7 +106,7 @@ func (c *commands) agents() *cobra.Command {
 	register.Flags().StringVar(&host, "host", "", "Host/session label")
 	register.Flags().StringSliceVar(&caps, "capability", nil, "Comma-separated capabilities")
 	register.Flags().StringVar(&backend, "backend", "", "Optional backend metadata (e.g. herdr)")
-	group.AddCommand(register, c.heartbeat())
+	group.AddCommand(register, c.heartbeat(), c.availabilityCommands())
 	return group
 }
 func (c *commands) tasks() *cobra.Command {
@@ -198,6 +198,7 @@ func (c *commands) taskAction(action string) *cobra.Command {
 	revision := int64(0)
 	cmd := &cobra.Command{Use: action + " ID", Short: action + " task ownership or progress", Args: idArgs}
 	if action == "assign" || action == "handoff" {
+		cmd.Flags().Bool("captain", false, "Authorize named assignment using AGENTBOARD_CAPTAIN_TOKEN_FILE")
 		cmd.Flags().StringVar(&to, "to", "", "Registered assignee ID")
 	}
 	if action == "release" {

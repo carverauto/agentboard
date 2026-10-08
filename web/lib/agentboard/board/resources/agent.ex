@@ -124,6 +124,18 @@ defmodule Agentboard.Board.Resources.Agent do
   end
 
   calculations do
+    calculate :availability_state,
+              :string,
+              expr(fragment("board_agent_availability(?,?,?)->>'state'", id, harness, model)) do
+      public?(true)
+    end
+
+    calculate :availability,
+              :map,
+              expr(fragment("board_agent_availability(?,?,?)", id, harness, model)) do
+      public?(true)
+    end
+
     calculate :stale,
               :boolean,
               expr(
@@ -139,4 +151,3 @@ defmodule Agentboard.Board.Resources.Agent do
     end
   end
 end
-

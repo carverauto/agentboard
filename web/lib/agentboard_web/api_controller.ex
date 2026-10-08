@@ -29,6 +29,14 @@ defmodule AgentboardWeb.APIController do
   def quota(conn, _), do: list(conn, "quota")
   def push_quota(conn, _), do: reply(conn, Agentboard.Quota.push(actor(conn), conn.body_params))
   def agents(conn, _), do: list(conn, "agents")
+  def availability(conn, _), do: reply(conn, Agentboard.Availability.list())
+
+  def set_availability(conn, _),
+    do: reply(conn, Agentboard.Availability.set(privileged_actor(conn), conn.body_params))
+
+  def broadcast_orders(conn, _),
+    do: reply(conn, Agentboard.Availability.broadcast(privileged_actor(conn), conn.body_params))
+
   def tasks(conn, _), do: list(conn, "tasks")
 
   def agent(conn, %{"id" => id}),
@@ -44,7 +52,7 @@ defmodule AgentboardWeb.APIController do
     do: reply(conn, Board.mutate(id, "edit", actor(conn), conn.body_params))
 
   def mutate(conn, %{"id" => id, "action" => action}),
-    do: reply(conn, Board.mutate(id, action, actor(conn), conn.body_params))
+    do: reply(conn, Board.mutate(id, action, privileged_actor(conn), conn.body_params))
 
   def heartbeat(conn, %{"id" => id}),
     do: reply(conn, Board.heartbeat(id, actor(conn), conn.body_params))
@@ -87,6 +95,14 @@ defmodule AgentboardWeb.APIController do
     Map.new(~w(agent model harness), fn key -> {key, header(conn, "x-agentboard-" <> key)} end)
   end
 
+  defp privileged_actor(conn) do
+    proof = Agentboard.Captain.authenticate_header(conn)
+
+    if Agentboard.Captain.authorized?(proof),
+      do: Map.put(actor(conn), :availability_admin, true),
+      else: actor(conn)
+  end
+
   defp header(conn, key) do
     case get_req_header(conn, key) do
       [value] -> value
@@ -105,6 +121,7 @@ defmodule AgentboardWeb.APIController do
         c when c in ~w(invalid_input invalid_context) -> 422
         "not_found" -> 404
         "conflict" -> 409
+        "forbidden" -> 403
         _ -> 503
       end
 

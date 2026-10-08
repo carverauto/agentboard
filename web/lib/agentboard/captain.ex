@@ -10,6 +10,15 @@ defmodule Agentboard.Captain do
 
   def authenticate(_), do: nil
 
+  # Header parsing is shared; attribution headers never enter this verifier.
+  def authenticate_header(conn, header \\ "authorization") do
+    case {header, Plug.Conn.get_req_header(conn, header)} do
+      {"authorization", ["Bearer " <> value]} -> authenticate(value)
+      {"x-agentboard-captain-token", [value]} -> authenticate(value)
+      _ -> nil
+    end
+  end
+
   def authorized?(%{"proof" => proof, "expires" => expires})
       when is_binary(proof) and is_integer(expires) do
     configured?() and expires > System.system_time(:second) and
@@ -21,4 +30,3 @@ defmodule Agentboard.Captain do
   defp token, do: Application.get_env(:agentboard, :captain_token)
   defp digest, do: :crypto.hash(:sha256, token()) |> Base.encode16(case: :lower)
 end
-

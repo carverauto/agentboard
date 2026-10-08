@@ -115,6 +115,9 @@ handled_batch = batch
 assert hashlib.sha256(batch['payload'].encode()).hexdigest() == batch['payload_hash']
 assert len(batch['payload'].encode()) <= 16384
 assert api('/workers/fixture-agent/state', token=host)['active_batch'] == batch
+api('/availability', {'agent_id': 'fixture-agent', 'state': 'out_of_service', 'reason': 'Fixture maintenance'}, token=CAPTAIN)
+assert api('/workers/fixture-agent/reserve', {'binding_epoch': 1, 'idempotency_key': 'reserve-0'}, token=host)['batch'] is None
+assert api('/workers/fixture-agent/state', token=host)['active_batch'] == batch
 rpc('Application.put_env(:agentboard, :cooperation_enabled, false)')
 assert not api('/workers/fixture-agent/state', token=host)['worker']['enabled']
 assert api('/workers/fixture-agent/reserve', {'binding_epoch': 1, 'idempotency_key': 'disabled-reserve'}, token=host)['batch'] is None
@@ -134,6 +137,9 @@ assert r == api('/workers/fixture-agent/receipts', receipt, token=receipt_token)
 api('/workers/fixture-agent/receipts', dict(receipt, kind='handled'), token=receipt_token, status=409)
 api('/workers/fixture-agent/receipts', dict(receipt, kind='handled', idempotency_key='handled-1'), token=receipt_token)
 assert len(api('/workers/fixture-agent/pending', token=host)['deliveries']) == 1
+unavailable = api('/workers/fixture-agent/reserve', {'binding_epoch': 1, 'idempotency_key': 'unavailable-reserve'}, token=host)
+assert unavailable['batch'] is None and unavailable['degraded_reasons'] == ['agent_unavailable'], unavailable
+api('/availability', {'agent_id': 'fixture-agent', 'state': 'active', 'reason': 'Fixture restored'}, token=CAPTAIN)
 
 # Ambiguous transport parks uncertainty; positive crash-before-call evidence permits retry.
 batch = api('/workers/fixture-agent/reserve', {'binding_epoch': 1, 'idempotency_key': 'crash-before'}, token=host)['batch']

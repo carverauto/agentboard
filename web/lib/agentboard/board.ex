@@ -7,6 +7,7 @@ defmodule Agentboard.Board do
 
   resources do
     resource(Agentboard.Board.AuditEvent)
+    resource(Agentboard.Availability.Policy)
     resource(Agentboard.Board.Resources.Agent)
     resource(Agentboard.Board.Resources.Task)
     resource(Agentboard.Board.Resources.TaskEvent)
@@ -232,4 +233,3 @@ defmodule Agentboard.Board do
       "-" <> Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
   end
 end
-

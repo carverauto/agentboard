@@ -32,8 +32,9 @@ func (c *commands) heartbeat() *cobra.Command {
 }
 func (c *commands) messages() *cobra.Command {
 	group := &cobra.Command{Use: "msg", Short: "Durable peer inbox and shared task comments"}
-	to, task, body := "", "", ""
+	to, task, body, kind := "", "", "", "note"
 	send := &cobra.Command{Use: "send", Short: "Send to a peer and/or task thread", Args: cobra.NoArgs}
+	send.Flags().StringVar(&kind, "kind", kind, "note or task_order (active named recipient)")
 	send.Flags().StringVar(&to, "to", "", "Registered recipient ID")
 	send.Flags().StringVar(&task, "task", "", "Task thread/context")
 	send.Flags().StringVar(&body, "body", "", "Nonempty message body")
@@ -41,7 +42,13 @@ func (c *commands) messages() *cobra.Command {
 		if body == "" || (to == "" && task == "") {
 			return errors.New("--body and a --to or --task destination are required")
 		}
+		if kind != "note" && kind != "task_order" {
+			return errors.New("--kind must be note or task_order")
+		}
 		data := map[string]any{"body": body}
+		if kind != "note" {
+			data["kind"] = kind
+		}
 		if to != "" {
 			data["to"] = to
 		}
@@ -60,7 +67,7 @@ func (c *commands) messages() *cobra.Command {
 		}
 		return c.request(cmd, http.MethodPost, "messages/"+strconv.FormatInt(id, 10)+"/read", nil, map[string]any{})
 	}}
-	group.AddCommand(send, list, read, c.watchCommand("messages", []string{"to", "task"}))
+	group.AddCommand(c.broadcastOrders(), send, list, read, c.watchCommand("messages", []string{"to", "task"}))
 	return group
 }
 
