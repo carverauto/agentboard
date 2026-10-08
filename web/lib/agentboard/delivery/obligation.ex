@@ -35,6 +35,8 @@ defmodule Agentboard.Delivery.Obligation do
         :reminders,
         :escalated_at,
         :resolved_at,
+        :resolution_reason,
+        :resolution_snapshot_id,
         :created_at
       ])
     end
@@ -57,6 +59,8 @@ defmodule Agentboard.Delivery.Obligation do
         :reminders,
         :escalated_at,
         :resolved_at,
+        :resolution_reason,
+        :resolution_snapshot_id,
         :created_at
       ])
     end
@@ -94,6 +98,8 @@ defmodule Agentboard.Delivery.Obligation do
     attribute(:window_at, :utc_datetime_usec, allow_nil?: false)
     attribute(:reminders, :integer, allow_nil?: false)
     attribute(:escalated_at, :utc_datetime_usec)
+    attribute(:resolution_reason, :string)
+    attribute(:resolution_snapshot_id, :uuid)
     attribute(:resolved_at, :utc_datetime_usec)
     attribute(:created_at, :utc_datetime_usec, allow_nil?: false)
   end

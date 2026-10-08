@@ -2,7 +2,7 @@ defmodule Agentboard.Delivery.Accountability do
   @moduledoc "One unresolved episode per PR; immutable submission provenance, explicit audited responsibility."
   alias Agentboard.{Availability, Repo, Cooperation.Runtime}
   alias Agentboard.Board.Operations, as: Ops
-  alias Agentboard.Delivery.{Obligation, PullRequest, TaskLink}
+  alias Agentboard.Delivery.{CISnapshot, Obligation, PollState, PullRequest, TaskLink}
   alias Agentboard.Board.Resources.{Agent, Task}
   require Ash.Query
   @actor %{"agent" => "ci-accountability", "model" => "system", "harness" => "ash"}
@@ -17,9 +17,20 @@ defmodule Agentboard.Delivery.Accountability do
       |> Ash.Query.filter(pull_request_id == ^id and is_nil(resolved_at))
       |> Ash.read_one!()
 
+    active =
+      if active do
+        lock_obligation(active.id)
+        latest = Ash.get!(Obligation, active.id)
+        if is_nil(latest.resolved_at), do: latest
+      end
+
     cond do
+      result.lifecycle in ~w(merged closed) ->
+        if active, do: resolve(active, result.lifecycle, stamp, snapshot.id)
+
       result.ci_state == "failing" and is_nil(active) ->
-        new_episode(id, result, stamp, Map.get(snapshot, :id))
+        if not dismissed_head?(id, result.head_sha),
+          do: new_episode(id, result, stamp, Map.get(snapshot, :id))
 
       result.ci_state == "failing" ->
         change(active, %{
@@ -30,8 +41,7 @@ defmodule Agentboard.Delivery.Accountability do
         })
 
       result.ci_state == "passing" and result.payload["policy"] == "verified" and active ->
-        change(active, %{state: "resolved", resolved_at: stamp})
-        suppress(active)
+        resolve(active, "passing", stamp, snapshot.id)
 
       active ->
         change(active, %{state: if(active.blocker, do: "blocked", else: "degraded")})
@@ -197,6 +207,9 @@ defmodule Agentboard.Delivery.Accountability do
         o.resolved_at ->
           :ok
 
+        o.repair_task_id == task.id and task.status in ~w(done cancelled) ->
+          resolve(o, "repair_" <> task.status, stamp, nil)
+
         action == "handoff" and o.responsible_id == actor["agent"] ->
           suppress(o)
 
@@ -316,6 +329,98 @@ defmodule Agentboard.Delivery.Accountability do
     end)
   end
 
+  # Caller owns the repair task, then shared PR state/PR, before this obligation.
+  # Collector owns shared state/PR before obligation and never waits for an existing repair task.
+  def reconcile_obligation(id) do
+    initial = Ash.get!(Obligation, id)
+    Ops.lock_task(initial.repair_task_id)
+
+    Repo.statement!("SELECT id FROM delivery_poll_states WHERE id=$1 FOR UPDATE", [
+      initial.pull_request_id
+    ])
+
+    lock_pr(initial.pull_request_id)
+    lock_obligation(id)
+    o = Ash.get!(Obligation, id)
+    task = Ash.get!(Task, o.repair_task_id)
+    state = Ash.get!(PollState, o.pull_request_id, not_found_error?: false)
+    snapshot = state && state.snapshot_id && Ash.get!(CISnapshot, state.snapshot_id)
+
+    cond do
+      not Agentboard.Delivery.Scheduling.enabled?() or o.resolved_at ->
+        false
+
+      task.status in ~w(done cancelled) ->
+        resolve(o, "repair_" <> task.status, Ops.now(), nil)
+        true
+
+      terminal_evidence?(state, snapshot) ->
+        resolve(o, snapshot.lifecycle, Ops.now(), snapshot.id)
+        true
+
+      true ->
+        false
+    end
+  end
+
+  defp terminal_evidence?(%PollState{} = state, %CISnapshot{} = snapshot) do
+    snapshot.lifecycle in ~w(merged closed) and state.lifecycle == snapshot.lifecycle and
+      snapshot.pull_request_id == state.id and snapshot.generation <= state.generation and
+      snapshot.head_sha == state.head_sha and snapshot.base_sha == state.base_sha and
+      snapshot.observed_at == state.observed_at
+  end
+
+  defp terminal_evidence?(_, _), do: false
+
+  defp resolve(o, reason, stamp, snapshot_id) do
+    change(o, %{
+      state: "resolved",
+      resolved_at: stamp,
+      resolution_reason: reason,
+      resolution_snapshot_id: snapshot_id
+    })
+
+    suppress(o)
+  end
+
+  # An explicit repair disposition must not create the identical repair again
+  # each minute. A new head, verified recovery after dismissal, or retained
+  # merged/closed lifecycle after dismissal starts a new episode; a fenced
+  # closed observation preserves the retained disposition.
+  defp dismissed_head?(id, head) do
+    last =
+      Obligation
+      |> Ash.Query.filter(pull_request_id == ^id)
+      |> Ash.Query.sort(episode: :desc)
+      |> Ash.Query.limit(1)
+      |> Ash.read!()
+      |> List.first()
+
+    if last && last.resolution_reason in ~w(repair_done repair_cancelled) && last.head_sha == head do
+      recovered =
+        CISnapshot
+        |> Ash.Query.filter(
+          pull_request_id == ^id and observed_at > ^last.resolved_at and
+            ci_state == "passing" and fragment("?->>'policy' = 'verified'", payload)
+        )
+        |> Ash.Query.limit(1)
+        |> Ash.read!()
+
+      reopened =
+        CISnapshot
+        |> Ash.Query.filter(
+          pull_request_id == ^id and observed_at > ^last.resolved_at and
+            lifecycle in ["merged", "closed"]
+        )
+        |> Ash.Query.limit(1)
+        |> Ash.read!()
+
+      recovered == [] and reopened == []
+    else
+      false
+    end
+  end
+
   def bootstrap(subscription) do
     obligations =
       Obligation
@@ -423,7 +528,7 @@ defmodule Agentboard.Delivery.Accountability do
   defp suppress(o) do
     %{rows: rows} =
       Repo.statement!(
-        "SELECT d.id FROM cooperation_deliveries d JOIN cooperation_events e ON e.id=d.event_id WHERE e.task_id=$1 AND e.kind IN ('ci_failure','ci_reminder') AND d.state IN ('pending','received') ORDER BY d.id FOR UPDATE OF d",
+        "SELECT d.id FROM cooperation_deliveries d JOIN cooperation_events e ON e.id=d.event_id WHERE e.task_id=$1 AND e.kind IN ('ci_failure','ci_reminder','ci_digest') AND d.state IN ('pending','received') ORDER BY d.id FOR UPDATE OF d",
         [o.repair_task_id]
       )
 

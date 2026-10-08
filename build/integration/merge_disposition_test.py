@@ -137,7 +137,7 @@ assert api('/tasks/merge-disabled')['task']['status'] == 'review'
 rpc(':ok = Oban.pause_queue(queue: :delivery_scheduler); Application.put_env(:agentboard, :pr_observation_enabled, true)')
 
 # Merge remains lifecycle evidence after downtime, even with expired ownership
-# and old/failing CI. It neither resolves an obligation nor auto-acks its repair.
+# and old/failing CI. Terminal lifecycle closes the obligation; source completion never auto-acks its repair.
 historical = observe(102)
 # Append a historical fixture rather than mutating immutable evidence.
 sql("WITH historical AS (INSERT INTO delivery_ci_snapshots SELECT gen_random_uuid(), pull_request_id, generation+1, clock_timestamp()-interval '1 day', head_sha, base_sha, lifecycle, ci_state, payload FROM delivery_ci_snapshots WHERE id='" + historical['snapshot_id'] + "' RETURNING *) UPDATE delivery_poll_states p SET snapshot_id=h.id,generation=h.generation,observed_at=h.observed_at FROM historical h WHERE p.id=h.pull_request_id")
@@ -145,6 +145,7 @@ sql("UPDATE tasks SET claimed_at=clock_timestamp()-interval '3 hours',claim_expi
 assert reconcile()['completed'] == 1
 assert api('/tasks/merge-disabled')['task']['status'] == 'done'
 task('merge-failing', 103)
+observe(103, lifecycle="open", failing=True)
 observe(103, failing=True)
 repair = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id=(SELECT id FROM delivery_pull_requests WHERE number='103')")
 api('/tasks/' + repair + '/claim', {})
@@ -152,7 +153,7 @@ api('/tasks/' + repair + '/update', {'status': 'review'})
 assert reconcile()['completed'] == 1
 assert api('/tasks/merge-failing')['task']['status'] == 'done'
 assert api('/tasks/' + repair)['task']['status'] == 'review'
-assert sql("SELECT state||','||(resolved_at IS NULL) FROM delivery_obligations WHERE repair_task_id='" + repair + "'") == 'unresolved,true'
+assert sql("SELECT state||','||(resolved_at IS NULL) FROM delivery_obligations WHERE repair_task_id='" + repair + "'") == 'resolved,false'
 assert sql("SELECT ci_state FROM delivery_poll_states WHERE id=(SELECT id FROM delivery_pull_requests WHERE number='103')") == 'failing'
 
 # Only Review, only its CURRENT canonical PR, only the current merged snapshot.

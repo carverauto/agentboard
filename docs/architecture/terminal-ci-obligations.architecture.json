@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Terminal CI obligation disposition",
+    "subtitle": "Evidence closes the machine signal; CI and task history remain independent",
+    "animation": "none",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1200,
+      620
+    ]
+  },
+  "components": [
+    {
+      "id": "collector",
+      "type": "external",
+      "label": "PR observation",
+      "sublabel": "Merged or closed snapshot",
+      "pos": [
+        40,
+        70
+      ],
+      "size": [
+        250,
+        100
+      ]
+    },
+    {
+      "id": "task",
+      "type": "frontend",
+      "label": "Board task API",
+      "sublabel": "Own repair Done / Cancelled",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        250,
+        100
+      ]
+    },
+    {
+      "id": "job",
+      "type": "backend",
+      "label": "AshOban catch-up",
+      "sublabel": "100 records + durable cursor",
+      "pos": [
+        40,
+        450
+      ],
+      "size": [
+        250,
+        100
+      ]
+    },
+    {
+      "id": "accountability",
+      "type": "security",
+      "label": "Accountability",
+      "sublabel": "Lock, reread, resolve atomically",
+      "pos": [
+        470,
+        260
+      ],
+      "size": [
+        260,
+        100
+      ]
+    },
+    {
+      "id": "audit",
+      "type": "database",
+      "label": "PostgreSQL + AshEvents",
+      "sublabel": "Reason, proof, retained history",
+      "pos": [
+        900,
+        135
+      ],
+      "size": [
+        260,
+        100
+      ]
+    },
+    {
+      "id": "delivery",
+      "type": "messagebus",
+      "label": "Cooperation deliveries",
+      "sublabel": "Suppress pending notices",
+      "pos": [
+        900,
+        385
+      ],
+      "size": [
+        260,
+        100
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "live-proof",
+      "from": "collector",
+      "to": "accountability",
+      "label": "Fenced proof"
+    },
+    {
+      "id": "task-proof",
+      "from": "task",
+      "to": "accountability",
+      "label": "Terminal status",
+      "labelAt": [
+        429,
+        335
+      ]
+    },
+    {
+      "id": "retained-proof",
+      "from": "job",
+      "to": "accountability",
+      "label": "Retained proof"
+    },
+    {
+      "id": "audit-write",
+      "from": "accountability",
+      "to": "audit",
+      "label": "Audited closure"
+    },
+    {
+      "id": "suppress-write",
+      "from": "accountability",
+      "to": "delivery",
+      "label": "Same transaction"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Closure evidence",
+      "items": [
+        "Terminal lifecycle does not assert passing CI",
+        "Repair status closes only its own episode",
+        "Unknown / mismatched proof remains active"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Recovery and concurrency",
+      "items": [
+        "Observation enabled; cooperation may be off",
+        "Task \u2192 PR state \u2192 PR \u2192 obligation locks",
+        "Replay is a no-op; audit failures roll back"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Independent history",
+      "items": [
+        "Preserve failed-head snapshot and events",
+        "Never auto-complete a repair task",
+        "Suppress failure, reminder and digest notices"
+      ]
+    }
+  ]
+}

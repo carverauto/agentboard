@@ -302,3 +302,28 @@ migrations, reset budgets, prune receipts, or erase pending/uncertain worker del
 Remote acceptance is owned by `//build/integration:pr_conflicts_test`, with
 provider, polling, scheduling, accountability, merged-Review and fresh/upgrade
 migration contracts in their existing sibling targets.
+
+### Schema21: terminal CI obligation disposition (#103)
+
+Migration `20261008002100` adds nullable resolution reason and snapshot proof
+without replacing failed-head evidence. Already-resolved historical rows receive
+`legacy`; this does not assert passing CI. Migrate before serving this image;
+the readiness/API fence requires schema21. The marker never lowers a newer schema.
+
+A fenced merged/closed PR observation or an explicit Done/Cancelled transition
+of its own repair task closes the machine episode through audited Ash actions.
+Pending/received failure, reminder and digest notices are suppressed atomically;
+handled deliveries, original failure events, task history and CI qualification
+remain intact. No repair task is auto-completed. An explicitly dismissed failing
+head does not recreate an episode until a new head, verified recovery after
+that disposition, or retained merged/closed lifecycle after that disposition.
+A fenced closed observation preserves the retained disposition yet still ends
+suppression, so a closed PR reopening can start a new episode.
+
+With PR observation enabled, minute AshOban worker
+`Agentboard.Delivery.ReconcileTerminalObligations` recovers terminal repair tasks
+and matching retained terminal snapshots in pages of 100 unresolved obligations.
+Cursor continuations are persisted jobs; cooperation may remain disabled.
+Disabled observation snoozes jobs. Unknown or inconsistent proof stays unresolved.
+No provider call, production SQL repair or automatic deployment is required.
+Roll back only to a compatible image; retain all disposition/audit history.
