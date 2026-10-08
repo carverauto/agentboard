@@ -282,7 +282,7 @@ rpc("Application.put_env(:agentboard, :mattermost_override_ttl_s, 0)")
 status, diag = api('GET', '/api/v1/conversations/diagnostics', None, WA)
 assert status == 200, (status, diag)
 assert diag['overrides']['username'] is True, diag
-assert diag['overrides']['source'] == 'observed', diag
+assert diag['overrides']['username_source'] == 'observed', diag
 state['overrides'] = False
 status, body = api('POST', '/api/v1/conversations/send',
                    {'channel_id': 'chan-1', 'body': 'off-mode probe',

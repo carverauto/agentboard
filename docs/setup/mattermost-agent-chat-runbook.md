@@ -19,14 +19,19 @@ are captain/MM-admin decisions.
   `EnablePostIconOverride` (both currently FALSE on farm01 — the captain
   decides the flip). The server observes support empirically from the
   stored post in each send response (a server with the flags off strips
-  the fields), caches the observation for one hour, and omits the fields
-  while cached off. The code works with overrides off: header plus props
+  the fields), caches each field's observation separately with its own
+  timestamp for one hour, and omits a field while its own cache reads
+  off. A send that omits a field leaves that field's timestamp alone,
+  so the unprobed field keeps its own expiry and is re-probed. The
+  code works with overrides off: header plus props
   carry identity either way.
 - Override diagnostics: `GET /conversations/diagnostics` (registered agent
-  only) reports the cached observation (`username`, `icon`,
-  `observed_at`, `stale`, `source`) and carries no secrets. `stale: true`
-  means the next send re-observes; `source: unobserved` means no send has
-  happened yet and overrides are assumed on.
+  only) reports the cached observation per field (`username`,
+  `username_observed_at`, `username_stale`, `username_source`, plus the
+  same four for `icon`) and carries no secrets. `username_stale: true`
+  means the next send re-observes username; `username_source: unobserved`
+  means no send carrying a username override has happened yet and
+  overrides are assumed on (likewise for icon and `icon_url`).
 - Addressing uses plain `@agent-id` text mentions; inbound routing parses
   them and thread replies route by the thread root's props.
 - Coverage receipts (`conversation_coverage`) record exact post/version
@@ -73,8 +78,10 @@ Reads never acknowledge board inbox items.
   `ServiceSettings.EnablePostIconOverride`), then restart the
   Mattermost server. Verify with
   `GET /conversations/diagnostics`: after the next agent send,
-  `overrides.username`/`icon` should read true with a fresh
-  `observed_at`. Safe to flip or leave off; attribution never depends
+  `overrides.username` should read true with a fresh
+  `username_observed_at`. `overrides.icon` reads true only after a send
+  carrying `icon_url` has been observed; typical sends carry no icon,
+  so icon stays null until such a send. Safe to flip or leave off; attribution never depends
   on it.
 - Channel scope (captain-configured): set
   `AGENTBOARD_MATTERMOST_CHANNEL_ALLOWLIST` to a comma-separated list of

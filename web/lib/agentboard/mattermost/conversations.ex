@@ -153,7 +153,8 @@ defmodule Agentboard.Mattermost.Conversations do
   end
 
   # Read-only diagnostics: cached override observations, never secrets.
-  # stale: true means the cache expired and the next send re-observes.
+  # Each field carries its own observed_at/stale/source; a stale field
+  # is re-observed by the next send that actually carries it.
   def diagnostics(caller) do
     with {:ok, _agent_id} <- registered_agent(caller) do
       support = override_support()
@@ -162,10 +163,13 @@ defmodule Agentboard.Mattermost.Conversations do
        %{
          "overrides" => %{
            "username" => support[:username],
+           "username_observed_at" => support[:username_observed_at],
+           "username_stale" => not override_fresh?(support[:username_observed_at]),
+           "username_source" => if(is_nil(support[:username_observed_at]), do: "unobserved", else: "observed"),
            "icon" => support[:icon],
-           "observed_at" => support[:observed_at],
-           "stale" => not override_fresh?(support[:observed_at]),
-           "source" => if(is_nil(support[:observed_at]), do: "unobserved", else: "observed")
+           "icon_observed_at" => support[:icon_observed_at],
+           "icon_stale" => not override_fresh?(support[:icon_observed_at]),
+           "icon_source" => if(is_nil(support[:icon_observed_at]), do: "unobserved", else: "observed")
          }
        }}
     end
@@ -174,9 +178,10 @@ defmodule Agentboard.Mattermost.Conversations do
   # Override support is observed, never configured: the stored post in a
   # 201 response keeps the override fields only when the server applied
   # them (a server with the flags off strips them). Observations are
-  # cached; an expired cache gates as unknown, so the next send
-  # re-observes instead of sticking. Only fields actually sent update
-  # the cache. Nothing here reads or writes server configuration.
+  # cached per field with separate timestamps; an expired field gates as
+  # unknown, so the next send carrying that field re-observes it while a
+  # field the send omits keeps its own timestamp. Only fields actually
+  # sent update the cache. Nothing here reads or writes server configuration.
   @override_ttl_s 3_600
 
   defp override_opts(agent_id, icon_url) do
@@ -191,18 +196,26 @@ defmodule Agentboard.Mattermost.Conversations do
   defp override_gated(field) do
     support = override_support()
 
-    if override_fresh?(support[:observed_at]), do: support[field], else: nil
+    observed_at =
+      case field do
+        :username -> support[:username_observed_at]
+        :icon -> support[:icon_observed_at]
+      end
+
+    if override_fresh?(observed_at), do: support[field], else: nil
   end
 
   defp observe_overrides(_post, nil, nil), do: :ok
 
   defp observe_overrides(post, sent_username, sent_icon) do
     current = override_support()
+    now = System.system_time(:second)
 
     observed = %{
       username: observe_field(post, "override_username", sent_username, current[:username]),
+      username_observed_at: if(is_nil(sent_username), do: current[:username_observed_at], else: now),
       icon: observe_field(post, "override_icon_url", sent_icon, current[:icon]),
-      observed_at: System.system_time(:second)
+      icon_observed_at: if(is_nil(sent_icon), do: current[:icon_observed_at], else: now)
     }
 
     Application.put_env(:agentboard, :mattermost_override_support, observed)
@@ -218,8 +231,10 @@ defmodule Agentboard.Mattermost.Conversations do
 
   defp override_support do
     case Application.get_env(:agentboard, :mattermost_override_support) do
-      %{username: _, icon: _, observed_at: _} = support -> support
-      _ -> %{username: nil, icon: nil, observed_at: nil}
+      %{username: _, username_observed_at: _, icon: _, icon_observed_at: _} = support -> support
+      %{username: username, icon: icon, observed_at: observed_at} ->
+        %{username: username, username_observed_at: observed_at, icon: icon, icon_observed_at: observed_at}
+      _ -> %{username: nil, username_observed_at: nil, icon: nil, icon_observed_at: nil}
     end
   end
 
