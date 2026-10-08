@@ -5,6 +5,8 @@ defmodule Agentboard.Delivery.Observation do
     authorizers: [Ash.Policy.Authorizer],
     extensions: [AshOban]
 
+  require Logger
+
   oban do
     scheduled_actions do
       schedule :schedule_due, "* * * * *" do
@@ -26,8 +28,17 @@ defmodule Agentboard.Delivery.Observation do
   actions do
     action :schedule_due, :map do
       run(fn _input, _context ->
-        Agentboard.Decisions.cleanup()
-        Agentboard.Delivery.Scheduling.tick()
+        result = Agentboard.Delivery.Scheduling.tick()
+
+        try do
+          Agentboard.Decisions.cleanup()
+        rescue
+          e -> Logger.warning("decision cleanup skipped: #{inspect(e.__struct__)}")
+        catch
+          _, _ -> Logger.warning("decision cleanup skipped")
+        end
+
+        result
       end)
     end
 

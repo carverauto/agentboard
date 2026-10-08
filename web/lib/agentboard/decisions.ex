@@ -188,49 +188,55 @@ defmodule Agentboard.Decisions do
       actor = %{"agent" => "decision-maintenance", "model" => "system", "harness" => "ash"}
       Ops.register(actor, %{"name" => "Decision maintenance"})
 
-      Ops.transaction(fn ->
-        %{rows: rows} =
-          Repo.statement!(
-            """
-            SELECT r.id::text,r.task_id FROM decision_requests r JOIN tasks t ON t.id=r.task_id
-            WHERE r.status='open' AND r.kind<>'ask_user_gate' AND (
-              r.expires_at <= clock_timestamp() OR
-              (r.kind='merge' AND r.bound_pr=t.pr_url AND EXISTS (
-                SELECT 1 FROM delivery_pull_requests pr JOIN delivery_poll_states p ON p.id=pr.id
-                WHERE pr.url=r.bound_pr AND p.lifecycle IN ('merged','closed')
-                  AND p.observed_at >= r.created_at
-                  AND p.observed_at > clock_timestamp()-interval '180 seconds'
-              )))
-            ORDER BY r.created_at,r.id LIMIT 100
-            """,
-            []
-          )
+      %{rows: rows} =
+        Repo.statement!(
+          """
+          SELECT r.id::text,r.task_id FROM decision_requests r JOIN tasks t ON t.id=r.task_id
+          WHERE r.status='open' AND r.kind<>'ask_user_gate' AND (
+            r.expires_at <= clock_timestamp() OR
+            (r.kind='merge' AND r.bound_pr=t.pr_url AND EXISTS (
+              SELECT 1 FROM delivery_pull_requests pr JOIN delivery_poll_states p ON p.id=pr.id
+              WHERE pr.url=r.bound_pr AND p.lifecycle IN ('merged','closed')
+                AND p.observed_at >= r.created_at
+                AND p.observed_at > clock_timestamp()-interval '180 seconds'
+            )))
+          ORDER BY r.created_at,r.id LIMIT 100
+          """,
+          []
+        )
 
-        retired =
-          Enum.count(rows, fn [id, task_id] ->
-            task = task!(task_id)
-
-            Repo.statement!(
-              "SELECT id FROM decision_requests WHERE id=$1::text::uuid FOR UPDATE",
-              [id]
-            )
-
-            r = Ops.fetch!(Request, id, "Decision not found")
-            reason = cleanup_reason(r, task, Ops.now())
-
-            if r.status == "open" and reason do
-              close(task, r, "superseded", actor, reason, Ops.now())
-              true
-            else
-              false
-            end
-          end)
-
-        %{retired: retired}
-      end)
+      retired = Enum.count(rows, &retire_candidate(&1, actor))
+      {:ok, %{retired: retired}}
     else
       {:ok, %{retired: 0, enabled: false}}
     end
+  end
+
+  defp retire_candidate([id, task_id], actor) do
+    Ops.transaction(fn ->
+      task = task!(task_id)
+
+      Repo.statement!(
+        "SELECT id FROM decision_requests WHERE id=$1::text::uuid FOR UPDATE",
+        [id]
+      )
+
+      r = Ops.fetch!(Request, id, "Decision not found")
+      reason = cleanup_reason(r, task, Ops.now())
+
+      if r.status == "open" and reason do
+        close(task, r, "superseded", actor, reason, Ops.now())
+        true
+      else
+        false
+      end
+    end)
+    |> case do
+      {:ok, true} -> true
+      _ -> false
+    end
+  rescue
+    _ -> false
   end
 
   defp cleanup_reason(r, task, stamp) do
