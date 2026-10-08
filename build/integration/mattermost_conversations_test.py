@@ -294,7 +294,15 @@ assert off_post.get('override_username') is None, off_post
 assert off_post['message'].startswith('[worker-a · task-9]\n'), off_post['message']
 status, diag = api('GET', '/api/v1/conversations/diagnostics', None, WA)
 assert status == 200 and diag['overrides']['username'] is False, (status, diag)
+# Per-field independence: no send carried icon_url, so icon stays
+# unobserved while username was observed off.
+assert diag['overrides']['icon'] is None, diag
+assert diag['overrides']['icon_source'] == 'unobserved', diag
 # Cached-off sends omit the fields; props plus header still carry identity.
+# TTL 0 keeps every observation stale (always re-probes), so switch to a
+# fresh TTL here: the off observation just recorded stays fresh-off and
+# the next send omits the field instead of re-probing.
+rpc("Application.put_env(:agentboard, :mattermost_override_ttl_s, 3600)")
 status, body = api('POST', '/api/v1/conversations/send',
                    {'channel_id': 'chan-1', 'body': 'off-mode gated',
                     'task_id': 'task-9', 'kind': 'note', 'retry_key': 'key-off-2'}, WA)
@@ -304,7 +312,10 @@ with state['lock']:
 assert 'override_username' not in raw, raw
 assert raw['message'].startswith('[worker-a · task-9]\noff-mode gated'), raw['message']
 assert raw['props']['agent_id'] == 'worker-a', raw['props']
-# Flags back on: the next send re-observes and resumes overrides.
+# Flags back on: expiry re-observes and resumes overrides. With a fresh
+# off cache the field would stay omitted, so expire it (TTL 0) and the
+# next send re-probes.
+rpc("Application.put_env(:agentboard, :mattermost_override_ttl_s, 0)")
 state['overrides'] = True
 status, body = api('POST', '/api/v1/conversations/send',
                    {'channel_id': 'chan-1', 'body': 'on again',
@@ -315,6 +326,8 @@ with state['lock']:
 assert on_post['override_username'] == 'worker-a', on_post
 status, diag = api('GET', '/api/v1/conversations/diagnostics', None, WA)
 assert status == 200 and diag['overrides']['username'] is True, (status, diag)
+assert diag['overrides']['icon'] is None, diag
+assert diag['overrides']['icon_source'] == 'unobserved', diag
 # Unknown agents see nothing.
 status, _ = api('GET', '/api/v1/conversations/diagnostics', None, GHOST)
 assert status == 422, status
