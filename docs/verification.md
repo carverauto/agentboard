@@ -368,6 +368,16 @@ Merged main `268c394` (PR96 on top of PR94/PR93) rolled the dashboard to
 after a pre-migration dump of `delivery_poll_states`. `/prs` flagged
 carverauto/agentboard #95 as conflicting (`dirty`). Full results are in the
 [rollout receipt](verification/farm01-268c394-rollout.json). The
-[current rollout record](deploy/reference-farm01.md#merge-conflict-detection-image-rollout-268c394)
+[268c394 rollout record](deploy/reference-farm01.md#merge-conflict-detection-image-rollout-268c394)
 is in the operator runbook.
 
+
+## Availability and base-fence fix rollout (1bf92ae, 2026-10-08 UTC)
+
+Merged main `1bf92ae` (PR113 on top of PR111/PR112/PR95) rolled the dashboard to
+`sha256:a71479ebe17c6fa6d5ece1a78e7226886ed739eb04a6bd4e783a48c3b0426a8c` through Job `agentboard-migrate-1bf92ae`, upgrading schema 14 to 15
+after a full pre-migration `pg_dump`. serviceradar #4995 was polled fresh again
+(the #102 fix). Full results are in the
+[rollout receipt](verification/farm01-1bf92ae-rollout.json). The
+[current rollout record](deploy/reference-farm01.md#availability-and-base-fence-fix-image-rollout-1bf92ae)
+is in the operator runbook.

@@ -348,7 +348,7 @@ of PR94 PR merge-conflict detection and PR93 shared-bot chat hardening) was
 rolled to farm01 using dashboard digest
 `sha256:c7739931faab0c8fd5c75e232d0f35d6e598a2f1ed8a5e93fd1fcdc2dad73781`
 from [Container images run 37717226576](https://github.com/carverauto/agentboard/actions/runs/37717226576).
-This is the current operator image pin. No image was published for PR94's own
+This was the operator image pin before 1bf92ae (below). No image was published for PR94's own
 merge commit `75425c7`
 ([run 37714728085](https://github.com/carverauto/agentboard/actions/runs/37714728085)
 failed `board_api_test` until PR96). See issue #97 for the PR-time test gap.
@@ -375,3 +375,41 @@ matches GitHub's `mergeable=false`. See the
 if an older image must be restored. Images before 268c394 require schema 12 and
 will report `schema_unavailable`, so roll forward instead.
 
+## Availability and base-fence fix image rollout (1bf92ae)
+
+On 2026-10-08 UTC, merged main `1bf92ae` (PR113 skill-link test fix, on top of
+PR111 idle-PR base-fence fix for #102, PR112 auto-route rescue narrowing, PR95
+durable per-agent availability, PR101/PR105/PR106/PR108/PR109) was rolled to
+farm01 using dashboard digest
+`sha256:a71479ebe17c6fa6d5ece1a78e7226886ed739eb04a6bd4e783a48c3b0426a8c`
+from [Container images run 37723289797](https://github.com/carverauto/agentboard/actions/runs/37723289797).
+This is the current operator image pin. Every Container images run between
+PR106 and PR112 failed `//internal/cli:cli_test` (skill links with `#fragment`)
+and published nothing. PR113 fixed it.
+
+Before migrating, the whole `agentboard` database was dumped with
+`pg_dump -Fc` (12.9 MB, 51 table-data entries), along with schema-only SQL for the
+altered `tasks`, `messages` and `board_schema` tables, row counts (tasks 173,
+messages 780, schema 14) and SHA256SUMS. The dump stays on the CNPG primary's data
+volume, outside PGDATA, at
+`/var/lib/postgresql/data/agentboard-backups/pre-1bf92ae-20261008/` (mode
+2700). Job `agentboard-migrate-1bf92ae` (flags forced false in the Job) ran
+`20261008000300_agent_availability`. It's an additive change: the
+`availability_policies` table and its immutable versions table,
+`tasks.assignment_authorized` (default false), `messages.kind` (default `note`)
+and the `board_agent_availability()` function. It upgraded schema 14 to 15. Meta
+reports schema 15/API 1/required 15.
+
+The ConfigMap was unchanged. Discovery, observation and the bridge stay
+enabled, and cooperation stays disabled. No new secret is required. The dashboard
+is Ready with zero restarts on the exact image ID. `/health/live`,
+`/health/ready`, `/`, `/prs` and `/api/v1/meta` return 200, and the bridge kept
+delivering board events. After the roll, serviceradar #4995 was observed fresh
+for the first time since 02:15 UTC, with its base fence recorded, which confirms
+the #102 fix live. Open finding: with five open serviceradar PRs at roughly 16
+GitHub requests per poll (12–13 check suites each), the 60/min local GitHub
+admission budget is drained by concurrent partial polls, so some PRs stay
+`rate_limited`/stale. That started before this roll and is tracked separately.
+See the [rollout receipt](../verification/farm01-1bf92ae-rollout.json). Keep
+schema 15 if an older image must be restored. Images before 1bf92ae require
+schema 14 or lower, so roll forward instead.
