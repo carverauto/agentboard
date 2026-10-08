@@ -42,7 +42,9 @@ configMapGenerator:
       # Captain-confirmed hostname (2026-10-05).
       - AGENTBOARD_PR_DISCOVERY_ENABLED=true
       - AGENTBOARD_PR_OBSERVATION_ENABLED=true
-      - AGENTBOARD_COOPERATION_ENABLED=false
+      # Captain-approved 2026-10-07: cooperation on after the #102 fix (PR111, live in
+      # 1bf92ae) and a 30-minute clean-poll window. Roll back by setting false.
+      - AGENTBOARD_COOPERATION_ENABLED=true
       # Captain-approved serviceradar required checks (identities from provider
       # evidence on PR 5516 head); skipped accepted for path-filtered checks.
       - 'AGENTBOARD_CI_POLICIES={"carverauto/serviceradar":{"tested_ref":"head","required":["status:BazelCI","check:15368:lint","check:15368:gitleaks","check:46505:GitGuardian Security Checks","status:license/cla"],"accepted_conclusions":["success","skipped"]}}'

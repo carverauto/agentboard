@@ -57,7 +57,7 @@ switches. `dashboard-github-token.yaml` injects `GITHUB_TOKEN` from the required
 carverauto organization so private repositories such as `carverauto/gitops` are
 readable (the earlier personal-owner `agentboard-app`/`github-token` reference
 returned 404 for them); provision or rotate that credential out of band. The overlay contains only its name/key reference.
-Cooperation remains explicitly disabled. The outbound Mattermost bridge is
+Cooperation is enabled (captain-approved; see [Cooperation enablement](#cooperation-enablement) below for the rollout record). The outbound Mattermost bridge is
 enabled (captain-approved 2026-10-07, image 7dfd031 carries the CA-file TLS fix);
 pause it by setting `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false` and restarting.
 
@@ -413,3 +413,15 @@ admission budget is drained by concurrent partial polls, so some PRs stay
 See the [rollout receipt](../verification/farm01-1bf92ae-rollout.json). Keep
 schema 15 if an older image must be restored. Images before 1bf92ae require
 schema 14 or lower, so roll forward instead.
+
+## Cooperation enablement
+
+On 2026-10-07 CT, at the captain's request and after the #102 base-fence fix
+(PR #111, live in main `1bf92ae`) had run a ~30-minute clean poll window
+(11:02-11:31 PM CT: nothing overdue, no `rate_limited`, healthy budget), the
+coordinator enabled cooperation on farm01: `AGENTBOARD_COOPERATION_ENABLED=true`
+applied to the live ConfigMap with a dashboard restart (no Argo app manages
+the deployment). The overlay commit flips only that flag in
+`k8s/overlays/farm01/kustomization.yaml` so git matches the cluster; the image
+pin (`sha256:a71479eb...`), schema 15 and all other config are unchanged.
+Roll back by setting the flag back to `false` and restarting.
