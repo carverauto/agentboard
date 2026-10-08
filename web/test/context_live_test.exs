@@ -55,6 +55,36 @@ defmodule AgentboardWeb.ContextLiveTest do
     test "whitespace-only repo with blank typed repo drops the repo key" do
       assert ContextLive.resolve_repo(%{"repo" => "   ", "repo_other" => "  "}) == {:ok, %{}}
     end
+
+    test "padded selection with blank typed repo resolves trimmed" do
+      assert ContextLive.resolve_repo(%{"repo" => "  a/b  ", "repo_other" => "  "}) ==
+               {:ok, %{"repo" => "a/b"}}
+    end
+  end
+
+  describe "handle_params/3" do
+    test "disagreeing repos assign only the param notice" do
+      message = "Repository and Other repository disagree; clear one."
+
+      socket = %Phoenix.LiveView.Socket{
+        assigns: %{
+          param_error: nil,
+          error: nil,
+          filters: %{"repo" => "a/b"},
+          data: "old",
+          loaded: false,
+          live_action: :index
+        }
+      }
+
+      assert {:noreply, returned} =
+               ContextLive.handle_params(%{"repo" => "a/b", "repo_other" => "c/d"}, "/", socket)
+
+      assert returned.assigns.param_error == message
+      assert returned.assigns.error == nil
+      assert returned.assigns.filters == %{}
+      assert returned.assigns.data == nil
+    end
   end
 
   describe "handle_info(:refresh)" do
@@ -64,7 +94,7 @@ defmodule AgentboardWeb.ContextLiveTest do
       socket = %Phoenix.LiveView.Socket{
         assigns: %{
           param_error: message,
-          error: message,
+          error: nil,
           filters: %{},
           data: nil,
           loaded: true,
@@ -74,7 +104,7 @@ defmodule AgentboardWeb.ContextLiveTest do
 
       assert {:noreply, returned} = ContextLive.handle_info(:refresh, socket)
       assert returned.assigns.param_error == message
-      assert returned.assigns.error == message
+      assert returned.assigns.error == nil
       assert returned.assigns.data == nil
     end
   end

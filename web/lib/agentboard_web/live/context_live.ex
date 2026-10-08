@@ -34,7 +34,7 @@ defmodule AgentboardWeb.ContextLive do
          assign(socket,
            filters: %{},
            data: nil,
-           error: message,
+           error: nil,
            param_error: message,
            loaded: true
          )}
@@ -107,7 +107,7 @@ defmodule AgentboardWeb.ContextLive do
       other == "" ->
         if trimmed_repo in ["", "other"],
           do: {:ok, Map.delete(cleaned, "repo")},
-          else: {:ok, cleaned}
+          else: {:ok, Map.put(cleaned, "repo", trimmed_repo)}
 
       trimmed_repo in ["", "other"] ->
         {:ok, Map.put(cleaned, "repo", other)}
