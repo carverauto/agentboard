@@ -511,3 +511,120 @@ attributed on decision recommend/answer/supersede (still requiring the
 verified captain capability; see [Captain decision requests](../setup/decision-requests.md)).
 Config-only; no other flags change. Roll back by unsetting the variable and
 restarting the dashboard.
+
+## Default-branch CI routing: next-roll preparation (#140)
+
+Status: **prepared configuration only, not a rollout receipt**. The captain
+approved activation with the next agentboard image roll at 2026-10-08 14:00 CT.
+The assigned preparation card is `agentboard-main-ci-routing-activation`.
+This patch neither changes the image digest nor provisions a secret, registers a
+webhook, applies manifests or enrolls a worker. Worker task3.4 remains held until
+#156/#164 land and its separate captain gate is answered.
+
+### Intake mode and exact GitHub settings
+
+The merged #140 implementation discovers runs through a signed webhook, not an
+Actions-list polling sweep. Its minute recovery job only retries already-retained
+run cues. PR discovery/observation does not discover default-branch workflow runs.
+Missed deliveries require explicit GitHub redelivery; an empty health panel does
+not prove coverage. See [the runtime contract](../default-branch-workflows.md).
+
+For **each** of `carverauto/agentboard` and `carverauto/serviceradar`, the captain
+or an authorized repository administrator registers these settings:
+
+| GitHub setting | Value |
+| --- | --- |
+| Payload URL | `https://agentboard.farm01.carverauto.dev/api/v1/hooks/github` |
+| Content type | `application/json` |
+| Events | Select individual events: **Workflow runs** (`workflow_run`) |
+| Secret | Captain-provided HMAC material matching the mounted file; at least 32 bytes |
+| SSL verification | Enabled |
+| Active | Enable only during the approved next-image rollout |
+
+The server accepts a signed `ping`, and only `workflow_run` payloads whose action
+is `completed`. It fetches canonical run/attempt/job evidence itself, using the
+existing shared GitHub budget. It reads the actual default branch from GitHub
+(agentboard `main`, ServiceRadar `staging` at preparation time), and excludes
+PR/PR-target workflow runs. GitHub's
+[creation instructions](https://docs.github.com/en/webhooks/using-webhooks/creating-webhooks)
+describe repository webhook registration; its
+[event contract](https://docs.github.com/en/webhooks/webhook-events-and-payloads#workflow_run)
+defines the completion event. SHA-256 delivery signatures use
+[`X-Hub-Signature-256`](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries).
+
+### Secret names and file-only wiring
+
+| Boundary | Prepared reference |
+| --- | --- |
+| Kubernetes namespace | `agentboard` |
+| HMAC Secret | `agentboard-workflow-hook` |
+| Secret data key | `webhook-secret` |
+| Read-only volume | `workflow-webhook-secret` |
+| Directory mount | `/etc/agentboard/github-hooks` |
+| File in dashboard container | `/etc/agentboard/github-hooks/webhook-secret` |
+| File-path environment variable | `AGENTBOARD_WORKFLOW_WEBHOOK_SECRET_FILE` |
+| Explicit repository scope | `AGENTBOARD_WORKFLOW_REPOSITORIES=carverauto/agentboard,carverauto/serviceradar` |
+
+[`dashboard-workflow-hook.yaml`](../../k8s/overlays/farm01/dashboard-workflow-hook.yaml)
+adds only the Secret reference, read-only mount and path variable. Mode `0440`
+uses the existing dashboard `fsGroup: 10001`. The optional volume permits startup
+before the captain provisions material; a missing/unreadable file or a value
+shorter than 32 bytes returns `503 unconfigured`, never unsigned admission. This
+secret is independent of agent/captain/worker capabilities and the GitHub API
+token. It is mounted only into the dashboard, not the migration Job.
+
+The existing `agentboard-github` Secret key `GITHUB_TOKEN` remains the server's
+read-only GitHub API credential, injected by `dashboard-github-token.yaml`.
+Its required repository access is metadata, Actions read and pull requests read
+for both watched repositories. Do not replace it with the HMAC secret. This
+preparation inspected tracked wiring only; live Secret existence, values and
+credential permissions were not inspected or changed.
+
+### Captain checklist for the next image roll
+
+1. Choose a green immutable image containing #140 and its additive schema27
+   migration. Follow the existing backup/migration/readiness procedure for that
+   image's full required schema; retain any higher schema stamp. The current
+   overlay pin is historical and is deliberately unchanged by this preparation.
+2. Captain supplies high-entropy HMAC material through the approved private
+   secret-management workflow into `agentboard/agentboard-workflow-hook`, key
+   `webhook-secret`, and into the two GitHub webhook configurations. No value
+   belongs in Git, board messages, shell arguments, logs or screenshots. Agents
+   must not create, copy, print or read it back. Use names/path references only.
+3. During the already-approved image rollout, apply the reviewed overlay and
+   register/activate the two hooks. Keep the already-enabled PR observation and
+   cooperation switches; those gates also control workflow collection and
+   notifications. No new global observation flag or worker enrollment is added.
+4. Verify Secret metadata and expected key **names only**, never `data` or
+   `stringData` values. With an authorized read-only container check, report only
+   whether the path exists, is readable by the dashboard user, and is at least
+   32 bytes; never `cat`, hash or export the contents. Confirm actual Pod image
+   digest, readiness and env/volume path references without dumping all env.
+5. Use GitHub's delivery history to verify a signed `ping` gets `200 pong`, then
+   a real completed default-branch run gets `202` with a cue ID. Confirm the
+   matching repository/run/SHA/attempt on `/prs` or
+   `GET /api/v1/prs` -> `default_branch_health`. A controlled failure followed by
+   success of the same workflow proves routing and resolution; retain canonical
+   run/job links. Run that live proof only with captain authorization. A `202`
+   alone proves intake, not completed collection or coverage.
+6. Confirm one retained obligation and at most one notice to the immutable
+   submitter (or registered coordinator for unknown attribution). Explicitly
+   redeliver any missed hook; verify rate-limit/provider deferral stays pending
+   rather than being reported green. Keep worker3.4 and Herdr/restart activation
+   held under their separate decisions.
+
+### Rollback and verification limits
+
+Deactivate the two GitHub hooks first to stop new cues. To disable intake while
+preserving ordinary PR observation, remove the workflow-hook patch/path variable
+through a reviewed overlay change and the authorized rollout process. Retain
+workflow tables, audit history and unresolved obligations; no down migration,
+queue deletion or broad PR-observation/cooperation shutdown is required. Already
+queued cues can still reconcile under the existing observation flag after hook
+deactivation. Rotate the HMAC only through the captain's secret workflow and
+update both hooks together.
+
+Preparation verification uses the real Kustomize renderer and the existing
+packaged `//build/integration:default_branch_workflows_test` remotely. Production
+secret readability, signed live hooks, deployed image/schema, provider access,
+routing and recovery are **untested-live** until the captain's rollout receipt.
