@@ -49,6 +49,7 @@ defmodule Agentboard.MixProject do
       {:simple_sat, "== 0.1.4"},
       {:castore, "== 1.0.21"},
       {:mint, "== 1.11.0"},
+      {:mint_web_socket, "== 1.0.6"},
       {:hpax, "== 1.1.0"},
       {:bandit, "== 1.12.5"},
       {:ecto_sql, "== 3.14.0"},

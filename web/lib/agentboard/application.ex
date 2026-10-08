@@ -29,6 +29,8 @@ defmodule Agentboard.Application do
          ],
          plugins: [Oban.Plugins.Cron, Oban.Plugins.Pruner]
        )},
+      {Task.Supervisor, name: Agentboard.Mattermost.InboundTasks},
+      Agentboard.Mattermost.InboundStream,
       AgentboardWeb.Endpoint
     ]
 

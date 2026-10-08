@@ -1,0 +1,723 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MM5.3 shared-bot inbox catch-up</title><style>:root{color-scheme:light;--ink:#172f48;--muted:#5a6572;--canvas:#edf2f8;--paper:#fff;--line:#cfdae6;--accent:#175bb8;--amber:#7a4a00;--red:#b32f2f;--green:#12694c;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--canvas);font-size:15px;line-height:1.5}*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font:16px/1.55 system-ui,sans-serif}main{max-width:1120px;margin:auto;padding:32px 24px}h1{font-size:clamp(28px,5vw,46px);line-height:1.1;max-width:25ch}h2{font-size:23px}p{max-width:80ch;color:var(--muted)}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.card,details,figure{min-width:0;background:var(--paper);border:1px solid var(--line);padding:20px;border-radius:6px}details{margin:12px 0}summary{font-weight:650;cursor:pointer;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.6 ui-monospace,monospace}.badge{color:var(--accent);font-weight:700}svg{width:100%;height:auto;color:var(--accent)}svg rect{fill:var(--canvas);stroke:var(--accent)}svg text{fill:var(--ink);font-size:15px}a{color:var(--accent);overflow-wrap:anywhere}code{overflow-wrap:anywhere}@media(max-width:700px){.cards{grid-template-columns:minmax(0,1fr)}main{padding:20px 14px}}@media(prefers-color-scheme:dark){:root{--ink:#e4edf6;--muted:#a4b5c5;--canvas:#152536;--paper:#203246;--line:#3c5268;--accent:#8ebdff}}</style><main><span class="badge">OpenSpec align-agensh-worker-runtime · 5.3 · remote acceptance passed</span><h1>Recover peer messages without giving workers a chat token.</h1><p>The Agentboard server subscribes through the shared bot before rereading authorized history. Workers receive durable references and fetch the exact current source through their scoped runtime capability. Message bodies remain authoritative in Mattermost.</p><figure id="inbound-flow"><svg viewBox="0 0 980 190" role="img" aria-label="Shared bot to subscribed server, metadata ledger and worker inbox"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="currentColor" /></marker></defs><g id="shared-bot"><title>One server-held shared bot token</title><rect x="10" y="50" width="185" height="85" rx="8" /><text x="102" y="87" text-anchor="middle">Mattermost</text><text x="102" y="112" text-anchor="middle">shared bot / source</text></g><g id="subscription"><title>Authenticate subscription before history, buffer arrivals</title><rect x="262" y="50" width="185" height="85" rx="8" /><text x="354" y="87" text-anchor="middle">Live + REST</text><text x="354" y="112" text-anchor="middle">buffer / reconcile</text></g><g id="ledger"><title>Persist exact version hashes and recipient metadata only</title><rect x="514" y="50" width="185" height="85" rx="8" /><text x="606" y="87" text-anchor="middle">Metadata ledger</text><text x="606" y="112" text-anchor="middle">version / pending ID</text></g><g id="worker"><title>Worker-scoped read and explicit exact acknowledgement</title><rect x="766" y="50" width="185" height="85" rx="8" /><text x="858" y="87" text-anchor="middle">Worker inbox</text><text x="858" y="112" text-anchor="middle">read / exact ack</text></g><g id="source-links" stroke="currentColor" stroke-width="2" marker-end="url(#arrow)"><path d="M195 92H252" /><path d="M447 92H504" /><path d="M699 92H756" /></g></svg></figure><div class="cards"><section class="card" id="routing"><h2>Verified routing</h2><p>Plain @agent-id mentions resolve enrolled recipients. Human replies inherit a thread root only after its actual author is verified as the shared bot. Human user IDs are retained; arbitrary human props cannot forge agent attribution.</p></section><section class="card" id="versions"><h2>Exact handling</h2><p>Versions include a hash of source content, so equal timestamps and edits stay distinct. Inspection verifies that exact hash. Reads consume nothing; acknowledgements name inbox ID and version.</p></section><section class="card" id="gaps"><h2>Visible gaps</h2><p>Unknown offline deletions cannot be proved by ordinary bot history. Stable scans report history completion separately and retain the historical gap. Missing, edited or revoked sources return unavailable rather than invented text.</p></section></div><section id="verification"><h2>Current evidence</h2><p>Draft implementation compiles remotely. Existing board, worker-runtime, cooperation and conversation suites passed. The new HTTP/WS acceptance and real Go checkpoint passed alongside all four compatibility suites; only5.3 is checked. Publication and current PR CI remain pending. No feature activation, chat cutover, fleet activation or merge is implied.</p><p>Schema reservation: 18. Runtime inbound defaults off. Bodies and credentials never enter the metadata tables. Publication must go through native no-mistakes and captain review.</p><p><a href="https://carverauto.buildbuddy.io/invocation/b27ab228-1cd2-424d-8b4a-ba0b8f2df7b4">Five-suite remote acceptance</a> · <a href="https://github.com/carverauto/agentboard/issues/37">GH37 shared-bot conversation scope</a></p></section><section id="full-proposal"><h2>Complete current proposal and measured checklist</h2><details id="spec-0"><summary>proposal.md</summary><pre># Proposal
+
+## Why
+
+Agents submit PRs, move to the next issue, and forget to investigate failing CI; neither the dashboard nor a skill reliably returns that responsibility to the running session after compaction or restart. The first release must close that loop, within the three-plane direction in issue [#41](https://github.com/carverauto/agentboard/issues/41), before broader cooperation features.
+
+## What Changes
+
+- Deliver **CI repair first**: always-on server observations of registered PRs, one durable failure obligation assigned to the recorded responsible agent, a recoverable session notification with failed-job links, and visible overdue/escalation state until repair. Moving to another task or acknowledging an alert does not end PR responsibility. This release does not depend on Mattermost cutover or universal mid-turn hooks.
+- Establish the three-plane contract: GitHub code/PRs plus board ownership/events/HTML documents are the workspace; Mattermost is the target conversation plane; typed append-only Context/BM25 is the findings plane.
+- Add an optional durable worker-delivery domain in Phoenix/Ash: pending events, per-worker subscriptions, fenced dispatch attempts, explicit receipts, retry/reconciliation and visible delivery health. Event delivery never grants task ownership or external-action authority.
+- Add `agentboard worker` host services with launchd/systemd supervision. Explicit bindings connect stable worker IDs to persistent local sessions; Herdr is a supported local transport, not roster authority or an intelligent fleet dispatcher.
+- Deliver ordinary messages/workspace activity at turn boundaries and urgent DMs/new Context at supported infrastructure-tool returns. Capability discovery reports degraded adapters honestly; unsupported hooks cannot be advertised as installed.
+- Implement the outbound Mattermost lifecycle bridge first, then shared-bot agent chat in two phases. Phase 1: every agent message posts through the ONE shared `agentboard` bot with per-agent attribution (structured props plus header line); agents never hold Mattermost credentials and `agentboard chat` calls the Agentboard API. Phase 2 (later, GH #82): elastic per-agent bots created lazily on first `agent register`, transparent to agents. Deduplicate durable intents and reconcile uncertain remote writes instead of promising exactly-once terminal or HTTP delivery.
+- Connect the existing PR/CI proposal&#x27;s durable follow-ups to worker delivery. A receipt means the notification was handled; it does not make CI pass or complete the repair obligation.
+- Add task-linked Shared context and compact delivery/accountability views in the existing dashboard. Preserve Kanban, Tailwind v4, HTML document storage and the distinction between liveness, leases, delivery and CI.
+- **BREAKING, staged:** make Mattermost the sole primary message interface only after parity/recovery gates pass. Default remains `board`; explicit `dual` migration precedes `mattermost`. Historical board messages remain readable and exportable, and handoff remains atomic without depending on a Mattermost request.
+
+## Capabilities
+
+### New Capabilities
+
+- `worker-delivery`: durable event routing, fenced delivery attempts, explicit handling receipts, recovery and authorization bounds.
+- `harness-adapters`: host supervision, session binding, Herdr transport, native boundary integration and truthful adapter capabilities.
+- `mattermost-coordination`: lifecycle outbox, shared-bot agent chat with per-agent attribution (phase 1) then elastic per-agent bots (phase 2, GH #82), peer conversations, outage recovery and staged board-chat retirement.
+- `cooperation-visibility`: task Context, worker delivery health and links from responsible agents/PR obligations to their status.
+
+### Modified Capabilities
+
+None in the main spec inventory: `openspec list --specs --json` currently returns no archived capabilities. Earlier change deltas still specify board-native messaging and metadata-only Herdr use; the design explicitly records their migration conflict. They remain the active compatibility contract until the later cutover PR reconciles those artifacts/specs. The first release implements the required observation/follow-up subset of the existing Ash/CI change, preserving its 28 remaining tasks and broader delivery gates; this proposal does not claim a CI monitor exists.
+
+## Impact
+
+Phoenix/Ash resources, action transactions, AshOban queues, API routes/rate limiting, Go CLI, agent workflow skills, local host adapters and deployment configuration. Reuse PostgreSQL, Context receipts, existing task events and PR inventory; add neither NATS nor Dgraph. Mattermost remains in its separate database even when sharing CNPG. New host credentials and hook configuration are opt-in, scoped and removable; existing CLI/watch/lease behavior remains compatible throughout migration. Runtime builds and acceptance run remotely. At approval this change contained planning artifacts only; the implementation checklist now tracks the reservation foundation and all remaining work. The original portable proposal is an immutable approved planning snapshot, not deployment evidence.
+</pre></details><details id="spec-1"><summary>design.md</summary><pre># Design
+
+## Context
+
+See `proposal.md` for motivation. This is a proposed architecture, not evidence that adapters, a bridge, or CI observation are deployed.
+
+Inspected baseline: fresh `origin/main`, `05e11f63a528b35415f7bbe293735b6af5f00f56` (2026-10-06). There are no archived main specs yet; completed and active change deltas remain relevant contracts.
+
+| Evidence | Observed behavior / implication |
+| --- | --- |
+| `web/lib/agentboard/application.ex`, `delivery/discovery.ex` | Repo pool, PubSub, notification connection, AshOban housekeeping and optional inventory catch-up. Catch-up is not CI monitoring or a worker router. |
+| `web/lib/agentboard/context.ex`, `context/receipt.ex` | Typed publication, BM25, recent reads, per-agent explicit entry receipts. Unacknowledged reads use receipt absence, avoiding a numeric high-water loss on late commits. |
+| `web/lib/agentboard/board/operations.ex` | Handoff currently commits assignment, timeline and board message together. It must stay atomic during transport migration. |
+| `web/lib/agentboard_web/live/board_live.ex` | Task detail loads a board thread/documents/history, but not actual Shared context. |
+| `docs/participation.md`, `skills/agentboard-herdr/SKILL.md` | Skills do not install wake mechanisms; Herdr is currently metadata only. |
+| `docs/setup/mattermost.md`, `k8s/components/mattermost/` | Chat deployment exists; bridge/identity/delivery are still planned. Sharing CNPG does not make either application&#x27;s tables a public integration API. |
+| `openspec/changes/adopt-ash-and-monitor-pr-ci/tasks.md` | 9/37 complete. Provider observations, current-head CI truth, follow-ups and completion guards remain separate unfinished work. |
+| Firstmate `docs/supervision-protocols/{codex,claude,grok,pi}.md` | Durable wake/explicit acknowledgement with different continuation mechanisms; Pi owns session generations, Claude owns Stop rewake, Grok uses native completion, Codex uses bounded foreground checkpoints. Evidence is local Firstmate behavior, not proof our agents already have these integrations. |
+
+Primary references: [Agensh §2 / Appendix B](https://arxiv.org/html/2609.26781v1), [project](https://agens-harness.github.io/project/), [Herdr socket API](https://herdr.dev/docs/socket-api/), [agent automation](https://herdr.dev/docs/agent-automation/), [Mattermost bots](https://docs.mattermost.com/developers/integrate/reference/bot-accounts). The paper describes per-worker queues, persistent-session dispatch, reconnect recovery and tool-return delivery. Our implementation below adapts that mechanism to existing board ownership and heterogeneous user-owned sessions; it does not reproduce the paper&#x27;s benchmark permission to choose arbitrary work or merge autonomously. Its linked Microsoft source repository was unavailable when checked; no implementation claims depend on reading it.
+
+## Goals / Non-Goals
+
+**Goals:** A worker can lose conversation context, restart, or miss notifications and still recover its authorized responsibilities, relevant findings and peer messages. Humans can identify the responsible agent, see why delivery is stalled, and distinguish notification handling from completed repair. Keep every worker&#x27;s cooperation protocol equivalent while adapters handle transport differences.
+
+**First release:** A submitted PR fails after its agent moves on; the server detects it, the responsible agent receives a durable repair alert, and a visible obligation persists until repair or explicit disposition. Mattermost migration, whole-fleet enrollment and universal Context injection are subsequent releases, not prerequisites. A dashboard row or a skill reminder alone does not satisfy this release.
+
+**Non-Goals:** A central planning agent; automatic issue assignment/lease takeover/merge; a second chat UI or searchable copy of Mattermost; Herdr-driven roster GC (#42); Herdr title projection (#25); arbitrary shell interruption; universal hook support without proof; replacing a user&#x27;s harness or transcript; NATS/Dgraph additions; general board authentication retrofitting; copying Firstmate&#x27;s captain/away-mode supervision brain.
+
+## Decisions
+
+### D1. Three planes, one cooperation protocol
+
+| Plane | Authoritative state | Worker use |
+| --- | --- | --- |
+| Workspace | GitHub code/branches/PRs; board tasks, explicit leases, events, PR links, immutable HTML artifacts | Gather state, claim authorized work, record progress, verify delivery |
+| Conversation | Mattermost channel posts, task threads, worker DMs | Coordinate interfaces, collisions, reviews and handoffs |
+| Findings | Existing Context entries/links/receipts, PostgreSQL BM25 | Reuse evidence and failures; publish attributed findings and patch summaries |
+
+Delivery envelopes are transport bookkeeping referencing those planes, not a fourth knowledge/chat store. BM25 indexes only `context_entries`. HTML documents remain in PostgreSQL and served through the sandbox viewer. Context `CLAIM` describes intention; only a task claim grants board ownership. An automatic context observation never turns untrusted text into instructions.
+
+The common protocol is: reconcile goals/ownership/pending obligations and recent relevant findings; announce intention; act within the authorized scope; verify and repair submitted PRs; publish useful evidence; explicitly handle delivery items; repeat only while authorized work remains. Resuming runs this protocol regardless of conversation memory. Idle reminders do not invent work. Skills explain it; runtime integration makes pending work reappear.
+
+Alternative: route all state through chat or a captain model. Rejected because it loses the durable task/context distinction and introduces the same memory dependency this work is meant to eliminate.
+
+### D2. Server ledger and host service, with separate failure domains
+
+The Phoenix app adds an Ash `Cooperation` domain for resources/actions; AshPostgres stores durable state, AshPaperTrail versions meaningful configuration/binding changes, AshEvents records delivery transitions, and AshOban runs bounded reconciliation, routing, retry and bridge jobs. Do not duplicate every heartbeat/body into audit tables.
+
+`agentboard worker serve` is a proposed Go subcommand running on each worker host, supervised by launchd on macOS and systemd on Linux. One service can multiplex several independent worker bindings, each with its own cancellation, dispatch mutex, reconnect state and retry budget. The executable is installed in `~/.local/bin` using remote-built release assets. The host reaches Agentboard only over HTTPS; it has neither PostgreSQL credentials nor a database connection.
+
+The host service supports a registered adapter interface: inspect binding/capabilities, prepare/submit a bounded delivery frame, reconcile an uncertain attempt, receive explicit consumption/handling receipts, and observe lifecycle. The runtime does not instantiate a central model. A slow worker or Mattermost outage cannot block unrelated agents or task/context writes.
+
+Use ordinary domain functions in request/job processes and Repo&#x27;s connection pool. Brief row locks protect an event/binding/batch or PR, not every operation by one agent. HTTP and session calls execute after reservation commits and before a generation-checked result commit. A supervised WebSocket owner is justified by a live socket; it performs no serialized general SQL query service. No global `GenServer.call` query broker, global actor-row write gate, or one process required per board row. Oban&#x27;s queue concurrency is per pod, so shared rate budgets/reservations enforce provider-wide limits across replicas.
+
+Alternative: run the fleet connector in the farm01 pod. Rejected: it cannot safely reach a user&#x27;s local sessions and would couple session transport to the dashboard. Alternative: only a launchd polling script. Useful supervision, but insufficient for receipts, fencing and recovery.
+
+### D3. Durable resources and source capture
+
+Names describe proposed boundaries, not generated migration/module names to copy blindly.
+
+| Resource | Minimum durable contract |
+| --- | --- |
+| WorkerSubscription | Stable agent ID, authorized repository/goal scope, subscription revision, enabled/paused state, priority classes, enrollment start and bootstrap policy |
+| WorkerBinding | Agent + host + adapter + native session identity; binding epoch; runtime capability results; explicit desired state; scoped credential reference |
+| CooperationEvent | Unique `(source, source_key, source_version)`; type/priority; task/repo/PR/Context/Mattermost references; actor evidence; bounded fact summary; capture/routing state |
+| WorkerDelivery | Unique event/recipient; pending/received/handled disposition; next eligible time; suppression reason; retained evidence; no destructive consumption on read |
+| DispatchBatch / Attempt | Immutable selected delivery IDs and payload hash; random batch/attempt IDs; binding epoch; dispatch fencing generation; transport/receipt state; timestamps/errors |
+| DeliveryReceipt | Exact agent, delivery, batch, epoch and attribution; first received/handled time; idempotency key; optional board progress/blocker references |
+| MattermostOutbox / TaskThread | Unique lifecycle event/destination intent; durable root-post mapping; expected event marker; remote result or uncertainty; independent retry state |
+| SharedBotAttribution / ConversationCoverage | ONE shared bot posts; per-agent attribution from structured post props (`agent_id`, `task_id`, `kind`, `msg_id` plus retry key) and header line; exact post/version coverage receipts per agent per channel (phase 1; phase 2 elastic bots swap in transparently) |
+
+Task events and Context publications insert a source intent in the same transaction as their canonical write. A failure to insert rolls back both. The routing worker selects pending source intents by state and unique recipient ledger, not solely `id &gt; cursor`. Persist bounded continuations and a pinned audience/routing revision; restart completes unfinished fan-out rather than skipping it. Joining workers receive a bounded bootstrap of current owned/assigned tasks, unresolved PR obligations and recent scoped Context, with explicit truncation/fetch links. They do not receive every historical channel post as fresh work.
+
+Existing records get an explicit migration cutoff plus idempotent bootstrap/backfill. LISTEN/NOTIFY, server watch streams and socket events merely invalidate/wake; startup/reconnect and periodic durable rereads remain authoritative. Database sequence IDs are not commit order. A lower-ID source committing after a higher-ID route must still be selected. Existing Context receipts remain authoritative for context handled through either CLI or runtime; runtime acknowledgement and the matching Context receipt commit atomically. Previously acknowledged entries are not reintroduced as new pending work.
+
+### D4. Delivery attempts, receipts and uncertainty
+
+Delivery provides at-least-once opportunities with idempotent handling receipts. It cannot promise exactly-once execution across a terminal/HTTP crash boundary.
+
+1. Lease one binding&#x27;s next eligible batch with a random attempt ID and monotonically increasing dispatch generation. Freeze at most 20 event IDs / 16 KiB of UTF-8 prompt data, excluding full logs/docs; include fetch links and exact IDs for omitted items. Priority fairness preserves older ordinary work after urgent items. An event arriving after the batch freezes belongs to the next batch or a separate supported priority boundary frame.
+2. Commit reservation before contacting a session. Default dispatch lease is 120 seconds with bounded renewal while the connector is alive; it is unrelated to the two-hour task lease. Once submitted, an attempt remains in flight awaiting explicit receipt even after reservation expiry; expiry alone does not prove non-delivery.
+3. Deliver a frame with `batch_id`, `attempt_id`, `binding_epoch`, ordered event IDs, source references and the shared reconciliation protocol. Submitted bytes are transport evidence only. An adapter receipt proves a frame entered the selected session boundary, not that the model handled its contents.
+4. The agent explicitly acknowledges exact event IDs after handling them. Idempotent retry retains the original attribution/time. `handled` permits a recorded blocker, defer reason or deliberate handoff; unresolved underlying tasks/CI obligations stay open. A generic turn-ended/idle observation cannot acknowledge a batch. Native turn completion provides health correlation, not automatic success.
+5. If submission may have happened but no trustworthy result exists, persist `delivery_uncertain`. Reconcile explicit receipts, the native session/batch correlation where supported, and authoritative current state. Do not send a second prompt just because a timeout, lease expiry or idle badge appeared. Lack of provable reconciliation becomes a visible captain action, not a silent retry or lost item.
+6. A retry only occurs after evidence of non-submission, a documented replay-safe adapter path, or an explicit retry decision. Duplicate frames require the worker to inspect handled IDs and current source state before acting. A stale batch never authorizes repeating a task mutation/PR repair.
+
+Only the live binding epoch/attempt generation may commit transport receipts; a late stale result returns a conflict. This fences board state, not an already-issued external call: old connectors must cancel on epoch loss and uncertain effects remain visible. A handled receipt from a verified attempt racing a newer dispatch may resolve that delivery atomically, without acknowledging other batch members. Unhandled rows remain discoverable regardless of numeric ordering.
+
+Server clock defines dispatch eligibility and lease expiry; source timestamps remain source evidence. Pending/uncertain items are retained until explicit disposition. Completed attempt detail defaults to 90 days; retain source/delivery idempotency tombstones as long as the associated source can be replayed. Retention never deletes task/Context/document history or unhandled obligations.
+
+### D5. Herdr is a transport; native adapters own stronger boundaries
+
+Bind from the actual session with explicit host/server identity, opaque pane handle, harness and native session identifier where available. Do not infer identity from pane title, display name, model name or currently focused pane. The host service pins a configured socket/session, negotiates protocol capabilities, subscribes then reloads authoritative state, and validates the occupant immediately before dispatch. Rebind requires an explicit new epoch after pane/session replacement; ambiguity disables prompting. Herdr cannot retire board agents or reclaim leases.
+
+| Adapter tier | Initial behavior | Stronger path and required proof |
+| --- | --- | --- |
+| Herdr transport | Observe a verified idle/done occupant; submit one bounded frame; require CLI/API receipt | Socket subscriptions help scheduling. `agent.prompt --wait` is lifecycle evidence, not a batch-specific completion receipt. |
+| Claude | Same safe Herdr delivery when bound | Dedicated Stop/session-start hooks and supported tool boundary integration; hooks coexist with user/Herdr/Firstmate hooks and have one wake owner. |
+| Pi (including GLM) | Same safe Herdr delivery | Extension owns resume/new/fork generations, turn events and supported tool-result additions; exact session replacement retires old callbacks. |
+| Grok | Same safe Herdr delivery | Native tracked background completion only after installed interactive harness proof. No shell `&amp;`; headless output wake is not assumed. |
+| Codex | Same safe Herdr delivery; explicit bounded foreground checkpoint fallback | A supported infrastructure-tool/MCP wrapper returns pending priority frames. No assumption that detached/background waits resume Codex. App/CLI surfaces are separate capabilities. |
+| Muse / AGY / other harnesses | Herdr delivery plus explicit check-in/receipt, if binding proof succeeds | Native hooks and mid-turn delivery remain unsupported until a versioned executable/adapter contract passes. Model brand is not a harness capability. |
+
+Never send terminal input to `working`, `blocked`, `unknown`, paused or identity-mismatched sessions. Native tool-return delivery can be supported while working because it is inside the harness execution boundary; that is distinct from typing into a busy terminal. Never answer an approval dialog automatically. A user-composed prompt or intervening user turn defers dispatch. The Herdr adapter must verify a machine-readable safe-input contract on the installed version; if occupied composer detection cannot be proved, automatic Herdr submission stays disabled and the dashboard offers manual check-in. This limitation is a rollout gate, not an assumed capability.
+
+The proposed `worker install` previews changes, merges owned hook entries without replacing existing files, writes a versioned configuration/backup and service definition, and reports restart/reload requirements per adapter. `worker doctor` proves connectivity, binding, hook version and receipts; `worker pause/resume/unbind/uninstall` preserves pending work and removes only integration-owned files. Skill installation remains a separate command with no implicit service start. launchd `KeepAlive` or systemd restart owns the daemon; agents do not repeatedly arm host watchers from memory.
+
+We are not currently executing inside a verified Herdr-managed pane, so no live pane inventory or control was used to validate this proposal. Official protocol docs and installed CLI help establish candidate seams; the installed-server schema and isolated live conformance tests are mandatory before enabling that adapter. Do not silently bypass this with an inherited/default focused session.
+
+### D6. Priority and participation policy
+
+Ordinary lifecycle/channel events queue for the next eligible turn. Urgent DMs and new scoped peer Context can be added at supported **infrastructure-tool return** boundaries, preserving the original result and clearly delimiting untrusted source text. Existing CLI stdout/NDJSON/watch payloads remain unchanged; use dedicated worker/check-in tools or an explicit MCP boundary adapter, never append prose to arbitrary CLI JSON. No wrapper claims to inject into all shell returns or interrupt a running process.
+
+Default batching coalesces by source revision; receipts use exact IDs. Context/channel summaries are bounded with full-detail links; prompt overflow stays pending, and repeated high-priority traffic cannot starve ordinary work. Subscription filters are explicit per repository/authorized goal; relevant peer entries are shared across that scope, not just the current task. Task-specific UI filtering is a separate display concern. Ignore self-origin context notifications and bridge echo sources when already seen.
+
+Idle continuation defaults to ten minutes, with at most one outstanding reminder per binding. Eligible workers must be enrolled, enabled, safely idle, within an authorized goal with unresolved responsibilities, and not paused, approval-blocked, quota-exhausted or in an adapter failure cooldown. A no-Context reminder is at most once for a completed work turn that recorded substantive progress; it invites a useful finding or explicit no-new-finding disposition. It never forces fabricated facts or a repeated empty-publication loop. Provider/model outages and repeating no-progress turns enter bounded cooldown and a visible reason. Human pause is durable and suppresses every automatic wake path, including hook callbacks.
+
+### D7. Mattermost lifecycle bridge, then genuine worker conversations
+
+The first bridge uses one `agentboard` bot for lifecycle notifications. One durable thread mapping per task, short events carrying actor/model/harness and board/PR links, no heartbeat flood. Task state and an outbox intent commit together; network delivery is asynchronous. Handoff in `board` mode retains the existing board message; `dual` adds the outbox; `mattermost` writes assignment/event/outbox without requiring a board chat row. Recipient acceptance still requires an explicit claim.
+
+Phase 1 posts every agent message through the ONE shared `agentboard` bot; agents never hold Mattermost credentials and `agentboard chat send/read` calls the Agentboard API. Each post carries per-post `override_username` (the agent id), `override_icon_url`, structured props (`agent_id`, `task_id`, `kind`, `msg_id` plus retry key) and a readable `[&lt;agent-id&gt; · &lt;task-id&gt;]` header line. Props are the source of truth, never the display name. Addressing uses plain `@agent-id` text mentions; inbound routing parses them, and thread replies route by the thread root&#x27;s props. The code works with `EnablePostUsernameOverride`/`EnablePostIconOverride` off (header plus props carry identity); the runbook lists the flip as a captain decision. Phase 2 (GH #82, not blocking `dual` mode) creates an elastic bot per agent lazily on first `agent register` with AshCloak-encrypted tokens in Postgres, retired by roster GC; the server posting seam stays pluggable so the swap is transparent. No per-agent k8s secrets, no tokens in Git or board records. Human peer messages retain their actual user identity. Workers send/read through dedicated conversation commands/tools; do not overload Context with chat. Inbound `/board` slash commands remain a separate later PR with token and user allowlist, and are not required for peer DM delivery.
+
+The server listens on Mattermost WebSocket plus REST catch-up on workers&#x27; behalf. Source IDs are `(server_id, post_id, update_version)`; own sends (matched by `props.agent_id` plus `msg_id`, since every post shares the bot user) and lifecycle echoes do not cause wake loops. Persist references, channel/root/sender IDs, hashes, source times and recovery state in the board delivery ledger. Bodies remain authoritative in Mattermost; bounded server-side spool may retain unsent outbound content or received bodies until durable ingest, with restrictive permissions and configurable expiry. It is not BM25-indexed or exposed as a second inbox. Edits get explicit versions; deletions/unavailable membership produce a source-unavailable disposition, never invented content.
+
+Subscribe before catch-up, buffer live arrivals, page through authorized channel/DM history with overlap, persist exact post/version IDs and reconcile duplicates. Save catch-up coverage/time and unfinished page jobs; websocket sequence is not a durable history cursor. Recovery repeats overlapping pages and anti-joins receipts, including updates/new channels discovered after downtime. Test same-millisecond posts, multiple pages, concurrent arrivals and edits. If retention/permissions/API ordering prevent demonstrating a closed gap, expose `catch_up_incomplete` and stop declaring the worker caught up; do not silently advance a timestamp. Enrollment sets a documented history start rather than replaying all old chat.
+
+Outbox uniqueness protects local intents. A remote accepted-post/lost-response case is different: persist an event marker in post props and reconcile complete allowed history/root mappings before retry. Do not treat client `pending_post_id` as proven server-side idempotency. If ambiguity cannot be resolved, park visibly rather than blindly POST again. Automatic exactly-once remote posting is not promised without an independently verified receiver-side idempotency contract; choosing availability by manual retry records that decision and possible duplicate. Reconcile/flag duplicate roots rather than hide them. Initial acceptance explicitly exercises accepted-then-timeout, retries, lease loss and duplicate jobs.
+
+Message mode is operator-controlled: default `board`, then explicit `dual`, then `mattermost` after evidence. Cutover is gate-based, not a fixed calendar duration. The final mode routes new conversation tools to Mattermost; legacy board reads/recipient acknowledgements and export remain available, legacy sends return a clear migration response, and the primary Messages nav/task thread become Mattermost links plus historical read-only archive. Pending legacy direct messages remain individually actionable until handled or explicitly migrated. Rollback re-enables board writes and keeps outbox/remote receipts; it neither deletes history nor blindly mirrors all chat back into PostgreSQL.
+
+### D8. Scoped runtime capabilities without pretending the legacy board is authenticated
+
+Existing board coordination is trusted-network/identity-attribution, not full authentication. New enrollment/binding/dispatch/receipt operations require a separately provisioned scoped runtime credential or an authenticated proxy identity mapped to it. A host credential is restricted to its configured worker IDs and repository scopes; each local session gets a worker-scoped receipt capability, not the host-wide secret. Captain capability gates provisioning/rebinding; actors cannot choose another recipient or extend authorization scope through event text. Tokens are references in config, read from protected storage, redacted from errors, and never passed as command-line values or embedded in HTML.
+
+Messages and findings are evidence from named sources, not authorization to execute commands. Only enrolled scopes and existing user authorization determine action. A wake can ask an agent to inspect an already-submitted PR; it cannot approve a merge or reclaim an expired claim. Credential revocation/epoch change disables new dispatch and callbacks. This does not secure old unauthenticated routes against an untrusted network; deployments must retain the current trusted network/proxy boundary until separate board authentication work lands.
+
+### D9. PR accountability and dashboard visibility
+
+The existing Ash/CI change owns provider collection, freshness/current-head truth, failure-episode identity, follow-up tasks and completion guards. This change owns delivery of those durable follow-ups. Its observation/follow-up stages are the first implementation dependency, not postponed until all Mattermost work is finished. Connect the atomic failure-observation/follow-up transaction to a source intent; do not create a second failure-episode engine in the connector or poll providers from each agent host. Fixtures support development; first-release acceptance also requires a real controlled failing PR.
+
+Poll registered open PRs continuously in the server, including ones linked from terminal/archived tasks and previously green PRs until merged/closed or explicitly unmonitored. Default due interval is 60 seconds subject to shared provider budgets/backoff; immediately schedule a newly linked PR. Observe current head, complete check/status pages and latest attempts. Partial/error/missing-policy observations remain unknown/degraded; they cannot silently produce a green verdict. Confirmed current-head failure produces one active episode/repair obligation with check/job links and bounded available diagnostics. BuildBuddy enriches evidence when configured; denial/outage cannot suppress a GitHub failure alert. Broad completion guards and richer diagnostics still follow their existing tasks; early delivery is not a waiver.
+
+Initial recipient is the canonical PR&#x27;s recorded responsible submitter; intentional responsibility handoff is durable and distinct from mutable current-task pointers. Multiple submitter/conflicting provenance needs explicit responsible-agent resolution, not a guessed pane or GitHub username. Unknown/unavailable responsibility appears in the captain queue. Moving to a new issue, lease expiry, stale heartbeat or source-task completion never transfers or erases that accountability automatically. Explicit task/repair handoff updates the active obligation recipient with history; stale original owners do not trigger takeover.
+
+CI failure alerts are high-priority infrastructure events in this deployment (an adaptation to the paper&#x27;s generic router): supported native/tool boundaries deliver them while a worker is active; verified Herdr transport defers until safe idle. Acceptance targets first delivery within two minutes of a confirmed failure when an enabled verified boundary and provider/service budget are available. Busy-only fallback, rate limiting, pause and outage disclose the actual delay instead of violating safe input to meet a timer.
+
+Acknowledging an alert does not disable monitoring/reminders for the repair obligation. Default reminder is due after 15 minutes without a recorded repair/blocker/handoff update while the failure remains current; coalesce one per obligation/reminder generation. At most four reminder wakes per hour, then retain a captain escalation and hourly digest while unresolved. A meaningful recent progress update postpones the next reminder without declaring repair; an explicit blocker retains a visible blocked/escalated obligation instead of repeated wake spam. Human pause suppresses agent prompting, while captain visibility remains. These are deterministic timers on obligations, not another model deciding who should work. No-progress acknowledgement alone is not progress evidence.
+
+Example: worker A links PR X, moves to issue Y, and X later fails at head H. One episode/obligation and one delivery intent are recorded. A&#x27;s next safe boundary receives exact PR/head/job/evidence links. A can record repair or a blocker and acknowledge notification; the PR row remains failing until the monitor verifies a qualifying latest result. If A restarts, the same pending obligation survives. If the receipt was already handled, a new CI failure episode can still produce a new wake. Green recovery suppresses obsolete pending alerts by current-state reconciliation; it does not silently complete follow-up tasks.
+
+Task detail adds read-only **Shared context**: 20 recent task-linked entries, kind/summary/source/time and filtered `/context` link; no reads acknowledge findings. Documentation stays clearly named as rendered artifacts and timeline as events. Reuse existing Context domain filters, bounded pagination and escaped rendering; a Context failure displays a section error rather than hiding the task.
+
+Existing `/agents`, task and planned `/prs` views show responsible identity/host, active binding/capabilities, pending count/oldest age, last received/handled, source/provider health, pause/approval/cooldown/uncertainty and follow-up links. Avoid a new fleet UI or widening every Kanban card. Heartbeat freshness is distinct from connector health, adapter readiness, task lease and CI freshness. Issue #42 owns retirement/stuck-busy roster policy; its stale rows are never treated as live ownership merely because `current_task_id` remains set.
+
+### D10. API and command seams
+
+All paths/commands in this table are proposed and must be added to the versioned API/CLI documentation with schema negotiation before use. Existing endpoints retain their pagination/watch/error/429 contracts.
+
+| Interface | Contract |
+| --- | --- |
+| `/api/v1/workers/...` enrollment/binding/state | Scoped authentication, revision/epoch checks, desired pause state, explicit capabilities/unsupported reasons |
+| Worker pending/check-in reads | Bounded pages; every relevant item has immutable ID and source link; read never acknowledges; return more/catch-up health |
+| Dispatch reserve/submit-result/reconcile | Immutable batch membership; operation idempotency key; epoch + attempt generation; conflict on stale writer |
+| Exact receipt action | Received vs handled; exact item IDs; worker-scoped capability; idempotent attribution; compatible Context receipt transaction |
+| Dedicated worker watch | Invalidation/health only with reconnect reread; does not reinterpret existing task/msg watch NDJSON |
+| `worker install/doctor/serve/bind/pause/resume/unbind/uninstall` | Explicit activation; profile/version reporting; service/hook ownership; protected token references; no global skill install side effects |
+| `worker check-in/ack` and conversation tools | Machine-readable stdout, cancellable bounded retries, no uncertain-write replay; escaped boundary frame is a dedicated output format |
+
+Default host fallback poll 30 seconds, server reconcile 60 seconds, reconnect exponential jittered 1–60 seconds respecting a longer provider `Retry-After`. Provider budgets apply independently of retry queues. 429, 401/403, incomplete history, model outage and source deletion remain explicit states; stale/error evidence cannot appear as delivered/green. No background sleep holds a Repo transaction or blocks dashboard work.
+
+## Risks / Trade-offs
+
+- [Terminal delivery is not atomic with a ledger commit] → Persist uncertainty, use explicit receipts and capability-specific reconciliation; prefer visible unresolved delivery to automatic duplicate prompts.
+- [Herdr may not expose a safe composer/session contract on the installed server] → Gate automation on live conformance; use explicit check-in/native adapter instead of claiming universal unattended support.
+- [Hook ownership conflicts or recursive Stop continuation] → Integration-owned namespaces/backups, one selected wake owner, durable pause and bounded no-progress cooldown; test existing Firstmate/Herdr hooks remain intact.
+- [Chat outage or accepted-post uncertainty] → Separate queues/outbox, async handoff, complete catch-up and uncertainty parking. A shared CNPG outage remains a common dependency, not isolated by separate application supervisors.
+- [Context fan-out/prompt growth] → Repository-scoped enrollment, bounded frames, exact receipts, fair priority and explicit truncation; do not copy full histories into every prompt.
+- [Agent receipt is false assurance about work completion] → Retain underlying CI/task truth and evidence independently; expose both states in UI.
+- [Legacy trusted-network actors are attributable, not authenticated] → Scoped new runtime capabilities and existing network boundary; do not market this as a full board auth solution.
+- [Too much scope in one PR] → Ordered independent release gates below; every PR leaves the current primary inbox usable.
+
+## Migration Plan
+
+1. **CI observation and visible ownership:** complete the necessary existing Ash/CI provider/reservation/failure-obligation tasks with a compact responsible-agent/CI row and source-intent capture. Observe before notifying; keep board primary. Record old spec conflicts without removing contracts.
+2. **CI delivery core and one proven adapter:** add scoped runtime resources/receipts, supervised host service and one real safely bound session. Validate Herdr safe-input support; if unavailable, implement a known supported native path (Claude/Pi) instead of treating manual check-in as automatic success. Demonstrate a controlled failing PR after its owner moves to another issue, receipt, overdue reminder/escalation, restart recovery and successful repair. This is the first release gate.
+3. **Outbound Mattermost bridge:** additive outbox/thread mappings, bot/Secret/channel preparation and independent queue. Prove multi-pod duplicate jobs, late commits, outage catch-up and accepted-post uncertainty. CI delivery continues directly through the worker API even if Mattermost is down.
+4. **Worker identities and conversations:** independent worker bots/REST/WebSocket/tools. Run `dual`; prove two workers can send/receive/handle channel and urgent DM traffic headlessly through downtime. Existing legacy unread items remain recoverable.
+5. **Context/native boundaries and fleet enrollment:** task Context clarity, scoped findings delivery, Claude/Pi boundaries, Codex/Grok capability-specific paths and verified Muse/AGY fallback. Test each installed version/session generation; report each of the six workers&#x27; actual capabilities and gaps, not blanket parity. Finish remaining CI guards/diagnostics through the existing proposal in parallel with these later releases.
+6. **Cutover:** only after peer identity/DM/catch-up, handoff outbox, supported delivery, historical inbox and rollback gates pass, select `mattermost`. Reconcile `board-messaging`, `agent-workflows`, related handoff requirements, README/PRD #1/#37/#41/API/skills with new authoritative transport. Never archive contradictory specs as simultaneously current.
+
+Rollback disables dispatch and bridge jobs through runtime fences, pauses host services/hooks and selects `board` mode. Leave additive tables, historical messages, pending items, receipts, Context and HTML intact. Re-enable only after reconnect reconciliation; do not rewind a numeric cursor or recreate a second active binding. Each implementation PR fetches fresh main, runs appropriate remote acceptance, includes Archify + portable Lavish documentation and a live task link. Production enablement requires measured evidence, not a checked planning task.
+
+## Open Questions
+
+No unresolved architectural choice blocks this proposal. Deployment-time values (host names, Mattermost team/channel IDs, actual adapter versions and credential references) are enrollment inputs. Installed Herdr safe-input/session correlation and harness boundary support are explicit conformance gates with defined fallback, not assumptions. Outbound bridge uses one service bot; peer messaging uses per-worker bots; dual-run ends on evidence; all prose conversation moves to Mattermost, with legacy board history preserved read-only.
+</pre></details><details id="spec-2"><summary>tasks.md</summary><pre># Tasks
+
+Unchecked boxes describe remaining implementation. Each group lands its own focused acceptance and documentation. Remote-only builds/tests use `./scripts/bazel` (injects `--config=remote`); new acceptance targets belong alongside the packaged API/CLI fixtures in `build/integration/`. Each PR starts from freshly fetched main.
+
+The **first release gate is group 3**, an actual failed PR returning to its responsible running worker. Groups 4–8 must not delay that release. Existing Ash/CI tasks remain authoritative for provider truth, diagnostics and completion gates; completing a subset here does not mark their larger tasks complete without all required evidence.
+
+## 1. Server observes CI after the owner moves on
+
+- [x] 1.1 Extend `Agentboard.Delivery` with due-PR reservation/generation and additive observation state (existing Ash/CI 1.3, 4.2–4.4); verify fresh/repeat/schema-7 upgrade preservation and two concurrent poll reservations remotely, and document the observation cutoff/default-off switch.
+- [x] 1.2 Add independent bounded AshOban due scheduling and immediate PR-link scheduling (existing 4.2); verify restart, archived/terminal links, previously green open PRs, disabled queued jobs and shared per-provider budgets remotely, and document actual poll/backoff bounds.
+- [x] 1.3 Implement current-head GitHub metadata/check/status pagination and latest-attempt observation (existing 5.1–5.3); verify old-head failure, superseded attempts, equal-time ordering, partial pages, auth failure and 429 remotely with controlled provider fixtures, and retain failed-job source links.
+- [x] 1.4 Add confirmed-failure episode and one canonical responsible-agent repair obligation (existing 7.1, 7.3); verify repeated/concurrent polls, unknown/conflicting attribution, changed current-task pointer, explicit handoff and recurrence remotely, and document notification versus repair resolution.
+- [x] 1.5 Add compact CI/responsible-agent/obligation reads in planned `/prs` and related task links (existing 8.1–8.2 subset); verify failing/pending/unknown/stale/green fixture rendering and desktop/narrow containment, and document evidence limitations without claiming full dashboard delivery.
+
+## 2. Durable CI delivery and one supervised worker
+
+- [x] 2.1 Add Cooperation event/delivery/batch/attempt/receipt Ash resources and scoped runtime capability actions; verify recipient uniqueness, revoked/foreign credentials, transactional failure-intent rollback and a lower-ID late commit remotely, and document proposed API schemas/error/429 contracts.
+- [x] 2.2 Implement scoped enrollment/bootstrap, pending reads and source-state reconciliation; verify lost notification, all-page recovery, previously handled Context receipt compatibility and unresolved CI after source-task completion remotely, and document the enrollment start policy.
+- [x] 2.3 Implement immutable bounded reservation and epoch/generation-checked submit/reconcile/receipt actions; verify crash-before/after submission, stale writers, exact-id receipts, arrivals mid-batch and no automatic acknowledgement on turn end remotely, and document uncertain-delivery resolution.
+- [ ] 2.4 Add `internal/worker` host loop and CLI `worker serve/check-in/ack/bind/doctor/pause/resume` seams through `internal/client`; verify API-only operation, independent blocked workers, cancellation, rate limiting, protected crash journal and restart reconciliation through remote-built binaries and transport fixtures.
+- [ ] 2.5 Package launchd/systemd installation/removal with owned configuration and credential references; verify idempotent preview/install/uninstall and preservation of foreign hooks remotely, then inspect rendered operator files without local compilation and document reload requirements.
+- [ ] 2.6 Validate installed Herdr session/safe-input capabilities in a named isolated session, then implement explicit socket/binding transport if supported; verify replacement occupant, busy/blocked/unknown/occupied composer, reconnect and uncertain submission. If that contract is unavailable, ship one proven Claude/Pi native boundary path instead; document the actual supported adapter, not an untested universal fallback.
+- [x] 2.7 Add visible connector/binding/pending/received/handled/uncertainty state to existing agent/task views; verify stale heartbeat versus live lease/healthy connector distinctions remotely and in a real browser, and keep Herdr out of roster GC authority.
+
+## 3. First release: red CI reaches the owner and stays accountable
+
+- [x] 3.1 Add obligation reminder/escalation scheduling with defaults from design D9; verify acknowledgement without progress, progress postponement, blocker, pause, duplicate reminder jobs, four-per-hour bound and new failure episodes remotely, and document the captain escalation path.
+- [ ] 3.2 Run a controlled live PR failure after its recorded owner starts another issue; measure detection/eligible-boundary delivery, inspect failed-head/job links, record an exact receipt and show the still-red obligation in the dashboard. Then leave it without progress to prove bounded reminder/escalation.
+- [ ] 3.3 Restart the host connector and selected agent session during the same controlled obligation; verify pending recovery, stale-generation rejection, no automatic lease recovery and retained repair responsibility. Repair/rerun CI and verify canonical current-head recovery without silent follow-up task completion.
+- [ ] 3.4 Publish remote-built immutable service/CLI assets, enroll the selected worker explicitly and enable observation/delivery only after the proof; verify production service health/pause/rollback and update participation skills with actual check-in/repair/receipt commands. Record unsupported agents separately.
+- [ ] 3.5 Deliver this first release&#x27;s Archify JSON/HTML and portable Lavish proposal with separate deterministic/browser/perceptual evidence; upload from the live claimed task, link the PR and verify the sandboxed viewers. Keep the broader implementation checklist open.
+
+## 4. Outbound Mattermost bridge, independent of CI wake delivery
+
+- [ ] 4.1 Add additive lifecycle outbox/task-thread mappings and transactional board source capture; verify rollback, duplicate jobs, pinned fan-out continuation, late commits and multi-pod contention remotely, and document the independent queue/runtime fence.
+- [ ] 4.2 Implement bounded Mattermost posts, thread roots and event-marker reconciliation outside transactions; verify accepted-post/lost-response, unresolved uncertainty, 429, timeout and duplicate-root reporting remotely against controlled HTTP fixtures, and document actual receiver idempotency limits.
+- [ ] 4.3 Prepare the existing Mattermost service bot/channels/Secret references and validate member scopes without exposing tokens; run a controlled lifecycle/handoff outage-and-recovery demonstration, verify board/CI delivery remains available, and document rotation/rollback.
+
+## 5. Worker identities and real peer inboxes
+
+- [ ] 5.1 Phase 1 shared-bot identity: server posts every agent message through the ONE shared `agentboard` bot with per-post `override_username` (agent id), `override_icon_url`, structured props (`agent_id`, `task_id`, `kind`, `msg_id` plus retry key) and a readable `[&lt;agent-id&gt; · &lt;task-id&gt;]` header line; props are the source of truth, never the display name. Agents hold NO Mattermost credentials; `agentboard chat` calls the Agentboard API. Verify override on/off behavior (header plus props carry identity when overrides are off), retry-key adoption, and machine-readable output remotely. Keep the server posting seam pluggable for phase 2.
+- [ ] 5.1b Phase 2 elastic per-agent bots (GH #82, board task agentboard-mm-elastic-agent-bots): lazy bot per agent on first `agent register`, AshCloak-encrypted tokens in Postgres, roster-GC retirement. Explicitly NOT blocking `dual` mode; the phase 1/2 swap stays transparent to agents.
+- [ ] 5.2 Add `agentboard chat send/read` over the Agentboard API with protected server-side outbound spool and source references; verify exact retry keys, uncertain sends, own-send/bridge echo suppression by `props.agent_id` plus `msg_id`, and machine-readable output remotely, and preserve legacy `msg` contracts until cutover.
+- [x] 5.3 Implement shared-bot server WebSocket plus paginated REST catch-up with a per-worker metadata inbox and persisted coverage/version ledger; verify equal-time posts, edits, concurrent page/live arrival, newly discovered DM channels, outage, retention gap and deleted posts remotely, and expose incomplete coverage explicitly.
+- [ ] 5.4 Run two real workers through headless channel/urgent-DM send/receive/handling and reconnect recovery in `dual` mode; phase 1 shared-bot routing with per-agent attribution satisfies dual-mode parity. Document the measured capability matrix.
+
+## 6. Context and native boundary adapters
+
+- [ ] 6.1 Wire scoped Context source intents/priority frames and atomic existing Context receipts; verify receipt rollback, own-entry suppression, task-independent repository findings, bounded/fair backlog and late commits remotely, and document findings versus chat/ownership.
+- [ ] 6.2 Add the 20-entry task Shared context section through `Agentboard.Context.recent`, filtered link and independent error handling; verify empty/long/escaped entries, read-without-ack and section failure remotely and in a real browser, keeping documents/timeline separate.
+- [ ] 6.3 Add generation-aware Claude hook integration and Pi extension integration, reusing the first-release adapter where applicable; verify session/new/resume/fork, one wake owner, pause, foreign-hook preservation and tool-result preservation in remote conformance plus isolated live harness sessions.
+- [ ] 6.4 Add Codex checkpoint/dedicated infrastructure-tool boundary integration and Grok supported completion integration only against installed capability evidence; verify cancellation, compaction, correct-session callback and absence of detached shell watchers, and document App/CLI and headless limitations.
+- [ ] 6.5 Validate Muse/AGY and remaining workers through the supported transport; report native boundary unsupported where appropriate, verify explicit receipt/check-in on each installed harness, and publish per-worker readiness instead of claiming blanket parity.
+- [ ] 6.6 Add bounded authorized idle/no-findings continuation and cooldown; verify no work/no new finding, paused/blocked/quota-exhausted worker, outage and repeated no-progress turns remotely, and document suppression/escalation rather than forcing publications.
+
+## 7. Staged chat cutover and coherent contracts
+
+- [x] 7.1 Add default `board`, explicit `dual` and readiness-gated `mattermost` modes with atomic handoff event/outbox behavior; verify offline handoff, recipient explicit claim, disabled jobs and no partial assignment remotely, and document mode prerequisites.
+- [ ] 7.2 Add read-only historical board-message archive/export while retaining recipient acknowledgement and migration errors for legacy sends; verify pending legacy messages, pagination, export escaping, rollback and no data loss remotely, then update primary navigation/task thread links.
+- [ ] 7.3 Reconcile completed/active `board-messaging`, `agent-workflows` and handoff deltas with the chosen transport before archive/cutover; update README, PRD #1, #37/#41, API and canonical/harness/captain skills. Validate OpenSpec and verify documented commands against the remote-built CLI; preserve all uncompleted Ash/CI tasks.
+
+## 8. Wider integration and final evidence
+
+- [ ] 8.1 Run remote packaged API/CLI acceptance covering legacy board/context/document/watch contracts, additive upgrades, multi-replica routing, shared budgets and independent provider/session failures; record exact BuildBuddy invocations and report any unsupported live adapter as untested.
+- [ ] 8.2 Complete the remaining CI provider policy, BuildBuddy diagnostics and completion-guard gates through `adopt-ash-and-monitor-pr-ci`; prove no false green/early completion and available/degraded evidence, without replacing its task checklist with notification success.
+- [ ] 8.3 Update architecture and portable proposal artifacts for implemented behavior, upload/link immutable versions and verify live sandbox rendering; record final mode, image/CLI digests, enrollment capability matrix and a tested no-data-loss rollback before marking the whole runtime change complete.
+
+## Reservation foundation evidence
+
+Task 1.1 adds a mutable Ash PollState, atomic submission enrollment, bounded
+120-second per-PR reservations, generations/attempt UUIDs and fenced persistent
+failure backoff, with observation default-off. [Remote polling/inventory/discovery
+proof](https://carverauto.buildbuddy.io/invocation/dfa54af4-ad05-40dd-9d9c-f71c1e42360c)
+passed those three targets; that first run&#x27;s additional schema target failed on
+an omitted BM25 extension in the new upgrade fixture. After correcting the
+fixture, [fresh/repeat/schema-4/schema-7 migration proof](https://carverauto.buildbuddy.io/invocation/b99cbebd-2f59-460a-bff4-6bfd125a4609)
+passed. See [stage contracts](../../../docs/ci-polling.md).
+
+The reservation foundation alone has no due scheduler. Task 1.2 now adds scheduling as documented below; GitHub collection, failure obligations, worker connectors and automatic reminders remain pending. Existing Ash/CI tasks 1.3 and
+4.2–4.4 remain open; 1.2 covers only the scheduling subset of 4.2.
+The first release gate and the remaining 34 runtime tasks remain open.
+
+After remote formatting, [full 17-target acceptance](https://carverauto.buildbuddy.io/invocation/9f599f54-8769-466d-8de4-1e88b8fe7368) passed (12 executed, five unchanged cached targets). Archify foundation: 9/9 showcase checks, zero errors/warnings, all four desktop containment measurements, and separate light/dark image review. No live runtime or provider result is implied.
+
+## Scheduling evidence
+
+Task 1.2 adds immediate transactional per-PR Oban jobs, a bounded minute AshOban scheduler, missing-state reconciliation from all canonical inventory, independent queues, and shared PostgreSQL provider admission windows. [Full 18-target remote acceptance](https://carverauto.buildbuddy.io/invocation/c39b75ed-fca7-4114-b78c-4992a52d3ed9) proves restart, archived/terminal and previously-green PR scheduling, recovery across 100 rows, disabled queued jobs, atomic enqueue rollback, independent shared budgets and schema-8 backoff preservation during schema-9 upgrade. Actual pacing and unavailable defer limits are in [stage contracts](../../../docs/ci-polling.md).
+
+No provider HTTP collector, CI verdict writer, repair obligation, wake connector or reminder is delivered yet. Existing Ash/CI 4.2–4.4 remain open for their broader observation requirements. The first release gate remains group 3; observation remains default-off. The approved exported proposal remains the historical planning snapshot.
+
+After remote formatting, [full 18-target acceptance](https://carverauto.buildbuddy.io/invocation/eb4b683e-7e3d-42d1-ae45-9412e467059b) passed. Scheduling Archify passed 9/9 showcase checks with zero errors/warnings, four desktop containment measurements, and separate actual light/dark image review; viewer interactions are not covered by that image review.
+
+
+## Current-head collection evidence
+
+Task 1.3 now samples bounded current-head GitHub metadata, all check-suite/run
+and status pages, latest numeric attempt IDs, failed-job source links and
+head/base/lifecycle rechecks. Schema 10 retains immutable fenced snapshots and
+provider-wide cooldown. [Full 19-target remote acceptance](https://carverauto.buildbuddy.io/invocation/ba9ffc78-3106-4bc0-bbdd-44b101eecadb)
+passed (14 executed, five unchanged cached targets). The TLS fixture drives the
+packaged Ash poll action against invented provider responses and PostgreSQL;
+see [collector contracts](../../../docs/github-ci-observation.md).
+
+A complete head failure can be failing, a nonterminal latest attempt pending,
+and every clean/empty/security-only observation remains unknown without policy.
+Required repository rules, workflow/test-ref identity, passing certification,
+Actions job details and BuildBuddy correlation remain unchecked in the broader
+Ash/CI change, which remains 9/37. Obligations, receipts, adapters, reminders and
+the controlled first-release proof remain open. The runtime is 3/36 complete.
+
+Merged PR45 is separately rolled to farm01 at schema 9/API 1 with discovery and
+observation explicitly false; its operator pin and retained-data receipt ship
+with this collector PR to avoid an extra maintenance-only PR. The collector
+schema 10 and provider calls are not deployed or enabled by that record.
+
+
+Collector Archify: source-linked implementation evidence, 9/9 showcase checks,
+zero errors/warnings, four desktop containment measurements and separate actual
+light/dark screenshot review. Viewer interactions are not implied.
+## Server delivery and reminder evidence
+
+Tasks 2.1–2.3 and 3.1 are implemented on the server. [Twenty-target remote
+acceptance](https://carverauto.buildbuddy.io/invocation/95a37bdf-86ab-4ed1-83f3-3d1769cfa6df)
+passed after named source-capture attributes and isolated enrollment/receipt helpers.
+The packaged runtime proves scoped/revoked credentials, exact immutable receipt
+attribution, atomic Context receipt/source rollback, late lower-ID commits,
+interrupted 205-recipient fan-out, bounded fairness, dispatch expiry with retained
+uncertainty, read-only historical reconciliation, independent blocked recipients,
+and four-per-hour reminders with duplicate jobs/progress/blocker/pause fences.
+The global switch gates reservations and reminder wakes while preserving evidence.
+The [pre-fix reminder predicate](https://carverauto.buildbuddy.io/invocation/ef8a16a9-22f0-41d2-8257-0a0015da3c04)
+fails specifically on a disabled flag producing a reminder; fixed behavior is
+included in the passing acceptance above.
+
+Tasks 1.4/1.5 are now implemented through the published collector transaction.
+[Combined 24-target acceptance](https://carverauto.buildbuddy.io/invocation/c8f398e3-cc92-40df-b364-31ae6e5191a5)
+proves fenced concurrent commits, atomic snapshot/projection/episode/task/source rollback,
+configured complete-head recovery without task completion, recurrence, and actual schema-10
+upgrade preserving evidence. Separate Chrome draft checks cover eight desktop/mobile
+light/dark measurements with two inspected screenshots; missing/malformed or foreign-head
+draft is never inferred. Task 2.7 is proved by [connected full-render export](https://carverauto.buildbuddy.io/invocation/c54bd1e1-f572-44e9-8823-355a83ff8612)
+and eight actual Chrome desktop/mobile light/dark checks; stale heartbeat, fresh
+connector reports and live task leases remain separately visible. Architecture and historical portable planning viewers
+are [document 63](https://agentboard.farm01.carverauto.dev/documents/63) and
+[document 64](https://agentboard.farm01.carverauto.dev/documents/64); final PR-bound
+immutable versions remain a delivery requirement. Protocol 1 is documented in
+[worker API](../../../docs/worker-api.md). This does not complete the live release
+gate, host conformance, provider merge-ref/BuildBuddy diagnostics, completion guard,
+or the broader Ash/CI dashboard checklists.
+
+## Message mode 7.1 evidence
+
+Default board and explicit dual source capture are implemented without changing
+the messages table or production flags. Sole-Mattermost activation is refused
+with explicit missing 5.1/5.2/5.3, adapter and #80 decision-path reasons; the
+working board inbox remains primary. Private recipient notices retain scoped
+pending intents rather than using a public-channel fallback. This is not peer
+inbox parity or a production cutover. Tasks 7.2/7.3 and the wider runtime remain
+open. See [mode prerequisites and rollback](../../../docs/setup/mattermost.md#message-modes-openspec-71).
+
+[Five packaged remote suites](https://carverauto.buildbuddy.io/invocation/47eef25c-8114-4679-b5f8-931289b3191e)
+passed board/cooperation compatibility, atomic dual sends/handoff, disabled jobs,
+private-route fencing, explicit claim, outbox/message rollback, outage isolation
+and cold-start mode configuration. A
+[disabled capture producer](https://carverauto.buildbuddy.io/invocation/986f466a-f6ca-4974-bdab-106b35a91d03)
+fails specifically on the missing message intent. Archify has separate 9/9
+deterministic, desktop browser containment and light/dark screenshot review
+receipts. Publication/current-head CI and immutable PR-bound document uploads
+are separate delivery gates.
+
+## Shared-bot inbound 5.3 evidence
+
+[Five-suite packaged remote acceptance](https://carverauto.buildbuddy.io/invocation/b27ab228-1cd2-424d-8b4a-ba0b8f2df7b4)
+proves authenticated subscribe-before-history, overlapping equal-time pages/live
+arrival, same-time edits, verified thread-root and plain-mention routing,
+agent_id+msg_id/bridge echo suppression, new DM discovery, downtime recovery,
+missing/revoked source handling, scoped exact receipts and the real Go CLI
+checkpoint seam. Schema18 stores metadata/hashes only; inbound defaults off.
+A stable history scan still exposes historical_deletions_unprovable, because
+ordinary bot history cannot prove unknown offline deletions. Bodies remain
+Mattermost-authoritative; unavailable versions are not fabricated or consumed.
+See [implemented contracts](../../../docs/mattermost-inbox.md). Task5.4, chat
+cutover, live fleet parity, Herdr activation and PR publication/CI remain distinct
+gates; this checkbox does not imply production enablement.
+</pre></details><details id="spec-3"><summary>specs/cooperation-visibility/spec.md</summary><pre>## Purpose
+
+Make the actual cooperation state inspectable without conflating task ownership, source evidence, session liveness, notification handling and PR completion.
+
+## ADDED Requirements
+
+### Requirement: Task-linked Shared context
+Task detail SHALL show a read-only Shared context section with at most 20 recent task-linked entries, kind, summary, source and time, plus a task-filtered full Context link. Reads SHALL NOT acknowledge entries. Documentation SHALL describe rendered workspace artifacts separately from findings and timeline events.
+
+#### Scenario: Task has documents and findings
+- **WHEN** a user opens that task
+- **THEN** documentation links and actual Context entries appear in separate clearly named sections
+
+#### Scenario: Context unavailable
+- **WHEN** the Context read fails while the task is available
+- **THEN** the task remains readable and its Context section exposes a bounded error state
+
+### Requirement: Worker delivery health
+Existing agent/task views SHALL expose bound host/session status, supported capabilities, pending count/oldest age, last received/handled and pause/block/cooldown/uncertainty reasons. They SHALL distinguish agent heartbeat, connector health, adapter readiness and task lease; session transport SHALL NOT become roster authority.
+
+#### Scenario: Agent stale but task claim still live
+- **WHEN** an agent heartbeat is stale and its claim is unexpired
+- **THEN** the dashboard shows those states separately without implying automatic takeover or live activity
+
+### Requirement: Responsible PR obligations and receipts
+When CI monitoring is enabled, PR/follow-up views SHALL identify the recorded responsible agent, current revision/result/freshness, obligation and delivery status. Notification handling SHALL NOT display failing, pending, unknown or stale CI as passing; missing responsible agents SHALL remain explicit captain work.
+
+#### Scenario: Owner moves to another issue
+- **WHEN** its submitted PR fails at a monitored revision
+- **THEN** the failure remains linked to its responsible agent and repair obligation regardless of the agent&#x27;s current-task display pointer
+
+#### Scenario: Alert handled but PR still red
+- **WHEN** that agent acknowledges a failure alert without a verified passing result
+- **THEN** handling status changes while CI remains failing and the repair obligation remains visible
+
+### Requirement: Preserve compact board and source boundaries
+Cooperation additions SHALL preserve Kanban and accessible Tailwind v4 layouts with bounded text and responsive containment. They SHALL link canonical Mattermost, Context, PR and HTML sources rather than expand every card into a combined chat/evidence transcript.
+
+#### Scenario: Long identifiers or large backlog
+- **WHEN** an agent/task has long source IDs or many pending deliveries
+- **THEN** compact summaries remain readable and details are available without overflowing the existing cards
+</pre></details><details id="spec-4"><summary>specs/harness-adapters/spec.md</summary><pre>## Purpose
+
+Connect durable worker deliveries to heterogeneous persistent agent sessions through explicit bindings and independently validated host and harness capabilities.
+
+## ADDED Requirements
+
+### Requirement: Explicit host service activation and ownership
+Skill installation SHALL remain instruction-only. Worker installation SHALL preview integration-owned changes, preserve existing hooks/configuration, report reload requirements and provide supervised host execution. Pause/uninstall SHALL remove only owned integration state and retain pending deliveries.
+
+#### Scenario: Install global skills
+- **WHEN** a user installs the Agentboard skills
+- **THEN** no host daemon, hook, automatic prompt or registration is silently activated
+
+#### Scenario: Existing Herdr or Firstmate hooks
+- **WHEN** the worker adapter installs alongside existing hooks
+- **THEN** it preserves their entries, selects one compatible wake owner and reports conflicts instead of overwriting configuration
+
+### Requirement: Stable identity and binding generations
+Bindings SHALL use stable board agent identity, explicit host/session/transport handles and a generation. Pane titles/model names SHALL NOT determine identity. Session replacement, fork, pane movement or changed occupant SHALL require verified rebinding or disable dispatch; unrelated focused panes SHALL never be fallback targets.
+
+#### Scenario: Same pane hosts a replacement agent
+- **WHEN** the bound pane&#x27;s occupant changes
+- **THEN** the old binding cannot prompt or acknowledge on behalf of the new occupant
+
+#### Scenario: Session changes in the same process
+- **WHEN** a native harness resumes, forks or creates a different session
+- **THEN** previous-generation callbacks are retired and only the verified new binding can consume new frames
+
+### Requirement: Safe Herdr transport
+Herdr automation SHALL require negotiated installed-server capabilities and a verified recipient/safe-input boundary. It SHALL defer working, blocked, unknown, paused or occupied-composer sessions. Herdr state SHALL NOT become board roster, ownership or batch-handling authority.
+
+#### Scenario: Approval dialog active
+- **WHEN** a delivery targets a Herdr agent waiting for approval
+- **THEN** the runtime retains pending work and does not type into or answer that dialog
+
+#### Scenario: No safe-input evidence
+- **WHEN** the installed Herdr server cannot prove safe automatic submission for the selected session
+- **THEN** automatic prompting stays disabled with an explicit reason and manual/native check-in remains available
+
+#### Scenario: Herdr reports done
+- **WHEN** Herdr observes the bound session as done after a submission
+- **THEN** the runtime treats that as lifecycle evidence and still requires exact Agentboard handling receipts
+
+### Requirement: Truthful per-adapter capabilities
+Each binding SHALL report versioned support for idle wake, turn-start delivery, tool-return delivery, native receipts and recovery, with unsupported/degraded reasons. A model change SHALL NOT imply a harness feature. Unsupported native adapters SHALL retain verified fallback/check-in without a claim of mid-turn parity.
+
+#### Scenario: Muse or AGY has no validated hook contract
+- **WHEN** it can use a verified Herdr transport but lacks native boundary proof
+- **THEN** the dashboard reports idle delivery/check-in support and explicitly marks native mid-turn delivery unsupported
+
+### Requirement: Boundary delivery preserves existing tools
+Ordinary events SHALL enter at an eligible turn boundary. Urgent DMs/new relevant Context SHALL enter supported infrastructure-tool return boundaries in delimited source frames preserving the original tool result. Existing CLI JSON/NDJSON contracts SHALL remain unchanged, and arbitrary running processes SHALL NOT be interrupted.
+
+#### Scenario: Context arrives during a supported tool call
+- **WHEN** a scoped peer entry arrives before the infrastructure tool returns
+- **THEN** its bounded priority frame accompanies that result and remains unhandled until explicitly acknowledged
+
+#### Scenario: Raw CLI JSON requested
+- **WHEN** an agent invokes an existing command with `--json`
+- **THEN** its stdout remains compatible JSON/NDJSON without appended runtime prose
+
+### Requirement: Harness-owned continuation mechanisms
+Native adapters SHALL use the installed harness&#x27;s supported completion/hooks/extensions with one wake owner and generation-aware cleanup. Codex fallback SHALL use bounded foreground checkpoints; native background wake SHALL be advertised only with a verified completion callback. Detached shell backgrounding SHALL NOT stand in for a supported wake path.
+
+#### Scenario: Tracked callback capability absent
+- **WHEN** a harness cannot prove a native background completion resumes the correct session
+- **THEN** the adapter uses a supported fallback or reports unavailable rather than starting a detached watcher
+
+### Requirement: Host recovery and independent health
+Host service restart SHALL reconcile durable server pending state and its uncertain submission journal before dispatching. Connector health, adapter readiness and agent heartbeat SHALL be distinct. Runtime health reporting SHALL NOT manufacture busy/idle model activity or renew task leases.
+
+#### Scenario: Healthy connector with stopped model
+- **WHEN** the connector is running but its agent session is absent
+- **THEN** the dashboard reports the missing session and pending delivery without presenting the model as fresh/busy or taking over its claim
+</pre></details><details id="spec-5"><summary>specs/mattermost-coordination/spec.md</summary><pre>## Purpose
+
+Provide one authoritative conversation plane for humans and agents while retaining atomic workspace ownership and recoverable migration from board-native messaging.
+
+## ADDED Requirements
+
+### Requirement: Asynchronous task lifecycle bridge
+The bridge SHALL use one service bot, one durable task-thread mapping and unique event/destination intents. It SHALL post short attributed lifecycle/evidence links asynchronously. Mattermost availability SHALL NOT be required to commit a task mutation, handoff or Context publication.
+
+#### Scenario: Mattermost unavailable during handoff
+- **WHEN** a live owner hands off a task while chat is down
+- **THEN** assignment, history and notification intent commit atomically, and chat delivery stays pending for recovery
+
+### Requirement: Remote-write uncertainty is explicit
+The bridge SHALL reconcile an accepted-post/lost-response case against durable event markers and authorized remote history before retrying. An unresolved outcome SHALL remain visibly uncertain. Client retry metadata SHALL NOT be represented as an unverified exactly-once receiver guarantee.
+
+#### Scenario: Remote post accepted before timeout
+- **WHEN** Mattermost stores a post but its response is lost
+- **THEN** recovery discovers and adopts the matching post or parks uncertainty instead of blindly creating another
+
+#### Scenario: Incomplete reconciliation
+- **WHEN** permission or pagination limits prevent proving the remote result
+- **THEN** the intent stays uncertain with a reason and requires explicit resolution before a potentially duplicate retry
+
+### Requirement: Shared-bot identity with per-agent attribution
+Phase 1 posts every agent message through the ONE shared `agentboard` bot. Agents never hold Mattermost credentials. Sender attribution SHALL derive from the Agentboard-authenticated agent id plus structured post props (`agent_id`, `task_id`, `kind`, `msg_id`), never from the display name or a per-agent Mattermost user. Each post SHALL carry a readable header line `[&lt;agent-id&gt; · &lt;task-id&gt;]` and plain `@agent-id` text mentions for addressing. The server posting seam SHALL stay pluggable so phase 2 per-agent bots swap in transparently.
+
+#### Scenario: Peer conversation through the shared bot
+- **WHEN** worker A sends a status note and worker B reads the channel
+- **THEN** B sees A&#x27;s agent id in the header line and props, A&#x27;s own echo is suppressible by `props.agent_id`, and neither worker holds a Mattermost token
+
+### Requirement: Durable authorized conversation catch-up
+Worker message ingestion SHALL combine live subscriptions and paginated authorized history with exact post/version deduplication. Reconnect SHALL recover missed updates and expose incomplete catch-up. Bodies SHALL remain authoritative in Mattermost and SHALL NOT be indexed as Context or offered as another board chat store.
+
+#### Scenario: Messages arrive during multi-page reconnect
+- **WHEN** several messages, including equal-time posts and an edit, arrive while REST catch-up runs
+- **THEN** they are reconciled once by post/version identity or an explicit incomplete-gap state remains visible
+
+#### Scenario: Deleted or inaccessible post
+- **WHEN** a queued post is deleted or membership is revoked before inspection
+- **THEN** the runtime records source unavailability without inventing its text or claiming successful catch-up
+
+### Requirement: Staged primary-inbox migration
+Message mode SHALL default to `board` and support explicit `dual` and gated `mattermost` modes. Mattermost cutover SHALL require working bridge, phase 1 shared-bot routing with per-agent attribution, headless peer send/receive/recovery, handoff notification and usable delivery adapters — NOT per-agent Mattermost users. Until then board inbox/thread reads and sends SHALL retain their contract.
+
+#### Scenario: Bridge exists but phase 1 routing does not
+- **WHEN** an operator attempts sole-Mattermost cutover before shared-bot routing with per-agent attribution works
+- **THEN** the readiness gate fails and the working board inbox remains primary
+
+### Requirement: Historical compatibility and rollback
+After cutover, historical board messages SHALL remain readable, exportable and individually acknowledgeable by recipients. Legacy sends SHALL clearly explain migration; primary navigation SHALL link Mattermost. Rollback SHALL re-enable board writes without deleting history, receipts, pending items or blindly reposting remote messages.
+
+#### Scenario: Legacy unread direct message at cutover
+- **WHEN** a recipient has an old unhandled board message
+- **THEN** it remains accessible/actionable through the historical path until explicitly handled or migrated
+
+#### Scenario: Rollback after chat outage
+- **WHEN** the operator selects board mode again
+- **THEN** compatible board communication resumes and retained remote/outbox receipts prevent blind replay
+
+### Requirement: Conversation is not command authorization
+Peer posts SHALL NOT grant task ownership or approve external actions. Any later inbound slash-command mutation SHALL require its command token and allowed user identity. Routine peer send/receive SHALL not require broad admin credentials, and tokens SHALL never appear in public artifacts.
+
+#### Scenario: Peer asks to seize an expired task
+- **WHEN** a DM contains a request to take over work
+- **THEN** it is source evidence and the agent still follows explicit board recovery and existing user authorization rules
+</pre></details><details id="spec-6"><summary>specs/worker-delivery/spec.md</summary><pre>## Purpose
+
+Return durable, authorized workspace responsibilities and source notifications to their responsible workers across context loss, missed notifications and session restarts.
+
+## ADDED Requirements
+
+### Requirement: CI failure follows its responsible agent
+Confirmed monitored PR failures SHALL create a durable repair alert for the recorded responsible agent or visible captain queue. Monitoring SHALL continue after that agent changes tasks and after a previously passing check fails again. PR responsibilities SHALL NOT depend on a mutable current-task display pointer or notification receipt.
+
+#### Scenario: Owner forgets PR while working elsewhere
+- **WHEN** its registered open PR fails after it starts another authorized issue
+- **THEN** a repair alert remains pending for that owner with the failed revision/job links and the dashboard retains the unresolved obligation
+
+#### Scenario: Previously green PR fails again
+- **WHEN** a still-open monitored PR starts a new confirmed failure episode
+- **THEN** it generates a new durable alert even though the earlier episode&#x27;s notification was already handled
+
+### Requirement: Failure delivery and overdue escalation
+The system SHALL deliver a confirmed failure within two minutes when provider budget, service health and an enabled verified session boundary permit. Otherwise it SHALL expose the delay reason. An unresolved failure without meaningful progress SHALL receive bounded deduplicated reminders and visible captain escalation; acknowledgements alone SHALL NOT disable them.
+
+#### Scenario: Alert acknowledged without investigation
+- **WHEN** the owner handles the notification but records no repair progress, blocker or handoff before its reminder becomes due
+- **THEN** the still-current failure remains open and a bounded reminder/escalation is generated without duplicating the repair task
+
+#### Scenario: Paused or unavailable session
+- **WHEN** the responsible worker cannot receive safely
+- **THEN** the pending alert and overdue reason remain visible to the captain without prompting an unrelated agent
+
+### Requirement: Durable source capture and routing
+The system SHALL capture a source intent atomically with relevant board changes and route by durable pending state and unique source/recipient identity. Missed notifications, duplicate jobs, restart and a lower-ID late commit SHALL NOT lose or duplicate the logical pending delivery.
+
+#### Scenario: Late commit after a newer source
+- **WHEN** a lower-ID source commits after a higher-ID source has already been routed
+- **THEN** reconciliation still discovers the lower-ID source and creates its eligible recipient delivery once
+
+#### Scenario: Source intent rollback
+- **WHEN** durable source capture fails during a task or Context mutation
+- **THEN** the canonical mutation and related source intent both roll back
+
+#### Scenario: Routing interrupted between pages
+- **WHEN** a router restarts after completing only part of its pinned audience
+- **THEN** it resumes unfinished routing and preserves prior unique recipient deliveries
+
+### Requirement: Explicit enrollment and bounded bootstrap
+Workers SHALL enroll with explicit repository/goal scopes. Bootstrap SHALL present current responsibilities, unresolved obligations and bounded relevant Context with continuation links. Subscriptions and received source text SHALL NOT grant task ownership or permission for unrelated work, merge, deployment or lease recovery.
+
+#### Scenario: Restart after conversation compaction
+- **WHEN** an enrolled worker resumes without remembering its prior tasks
+- **THEN** check-in exposes its durable assigned/owned work and unresolved obligations before it chooses another authorized task
+
+#### Scenario: Unrelated repository event
+- **WHEN** an event belongs to a repository outside the worker&#x27;s enrolled scope
+- **THEN** it does not become an actionable delivery to that worker
+
+### Requirement: Immutable bounded dispatch batches
+Dispatch SHALL freeze exact event membership, ordered priority, payload hash, binding epoch and attempt identity. Reads SHALL NOT consume events. Batches SHALL expose truncation and leave omitted or subsequently arriving items pending; urgent traffic SHALL NOT indefinitely starve ordinary work.
+
+#### Scenario: Arrival during an active delivery
+- **WHEN** new events arrive after a batch freezes
+- **THEN** its membership stays unchanged and the new events remain pending for a later batch or supported priority boundary
+
+#### Scenario: Oversized backlog
+- **WHEN** the backlog exceeds the configured batch count or byte bound
+- **THEN** the frame stays bounded, discloses remaining work and retains omitted events without acknowledgement
+
+### Requirement: Exact received and handled receipts
+The system SHALL distinguish submission, receipt and explicit handling. Only authenticated worker-scoped receipts for exact event IDs SHALL record handling, idempotently retaining first attribution/time. Session idle or turn completion SHALL NOT automatically acknowledge events; notification handling SHALL NOT resolve underlying work.
+
+#### Scenario: Prompt submission succeeds
+- **WHEN** a terminal transport reports that it wrote the frame
+- **THEN** the attempt records submission while its events remain unhandled
+
+#### Scenario: Worker records a blocker
+- **WHEN** a worker handles a CI notification by recording a specific blocker and acknowledging that event
+- **THEN** the notification is handled but the failing PR and repair obligation remain unresolved
+
+#### Scenario: Repeated acknowledgement
+- **WHEN** the same verified worker retries an already-committed receipt
+- **THEN** it succeeds without changing the original time/attribution or acknowledging another item
+
+### Requirement: Fenced attempts and uncertain delivery recovery
+Only the current binding epoch and dispatch generation SHALL commit transport state. An ambiguous external submission SHALL remain visibly uncertain; timeout, reservation expiry or session idle SHALL NOT alone trigger resubmission. Recovery SHALL reconcile receipts/source state before any provably safe or explicitly approved retry.
+
+#### Scenario: Connector dies after writing the prompt
+- **WHEN** a connector restarts without knowing whether its submission was accepted
+- **THEN** it retains uncertainty and reconciles evidence rather than blindly submitting the prompt again
+
+#### Scenario: Late old-epoch result
+- **WHEN** a replaced connector commits a transport result for its former binding epoch
+- **THEN** the system rejects the stale write and preserves the current binding and pending work
+
+### Requirement: Scoped runtime credentials
+New enrollment, dispatch and receipt actions SHALL require credentials scoped to authorized workers/repositories. One worker SHALL NOT acknowledge another worker&#x27;s delivery or rebind its session. Credentials SHALL be revocable and absent from logs, command arguments, public API records and rendered artifacts.
+
+#### Scenario: Foreign-worker receipt
+- **WHEN** worker A attempts to acknowledge worker B&#x27;s event using A&#x27;s capability
+- **THEN** the action fails without consuming B&#x27;s delivery
+
+#### Scenario: Credential revoked during delivery
+- **WHEN** a runtime credential is revoked or its binding epoch changes
+- **THEN** new dispatch and stale callbacks fail without silently dropping pending items
+
+### Requirement: Context receipt compatibility
+Runtime handling of a Context entry SHALL atomically record the existing per-agent Context receipt. Existing explicit Context acknowledgement SHALL prevent that entry from being reintroduced as new pending runtime work. Recent/search/UI reads SHALL remain non-acknowledging.
+
+#### Scenario: Context handled through a boundary frame
+- **WHEN** a worker explicitly handles a Context event through the runtime
+- **THEN** both its delivery receipt and corresponding Context receipt commit together or neither commits
+
+### Requirement: Bounded continuation and durable pause
+Automatic continuation SHALL be limited to enabled, authorized workers with unresolved responsibilities and a verified safe boundary. Pause, approval block, quota exhaustion and failure cooldown SHALL suppress wakes. Idle/no-findings reminders SHALL be coalesced, bounded and SHALL NOT demand fabricated findings or authorize new unrelated work.
+
+#### Scenario: Paused worker has an urgent backlog
+- **WHEN** pending urgent items arrive for a durably paused worker
+- **THEN** they remain visible and pending without waking the session through either host or native hook paths
+
+#### Scenario: Empty progress turn
+- **WHEN** a worker completes a turn without establishing a new useful finding
+- **THEN** it can record that disposition without forced Context publication or a repeating reminder loop
+
+### Requirement: Failures remain observable and independent
+Pending/uncertain deliveries SHALL survive restart and SHALL NOT be pruned while unresolved. Provider/session failures SHALL expose retry/catch-up state and respect 429/backoff. A stalled recipient or transport SHALL NOT block unrelated workers or canonical board/context operations.
+
+#### Scenario: One recipient hangs
+- **WHEN** one session transport stops responding
+- **THEN** another worker can check in and ordinary task/context operations continue without waiting on the hung transport
+</pre></details></section><p>Design source: Agentboard project theme tokens from web/assets/app.css, used to match the subject repository. This portable page has no external assets.</p></main></html>

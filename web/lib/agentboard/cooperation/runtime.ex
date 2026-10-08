@@ -165,7 +165,7 @@ defmodule Agentboard.Cooperation.Runtime do
 
         if credential.scope == "receipt" and
              (credential.epoch != b.epoch or
-                operation not in ~w(state pending responsibilities obligations doctor receipts reconcile)),
+                operation not in ~w(state pending responsibilities obligations doctor receipts reconcile mattermost_inbox mattermost_read mattermost_ack)),
            do: Ops.reject("forbidden", "Capability does not authorize this operation")
 
         execute(operation, data, s, b, credential)
@@ -290,6 +290,15 @@ defmodule Agentboard.Cooperation.Runtime do
     change(s, %{paused: op != "resume"})
     state(get(Subscription, s.id), get(Binding, b.id))
   end
+
+  defp execute("mattermost_inbox", data, s, _b, _c),
+    do: Agentboard.Mattermost.InboundStore.page(s, data)
+
+  defp execute("mattermost_ack", data, s, _b, _c),
+    do: Agentboard.Mattermost.InboundStore.acknowledge(s, data)
+
+  defp execute("mattermost_read", data, s, _b, _c),
+    do: Agentboard.Mattermost.InboundStore.read(s, data)
 
   defp execute("pending", data, s, _b, _c), do: pending_page(s, data)
 
@@ -922,7 +931,7 @@ defmodule Agentboard.Cooperation.Runtime do
   def enabled?(subscription),
     do: Application.get_env(:agentboard, :cooperation_enabled, false) and not subscription.revoked
 
-  defp worker_record(s), do: Map.put(Ops.public(s), "enabled", enabled?(s))
+  defp worker_record(s), do: Ops.public(s) |> Map.put("enabled", enabled?(s)) |> Map.put("mattermost_inbox_supported", true)
 
   defp reasons(s, b) do
     []

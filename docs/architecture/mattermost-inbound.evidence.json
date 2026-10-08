@@ -1,0 +1,32 @@
+{
+  "kind": "controlled-fixture evidence and documentation checks",
+  "remote_acceptance": {
+    "url": "https://carverauto.buildbuddy.io/invocation/b27ab228-1cd2-424d-8b4a-ba0b8f2df7b4",
+    "targets": [
+      "mattermost_inbox_test",
+      "board_api_test",
+      "cooperation_api_test",
+      "mattermost_conversations_test",
+      "worker_runtime_test"
+    ],
+    "result": "passed; pre-publication-rebase"
+  },
+  "archify": {
+    "deterministic": "9/9; 0 errors; 0 warnings",
+    "source_sha256": "9f247bfff0252ac0ffaa18cea5d18ea16a1977ce5baadcce42bf5dd4b76f7084",
+    "html_sha256": "55d766c87cd18ba86c041883ba215855549674a6e442e1b6de1a180ef4b67d02",
+    "browser": "passed: 1440x900, 1600x1000, 1920x1080, 2048x1320; light and dark endpoint captures",
+    "perceptual": "two actual screenshots reviewed: 1440 light and 2048 dark; readable, no crossings/overflow"
+  },
+  "limitations": [
+    "Controlled invented HTTP/WS source, not production Mattermost rollout",
+    "Unknown historical offline deletions cannot be proved; caught_up remains false",
+    "Herdr automation and sole-Mattermost cutover remain disabled"
+  ],
+  "openspec_review": {
+    "feedback": "approved",
+    "ended_by": "user",
+    "portable_export": "mm-inbox-proposal.html",
+    "unresolved_local_assets": 0
+  }
+}
