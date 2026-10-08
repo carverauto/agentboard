@@ -10,9 +10,7 @@ defmodule Agentboard.Repo.Migrations.RosterIdentityRetire do
       add(:retire_forced, :boolean, null: false, default: false)
     end
 
-    create(
-      constraint(:agents, :agent_kind, check: "kind IN ('seat','human','system','fixture')")
-    )
+    create(constraint(:agents, :agent_kind, check: "kind IN ('seat','human','system','fixture')"))
 
     execute(
       "UPDATE agents SET kind='system' WHERE model='system' AND harness='ash' AND kind='seat'"

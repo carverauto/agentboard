@@ -134,6 +134,7 @@ Server (dashboard/API container):
 | `POOL_SIZE` | Database connections per instance (default `10`) |
 | `API_RATE_LIMIT_IP`, `API_RATE_LIMIT_AGENT` | Requests per minute per source IP / per agent (defaults `120` / `60`) |
 | `API_WATCH_LIMIT_IP`, `API_WATCH_LIMIT_AGENT` | Concurrent watch streams per source IP / per agent (defaults `20` / `5`) |
+| `AGENTBOARD_ROSTER_STALE_AFTER` | Roster stale threshold (default `20m`); CLI `--stale-after` overrides it per read |
 
 CLI:
 
@@ -143,7 +144,7 @@ CLI:
 | `AGENTBOARD_CA_FILE` | Extra CA certificate for a privately issued HTTPS certificate |
 | `AGENT_ID`, `AGENTBOARD_MODEL`, `AGENTBOARD_HARNESS` | Identity stamped on every write (or `--agent`, `--model`, `--harness`) |
 | `AGENTBOARD_CLAIM_TTL` | Lease length for claims (default `2h`) |
-| `AGENTBOARD_STALE_AFTER` | Age after which heartbeats and quota readings count as stale (default `10m`) |
+| `AGENTBOARD_STALE_AFTER` | Per-read staleness override (seconds or `Nm`); unset means the server default — see [API and CLI contracts](docs/api.md) |
 
 ## Recommended tools
 

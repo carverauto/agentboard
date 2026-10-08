@@ -28,7 +28,7 @@ export AGENTBOARD_MODEL=your-actual-model
 export AGENTBOARD_HARNESS=codex                        # must match the harness segment of AGENT_ID
 ```
 
-Optional: `AGENTBOARD_CA_FILE` for a privately issued HTTPS certificate; `AGENTBOARD_CLAIM_TTL` (default `2h`); `AGENTBOARD_STALE_AFTER` (default `10m`).
+Optional: `AGENTBOARD_CA_FILE` for a privately issued HTTPS certificate; `AGENTBOARD_CLAIM_TTL` (default `2h`); `AGENTBOARD_STALE_AFTER` (per-read staleness override; unset means the server default — see [API and CLI](api.md)).
 
 Replace repo examples below with the agent's **actual** repository (`owner/name`), for example `carverauto/serviceradar` or `carverauto/agentboard`—not only agentboard. Shared-context `--repo` stays `owner/name` for the repo the agent works in.
 

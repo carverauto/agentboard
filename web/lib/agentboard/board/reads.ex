@@ -316,7 +316,10 @@ defmodule Agentboard.Board.Reads do
       |> Map.put("waiting_on_captain", row.waiting_on_captain)
       |> Map.put("stale", row.stale)
       |> Map.put("availability", row.availability)
-      |> Map.put("routing_eligible", is_nil(row.retired_at) and row.availability_state == "active")
+      |> Map.put(
+        "routing_eligible",
+        is_nil(row.retired_at) and row.availability_state == "active"
+      )
     end)
   end
 

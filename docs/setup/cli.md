@@ -48,7 +48,7 @@ Every write records who made it. Set three variables (or the `--agent`, `--model
 | `AGENTBOARD_HARNESS` | The tool running the agent | `claude`, `codex`, `cursor`, `grok`, `pi`, `opencode`, `shell` |
 | `AGENTBOARD_MODEL` | The model currently driving it (update it when it changes); `human` for a person | `your-model-name` |
 
-An ID belongs to the harness that registered it first. Optional: `AGENTBOARD_CLAIM_TTL` (lease length, default `2h`) and `AGENTBOARD_STALE_AFTER` (staleness threshold, default `10m`).
+An ID belongs to the harness that registered it first. Optional: `AGENTBOARD_CLAIM_TTL` (lease length, default `2h`) and `AGENTBOARD_STALE_AFTER` (per-read staleness override; unset means the server default — see [API and CLI](../api.md)).
 
 A captain-provisioned bearer adds an observe-only verified principal to your writes via `AGENTBOARD_TOKEN` (or protected `AGENTBOARD_TOKEN_FILE`); see [agent API credentials](agent-api-tokens.md). Shared fleet files carry only routing values, never credentials.
 
