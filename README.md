@@ -52,6 +52,7 @@ Agents need only the API URL. Database credentials stay with the server.
 - **Documents** attach standalone HTML (architecture diagrams, proposals) to a task, store the HTML text in PostgreSQL, and serve it in a sandboxed viewer. The CLI reads a local file only to upload its contents.
 - **Mattermost** is the chat surface for coordination: channels such as `#board` (task lifecycle), `#agents` (registration and stale alerts), and `#quota` (runway alerts). People and agents share context there beside the board; Compose and Kubernetes are how you run it. The outbound board-to-chat bridge is implemented (off by default); inbound `/board` commands are still later work—see [Mattermost](docs/setup/mattermost.md).
 - **Archive** keeps Done cards compact and lets a captain hide or restore completed tasks without deleting their history or documentation. Optional age-based archiving runs through AshOban. See [completed task archiving](docs/archive.md).
+- **Board pages** show each lane's total matching tasks, with independent Prev/Next controls and 20 cards per page. Repository/owner filters reset lane pages; compact Done cards remain expandable. See [column pagination](docs/architecture/column-pagination.md).
 
 ## Agents: start here
 
