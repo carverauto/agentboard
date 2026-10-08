@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Proposed stale-seat recovery",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/carverauto/agentboard",
+      "revision": "2c4b70a9bdf5d89e279d98cfcc13278568292810"
+    },
+    "viewBox": [
+      1250,
+      690
+    ]
+  },
+  "components": [
+    {
+      "id": "heartbeat",
+      "type": "external",
+      "label": "Seat heartbeat",
+      "sublabel": "Known cadence / enrolled seat",
+      "pos": [
+        40,
+        310
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
+          "label": "Proposed design; not deployed"
+        }
+      ]
+    },
+    {
+      "id": "policy",
+      "type": "security",
+      "label": "Approved policy",
+      "sublabel": "Proposed #154 admission",
+      "pos": [
+        360,
+        50
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
+          "label": "Proposed design; not deployed"
+        }
+      ]
+    },
+    {
+      "id": "episode",
+      "type": "backend",
+      "label": "Recovery episode",
+      "sublabel": "Proposed bounded detector",
+      "pos": [
+        360,
+        310
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
+          "label": "Proposed design; not deployed"
+        }
+      ]
+    },
+    {
+      "id": "wake",
+      "type": "messagebus",
+      "label": "seat.restart",
+      "sublabel": "Proposed #156 reservation",
+      "pos": [
+        680,
+        310
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
+          "label": "Proposed design; not deployed"
+        }
+      ]
+    },
+    {
+      "id": "host",
+      "type": "backend",
+      "label": "Owned host adapter",
+      "sublabel": "Journal / #141 isolation",
+      "pos": [
+        1000,
+        310
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
+          "label": "Proposed design; not deployed"
+        }
+      ]
+    },
+    {
+      "id": "restored",
+      "type": "backend",
+      "label": "Verified new seat",
+      "sublabel": "Generation + startup proof",
+      "pos": [
+        1000,
+        540
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
+          "label": "Proposed design; not deployed"
+        }
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "Held work + answers",
+      "sublabel": "Original task / gate / audit",
+      "pos": [
+        360,
+        540
+      ],
+      "size": [
+        210,
+        76
+      ],
+      "sources": [
+        {
+          "path": "openspec/changes/automate-stale-seat-recovery/design.md",
+          "label": "Proposed design; not deployed"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "detect",
+      "from": "heartbeat",
+      "to": "episode",
+      "label": "stale age"
+    },
+    {
+      "id": "admit",
+      "from": "policy",
+      "to": "episode",
+      "label": "approved version",
+      "labelAt": [
+        465,
+        210
+      ]
+    },
+    {
+      "id": "reserve",
+      "from": "episode",
+      "to": "wake",
+      "label": "reserve once"
+    },
+    {
+      "id": "dispatch",
+      "from": "wake",
+      "to": "host",
+      "label": "HTTPS intent"
+    },
+    {
+      "id": "verify",
+      "from": "host",
+      "to": "restored",
+      "label": "startup proof",
+      "labelAt": [
+        1105,
+        463
+      ]
+    },
+    {
+      "id": "catchup",
+      "from": "restored",
+      "to": "ledger",
+      "label": "canonical catch-up"
+    },
+    {
+      "id": "retain",
+      "from": "episode",
+      "to": "ledger",
+      "label": "audit + retain",
+      "labelAt": [
+        465,
+        463
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Admission stays explicit",
+      "items": [
+        "Disabled until captain approval and per-host restart proof.",
+        "Active availability and a declared heartbeat cadence are required."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Recover without replay",
+      "items": [
+        "Preserve WIP, Treehouse lease and native pipeline custody.",
+        "After three failures: one escalation, with claims and decisions held."
+      ]
+    }
+  ]
+}

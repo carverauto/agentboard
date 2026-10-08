@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "output": "docs/architecture/stale-seat-recovery.html",
+  "specification_sha256": "742c68186057043aa613710d7ed4fb74f9006a3aea215e4b404bd1a1857acf76",
+  "artifact_sha256": "74af7e00617270f0080288d5e4c2cad3f8307abde4c57af9c1f34c168c8d3221",
+  "artifact_bytes": 711715,
+  "source_revision": "2c4b70a9bdf5d89e279d98cfcc13278568292810",
+  "validation": {
+    "profile": "showcase",
+    "passed": 9,
+    "total": 9,
+    "errors": 0,
+    "warnings": 0,
+    "repository_references_verified": 7
+  },
+  "browser_evidence": "passed",
+  "browser_receipt": "docs/architecture/stale-seat-recovery.visual-check.json",
+  "visual_review": "passed",
+  "reviewer": "codex-agent-b-worker image-capable review",
+  "review_scope": {
+    "screenshots": [
+      "1440x900.light",
+      "1440x900.dark",
+      "2048x1320.light",
+      "2048x1320.dark"
+    ],
+    "observations": "Readable labels and arrow endpoints; no crossings or label masks; both themes and balanced desktop composition inspected."
+  },
+  "correction_rounds": 1,
+  "implementation": "proposal only; no runtime or CI proof"
+}
