@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/private/tmp/agent-a-message-mode-final.sequence.json",
+  "output": "/private/tmp/agent-a-message-mode-final.html",
+  "specification": {
+    "sha256": "126cc78a0c789b5675920fb78a154b5a2c376cf3affed6e978d70ee64d85faa1",
+    "bytes": 2701
+  },
+  "artifact": {
+    "sha256": "567a839fdb8972b1b791c566ad123dfded6d9b5d85a838c08cb821de1b18f91b",
+    "bytes": 706276
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

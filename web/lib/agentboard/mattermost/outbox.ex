@@ -41,6 +41,7 @@ defmodule Agentboard.Mattermost.Outbox do
         :next_eligible_at,
         :event_marker,
         :payload,
+        :last_error,
         :created_at,
         :updated_at
       ])

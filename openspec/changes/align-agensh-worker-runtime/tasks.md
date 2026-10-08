@@ -54,7 +54,7 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 
 ## 7. Staged chat cutover and coherent contracts
 
-- [ ] 7.1 Add default `board`, explicit `dual` and readiness-gated `mattermost` modes with atomic handoff event/outbox behavior; verify offline handoff, recipient explicit claim, disabled jobs and no partial assignment remotely, and document mode prerequisites.
+- [x] 7.1 Add default `board`, explicit `dual` and readiness-gated `mattermost` modes with atomic handoff event/outbox behavior; verify offline handoff, recipient explicit claim, disabled jobs and no partial assignment remotely, and document mode prerequisites.
 - [ ] 7.2 Add read-only historical board-message archive/export while retaining recipient acknowledgement and migration errors for legacy sends; verify pending legacy messages, pagination, export escaping, rollback and no data loss remotely, then update primary navigation/task thread links.
 - [ ] 7.3 Reconcile completed/active `board-messaging`, `agent-workflows` and handoff deltas with the chosen transport before archive/cutover; update README, PRD #1, #37/#41, API and canonical/harness/captain skills. Validate OpenSpec and verify documented commands against the remote-built CLI; preserve all uncompleted Ash/CI tasks.
 
@@ -146,3 +146,23 @@ immutable versions remain a delivery requirement. Protocol 1 is documented in
 [worker API](../../../docs/worker-api.md). This does not complete the live release
 gate, host conformance, provider merge-ref/BuildBuddy diagnostics, completion guard,
 or the broader Ash/CI dashboard checklists.
+
+## Message mode 7.1 evidence
+
+Default board and explicit dual source capture are implemented without changing
+the messages table or production flags. Sole-Mattermost activation is refused
+with explicit missing 5.1/5.2/5.3, adapter and #80 decision-path reasons; the
+working board inbox remains primary. Private recipient notices retain scoped
+pending intents rather than using a public-channel fallback. This is not peer
+inbox parity or a production cutover. Tasks 7.2/7.3 and the wider runtime remain
+open. See [mode prerequisites and rollback](../../../docs/setup/mattermost.md#message-modes-openspec-71).
+
+[Five packaged remote suites](https://carverauto.buildbuddy.io/invocation/47eef25c-8114-4679-b5f8-931289b3191e)
+passed board/cooperation compatibility, atomic dual sends/handoff, disabled jobs,
+private-route fencing, explicit claim, outbox/message rollback, outage isolation
+and cold-start mode configuration. A
+[disabled capture producer](https://carverauto.buildbuddy.io/invocation/986f466a-f6ca-4974-bdab-106b35a91d03)
+fails specifically on the missing message intent. Archify has separate 9/9
+deterministic, desktop browser containment and light/dark screenshot review
+receipts. Publication/current-head CI and immutable PR-bound document uploads
+are separate delivery gates.

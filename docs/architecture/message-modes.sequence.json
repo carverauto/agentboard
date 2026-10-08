@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Dual-mode handoff",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1520,
+      680
+    ],
+    "column_fit": "spread"
+  },
+  "participants": [
+    {
+      "id": "owner",
+      "type": "external",
+      "label": "Owner"
+    },
+    {
+      "id": "board",
+      "type": "backend",
+      "label": "Board API"
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "PostgreSQL"
+    },
+    {
+      "id": "sender",
+      "type": "backend",
+      "label": "Oban sender"
+    },
+    {
+      "id": "chat",
+      "type": "external",
+      "label": "Mattermost"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 315,
+      "label": "Atomic board handoff"
+    },
+    {
+      "from": 340,
+      "to": 590,
+      "label": "Asynchronous notice"
+    }
+  ],
+  "messages": [
+    {
+      "from": "owner",
+      "to": "board",
+      "y": 175,
+      "label": "handoff to recipient",
+      "variant": "emphasis"
+    },
+    {
+      "from": "board",
+      "to": "store",
+      "y": 225,
+      "label": "atomic board + intent",
+      "variant": "emphasis",
+      "note": "Assignment, timeline, board message and one handoff outbox intent commit together. Failure rolls all back."
+    },
+    {
+      "from": "board",
+      "to": "owner",
+      "y": 280,
+      "label": "assigned; claim required",
+      "variant": "return"
+    },
+    {
+      "from": "store",
+      "to": "sender",
+      "y": 370,
+      "label": "eligible thread intent",
+      "variant": "dashed",
+      "note": "Disabled jobs retain pending intents. Private recipient routes stay pending until worker-scoped routing exists."
+    },
+    {
+      "from": "sender",
+      "to": "chat",
+      "y": 425,
+      "label": "POST + event marker",
+      "variant": "emphasis"
+    },
+    {
+      "from": "chat",
+      "to": "sender",
+      "y": 480,
+      "label": "post / uncertainty",
+      "variant": "return"
+    },
+    {
+      "from": "sender",
+      "to": "store",
+      "y": 550,
+      "label": "fenced remote receipt",
+      "variant": "emphasis",
+      "note": "Existing bridge reconciles accepted-post/lost-response; unresolved outcomes stay visibly uncertain."
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Board and dual",
+      "items": [
+        "Board is the default; dual adds notice intents.",
+        "One handoff event notice avoids an internal-message echo."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Cutover is refused",
+      "items": [
+        "5.1 identities, 5.2 chat and 5.3 catch-up are missing.",
+        "Adapters and #80 coordinator decisions remain required."
+      ]
+    }
+  ]
+}

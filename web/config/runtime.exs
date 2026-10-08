@@ -1,5 +1,8 @@
 import Config
 
+# Board remains primary unless an explicitly selected transport passes its gate.
+config :agentboard, :message_mode, System.get_env("AGENTBOARD_MESSAGE_MODE", "board")
+
 config :agentboard, :captain_token, System.get_env("AGENTBOARD_CAPTAIN_TOKEN")
 
 # Inventory catch-up only. Provider observation and CI gates are separate stages.

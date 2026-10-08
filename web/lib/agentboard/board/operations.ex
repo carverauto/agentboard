@@ -129,7 +129,8 @@ defmodule Agentboard.Board.Operations do
               send_message(
                 actor,
                 %{"to" => data["to"], "task" => id, "body" => data["note"]},
-                stamp
+                stamp,
+                false
               )
 
             Map.put(result, "message_id", message.id)
@@ -257,26 +258,30 @@ defmodule Agentboard.Board.Operations do
     end
   end
 
-  defp send_message(actor, data, stamp) do
+  defp send_message(actor, data, stamp, capture_notice? \\ true) do
     if data["to"],
       do: fetch!(Agent, data["to"], "Message recipient must be registered", "invalid_input")
 
     if data["task"], do: fetch!(Task, data["task"], "Message task must exist", "invalid_input")
 
-    create(
-      Message,
-      :create,
-      %{
-        sender_id: actor["agent"],
-        model: actor["model"],
-        harness: actor["harness"],
-        recipient_id: data["to"],
-        task_id: data["task"],
-        body: data["body"],
-        created_at: stamp
-      },
-      actor
-    )
+    message =
+      create(
+        Message,
+        :create,
+        %{
+          sender_id: actor["agent"],
+          model: actor["model"],
+          harness: actor["harness"],
+          recipient_id: data["to"],
+          task_id: data["task"],
+          body: data["body"],
+          created_at: stamp
+        },
+        actor
+      )
+
+    if capture_notice?, do: Agentboard.Mattermost.MessageNotice.capture(message, actor, stamp)
+    message
   end
 
   defp result(task, prior, action, actor, data, stamp) do

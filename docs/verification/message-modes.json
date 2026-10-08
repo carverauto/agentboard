@@ -1,0 +1,40 @@
+{
+  "task": "agentboard-msg-mode-switch",
+  "openspec": "align-agensh-worker-runtime 7.1",
+  "tested_base": "b1d3c1511e23edd7103b35cfbe4e341f7f56d503",
+  "remote_acceptance": "https://carverauto.buildbuddy.io/invocation/47eef25c-8114-4679-b5f8-931289b3191e",
+  "suites": [
+    "board_api_test",
+    "cooperation_api_test",
+    "mattermost_bridge_test",
+    "message_mode_dual_config_test",
+    "message_mode_mattermost_config_test"
+  ],
+  "result": "5/5 passed",
+  "negative_control": {
+    "url": "https://carverauto.buildbuddy.io/invocation/986f466a-f6ca-4974-bdab-106b35a91d03",
+    "mutation": "dual producer disabled while metadata remains dual",
+    "failure": "missing board_message intent after a real API send",
+    "restored": true
+  },
+  "archify": {
+    "deterministic": "9/9, zero errors/warnings",
+    "browser": "passed four desktop containment measurements and light/dark endpoint captures",
+    "visual_review": "passed actual light/dark endpoint image inspection",
+    "correction_rounds": 2,
+    "receipt": "../architecture/message-modes.delivery.json",
+    "browser_receipt": "../architecture/message-modes.visual.json"
+  },
+  "limitations": [
+    "Sole-Mattermost activation remains refused until real capability producers and #80 are integrated.",
+    "Private recipient intents remain pending; no public fallback or peer parity claim.",
+    "7.2/7.3 history/navigation and final cutover remain open.",
+    "No live production rollout or automatic wake proof.",
+    "GitHub current-head CI and PR-bound document uploads recorded separately."
+  ],
+  "lavish_review": {
+    "feedback": "approved",
+    "session_ended_by": "user",
+    "design_source": "Agentboard application theme tokens"
+  }
+}

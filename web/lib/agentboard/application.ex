@@ -5,6 +5,8 @@ defmodule Agentboard.Application do
   def start(_type, _args) do
     # Repo owns a connection pool; contexts run in each request/LiveView process.
     # PubSub owns subscriptions, and Endpoint owns network connections.
+    Agentboard.MessageMode.report_activation()
+
     children = [
       Agentboard.Repo,
       {Phoenix.PubSub, name: Agentboard.PubSub},

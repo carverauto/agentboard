@@ -34,6 +34,7 @@ defmodule Agentboard.Mattermost.Routing do
               SELECT o.id FROM mattermost_outbox o
               WHERE o.next_eligible_at<=clock_timestamp()
                 AND o.routing_revision=$1
+                AND o.destination='mattermost:board_thread:'||o.task_id
                 AND (
                   o.state='pending'
                   OR (o.state='claimed' AND o.updated_at<=clock_timestamp()-interval '5 minutes')
