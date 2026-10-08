@@ -6,8 +6,8 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "/private/tmp/agentboard-b-worker-runtime-v3-pool/.treehouse/agentboard-b-worker-packaged-20261008-115218/2/agentboard-b-worker-packaged-20261008/docs/architecture/default-branch-workflows.html",
-    "sha256": "4296b7c19c9af44ea432a49e103c374b6e175ed10f181130a13c4fa48fbbc507",
+    "path": "/Users/mfreeman/.no-mistakes/worktrees/8bc2d6c08a3d/01M4DAAEK9Q84MFKYGHY5YEADY/docs/architecture/default-branch-workflows.html",
+    "sha256": "ce63f0ea67a2996284b41b7e51dcaa9fa4df891fce2f9a930ce4491a2e5e1f24",
     "bytes": 715021
   },
   "state": {
