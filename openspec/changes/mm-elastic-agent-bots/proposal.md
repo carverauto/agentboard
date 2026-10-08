@@ -12,7 +12,7 @@ Phase 1 routes every agent message through one shared bot with per-post override
 - Sends post as the agent's bot when active, else fall back to the shared bot plus overrides. Props (`agent_id`, `task_id`, `kind`, `msg_id`) and the header line are identical either way.
 - Roster GC retirement calls an idempotent `retire/1` hook: disable bot plus revoke token; re-register reactivates with a fresh token. Nothing is hard-deleted.
 - Registration succeeds when Mattermost is down; a retrying job finishes provisioning. Revoked/invalid tokens re-provision or fall back instead of failing the send.
-- New `ash_cloak` dependency; one new table plus migration 17 (reserved); runbook gains rotation and disable procedures.
+- New `ash_cloak` dependency; one new table plus migration 22 (reserved as 17 during development; renumbered after main advanced to 21); runbook gains rotation and disable procedures.
 
 ## Capabilities
 
@@ -26,6 +26,6 @@ None. Phase 1 shared-bot behavior is unchanged and remains the fallback.
 
 ## Impact
 
-- `web/lib/agentboard/mattermost/` (new `ElasticBots` module, `post_as` seam swap), `Operations.register/2` (ensure hook), new Ash resource plus migration 17, Oban provision/retry jobs, `web/mix.exs` (`ash_cloak`), runbook, `docs/api.md` (diagnostics extension).
+- `web/lib/agentboard/mattermost/` (new `ElasticBots` module, `post_as` seam swap), `Operations.register/2` (ensure hook), new Ash resource plus migration 22, Oban provision/retry jobs, `web/mix.exs` (`ash_cloak`), runbook, `docs/api.md` (diagnostics extension).
 - Roster GC (#42, codex-agent-a-server) gains one call: `ElasticBots.retire/1`, agreed before implementation.
 - No farm01 config changes from this seat; provisioner credential and bot membership remain captain/MM-admin decisions (Secret refs only).

@@ -24,7 +24,7 @@ Phase 1 (`Conversations.post_as/8`) already funnels every send through one plugg
 - Short-name scheme: `ab-` prefix plus compressed agent id, truncated with a deterministic hash suffix on collision, verified to 22 chars; mapping keyed by Mattermost user id; full agent id as bot display name.
 - `ash_cloak` with a key from the existing Secret-based config pattern (file-backed key ref, never in repo); token column is `AshCloak.Encrypted.Binary` equivalent for the project's Ash version.
 - `post_as` resolves the token per send: active bot token → shared bot fallback with existing override gating. Revoked/invalid token observed at send → mark mapping `stale`, enqueue re-provision, fall back this send.
-- One migration (17, reserved): `mattermost_agent_bots(agent_id unique, mm_user_id unique, username, display_name, encrypted_token, state, timestamps)`.
+- One migration (22; reserved as 17 during development, renumbered after main advanced to 21): `mattermost_agent_bots(agent_id unique, mm_user_id unique, username, display_name, encrypted_token, state, timestamps)`.
 - Diagnostics extends the existing overrides object with a `bot` object (`{active: bool, username|null, state}`) — no secrets.
 
 ## Risks / Trade-offs

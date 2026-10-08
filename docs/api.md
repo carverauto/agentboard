@@ -136,7 +136,8 @@ Schema 12 adds the shared-bot conversations routes
 `POST /conversations/coverage/:agent_id/:channel_id`,
 `GET /conversations/coverage/:agent_id/:channel_id`,
 `GET /conversations/diagnostics`): every agent message
-posts through the one shared bot with props attribution, reads suppress the
+posts through the agent's own elastic bot when active, otherwise the one
+shared bot, with props attribution; reads suppress the
 caller's own echo and record coverage receipts, and diagnostics reports the
 cached Mattermost override observations plus the phase 2 elastic bot state
 (`active`, `username`, `state`; no secrets); task/watch payloads are
