@@ -212,10 +212,10 @@ INSERT INTO task_events(task_id,actor_id,model,harness,kind,new_revision) VALUES
 INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html,digest) VALUES ('upgrade-card','upgrade-owner','model','codex','archify','Upgrade diagram','<!doctype html><p>Retained</p>',repeat('d',64));" >/dev/null
 before_duplicate="$(duplicate_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d))")"
 # A pre-existing higher stamp must survive this additive migration as well.
-duplicate_psql 'UPDATE board_schema SET version=25 WHERE id=1' >/dev/null
+duplicate_psql 'UPDATE board_schema SET version=29 WHERE id=1' >/dev/null
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(duplicate_psql 'SELECT version FROM board_schema WHERE id=1')" == 28 ]]
+[[ "$(duplicate_psql 'SELECT version FROM board_schema WHERE id=1')" == 29 ]]
 [[ "$(duplicate_psql 'SELECT count(*) FROM delivery_duplicate_findings')" == 0 ]]
 [[ "$(duplicate_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d))")" == "$before_duplicate" ]]
 echo 'Schema22 upgrade retains task/event/document prefixes, seeds no duplicate findings and raises the aggregate marker while preserving retained evidence.'
@@ -241,6 +241,7 @@ INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head
 before_auth24="$(auth24_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'prs',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_pull_requests p),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 [[ "$(auth24_psql 'SELECT version FROM board_schema WHERE id=1')" == 28 ]]
+[[ "$(auth24_psql "SELECT to_regclass('delivery_workflow_runs')::text||','||to_regclass('delivery_workflow_health')::text")" == 'delivery_workflow_runs,delivery_workflow_health' ]]
 [[ "$(auth24_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'prs',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_pull_requests p),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))")" == "$before_auth24" ]]
 [[ "$(auth24_psql 'SELECT count(*) FROM agent_api_credentials')" == 0 ]]
 [[ "$(auth24_psql 'SELECT count(*) FROM agent_auth_observations')" == 0 ]]

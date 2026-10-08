@@ -64,6 +64,16 @@ defmodule AgentboardWeb.Router do
     plug(AgentboardWeb.Plugs.AgentAuth)
   end
 
+  pipeline :github_hook do
+    plug(AgentboardWeb.Plugs.RateLimit)
+    plug(:accepts, ["json"])
+  end
+
+  scope "/api/v1/hooks", AgentboardWeb do
+    pipe_through([:github_hook, :compatible])
+    post("/github", WorkflowHookController, :create)
+  end
+
   scope "/health", AgentboardWeb do
     get("/live", HealthController, :live)
     get("/ready", HealthController, :ready)

@@ -38,6 +38,19 @@ defmodule AgentboardWeb.PRLive do
           <span :if={@data.github_budget.provider_blocked}> · Provider cooldown until {to_string(@data.github_budget.blocked_until)}</span>
         </aside>
         <%= if Map.has_key?(@data, :prs) do %>
+          <section id="default-branch-health" class="task-detail min-w-0">
+            <h2>Default-branch health</h2>
+            <p>Retained workflow obligations · observation {if Agentboard.Delivery.Scheduling.enabled?(), do: "enabled", else: "disabled"}. A webhook feed is required; absence of failures does not verify green.</p>
+            <p :if={@data.default_branch_health == []}>No retained red default-branch runs.</p>
+            <article :for={run <- @data.default_branch_health} class="min-w-0 break-all">
+              <h3><a href={run["source_url"]} target="_blank" rel="noopener noreferrer">{run["repository"]} · {run["workflow_name"]}</a></h3>
+              <p><span class="flag danger">{run["conclusion"]}</span> · branch {run["branch"]} · {run["head_sha"]} · run {run["run_id"]}, attempt {run["run_attempt"]}</p>
+              <p>Red since {run["failed_at"]} · routed to {run["responsible_id"] || "Coordinator not configured"} · sources {Enum.join(run["source_tasks"], ", ")}</p>
+              <p :if={run["last_error"]} class="flag warning">Latest collection deferred: {run["last_error"]}. Retained evidence only.</p>
+              <p :for={job <- run["jobs"]}><a href={job["url"]} target="_blank" rel="noopener noreferrer">{job["name"]} / {Enum.join(job["steps"], ", ")}</a></p>
+            </article>
+            <p :if={length(@data.default_branch_health) > 50} class="flag warning">Additional obligations exist; health is not green.</p>
+          </section>
           <.link patch={if @params["show_terminal"] == "true", do: "/prs", else: "/prs?show_terminal=true"}>{if @params["show_terminal"] == "true", do: "Hide merged/closed", else: "Show merged/closed"}</.link>
           <div class="table-scroll" tabindex="0" role="region" aria-label="Pull requests, scroll for all columns"><table class="pr-list"><thead><tr><th>Pull request / head</th><th>CI / mergeability</th><th>Responsible / repair</th><th>Delivery / progress</th></tr></thead><tbody>
             <tr :for={row <- @data.prs}>
