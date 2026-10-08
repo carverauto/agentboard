@@ -66,6 +66,9 @@ defmodule Agentboard.Mattermost.Conversations do
       {:ok, 201, %{"id" => _} = post} ->
         {:ok, %{"duplicate" => false, "post" => post, "msg_id" => msg_id}}
 
+      {:ok, 404, _} ->
+        {:error, "not_found", "channel not found"}
+
       {:ok, _status, _} ->
         {:error, "unavailable", "Mattermost did not acknowledge the post"}
 
@@ -141,8 +144,11 @@ defmodule Agentboard.Mattermost.Conversations do
     with {:ok, channel_id} <- present(params["channel_id"], "channel_id is required"),
          {:ok, body} <- present(params["body"], "body is required"),
          {:ok, kind} <- send_kind(params["kind"]),
-         {:ok, retry_key} <- optional_text(params["retry_key"], 128) do
-      {:ok, channel_id, body, params["task_id"] || "general", kind, params["root_id"], retry_key, params["icon_url"]}
+         {:ok, retry_key} <- optional_text(params["retry_key"], 128),
+         {:ok, task_id} <- optional_text(params["task_id"], 128),
+         {:ok, root_id} <- optional_text(params["root_id"], 128),
+         {:ok, icon_url} <- optional_text(params["icon_url"], 512) do
+      {:ok, channel_id, body, task_id || "general", kind, root_id, retry_key, icon_url}
     end
   end
 
@@ -201,6 +207,7 @@ defmodule Agentboard.Mattermost.Conversations do
       {:ok, nil} -> {:ok, nil}
       {:ok, post} -> {:ok, post}
       {:error, :unauthorized} -> {:error, "unavailable", "bridge unauthorized; rotate the bridge token"}
+      {:error, :not_found} -> {:error, "not_found", "channel not found"}
       {:error, _} -> {:error, "unavailable", "retry-key lookup failed; send aborted instead of risking a duplicate"}
     end
   end

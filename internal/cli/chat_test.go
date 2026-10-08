@@ -37,7 +37,7 @@ func newChatBoard(t *testing.T) *chatBoard {
 			w.WriteHeader(400)
 			return
 		}
-		if payload["channel_id"] == "" || payload["message"] == "" {
+		if payload["channel_id"] == "" || payload["body"] == "" {
 			w.WriteHeader(422)
 			w.Write([]byte(`{"error":{"code":"invalid_input","message":"channel_id and body required"}}`))
 			return

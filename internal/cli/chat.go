@@ -41,7 +41,7 @@ func (c *commands) chatSend() *cobra.Command {
 		if channel == "" || body == "" {
 			return errors.New("--channel and --body are required")
 		}
-		payload := map[string]any{"channel_id": channel, "message": body}
+		payload := map[string]any{"channel_id": channel, "body": body}
 		if task != "" {
 			payload["task_id"] = task
 		}
