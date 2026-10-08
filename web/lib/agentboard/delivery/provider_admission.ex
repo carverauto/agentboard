@@ -64,27 +64,31 @@ defmodule Agentboard.Delivery.ProviderAdmission do
   end
 
   def spend(credit) do
-    Operations.transaction(fn ->
-      lock("github")
-      budget = current_budget("github")
-      row = credit!(credit)
-      stamp = Operations.now()
+    if Agentboard.Delivery.Scheduling.enabled?() do
+      Operations.transaction(fn ->
+        lock("github")
+        budget = current_budget("github")
+        row = credit!(credit)
+        stamp = Operations.now()
 
-      cond do
-        budget.blocked_until && DateTime.compare(budget.blocked_until, stamp) == :gt ->
-          %{allowed: false, retry_after: max(1, DateTime.diff(budget.blocked_until, stamp) + 1)}
+        cond do
+          budget.blocked_until && DateTime.compare(budget.blocked_until, stamp) == :gt ->
+            %{allowed: false, retry_after: max(1, DateTime.diff(budget.blocked_until, stamp) + 1)}
 
-        row.remaining > 0 ->
-          row
-          |> Ash.Changeset.for_update(:spend, %{remaining: row.remaining - 1})
-          |> Ash.update!()
+          row.remaining > 0 ->
+            row
+            |> Ash.Changeset.for_update(:spend, %{remaining: row.remaining - 1})
+            |> Ash.update!()
 
-          %{allowed: true, window_end: row.window_end}
+            %{allowed: true, window_end: row.window_end}
 
-        true ->
-          Operations.reject("incomplete", "Poll request bound exceeded")
-      end
-    end)
+          true ->
+            Operations.reject("incomplete", "Poll request bound exceeded")
+        end
+      end)
+    else
+      {:error, "disabled", "PR observation is disabled"}
+    end
   end
 
   # Authorized 304s are free under GitHub's primary rate limit. Restore only
