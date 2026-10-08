@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "artifact_sha256": "e5ea2311772d11f6dfb7cd37d2f896c1b1b2c76728a5ebad85285d9f5842891e",
+  "artifact_bytes": 711359,
+  "specification_sha256": "d361daa0a4b3b491c533f729f7014efc0459b5d720e99d714d1fd7c25e597480",
+  "validation": "9/9 showcase, zero errors and warnings",
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "reviewer": "image-capable Codex Agent A",
+  "scope": [
+    "1440x900 light",
+    "1440x900 dark",
+    "2048x1320 light",
+    "2048x1320 dark"
+  ],
+  "observations": "Inspected four automated endpoint screenshots. Main path, captain custody, hash lookup and audit branch are readable without clipping or crossing opaque nodes; cards and controls fit both endpoint viewports. Automatic measurements additionally cover1600x1000 and1920x1080. This does not claim production dashboard browser proof or live credential handling.",
+  "correction_rounds": 1
+}

@@ -2,6 +2,7 @@
 package client
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -15,8 +16,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/carverauto/agentboard/internal/config"
@@ -61,6 +64,7 @@ func NewRuntime(cfg config.Config, token string) (*Client, error) {
 	if token == "" || strings.ContainsAny(token, "\r\n\t ") {
 		return nil, errors.New("invalid runtime capability")
 	}
+	cfg.Token, cfg.TokenFile = "", ""
 	c, err := New(cfg)
 	if err != nil {
 		return nil, err
@@ -74,6 +78,7 @@ func NewCaptain(cfg config.Config, token string) (*Client, error) {
 	if len(token) < 32 || strings.ContainsAny(token, "\r\n\t ") {
 		return nil, errors.New("captain capability is malformed")
 	}
+	cfg.Token, cfg.TokenFile = "", ""
 	c, err := New(cfg)
 	if err != nil {
 		return nil, err
@@ -83,6 +88,11 @@ func NewCaptain(cfg config.Config, token string) (*Client, error) {
 }
 
 func New(cfg config.Config) (*Client, error) {
+	token, err := agentBearer(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	u, err := url.Parse(cfg.URL)
 	if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return nil, errors.New("AGENTBOARD_URL must be an HTTPS base URL without credentials, query, or fragment")
@@ -114,7 +124,7 @@ func New(cfg config.Config) (*Client, error) {
 	transport.DialContext = (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext
 	transport.TLSHandshakeTimeout = 10 * time.Second
 	transport.ResponseHeaderTimeout = 30 * time.Second
-	return &Client{base: u, actor: cfg.Actor, http: &http.Client{
+	return &Client{base: u, actor: cfg.Actor, token: token, http: &http.Client{
 		Transport:     transport,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 	}}, nil
@@ -146,12 +156,12 @@ func (c *Client) JSON(ctx context.Context, method, path string, query url.Values
 		return nil, failure("response_failed", uncertain(method, "API response could not be read"))
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, responseError(resp.StatusCode, data)
+		return nil, c.redactError(responseError(resp.StatusCode, data))
 	}
 	if !json.Valid(data) {
 		return nil, failure("invalid_response", uncertain(method, "API returned invalid JSON"))
 	}
-	return json.RawMessage(data), nil
+	return json.RawMessage(c.redactData(data)), nil
 }
 
 // Stream opens an NDJSON watch. Its lifetime is controlled by the caller's context.
@@ -163,11 +173,16 @@ func (c *Client) Stream(ctx context.Context, path string, query url.Values) (*ht
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-		return nil, responseError(resp.StatusCode, data)
+		return nil, c.redactError(responseError(resp.StatusCode, data))
 	}
 	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/x-ndjson") {
 		resp.Body.Close()
 		return nil, failure("invalid_response", "API watch returned an unexpected content type")
+	}
+	if c.token != "" {
+		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(make([]byte, 64<<10), MaxResponseBytes)
+		resp.Body = &redactedStream{body: resp.Body, scanner: scanner, redact: c.redactData}
 	}
 	return resp, nil
 }
@@ -297,4 +312,85 @@ func uncertain(method, message string) string {
 		return message + "; write outcome may be unknown, inspect board state before repeating"
 	}
 	return message
+}
+
+// Error bodies are untrusted and may reflect an Authorization header.
+func (c *Client) redactError(err error) error {
+	if e, ok := err.(*Error); ok && c.token != "" {
+		e.Message = strings.ReplaceAll(e.Message, c.token, "[redacted]")
+		if strings.Contains(e.Code, c.token) {
+			e.Code = "invalid_response"
+		}
+	}
+	return err
+}
+
+func (c *Client) redactData(data []byte) []byte {
+	if c.token == "" {
+		return data
+	}
+	escaped, _ := json.Marshal(c.token)
+	return bytes.ReplaceAll(data, escaped[1:len(escaped)-1], []byte("[redacted]"))
+}
+
+type redactedStream struct {
+	body    io.ReadCloser
+	scanner *bufio.Scanner
+	redact  func([]byte) []byte
+	pending []byte
+}
+
+func (r *redactedStream) Read(dst []byte) (int, error) {
+	if len(dst) == 0 {
+		return 0, nil
+	}
+	if len(r.pending) == 0 {
+		if !r.scanner.Scan() {
+			if err := r.scanner.Err(); err != nil {
+				return 0, err
+			}
+			return 0, io.EOF
+		}
+		r.pending = append(r.redact(r.scanner.Bytes()), '\n')
+	}
+	n := copy(dst, r.pending)
+	r.pending = r.pending[n:]
+	return n, nil
+}
+func (r *redactedStream) Close() error { return r.body.Close() }
+
+// agentBearer resolves ordinary board credentials separately from transport trust.
+func agentBearer(cfg config.Config) (string, error) {
+	token := cfg.Token
+	if token == "" && cfg.TokenFile != "" {
+		// Open without following symlinks; validate the descriptor, not a racy path stat.
+		fd, err := syscall.Open(filepath.Clean(cfg.TokenFile), syscall.O_RDONLY|syscall.O_NOFOLLOW, 0)
+		if err != nil {
+			return "", errors.New("cannot open protected AGENTBOARD_TOKEN_FILE")
+		}
+		f := os.NewFile(uintptr(fd), "agent credential")
+		info, err := f.Stat()
+		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0600 {
+			f.Close()
+			return "", errors.New("AGENTBOARD_TOKEN_FILE must be a regular 0600 file")
+		}
+		if st, ok := info.Sys().(*syscall.Stat_t); !ok || st.Uid != uint32(os.Geteuid()) {
+			f.Close()
+			return "", errors.New("AGENTBOARD_TOKEN_FILE must belong to the current user")
+		}
+		data, err := io.ReadAll(io.LimitReader(f, 257))
+		f.Close()
+		if err != nil || len(data) > 256 {
+			return "", errors.New("invalid agent credential file")
+		}
+		token = strings.TrimSpace(string(data))
+		if token == "" {
+			return "", errors.New("agent credential file is empty")
+		}
+	}
+	if token != "" && (len(token) > 256 || strings.ContainsAny(token, "\r\n\t ")) {
+		return "", errors.New("invalid AGENTBOARD_TOKEN")
+	}
+
+	return token, nil
 }

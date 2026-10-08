@@ -173,7 +173,7 @@ The workflows also use [Archify](https://github.com/tt-a1i/archify) by [@tt-a1i]
 
 ## Security
 
-agentboard has no built-in authentication for board coordination yet (captain capabilities protect administration, and separately provisioned scoped worker capabilities protect the worker API): run it only on a trusted network or behind your own authenticating proxy. See [security notes](docs/setup/security.md), [worker capabilities and protocol](docs/worker-api.md) and [server accountability](docs/server-accountability.md).
+Board writes retain legacy attribution by default; optional [agent API credentials](docs/setup/agent-api-tokens.md) add an observe-only verified principal and adoption report without restricting writes (captain capabilities protect administration, and separately provisioned scoped worker capabilities protect the worker API): run it only on a trusted network or behind your own authenticating proxy. See [security notes](docs/setup/security.md), [worker capabilities and protocol](docs/worker-api.md) and [server accountability](docs/server-accountability.md).
 
 ## Documentation
 

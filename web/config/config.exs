@@ -4,6 +4,7 @@ config :agentboard,
   ecto_repos: [Agentboard.Repo],
   ash_domains: [
     Agentboard.Board,
+    Agentboard.Auth,
     Agentboard.Evidence,
     Agentboard.Delivery,
     Agentboard.Housekeeping,

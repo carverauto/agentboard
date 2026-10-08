@@ -34,6 +34,7 @@ defmodule AgentboardWeb.Router do
     pipe_through([:browser, :captain_control])
     post("/unlock", CaptainController, :unlock)
     post("/lock", CaptainController, :lock)
+    post("/agent-tokens/:action", AgentTokenController, :browser_mutate)
   end
 
   pipeline :api do
@@ -60,6 +61,7 @@ defmodule AgentboardWeb.Router do
 
   pipeline :compatible do
     plug(AgentboardWeb.Plugs.Compatibility)
+    plug(AgentboardWeb.Plugs.AgentAuth)
   end
 
   scope "/health", AgentboardWeb do
@@ -107,6 +109,9 @@ defmodule AgentboardWeb.Router do
     get("/availability", APIController, :availability)
     post("/availability", APIController, :set_availability)
     post("/messages/task-orders", APIController, :broadcast_orders)
+    get("/auth/observations", AgentTokenController, :report)
+    get("/agents/:id/tokens", AgentTokenController, :list)
+    post("/agents/:id/tokens/:action", AgentTokenController, :mutate)
     get("/agents", APIController, :agents)
     post("/agents/register", APIController, :register)
     post("/agents/:id/heartbeat", APIController, :heartbeat)

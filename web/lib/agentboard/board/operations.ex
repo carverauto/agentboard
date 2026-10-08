@@ -498,6 +498,8 @@ defmodule Agentboard.Board.Operations do
     case Ash.transact(
            [
              Agent,
+             Agentboard.Auth.Credential,
+             Agentboard.Auth.Observation,
              Agentboard.Availability.Policy,
              Agentboard.Decisions.Request,
              Agentboard.Decisions.Wake,

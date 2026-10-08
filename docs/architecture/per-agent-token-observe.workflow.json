@@ -1,0 +1,168 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Agentboard API identity observations",
+    "locale": "en",
+    "animation": "none",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "request",
+      "label": "Observe-mode board write"
+    },
+    {
+      "id": "custody",
+      "label": "Captain custody and evidence"
+    }
+  ],
+  "mainPath": [
+    "seat_identity",
+    "guarded_transport",
+    "verified_principal",
+    "legacy_actor",
+    "board_operation"
+  ],
+  "nodes": [
+    {
+      "id": "seat_identity",
+      "lane": "request",
+      "col": 0,
+      "type": "frontend",
+      "label": "Seat identity",
+      "sublabel": "Lease holder; 0600 file"
+    },
+    {
+      "id": "guarded_transport",
+      "lane": "request",
+      "col": 1,
+      "type": "security",
+      "label": "Guarded HTTPS",
+      "sublabel": "Board bearer + headers"
+    },
+    {
+      "id": "verified_principal",
+      "lane": "request",
+      "col": 2,
+      "type": "backend",
+      "label": "Verified principal",
+      "sublabel": "Hash lookup; revocation",
+      "width": 140
+    },
+    {
+      "id": "legacy_actor",
+      "lane": "request",
+      "col": 3,
+      "type": "backend",
+      "label": "Legacy attribution",
+      "sublabel": "Observe keeps header actor",
+      "width": 140
+    },
+    {
+      "id": "board_operation",
+      "lane": "request",
+      "col": 4,
+      "type": "database",
+      "label": "Board operation",
+      "sublabel": "Existing Ash authorization",
+      "width": 140
+    },
+    {
+      "id": "captain_lifecycle",
+      "lane": "custody",
+      "col": 0,
+      "type": "security",
+      "label": "Captain lifecycle",
+      "sublabel": "Issue; rotate; revoke",
+      "width": 140
+    },
+    {
+      "id": "hash_storage",
+      "lane": "custody",
+      "col": 2,
+      "type": "database",
+      "label": "Credential digests",
+      "sublabel": "No plaintext at rest",
+      "width": 140
+    },
+    {
+      "id": "identity_evidence",
+      "lane": "custody",
+      "col": 3,
+      "type": "database",
+      "label": "Identity evidence",
+      "sublabel": "Anonymous; invalid; mismatch",
+      "width": 140
+    },
+    {
+      "id": "agents_report",
+      "lane": "custody",
+      "col": 4,
+      "type": "frontend",
+      "label": "Agents report",
+      "sublabel": "24-hour counts; recent events",
+      "width": 140
+    }
+  ],
+  "edges": [
+    {
+      "from": "seat_identity",
+      "to": "guarded_transport"
+    },
+    {
+      "from": "guarded_transport",
+      "to": "verified_principal"
+    },
+    {
+      "from": "verified_principal",
+      "to": "legacy_actor"
+    },
+    {
+      "from": "legacy_actor",
+      "to": "board_operation"
+    },
+    {
+      "from": "captain_lifecycle",
+      "to": "seat_identity",
+      "label": "Issue once"
+    },
+    {
+      "from": "captain_lifecycle",
+      "to": "hash_storage"
+    },
+    {
+      "from": "hash_storage",
+      "to": "verified_principal"
+    },
+    {
+      "from": "legacy_actor",
+      "to": "identity_evidence",
+      "label": "Compare IDs"
+    },
+    {
+      "from": "identity_evidence",
+      "to": "agents_report"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Observe is adoption evidence",
+      "items": [
+        "Default off preserves current behavior; observe records verified identity separately",
+        "Anonymous and mismatched writes still follow legacy authorization",
+        "Enforcement and deployment changes require separate captain direction"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Credential custody remains separate",
+      "items": [
+        "Captain capability alone administers credentials; ordinary attribution grants no access",
+        "CLI creates a new protected file and never prints the issued value",
+        "Worker and Mattermost credentials keep their existing independent verifiers"
+      ]
+    }
+  ]
+}

@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import shlex
 from pathlib import Path
 import shutil
 import subprocess
@@ -170,6 +171,51 @@ def pool_root(value):
     return root
 
 
+def identity():
+    for key in ("AGENT_ID", "AGENTBOARD_HARNESS", "AGENTBOARD_MODEL"):
+        if not os.environ.get(key, "").strip():
+            raise RuntimeError(f"{key} is required")
+    if os.environ["AGENT_ID"] == os.environ.get("AGENTBOARD_COORDINATOR_ID"):
+        raise RuntimeError("seat AGENT_ID must not be the coordinator identity")
+
+
+def lease_identity(candidate, root):
+    """Read pinned v3's durable lease before writing metadata or running work."""
+    pool = root.resolve(strict=True) / ".treehouse"
+    if not candidate.is_relative_to(pool):
+        raise RuntimeError("seat lies outside the requested pool root")
+    state = candidate.parents[1] / STATE_FILE
+    fd = os.open(state, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, encoding="utf-8") as stream:
+        data = json.loads(stream.read(1_048_577))
+    rows = data.get("worktrees", [])
+    matches = [row for row in rows if isinstance(row, dict) and Path(row.get("path", "")).resolve() == candidate]
+    if len(matches) != 1 or not matches[0].get("leased") or not matches[0].get("lease_id"):
+        raise RuntimeError("seat does not have one active persistent Treehouse lease")
+    if matches[0].get("lease_holder") != os.environ["AGENT_ID"]:
+        raise RuntimeError("AGENT_ID differs from the Treehouse lease holder")
+
+
+def seat_environment(directory, common):
+    # The token, when bootstrap supplies one, never enters a brief or stdout.
+    keys = ("AGENT_ID", "AGENTBOARD_HARNESS", "AGENTBOARD_MODEL", "AGENTBOARD_URL")
+    values = {key: os.environ.get(key, "") for key in keys}
+    if os.environ.get("AGENTBOARD_TOKEN"):
+        values["AGENTBOARD_TOKEN"] = os.environ["AGENTBOARD_TOKEN"]
+    path = directory / "agent.env"
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        for key, value in values.items():
+            stream.write(f"export {key}={shlex.quote(value)}\n")
+    exclude = common / "info" / "exclude"
+    if exclude.is_symlink():
+        raise RuntimeError("Git exclude file is redirected")
+    exclude.parent.mkdir(exist_ok=True)
+    fd = os.open(exclude, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "a", encoding="utf-8") as stream:
+        stream.write("\n/.agentboard-seat/\n")
+
+
 def brief(text, worktree, source):
     return f"""# Agentboard seat isolation — check before editing
 
@@ -221,6 +267,7 @@ def main():
     tainted = sorted(name for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE") if os.environ.get(name) is not None)
     if tainted:
         raise RuntimeError(f"inherited {'/'.join(tainted)} is forbidden; unset GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR, GIT_INDEX_FILE and retry")
+    identity()
     source, common = repository(args.repo)
     if args.check:
         expected = os.environ.get("AGENTBOARD_SEAT_WORKTREE")
@@ -229,14 +276,12 @@ def main():
         actual = isolated(Path.cwd(), source, common)
         if actual != Path(expected).resolve(strict=True):
             raise RuntimeError("cwd differs from the expected seat worktree")
+        lease_identity(actual, pool_root(args.root if args.root is not None else os.environ.get("AGENTBOARD_SEAT_ROOT", "")))
         print(actual)
         return 0
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     if not command or not any(arg in ("{brief}", "{brief_text}") for arg in command):
         raise RuntimeError("native argv must consume {brief} or {brief_text}")
-    for key in ("AGENT_ID", "AGENTBOARD_HARNESS", "AGENTBOARD_MODEL"):
-        if not os.environ.get(key, "").strip():
-            raise RuntimeError(f"{key} is required")
     if not args.brief:
         raise RuntimeError("--brief is required")
     task_brief = args.brief.read_text(encoding="utf-8")
@@ -256,6 +301,7 @@ def main():
         time.sleep(0.1)
         if isolated(candidate, source, common) != worktree:
             raise RuntimeError("worktree cwd did not settle")
+        lease_identity(worktree, root)
         seat_dir = worktree / ".agentboard-seat"
         # Reject redirected metadata writes before touching the worktree.
         if seat_dir.is_symlink() or (seat_dir.exists() and not seat_dir.is_dir()):
@@ -267,9 +313,11 @@ def main():
         fd = os.open(brief_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
             stream.write(emitted)
+        seat_environment(seat_dir, common)
         command = [str(brief_path) if arg == "{brief}" else emitted if arg == "{brief_text}" else arg for arg in command]
         env = dict(os.environ, AGENTBOARD_SEAT_WORKTREE=str(worktree), AGENTBOARD_SEAT_SOURCE=str(source), AGENTBOARD_SEAT_BRIEF=str(brief_path), AGENTBOARD_SEAT_ROOT=str(root))
         isolated(worktree, source, common)
+        lease_identity(worktree, root)
         holder = os.environ["AGENT_ID"]
         if args.task:
             record_slot(args.task, worktree, root, holder)

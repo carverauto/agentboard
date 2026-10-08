@@ -353,7 +353,7 @@ merged head-identity index; readiness now requires schema 24. Existing board,
 evidence, delivery, obligation, and bot history is preserved; repeat migration
 is harmless, and no findings are seeded. The stamp uses
 `GREATEST(version, 24)`, so it never lowers a higher stamp (ordinal 23 stays
-reserved unused; 25 and 26 belong to later work).
+reserved unused; 25 belongs to the agent API credential work below).
 
 Behavior, ownership, and the publication guard live in
 [the duplicate PR checkpoint](verification/duplicate-pr-checkpoint.md), not
@@ -363,3 +363,20 @@ card; a Done original is never reused to host a decision.
 Roll back by retaining the schema-24 table and deploying a compatible prior
 digest. The down migration refuses a destructive downgrade; no down migration
 or finding deletion is permitted.
+
+## Schema 25: agent API credentials (observe)
+
+Migrate and serve the same schema-25 image. Migration `20261008002500` adds
+the `agent_api_credentials` table (hash-only digests with an immutability
+trigger) and the append-only `agent_auth_observations` table; readiness now
+requires schema 25. Existing board, evidence, delivery, obligation, and bot
+history is preserved; repeat migration is harmless, and no credentials or
+observations are seeded. The stamp uses `GREATEST(version, 25)`, so it never
+lowers a higher stamp.
+
+Behavior, custody, and the observe/enforce boundary live in
+[agent API credentials](setup/agent-api-tokens.md), not here.
+
+Roll back by setting `AGENTBOARD_AUTH_MODE=off` and retaining the schema-25
+tables against a compatible prior digest. The down migration raises instead of
+deleting credential or audit evidence.

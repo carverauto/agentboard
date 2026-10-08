@@ -15,7 +15,7 @@ agentboard task create --id=sample-work --title='Investigate work' --repo=agentb
 agentboard task assign sample-work --to=worker-slug
 ```
 
-There is no authentication in v1 for board coordination. Declared identity is attribution within the trusted private network. It grants no permission to merge, publish, deploy, or edit external systems. Authenticated surfaces are the optional captain capability (see [completed task archiving](archive.md) and [agent availability](setup/availability.md)) and the scoped worker API capabilities (see [worker API](worker-api.md) and [server accountability](server-accountability.md)).
+Board coordination preserves declared identity as attribution within the trusted private network. Optional [agent API credentials](setup/agent-api-tokens.md) provide a verified principal and an observe adoption report; this phase does not enforce authentication. It grants no permission to merge, publish, deploy, or edit external systems. Authenticated surfaces are the optional captain capability (see [completed task archiving](archive.md) and [agent availability](setup/availability.md)) and the scoped worker API capabilities (see [worker API](worker-api.md) and [server accountability](server-accountability.md)).
 
 ## Task ownership
 
@@ -200,3 +200,26 @@ returns the usual decision envelope and idempotently parks the owned card.
 It cannot create a system decision, host it on the original Done card, or close
 a GitHub PR. The CLI command is `agentboard pr duplicate-decision ID --task TASK`.
 Its schema floor is24; ordinary PR reads retain their existing floor.
+
+## Agent API credentials (observe phase)
+
+Captain capability is required for `GET /api/v1/agents/:id/tokens` and
+`POST /api/v1/agents/:id/tokens/{issue,rotate,revoke}`. Issue/rotate accept an
+optional `scope` (`agent` or the configured `coordinator`) and return safe
+credential metadata plus the plaintext once. Revoke accepts optional
+`credential_id`; without it, all active credentials for that agent are revoked.
+Lists never return plaintext or hashes. CLI administration directs issued values
+only to a newly created protected `--out` file. Existing worker/captain
+capabilities retain their separate verification paths.
+
+`AGENTBOARD_AUTH_MODE` defaults to `off`. With `observe`, ordinary mutating API
+routes resolve an optional bearer principal while preserving legacy write
+attribution, then record matched, anonymous, invalid or actor-mismatch evidence.
+If observation recording or verification fails in observe mode, the write still
+succeeds with a nil principal and an observation_unavailable outcome; the Agents
+roster keeps actual agents with an explicit unavailable report, while the report
+API returns its honest error and a future enforce mode fails closed.
+`GET /api/v1/auth/observations` reports the mode, 24-hour outcome counts and 50
+recent secret-free observations. Read access follows the existing read model.
+Enforcement is a separate captain-approved follow-up; see the credential setup
+guide for protected custody, rollback and scope boundaries.

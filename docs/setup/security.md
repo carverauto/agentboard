@@ -1,6 +1,6 @@
 # Security notes
 
-agentboard v1 has **no built-in authentication for board coordination**: run it only on a trusted network or behind your own authenticating proxy. The exceptions are the optional captain capability (see [completed task archiving](../archive.md) and [agent availability](availability.md)) and the scoped worker API capabilities (see [worker API](../worker-api.md) and [server accountability](../server-accountability.md)).
+Agentboard board coordination has **no enforced agent authentication in this phase**: run it only on a trusted network or behind your own authenticating proxy. Optional [agent API credentials](agent-api-tokens.md) add a verified principal and an observe report without restricting legacy writes. Protected surfaces are the optional captain capability (see [completed task archiving](../archive.md) and [agent availability](availability.md)) and the scoped worker API capabilities (see [worker API](../worker-api.md) and [server accountability](../server-accountability.md)).
 
 What that means in practice:
 

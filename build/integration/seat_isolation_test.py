@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix="seat-isolation-") as tmp:
     # The launcher's explicit --root must win over the repository config.
     (repo / "treehouse.toml").write_text(f'root = "{root / "config-pool"}"\nmax_trees = 8\n')
     pool = root / "pool"
-    (repo / ".gitignore").write_text('.agentboard-seat/\n')
+    (repo / ".gitignore").write_text('# launcher must add local exclusion\n')
     command(["git", "add", "."], repo)
     command(["git", "commit", "-m", "invented repository"], repo)
     original = command(["git", "rev-parse", "HEAD"], repo).stdout.strip()
@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix="seat-isolation-") as tmp:
 brief=pathlib.Path(sys.argv[2]).read_text() if sys.argv[3]=='file' else sys.argv[2]
 pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os.environ['AGENTBOARD_SEAT_WORKTREE'],'source':os.environ['AGENTBOARD_SEAT_SOURCE'],'brief':brief}))
 ''')
-    env = dict(os.environ, AGENT_ID="codex-fixture-seat", AGENTBOARD_HARNESS="codex", AGENTBOARD_MODEL="fixture-model", AGENTBOARD_TREEHOUSE_BIN=str(treehouse), AGENTBOARD_SEAT_ROOT=str(pool), TREEHOUSE_NO_UPDATE_CHECK="1")
+    env = dict(os.environ, AGENT_ID="codex-fixture-seat", AGENTBOARD_COORDINATOR_ID="codex-fixture-captain", AGENTBOARD_URL="https://agentboard.example.invalid", AGENTBOARD_TOKEN="fixture-seat-board-token", AGENTBOARD_HARNESS="codex", AGENTBOARD_MODEL="fixture-model", AGENTBOARD_TREEHOUSE_BIN=str(treehouse), AGENTBOARD_SEAT_ROOT=str(pool), TREEHOUSE_NO_UPDATE_CHECK="1")
     env.pop("TREEHOUSE_ROOT", None)
     seats = []
     for form in ("text", "file"):
@@ -51,12 +51,27 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
         assert data["source"] == str(repo)
         assert data["brief"].endswith(task.read_text()) and "STOP" in data["brief"]
         assert "AGENTBOARD_SEAT_WORKTREE" in data["brief"]
+        env_file = seat / ".agentboard-seat/agent.env"
+        assert env_file.stat().st_mode & 0o777 == 0o600
+        own = command(["bash", "-c", 'source "$1"; python3 -c \'import os,json;print(json.dumps({k:os.environ.get(k) for k in ["AGENT_ID","AGENTBOARD_HARNESS","AGENTBOARD_MODEL","AGENTBOARD_URL","AGENTBOARD_TOKEN"]}))\'', "fixture", env_file], seat, env)
+        assert json.loads(own.stdout) == {k: env[k] for k in ("AGENT_ID","AGENTBOARD_HARNESS","AGENTBOARD_MODEL","AGENTBOARD_URL","AGENTBOARD_TOKEN")}
+        assert "fixture-seat-board-token" not in result.stdout + result.stderr + data["brief"]
+        assert command(["git", "check-ignore", ".agentboard-seat/agent.env"], seat).returncode == 0
+        assert command(["git", "status", "--porcelain"], seat).stdout == ""
         assert (seat / ".agentboard-seat/brief.md").stat().st_mode & 0o777 == 0o600
         assert (seat / ".agentboard-seat").stat().st_mode & 0o777 == 0o700
         assert command(["git", "status", "--porcelain"], repo).stdout == ""
         assert command(["git", "rev-parse", "HEAD"], repo).stdout.strip() == original
         check_env = dict(env, AGENTBOARD_SEAT_WORKTREE=str(seat))
         command([sys.executable, launcher, "--repo", repo, "--check"], seat, check_env)
+    for changed, reason in (("codex-fixture-captain", "coordinator"), ("codex-fixture-other", "lease holder")):
+        mismatch = dict(env, AGENT_ID=changed, AGENTBOARD_SEAT_WORKTREE=str(seats[0]))
+        result = command([sys.executable, launcher, "--repo", repo, "--check"], seats[0], mismatch, ok=False)
+        assert result.returncode == 2 and reason in result.stderr, result.stderr
+    coordinator_env = dict(env, AGENT_ID="codex-fixture-captain")
+    refused_output = root / "coordinator-must-not-run.json"
+    result = command([sys.executable, launcher, "--repo", repo, "--brief", task, "--", sys.executable, recorder, refused_output, "{brief}", "file"], repo, coordinator_env, ok=False)
+    assert result.returncode == 2 and "coordinator" in result.stderr and not refused_output.exists()
     assert seats[0] != seats[1], "persistent leases must survive process exit"
     assert not (root / "config-pool").exists(), "treehouse.toml root must not be used"
     status = command([treehouse, "status", "--root", pool], repo, env).stdout
@@ -113,6 +128,7 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
     # A recycled seat directory left group/world-readable must be locked back down.
     reused = seats[0] / ".agentboard-seat"
     (reused / "brief.md").unlink()
+    (reused / "agent.env").unlink()
     os.chmod(reused, 0o755)
     reuse_treehouse = root / "reuse-treehouse"
     reuse_treehouse.write_text(f'#!/bin/sh\nif [ "$1" = --version ]; then echo v3.1.2; else echo "{seats[0]}"; fi\n')
