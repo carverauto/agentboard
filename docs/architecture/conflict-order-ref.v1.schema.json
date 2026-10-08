@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agentboard:conflict-order-ref:v1",
+  "title": "Conflict order reference v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "order_id",
+    "order_revision",
+    "repair_task_id",
+    "pull_request_id",
+    "default_ref",
+    "default_tip_sha",
+    "evaluation_base_ref",
+    "evaluation_base_sha",
+    "recipient_id"
+  ],
+  "properties": {
+    "kind": {
+      "const": "pr_conflict_order"
+    },
+    "order_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "order_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "repair_task_id": {
+      "$ref": "#/$defs/slug"
+    },
+    "pull_request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "default_ref": {
+      "$ref": "#/$defs/ref"
+    },
+    "default_tip_sha": {
+      "$ref": "#/$defs/sha"
+    },
+    "evaluation_base_ref": {
+      "$ref": "#/$defs/ref"
+    },
+    "evaluation_base_sha": {
+      "$ref": "#/$defs/sha"
+    },
+    "recipient_id": {
+      "$ref": "#/$defs/slug"
+    }
+  },
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    }
+  }
+}
