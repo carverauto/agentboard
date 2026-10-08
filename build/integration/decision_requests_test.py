@@ -333,7 +333,7 @@ for label,path in [("board","/tasks/page-task"),("prs","/prs")]:
     for style in styles:
         css=urllib.request.urlopen(urllib.parse.urljoin(URL,style),timeout=15).read().decode()
         document=document.replace('href="'+style+'"','href="data:text/css;base64,'+__import__('base64').b64encode(css.encode()).decode()+'"')
-    document=re.sub(r'<script\b[^>]*>.*?</script>', '', document, flags=re.S | re.IGNORECASE)
+    document=re.sub(r'<script\b[^>]*>.*?</script\s*>', '', document, flags=re.S | re.IGNORECASE)
     document=re.sub(r'\s(?:data-phx-session|data-phx-static)="[^" ]*"', '', document)
     (out/(label+"-decision-preview.html")).write_text(document)
 
