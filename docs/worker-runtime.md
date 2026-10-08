@@ -190,3 +190,8 @@ skill installation or by the default install preview.
 The subsequent opt-in [Claude native adapter](worker-claude-adapter.md) supports
 generation-fenced prompt and dedicated check-in boundaries. Its idle wake remains
 unsupported; readiness is per worker and surface.
+
+The opt-in [dedicated Codex adapter](worker-codex-adapter.md) uses an exclusive
+ephemeral app-server stdio child. Its approved implementation is being validated;
+installed-model conformance and the scoped effective-availability dependency are
+separate readiness gates. It does not enroll or activate existing sessions.

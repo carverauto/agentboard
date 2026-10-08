@@ -200,18 +200,32 @@ class WorkerRuntime(unittest.TestCase):
     def fixture(self, names=('worker-a',)):
         f = Fixture(self.root, names); self.fixtures.append(f); return f
 
-    def test_claude_boundary_only_adapter_is_verified_through_public_cli(self):
-        f = self.fixture()
-        f.bindings[0].update(adapter='claude-hook-v1', harness='claude')
-        protected(f.config_path, f.config)
-        proof = f.run('doctor')
-        self.assertEqual(proof['adapter']['adapter_version'], 'claude-hook-v1')
-        self.assertFalse(proof['adapter']['capabilities']['idle_wake']['supported'])
-        process = f.serve()
-        until(lambda: any(p[1] == 'result' for p in f.posts))
-        f.stop(process)
-        self.assertEqual(len(f.submissions), 1)
-        self.assertFalse(any(p[1] == 'receipts' for p in f.posts))
+    def test_native_adapter_admission_and_attribution_through_public_cli(self):
+        # Adapter transport behavior belongs to its native test. This table
+        # owns config admission/attribution and host-to-adapter interoperability.
+        for adapter, harness in [('claude-hook-v1', 'claude'), ('codex-app-server-v1', 'codex')]:
+            with self.subTest(adapter=adapter):
+                root = self.root / harness
+                root.mkdir(mode=0o700)
+                f = Fixture(root)
+                self.fixtures.append(f)
+                f.bindings[0].update(adapter=adapter, harness='pi')
+                protected(f.config_path, f.config)
+                self.assertNotEqual(f.run('doctor', success=False).returncode, 0)
+                self.assertEqual(f.adapter_calls, [], 'wrong attribution fails before native I/O')
+                f.bindings[0]['harness'] = harness
+                protected(f.config_path, f.config)
+                proof = f.run('doctor')
+                self.assertEqual(proof['adapter']['adapter_version'], adapter)
+                state_read = f.run('state')
+                self.assertEqual(state_read['state']['binding'], f.states['worker-a']['binding'])
+                self.assertEqual(f.calls[-1][3], 'Bearer invented-receipt')
+                self.assertEqual(f.posts, [], 'scoped state read consumes and acknowledges nothing')
+                process = f.serve()
+                until(lambda: any(p[1] == 'result' for p in f.posts))
+                f.stop(process)
+                self.assertEqual(len(f.submissions), 1)
+                self.assertFalse(any(p[1] == 'receipts' for p in f.posts))
 
     def test_server_supplied_protocol_fixtures_execute_through_public_cli(self):
         directory = pathlib.Path(os.environ['AB_WORKER_CONTRACT'])
@@ -443,6 +457,7 @@ class WorkerRuntime(unittest.TestCase):
             preview=f.run('install',*args)
             self.assertFalse(preview['applied']); self.assertFalse((home/'.config'/'agentboard'/'worker'/'install.json').exists())
             installed=f.run('install',*args,'--apply')
+            self.assertTrue(any(file['path'].endswith('/codex-native.mjs') for file in installed['files']), 'owned Codex bridge ships with the worker installation')
             for file in installed['files']:
                 data=pathlib.Path(file['path']).read_bytes()
                 self.assertEqual(hashlib.sha256(data).hexdigest(),file['sha256'])

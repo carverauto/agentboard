@@ -18,6 +18,9 @@ import (
 //go:embed pi-native.mjs
 var piExtension []byte
 
+//go:embed codex-native.mjs
+var codexBridge []byte
+
 //go:embed claude-native/bridge.mjs claude-native/.mcp.json claude-native/.claude-plugin/plugin.json claude-native/hooks/register.js claude-native/hooks/hooks.json
 var claudePlugin embed.FS
 
@@ -49,7 +52,7 @@ func serviceFiles(home, configPath, platform string) (map[string][]byte, []strin
 		return nil, nil, errors.New("installer requires absolute single-line paths")
 	}
 	base := filepath.Join(home, ".config", "agentboard", "worker")
-	files := map[string][]byte{filepath.Join(base, "pi-native.mjs"): piExtension}
+	files := map[string][]byte{filepath.Join(base, "pi-native.mjs"): piExtension, filepath.Join(base, "codex-native.mjs"): codexBridge}
 	if err := fs.WalkDir(claudePlugin, "claude-native", func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil || entry.IsDir() {
 			return walkErr
@@ -87,6 +90,7 @@ func serviceFiles(home, configPath, platform string) (map[string][]byte, []strin
 		return nil, nil, errors.New("only launchd macOS and systemd Linux are supported")
 	}
 	reload = append(reload, "Claude: explicitly load claude-native with --plugin-dir; native mods must be available; boundary-only delivery and verified worker bind required")
+	reload = append(reload, "Codex: explicitly activate codex-native.mjs with a protected profile; dedicated ephemeral stdio child only; verify descriptor and worker bind before delivery")
 	return files, reload, nil
 }
 
@@ -214,6 +218,6 @@ func Uninstall(home, configPath, platform string, apply bool) (InstallPlan, erro
 			return plan, err
 		}
 	}
-	plan.Reload = []string{"Stop/unload the previously installed service explicitly; deletion alone does not stop it", "Remove explicit Pi -e argument and restart only that enrolled session; server deliveries stay pending"}
+	plan.Reload = []string{"Stop/unload the previously installed service explicitly; deletion alone does not stop it", "Remove explicit Pi -e argument and restart only that enrolled session; server deliveries stay pending", "Stop only the owned Codex bridge child explicitly; retain native journals and pending server deliveries"}
 	return plan, nil
 }

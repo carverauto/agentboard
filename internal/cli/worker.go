@@ -68,6 +68,22 @@ func (c *commands) workerCommands() *cobra.Command {
 		}
 		return output(cmd, value)
 	}})
+	group.AddCommand(&cobra.Command{Use: "state", Short: "Read scoped canonical worker state; no delivery or receipt", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		cfg, b, err := load()
+		if err != nil {
+			return err
+		}
+		a, err := worker.OpenAPI(cfg, b, true)
+		if err != nil {
+			return err
+		}
+		defer a.Close()
+		raw, err := a.Call(cmd.Context(), http.MethodGet, "state", nil, nil)
+		if err != nil {
+			return err
+		}
+		return output(cmd, map[string]any{"protocol_revision": worker.Protocol, "state": raw})
+	}})
 	var ids []string
 	kind, key := "handled", ""
 	ack := &cobra.Command{Use: "ack", Short: "Explicit exact received/handled receipt for current frozen attempt", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
