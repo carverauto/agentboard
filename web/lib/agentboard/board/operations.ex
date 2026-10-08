@@ -215,7 +215,7 @@ defmodule Agentboard.Board.Operations do
     notify_task_owner(
       changed,
       actor,
-      "Review completed by system: #{url} was observed merged at #{snapshot.observed_at}. CI qualification is unchanged; investigate any outstanding CI repair obligations before taking new work." <>
+      "PR merged: abort native run. Review completed by system: #{url} was observed merged at #{snapshot.observed_at}. CI qualification is unchanged; investigate any outstanding CI repair obligations before taking new work." <>
         seat_return_nudge(task.id),
       stamp
     )
@@ -506,6 +506,7 @@ defmodule Agentboard.Board.Operations do
              TaskEvent,
              Agentboard.Board.AuditEvent,
              Agentboard.Delivery.PullRequest,
+             Agentboard.Delivery.DuplicateFinding,
              Agentboard.Delivery.TaskLink,
              Agentboard.Delivery.PollState,
              Agentboard.Delivery.CISnapshot,

@@ -50,7 +50,7 @@ defmodule Agentboard.Delivery.Reads do
         |> Ash.Query.filter(id in ^ids)
         |> Ash.Query.limit(20)
         |> Ash.read!()
-        |> Map.new(fn pr -> {pr.id, ci_projection(pr)} end)
+        |> Map.new(fn pr -> {pr.id, Map.put(ci_projection(pr), :duplicate_of, Agentboard.Delivery.Duplicates.projection(pr.id))} end)
 
       Map.new(identities, fn {url, id} -> {url, states[id]} end)
     end)
@@ -174,6 +174,7 @@ defmodule Agentboard.Delivery.Reads do
     responsible = (o && o.responsible_id) || (rebase && rebase.responsible_id)
 
     %{
+      duplicate_of: Agentboard.Delivery.Duplicates.projection(pr.id),
       decisions: waiting_decisions(pr.id),
       pr: Ops.public(pr),
       poll: if(s, do: Ops.public(s)),

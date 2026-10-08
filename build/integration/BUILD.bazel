@@ -262,6 +262,16 @@ sh_test(
 )
 
 sh_test(
+    name = "duplicate_pr_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "duplicate_pr_test.py", "AGENTBOARD_PR_OBSERVATION_ENABLED": "true"},
+    srcs = ["board_api_test.sh"],
+    data = ["duplicate_pr_test.py", "liveview_client.py", "provider_fixture.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "large",
+    timeout = "long",
+)
+
+sh_test(
     name = "pr_conflicts_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "pr_conflicts_test.py", "AGENTBOARD_PR_OBSERVATION_ENABLED": "true"},
     srcs = ["board_api_test.sh"],
@@ -319,4 +329,12 @@ sh_test(
     args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
     size = "medium",
     timeout = "long",
+)
+
+sh_test(
+    name = "publication_guard_test",
+    srcs = ["publication_guard_test.sh"],
+    data = ["publication_guard_test.py", "//scripts:publication-guard", "//scripts:launch-seat", "//scripts:publish-seat"],
+    args = ["$(rlocationpath :publication_guard_test.py)", "$(rlocationpath //scripts:publication-guard)", "$(rlocationpath //scripts:launch-seat)", "$(rlocationpath //scripts:publish-seat)"],
+    size = "small",
 )

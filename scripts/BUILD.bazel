@@ -1,1 +1,1 @@
-exports_files(["launch-seat", "install-treehouse", "decision-wake-consumer.py"])
+exports_files(["launch-seat", "install-treehouse", "decision-wake-consumer.py", "publication-guard", "publish-seat"])

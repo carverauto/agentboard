@@ -96,6 +96,7 @@ defmodule AgentboardWeb.Router do
     post("/decisions/:id/:action", DecisionController, :mutate)
     get("/prs", APIController, :prs)
     get("/prs/:id", APIController, :pr)
+    post("/prs/:id/duplicate-decision", APIController, :duplicate_decision)
     get("/quota", APIController, :quota)
     post("/quota", APIController, :push_quota)
     get("/context/search", APIController, :context_search)

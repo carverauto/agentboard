@@ -26,6 +26,9 @@ defmodule AgentboardWeb.APIController do
 
   def pr(conn, %{"id" => id}), do: reply(conn, Agentboard.Delivery.Reads.detail(id))
 
+  def duplicate_decision(conn, %{"id" => id}),
+    do: reply(conn, Agentboard.Delivery.Duplicates.request_decision(id, actor(conn), conn.body_params))
+
   def quota(conn, _), do: list(conn, "quota")
   def push_quota(conn, _), do: reply(conn, Agentboard.Quota.push(actor(conn), conn.body_params))
   def agents(conn, _), do: list(conn, "agents")

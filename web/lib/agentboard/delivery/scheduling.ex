@@ -47,8 +47,10 @@ defmodule Agentboard.Delivery.Scheduling do
         case Polling.commit_observation(reservation, observation) do
           {:ok, projection} ->
             # Enrollment uses a separate transaction, preserving branch -> PR order.
-            case Agentboard.Delivery.BaseMonitor.enroll(reservation, observation) do
-              {:ok, _} -> {:ok, %{observed: projection["ci_state"]}}
+            with {:ok, _} <- Agentboard.Delivery.BaseMonitor.enroll(reservation, observation),
+                 {:ok, _} <- Operations.transaction(fn -> Agentboard.Delivery.Duplicates.reconcile(reservation.id) end) do
+              {:ok, %{observed: projection["ci_state"]}}
+            else
               {:error, _code, message} -> {:error, message}
             end
 

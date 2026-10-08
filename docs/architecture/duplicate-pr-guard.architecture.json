@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Duplicate PR evidence and owner decisions",
+    "quality_profile": "showcase",
+    "viewBox": [
+      930,
+      600
+    ]
+  },
+  "components": [
+    {
+      "id": "metadata",
+      "type": "external",
+      "label": "GitHub metadata",
+      "sublabel": "Head repo + branch",
+      "pos": [
+        40,
+        60
+      ],
+      "size": [
+        200,
+        85
+      ]
+    },
+    {
+      "id": "collector",
+      "type": "backend",
+      "label": "Fenced collector",
+      "sublabel": "HTTPS before commit",
+      "pos": [
+        360,
+        60
+      ],
+      "size": [
+        200,
+        85
+      ]
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Snapshots + findings",
+      "pos": [
+        680,
+        60
+      ],
+      "size": [
+        200,
+        85
+      ]
+    },
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "PRs and cards",
+      "sublabel": "Possible duplicate",
+      "pos": [
+        680,
+        255
+      ],
+      "size": [
+        200,
+        85
+      ]
+    },
+    {
+      "id": "owner",
+      "type": "external",
+      "label": "Live card owner",
+      "sublabel": "Explicit CTA",
+      "pos": [
+        360,
+        255
+      ],
+      "size": [
+        200,
+        85
+      ]
+    },
+    {
+      "id": "decision",
+      "type": "security",
+      "label": "Decision API",
+      "sublabel": "Existing owner checks",
+      "pos": [
+        40,
+        255
+      ],
+      "size": [
+        200,
+        85
+      ]
+    },
+    {
+      "id": "seat",
+      "type": "backend",
+      "label": "Treehouse seat",
+      "sublabel": "Native no-mistakes",
+      "pos": [
+        40,
+        450
+      ],
+      "size": [
+        200,
+        85
+      ]
+    },
+    {
+      "id": "guard",
+      "type": "security",
+      "label": "Publication guard",
+      "sublabel": "Terminal / merged stop",
+      "pos": [
+        360,
+        450
+      ],
+      "size": [
+        200,
+        85
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "collect",
+      "from": "metadata",
+      "to": "collector",
+      "label": "HTTPS"
+    },
+    {
+      "id": "commit",
+      "from": "collector",
+      "to": "store",
+      "label": "Ash writes"
+    },
+    {
+      "id": "surface",
+      "from": "store",
+      "to": "ui",
+      "label": "read evidence",
+      "labelDy": 24
+    },
+    {
+      "id": "owner-prompt",
+      "from": "ui",
+      "to": "owner",
+      "label": "inbox + CTA"
+    },
+    {
+      "id": "request",
+      "from": "owner",
+      "to": "decision",
+      "label": "owner request",
+      "variant": "security"
+    },
+    {
+      "id": "bind",
+      "from": "seat",
+      "to": "guard",
+      "label": "preflight + hook",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Replay evidence",
+      "items": [
+        "Same head repo/branch or merged task submission",
+        "Per-PR receipts prevent repeated notices"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Explicit disposition",
+      "items": [
+        "Collector does not create decisions or close PRs",
+        "Native driver aborts stale runs; merge/push race remains upstream"
+      ]
+    }
+  ]
+}

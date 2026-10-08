@@ -366,12 +366,15 @@ defmodule AgentboardWeb.BoardLive do
   end
 
   defp load_review_ci(data) do
-    urls =
-      (get_in(data, ["columns", "review", "tasks"]) || [])
-      |> Enum.map(& &1["pr_url"])
-      |> Enum.reject(&is_nil/1)
-
-    Agentboard.Delivery.Reads.review(urls)
+    tasks = (data["columns"] || %{}) |> Map.values() |> Enum.flat_map(&(&1["tasks"] || []))
+    tasks = tasks ++ if(data["task"], do: [data["task"]], else: [])
+    urls = tasks |> Enum.map(& &1["pr_url"]) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    urls |> Enum.chunk_every(20) |> Enum.reduce_while({:ok, %{}}, fn chunk, {:ok, accumulated} ->
+      case Agentboard.Delivery.Reads.review(chunk) do
+        {:ok, records} -> {:cont, {:ok, Map.merge(accumulated, records)}}
+        error -> {:halt, error}
+      end
+    end)
   end
 
   attr(:state, :map, default: nil)
@@ -450,6 +453,7 @@ defmodule AgentboardWeb.BoardLive do
                   <div class="owner">{task["assignee_id"] || "Unassigned"}</div>
                   <div class="flags"><span :if={task["held_by_decision"]} class="flag">Claim held by decision</span><span :if={task["requester_stale"]} class="flag warning">requester_stale</span><span :if={task["claim_expired"]} class="flag danger">Claim expired</span><span :if={owner_stale?(task,@data["roster"])} class="flag warning">Agent stale</span></div>
                   <.review_ci :if={status == "review" && task["pr_url"]} state={@review_ci[task["pr_url"]]} unavailable={@ci_unavailable || @unavailable} />
+                  <AgentboardWeb.DuplicateNotice.notice finding={get_in(@review_ci, [task["pr_url"], :duplicate_of])} />
                   <div class="links"><a :if={task["issue_url"]} href={task["issue_url"]} target="_blank" rel="noopener noreferrer">Issue</a><a :if={task["pr_url"]} href={task["pr_url"]} target="_blank" rel="noopener noreferrer">Pull request</a></div>
                 </article>
 
@@ -467,6 +471,7 @@ defmodule AgentboardWeb.BoardLive do
               <div class="flags"><span :if={@data["task"]["held_by_decision"]} class="flag">Claim held by decision</span><span :if={@data["task"]["requester_stale"]} class="flag warning">requester_stale</span><span :if={@data["task"]["claim_expired"]} class="flag danger">Claim expired; explicit recovery required</span><span :if={owner_stale?(@data["task"],@data["roster"])} class="flag warning">Agent stale</span></div>
               <div class="links"><a :if={@data["task"]["issue_url"]} href={@data["task"]["issue_url"]} target="_blank" rel="noopener noreferrer">GitHub issue</a><a :if={@data["task"]["pr_url"]} href={@data["task"]["pr_url"]} target="_blank" rel="noopener noreferrer">GitHub pull request</a></div>
             </article>
+            <AgentboardWeb.DuplicateNotice.notice finding={get_in(@review_ci, [@data["task"]["pr_url"], :duplicate_of])} />
             <AgentboardWeb.DecisionPanel.waiting records={@decisions["decisions"]} captain={@captain} unavailable={@decision_unavailable} />
             <a :if={@decisions["next_cursor"]} href={page_link(:task,@filters,@decisions["next_cursor"],"decision_cursor")}>Next waiting decisions</a>
             <section class="timeline"><h2>Task history</h2>

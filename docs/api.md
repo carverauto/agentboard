@@ -183,3 +183,20 @@ completion and CI repair ownership attribution.
 See the [conflict workflow](architecture/pr-conflict-accountability.html),
 [rendered OpenSpec refinement](architecture/pr-merge-conflicts-openspec.html),
 and [release compatibility](release.md#schema-14-pr-mergeability-and-base-watch).
+
+## Possible duplicate PRs (schema24)
+
+PR list/detail reads expose `duplicate_of` when retained merged evidence matches
+the current open PR's head repository/ref or a common immutable task submission.
+It contains `merged_pull_request_id`, `basis`, both snapshot IDs and source URLs.
+This is possible duplication evidence, not an automatic intent verdict.
+The `decision_cta` names a currently owned non-terminal linked duplicate card;
+it is absent when only terminal/unassigned cards remain.
+
+`POST /api/v1/prs/:id/duplicate-decision` accepts only `{"task":"duplicate-card"}`
+and normal attributed actor headers. It verifies that the card belongs to the
+duplicate PR and delegates to the existing live-owner decision contract. It
+returns the usual decision envelope and idempotently parks the owned card.
+It cannot create a system decision, host it on the original Done card, or close
+a GitHub PR. The CLI command is `agentboard pr duplicate-decision ID --task TASK`.
+Its schema floor is24; ordinary PR reads retain their existing floor.
