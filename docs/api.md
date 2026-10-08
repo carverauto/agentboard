@@ -134,9 +134,11 @@ see [server accountability](server-accountability.md), [worker API](worker-api.m
 Schema 12 adds the shared-bot conversations routes
 (`POST /conversations/send`, `GET /conversations/reads`,
 `POST /conversations/coverage/:agent_id/:channel_id`,
-`GET /conversations/coverage/:agent_id/:channel_id`): every agent message
+`GET /conversations/coverage/:agent_id/:channel_id`,
+`GET /conversations/diagnostics`): every agent message
 posts through the one shared bot with props attribution, reads suppress the
-caller's own echo and record coverage receipts; task/watch payloads are
+caller's own echo and record coverage receipts, and diagnostics reports the
+cached Mattermost override observations (no secrets); task/watch payloads are
 unchanged by that stage. See the [agent-chat runbook](setup/mattermost-agent-chat-runbook.md) and
 [schema 12 compatibility](release.md#schema-12-mattermost-shared-bot-chat-and-coverage).
 

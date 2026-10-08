@@ -58,13 +58,15 @@ defmodule Agentboard.Mattermost.Conversations do
   end
 
   # Pluggable posting seam: shared bot now, per-agent bot later. Override
-  # fields render only when farm01 enables the Mattermost override
-  # settings; header plus props carry identity either way.
+  # fields are sent only while the server is observed (or assumed) to
+  # apply them; header plus props carry identity either way.
   def post_as(cfg, agent_id, channel_id, message, props, root_id \\ nil, icon_url \\ nil, msg_id \\ nil) do
-    opts = [root_id: root_id, override_username: agent_id, override_icon_url: icon_url]
+    {username_opt, icon_opt} = override_opts(agent_id, icon_url)
+    opts = [root_id: root_id, override_username: username_opt, override_icon_url: icon_opt]
 
     case Transport.post_agent(cfg, channel_id, message, props, opts) do
       {:ok, 201, %{"id" => _} = post} ->
+        observe_overrides(post, username_opt, icon_opt)
         {:ok, %{"duplicate" => false, "post" => post, "msg_id" => msg_id}}
 
       {:ok, 404, _} ->
@@ -147,6 +149,105 @@ defmodule Agentboard.Mattermost.Conversations do
     case fetch_coverage(agent_id, channel_id) do
       nil -> {:error, "not_found", "No coverage reported"}
       row -> {:ok, Operations.public(row)}
+    end
+  end
+
+  # Read-only diagnostics: cached override observations, never secrets.
+  # Each field carries its own observed_at/stale/source; a stale field
+  # is re-observed by the next send that actually carries it.
+  def diagnostics(caller) do
+    with {:ok, _agent_id} <- registered_agent(caller) do
+      support = override_support()
+
+      {:ok,
+       %{
+         "overrides" => %{
+           "username" => support[:username],
+           "username_observed_at" => support[:username_observed_at],
+           "username_stale" => not override_fresh?(support[:username_observed_at]),
+           "username_source" => if(is_nil(support[:username_observed_at]), do: "unobserved", else: "observed"),
+           "icon" => support[:icon],
+           "icon_observed_at" => support[:icon_observed_at],
+           "icon_stale" => not override_fresh?(support[:icon_observed_at]),
+           "icon_source" => if(is_nil(support[:icon_observed_at]), do: "unobserved", else: "observed")
+         }
+       }}
+    end
+  end
+
+  # Override support is observed, never configured: the stored post in a
+  # 201 response keeps the override fields only when the server applied
+  # them (a server with the flags off strips them). Observations are
+  # cached per field with separate timestamps; an expired field gates as
+  # unknown, so the next send carrying that field re-observes it while a
+  # field the send omits keeps its own timestamp. Only fields actually
+  # sent update the cache. Nothing here reads or writes server configuration.
+  @override_ttl_s 3_600
+
+  defp override_opts(agent_id, icon_url) do
+    username = if override_gated(:username) == false, do: nil, else: agent_id
+
+    icon =
+      if override_gated(:icon) == false or is_nil(icon_url), do: nil, else: icon_url
+
+    {username, icon}
+  end
+
+  defp override_gated(field) do
+    support = override_support()
+
+    observed_at =
+      case field do
+        :username -> support[:username_observed_at]
+        :icon -> support[:icon_observed_at]
+      end
+
+    if override_fresh?(observed_at), do: support[field], else: nil
+  end
+
+  defp observe_overrides(_post, nil, nil), do: :ok
+
+  defp observe_overrides(post, sent_username, sent_icon) do
+    current = override_support()
+    now = System.system_time(:second)
+
+    observed = %{
+      username: observe_field(post, "override_username", sent_username, current[:username]),
+      username_observed_at: if(is_nil(sent_username), do: current[:username_observed_at], else: now),
+      icon: observe_field(post, "override_icon_url", sent_icon, current[:icon]),
+      icon_observed_at: if(is_nil(sent_icon), do: current[:icon_observed_at], else: now)
+    }
+
+    Application.put_env(:agentboard, :mattermost_override_support, observed)
+    :ok
+  end
+
+  defp observe_field(_post, _field, nil, current), do: current
+
+  defp observe_field(post, field, sent, _current) do
+    stored = post[field] || get_in(post, ["props", field])
+    stored == sent
+  end
+
+  defp override_support do
+    case Application.get_env(:agentboard, :mattermost_override_support) do
+      %{username: _, username_observed_at: _, icon: _, icon_observed_at: _} = support -> support
+      %{username: username, icon: icon, observed_at: observed_at} ->
+        %{username: username, username_observed_at: observed_at, icon: icon, icon_observed_at: observed_at}
+      _ -> %{username: nil, username_observed_at: nil, icon: nil, icon_observed_at: nil}
+    end
+  end
+
+  defp override_fresh?(nil), do: false
+
+  defp override_fresh?(observed_at) do
+    System.system_time(:second) - observed_at < override_ttl_s()
+  end
+
+  defp override_ttl_s do
+    case Application.get_env(:agentboard, :mattermost_override_ttl_s, @override_ttl_s) do
+      seconds when is_integer(seconds) and seconds >= 0 -> seconds
+      _ -> @override_ttl_s
     end
   end
 
