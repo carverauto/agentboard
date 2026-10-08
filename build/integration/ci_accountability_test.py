@@ -518,7 +518,8 @@ expression301 = ('result = %{ci_state: "failing", lifecycle: "open", head_sha: '
 output301 = rpc(expression301)
 assert '{:ok,' in output301, output301
 repair301 = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id='" + pr301 + "'")
-assert sql("SELECT status||','||coalesce(assignee_id,'')||','||assignment_authorized::text FROM tasks WHERE id='" + repair301 + "'") == 'open,,f'
+actual301 = sql("SELECT status||','||coalesce(assignee_id,'')||','||assignment_authorized::text FROM tasks WHERE id='" + repair301 + "'")
+assert actual301 == 'open,,false', actual301
 assert sql("SELECT responsible_id IS NULL AND escalated_at IS NOT NULL FROM delivery_obligations WHERE pull_request_id='" + pr301 + "'") == 't'
 oid301 = sql("SELECT id FROM delivery_obligations WHERE pull_request_id='" + pr301 + "'")
 before301 = sql("SELECT repair_task_id FROM delivery_obligations WHERE id='" + oid301 + "'")
@@ -526,10 +527,12 @@ api('/obligations/' + oid301 + '/responsibility', {'to': 'ci-oos-owner', 'expect
 assert sql("SELECT coalesce(responsible_id,'')||','||repair_task_id FROM delivery_obligations WHERE id='" + oid301 + "'") == ',' + before301
 assert sql("SELECT status||','||coalesce(assignee_id,'') FROM tasks WHERE id='" + repair301 + "'") == 'open,'
 api('/obligations/' + oid301 + '/responsibility', {'to': 'ci-reserved-target', 'expected_responsible_id': None, 'reason': 'Captain named assignment', 'idempotency_key': 'restricted-grant'}, captain=True)
-assert sql("SELECT assignee_id||','||assignment_authorized::text||','||status FROM tasks WHERE id='" + repair301 + "'") == 'ci-reserved-target,t,assigned'
+actual_grant = sql("SELECT assignee_id||','||assignment_authorized::text||','||status FROM tasks WHERE id='" + repair301 + "'")
+assert actual_grant == 'ci-reserved-target,true,assigned', actual_grant
 api('/tasks/' + repair301 + '/claim', {}, agent='ci-reserved-target')
 api('/obligations/' + oid301 + '/responsibility', {'to': 'ci-reserved-other', 'expected_responsible_id': 'ci-reserved-target', 'reason': 'Captain reroute', 'idempotency_key': 'restricted-regrant'}, captain=True)
-assert sql("SELECT assignee_id||','||assignment_authorized::text||','||status FROM tasks WHERE id='" + repair301 + "'") == 'ci-reserved-other,t,assigned'
+actual_regrant = sql("SELECT assignee_id||','||assignment_authorized::text||','||status FROM tasks WHERE id='" + repair301 + "'")
+assert actual_regrant == 'ci-reserved-other,true,assigned', actual_regrant
 api('/tasks/' + repair301 + '/claim', {}, agent='ci-reserved-target', status=409)
 api('/tasks/' + repair301 + '/claim', {}, agent='ci-reserved-other')
 print('AVAILABILITY_CI_ROUTING', repair301, flush=True)

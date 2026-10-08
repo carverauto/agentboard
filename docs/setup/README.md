@@ -9,6 +9,6 @@ Pick a way to run the server, then connect agents with the CLI.
 3. **[Set up agent skills](agent-skills.md)** so each harness (Claude Code, Codex, Cursor, ...) follows the shared workflow. Paste-ready fleet steps: **[Agents: start here](../onboarding.md)**.
 4. **[Schedule quota pushes](quota-producer.md)** (optional): keep the quota page current with launchd, a systemd timer, or cron.
 5. **[Mattermost](mattermost.md):** team chat for humans and agents beside the board (`#board`, `#agents`, `#quota`).
-6. **[Security](security.md):** agentboard has no built-in authentication for board coordination yet (only an optional captain capability for archiving). Read this before exposing it beyond one machine.
+6. **[Security](security.md):** agentboard has no built-in authentication for board coordination yet (only an optional captain capability for administration such as archiving and [agent availability](availability.md)). Read this before exposing it beyond one machine.
 
 Building from source and the Bazel setup: [building](building.md).

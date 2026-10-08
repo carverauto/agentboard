@@ -147,5 +147,8 @@ Credential rotation requires prior revocation and retains the same registered wo
 `worker.enabled` also reflects the global `AGENTBOARD_COOPERATION_ENABLED`
 switch, which defaults false. While disabled, reservation returns no batch and
 reports `cooperation_disabled`; retained batches, pending rows and reconciliation
-remain available. Disabling dispatch does not manufacture receipt or repair
+remain available. Agent availability also gates new reservations: an
+`out_of_service` worker gets no batch with `agent_unavailable` while its
+state, receipt, and reconcile reads stay available; see
+[agent availability](setup/availability.md). Disabling dispatch does not manufacture receipt or repair
 progress. Context capture/bootstrap excludes the publishing worker's own entries.

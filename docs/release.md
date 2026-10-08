@@ -267,6 +267,18 @@ Behavior, bounds and operation live in the
 Roll back by retaining the schema-12 tables and deploying a compatible prior
 digest. No down migration or coverage deletion is permitted.
 
+## Schema 13: agent availability and assignment provenance
+
+Migrate and serve the same schema-13 image. Migration `20261008000100`
+adds the `availability_policies` table with immutable version history, the
+`tasks.assignment_authorized` grant flag, and the `task_order` message kind;
+readiness now requires schema 13. Existing tasks keep their history with no
+grant, no availability policy is seeded, and repeat migration is harmless.
+
+Behavior, precedence, expiry, and routing eligibility live in
+[agent availability](setup/availability.md), not here. The upgrade proof
+checks retained history alongside the empty-policy default.
+
 ## Schema 14: PR mergeability and base watch
 
 Migrate and serve the same schema-14 image. Migration `20261008000200` adds
@@ -274,9 +286,6 @@ nullable base-ref/expected-base fields to polling state, durable branch watches
 and unique per-head rebase follow-up receipts. Readiness requires schema 14 and
 the new tables. Existing snapshot bytes, PR attribution, board history, documents,
 context and provider backoff are retained. Old snapshots have unknown mergeability.
-Schema 13 is reserved for parallel agent-availability work; before publication,
-advance the migration timestamp/version beyond current main if merge order changes.
-
 The minute `ScheduleBases` AshOban job uses existing delivery queues. Provider
 I/O runs outside reservation transactions and shares the 60/minute GitHub budget;
 there is no process-wide SQL or provider-call singleton. Branch generations fence
