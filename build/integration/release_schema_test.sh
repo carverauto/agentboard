@@ -220,6 +220,33 @@ duplicate_psql 'UPDATE board_schema SET version=25 WHERE id=1' >/dev/null
 [[ "$(duplicate_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d))")" == "$before_duplicate" ]]
 echo 'Schema22 upgrade retains task/event/document prefixes, seeds no duplicate findings and preserves a higher stamped version.'
 
+# Upgrade from actual schema24 with retained board/duplicate state: pending
+# credential migration must raise 24 to 25 with empty auth resources.
+"$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_auth24_upgrade
+export DATABASE_NAME=agentboard_auth24_upgrade
+PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=$DATABASE_NAME user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION pg_textsearch VERSION '1.5.1'" >/dev/null
+auth24_psql() {
+  PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=agentboard_auth24_upgrade user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -Atc "$1"
+}
+"$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261008002400) end)'
+[[ "$(auth24_psql 'SELECT version FROM board_schema WHERE id=1')" == 24 ]]
+[[ -z "$(auth24_psql "SELECT to_regclass('agent_api_credentials')")" ]]
+[[ -z "$(auth24_psql "SELECT to_regclass('agent_auth_observations')")" ]]
+auth24_psql "INSERT INTO agents(id,name,model,harness) VALUES ('auth24-retained','Retained','fixture','codex');
+INSERT INTO tasks(id,title) VALUES ('auth24-card','Auth24 card');
+INSERT INTO task_events(task_id,actor_id,model,harness,kind,new_revision) VALUES ('auth24-card','auth24-retained','fixture','codex','created',1);
+INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html,digest) VALUES ('auth24-card','auth24-retained','fixture','codex','archify','Auth24 diagram','<!doctype html><p>Retained</p>',repeat('e',64));
+INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES (repeat('f',64),'fixture','repo','601','https://github.com/fixture/repo/pull/601',clock_timestamp());
+INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES ('66666666-6666-4666-8666-666666666666',repeat('f',64),1,clock_timestamp(),repeat('a',40),repeat('b',40),'open','failing','{\"coverage\":\"complete_head\",\"policy\":\"unknown\",\"tested_ref\":\"head\",\"attempts\":[]}');" >/dev/null
+before_auth24="$(auth24_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'prs',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_pull_requests p),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))")"
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+[[ "$(auth24_psql 'SELECT version FROM board_schema WHERE id=1')" == 25 ]]
+[[ "$(auth24_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'prs',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_pull_requests p),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))")" == "$before_auth24" ]]
+[[ "$(auth24_psql 'SELECT count(*) FROM agent_api_credentials')" == 0 ]]
+[[ "$(auth24_psql 'SELECT count(*) FROM agent_auth_observations')" == 0 ]]
+[[ "$(auth24_psql 'SELECT count(*) FROM delivery_duplicate_findings')" == 0 ]]
+echo 'Schema24 upgrade retains board/duplicate prefixes and seeds empty auth resources.'
+
 # Upgrade from current schema22 with retained board state and a newer aggregate
 # stamp: pending credential migration must never lower another feature's marker.
 "$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_auth_upgrade
