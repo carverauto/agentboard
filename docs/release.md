@@ -380,3 +380,21 @@ Behavior, custody, and the observe/enforce boundary live in
 Roll back by setting `AGENTBOARD_AUTH_MODE=off` and retaining the schema-25
 tables against a compatible prior digest. The down migration raises instead of
 deleting credential or audit evidence.
+
+## Schema 28: fair whole-poll budget admission
+
+Migrate and serve the same schema-28 image. Migration `20261008002800` adds
+the `delivery_poll_credits` table (bounded whole-poll request credit) and
+private polling bookkeeping on `delivery_poll_states` (`budget_deferred_at`,
+`unchanged_polls`, `check_fingerprint`, sensitive `github_cache`); readiness
+now requires schema 28. Existing board, evidence, delivery, obligation, and
+bot history is preserved; repeat migration is harmless, and no observations
+are seeded. The stamp uses `GREATEST(version, 28)`, so it never lowers a
+higher or concurrent stamp.
+
+Behavior, fairness, conditional-request and cadence contracts live in
+[fair PR polling](architecture/pr-poll-budget-fairness.md), not here.
+
+Roll back by disabling PR observation and retaining the schema-28 tables
+against a compatible prior digest. The down migration raises instead of
+deleting polling bookkeeping.
