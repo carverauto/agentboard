@@ -101,8 +101,13 @@ integrated those guards and removed regex answer wakes for durable requests;
 this script does not install a timer, alter launchd or activate adapters.
 
 Reservation atomically grants dispatch once. Retrying the same key does not
-grant dispatch again. Acceptance is recorded after the native consumer returns;
-timeout/failure records uncertainty and prevents automatic replay. A crash
+grant dispatch again. An expected per-wake reservation denial (exit 4
+conflict, for example an unavailable requester or a lost simultaneous-watcher
+race) is reported as skipped and the consumer continues with the remaining
+wakes without dispatching the denied wake; other operation failures still stop
+the run for explicit inspection. Acceptance is recorded after the native
+consumer returns; timeout/failure records uncertainty and prevents automatic
+replay. A crash
 after reservation leaves a durable reserved record; a fresh poll sees no pending
 intent. Inspect/recover explicitly—one intent is not exactly-once physical
 prompt delivery.
