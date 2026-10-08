@@ -52,6 +52,9 @@ configMapGenerator:
       - AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID=5ujo4n8df3njxgxsso15zbi59a
       - AGENTBOARD_MATTERMOST_BOT_TOKEN_FILE=/etc/agentboard/mattermost/bot-token
       - AGENTBOARD_MATTERMOST_CA_FILE=/etc/ssl/certs/ca-certificates.crt
+      # Captain-approved 2026-10-07: team of the #board channel (Carver Automation
+      # Corporation); enables the identity team-membership check.
+      - AGENTBOARD_MATTERMOST_TEAM_ID=5b1bxk4xmjre7kkxbjmqpt7muc
       - AGENTBOARD_PUBLIC_BOARD_URL=https://agentboard.farm01.carverauto.dev
       - PHX_HOST=agentboard.farm01.carverauto.dev
       - DATABASE_HOST=agentboard-db-rw.agentboard.svc.cluster.local

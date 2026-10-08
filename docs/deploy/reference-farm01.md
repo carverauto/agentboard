@@ -250,8 +250,9 @@ the dashboard image changed; the ConfigMap, secrets, CNPG and Mattermost were
 not modified. Discovery, observation and the Mattermost bridge stay enabled,
 cooperation stays disabled, and the CI policies are unchanged.
 
-No new secret is required. `AGENTBOARD_MATTERMOST_TEAM_ID` is optional and
-unset; without it identity verification skips the team-membership check.
+No new secret is required. At the time of this rollout `AGENTBOARD_MATTERMOST_TEAM_ID` was
+unset (optional; without it identity verification skips the team-membership check); it
+was set afterwards — see Mattermost team ID below.
 
 The dashboard is Ready with zero restarts on the exact image ID;
 `/health/live`, `/health/ready`, `/`, `/prs` and `/api/v1/meta` return 200,
@@ -275,3 +276,17 @@ with `cutover_ready: false`. No new secret is required and all flags are
 unchanged. The pod is Ready with zero restarts on the exact image ID, health,
 `/`, `/prs` and the CLI pass, and the bridge delivered a new board event after
 the roll. Roll back to 9432792 (`sha256:76af4541...`) or 7dfd031 keeping schema 12.
+
+### Mattermost team ID (2026-10-08 UTC)
+
+The captain approved setting `AGENTBOARD_MATTERMOST_TEAM_ID=5b1bxk4xmjre7kkxbjmqpt7muc`
+in the overlay ConfigMap. It is the team (`carver-automation-corporation`,
+Carver Automation Corporation) that owns the bridge's `#board` channel, looked
+up through the bridge's own bot credential without printing it. With it set,
+identity verification also checks Mattermost team membership. The ConfigMap was
+applied live and the dashboard restarted on the same image
+(`sha256:b892c442...`). In the new pod, the transport's membership call returned
+member for the `agentboard` bot and not-member for an unknown user ID, and the
+bridge still delivered board events. No identities were enrolled at the time,
+so no stored identity was re-verified.
+
