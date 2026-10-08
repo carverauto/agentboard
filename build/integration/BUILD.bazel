@@ -310,3 +310,13 @@ sh_test(
     size = "large",
     timeout = "long",
 )
+
+sh_test(
+    name = "mattermost_inbox_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "mattermost_inbox_test.py", "AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS": "2000"},
+    srcs = ["board_api_test.sh"],
+    data = ["mattermost_inbox_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)

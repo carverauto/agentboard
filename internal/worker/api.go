@@ -98,7 +98,19 @@ func (a *API) CheckIn(ctx context.Context) (map[string]any, error) {
 	}
 	result["state"] = json.RawMessage(state)
 	totalBytes := len(state)
-	for _, action := range []string{"responsibilities", "obligations", "pending"} {
+	var capabilities struct {
+		Worker struct {
+			MattermostInbox bool `json:"mattermost_inbox_supported"`
+		} `json:"worker"`
+	}
+	if json.Unmarshal(state, &capabilities) != nil {
+		return nil, errors.New("invalid worker state")
+	}
+	actions := []string{"responsibilities", "obligations", "pending"}
+	if capabilities.Worker.MattermostInbox {
+		actions = append(actions, "mattermost_inbox")
+	}
+	for _, action := range actions {
 		pages := []json.RawMessage{}
 		cursor := ""
 		seen := map[string]bool{}

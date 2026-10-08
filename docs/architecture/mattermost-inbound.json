@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Shared-bot inbound recovery",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "chat-source",
+      "type": "external",
+      "label": "Mattermost",
+      "sublabel": "authoritative bodies",
+      "pos": [
+        55,
+        250
+      ],
+      "size": [
+        165,
+        68
+      ]
+    },
+    {
+      "id": "live-owner",
+      "type": "backend",
+      "label": "Live subscription",
+      "sublabel": "verified bot / lease",
+      "pos": [
+        285,
+        250
+      ],
+      "size": [
+        185,
+        68
+      ]
+    },
+    {
+      "id": "history-router",
+      "type": "backend",
+      "label": "Catch-up + routing",
+      "sublabel": "overlapping pages",
+      "pos": [
+        535,
+        250
+      ],
+      "size": [
+        185,
+        68
+      ]
+    },
+    {
+      "id": "metadata-ledger",
+      "type": "database",
+      "label": "Metadata ledger",
+      "sublabel": "versions / pending IDs",
+      "pos": [
+        785,
+        250
+      ],
+      "size": [
+        185,
+        68
+      ]
+    },
+    {
+      "id": "scoped-reader",
+      "type": "security",
+      "label": "Worker inbox",
+      "sublabel": "scoped read / exact ack",
+      "pos": [
+        1035,
+        250
+      ],
+      "size": [
+        195,
+        68
+      ]
+    },
+    {
+      "id": "coverage-gap",
+      "type": "database",
+      "label": "Coverage gaps",
+      "sublabel": "explicit / retained",
+      "pos": [
+        785,
+        420
+      ],
+      "size": [
+        185,
+        68
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "chat-source",
+      "to": "live-owner",
+      "label": "TLS / WS",
+      "variant": "emphasis"
+    },
+    {
+      "from": "live-owner",
+      "to": "history-router",
+      "label": "REST",
+      "variant": "emphasis"
+    },
+    {
+      "from": "history-router",
+      "to": "metadata-ledger",
+      "label": "hash / route",
+      "variant": "emphasis"
+    },
+    {
+      "from": "metadata-ledger",
+      "to": "scoped-reader",
+      "label": "references",
+      "variant": "emphasis"
+    },
+    {
+      "from": "metadata-ledger",
+      "to": "coverage-gap",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One shared bot",
+      "items": [
+        "Server owns the token and live socket",
+        "Thread roots require bot provenance"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Exact handling",
+      "items": [
+        "Read fetches and verifies current source",
+        "Only id/version acknowledgements consume"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Honest recovery",
+      "items": [
+        "Known missing sources remain unavailable",
+        "Offline unknown deletions remain a gap"
+      ]
+    }
+  ]
+}

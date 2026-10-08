@@ -208,3 +208,19 @@ ci_policies =
   end
 
 config :agentboard, :ci_policies, ci_policies
+
+# Shared-bot inbound is a separate opt-in; deploying code does not activate chat cutover.
+config :agentboard, :mattermost_inbound_enabled,
+  System.get_env("AGENTBOARD_MATTERMOST_INBOUND_ENABLED", "false") in ["true", "1"]
+config :agentboard, :mattermost_inbound_repo,
+  System.get_env("AGENTBOARD_MATTERMOST_INBOUND_REPO")
+# Unset means each worker's enrollment time. An explicit non-negative epoch
+# cutoff permits an operator-approved bounded historical bootstrap.
+history_start = case System.get_env("AGENTBOARD_MATTERMOST_INBOUND_HISTORY_START_MS") do
+  nil -> nil
+  value -> case Integer.parse(value) do
+    {stamp, ""} when stamp >= 0 -> stamp
+    _ -> :invalid
+  end
+end
+config :agentboard, :mattermost_inbound_history_start_ms, history_start
