@@ -343,3 +343,23 @@ Cursor continuations are persisted jobs; cooperation may remain disabled.
 Disabled observation snoozes jobs. Unknown or inconsistent proof stays unresolved.
 No provider call, production SQL repair or automatic deployment is required.
 Roll back only to a compatible image; retain all disposition/audit history.
+
+## Schema 24: duplicate PR guard
+
+Migrate and serve the same schema-24 image. Migration `20261008002400` adds
+the `delivery_duplicate_findings` table with candidate and merged snapshot IDs,
+basis (`head_branch` or `task_submission`), and notified recipients, plus the
+merged head-identity index; readiness now requires schema 24. Existing board,
+evidence, delivery, obligation, and bot history is preserved; repeat migration
+is harmless, and no findings are seeded. The stamp uses
+`GREATEST(version, 24)`, so it never lowers a higher stamp (ordinal 23 stays
+reserved unused; 25 and 26 belong to later work).
+
+Behavior, ownership, and the publication guard live in
+[the duplicate PR checkpoint](verification/duplicate-pr-checkpoint.md), not
+here. Duplicate decisions stay owner-only on the duplicate's own live linked
+card; a Done original is never reused to host a decision.
+
+Roll back by retaining the schema-24 table and deploying a compatible prior
+digest. The down migration refuses a destructive downgrade; no down migration
+or finding deletion is permitted.
