@@ -1,0 +1,24 @@
+{
+  "binary_invocation": "https://carverauto.buildbuddy.io/invocation/759a4772-c929-40fe-a36f-0c9ea78a6cb5",
+  "binary_sha256": "09ee1a9deaf555fcd1e7047e3374fc7133a91cc4057ffb924e26bfcf8ad779e3",
+  "checks": [
+    {
+      "platform": "darwin",
+      "service_sha256": "5e1a706f4dd91749faa2a42d477ecbff70477a22830a58cd4ed822e4cfeb2411",
+      "restart": "KeepAlive",
+      "preview_no_writes": true,
+      "owned_install_repeat_uninstall": true,
+      "foreign_hook_unchanged": true,
+      "service_started": false
+    },
+    {
+      "platform": "linux",
+      "service_sha256": "41e6b0127469fa786dee7142593cd82cb784721c6572fa8b196942fb8b2112d8",
+      "restart": "on-failure",
+      "preview_no_writes": true,
+      "owned_install_repeat_uninstall": true,
+      "foreign_hook_unchanged": true,
+      "service_started": false
+    }
+  ]
+}

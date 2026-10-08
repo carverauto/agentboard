@@ -28,6 +28,7 @@ test_suite(
         "//internal/client:client_test",
         "//internal/cli:cli_test",
         "//build/integration:worker_runtime_test",
+        "//build/integration:worker_packaged_api_test",
         "//build/integration:pi_native_test",
         "//build/integration:seat_isolation_test",
         "//build/integration:claude_native_test",

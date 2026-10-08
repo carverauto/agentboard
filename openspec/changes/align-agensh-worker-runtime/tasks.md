@@ -17,9 +17,9 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 - [x] 2.1 Add Cooperation event/delivery/batch/attempt/receipt Ash resources and scoped runtime capability actions; verify recipient uniqueness, revoked/foreign credentials, transactional failure-intent rollback and a lower-ID late commit remotely, and document proposed API schemas/error/429 contracts.
 - [x] 2.2 Implement scoped enrollment/bootstrap, pending reads and source-state reconciliation; verify lost notification, all-page recovery, previously handled Context receipt compatibility and unresolved CI after source-task completion remotely, and document the enrollment start policy.
 - [x] 2.3 Implement immutable bounded reservation and epoch/generation-checked submit/reconcile/receipt actions; verify crash-before/after submission, stale writers, exact-id receipts, arrivals mid-batch and no automatic acknowledgement on turn end remotely, and document uncertain-delivery resolution.
-- [ ] 2.4 Add `internal/worker` host loop and CLI `worker serve/check-in/ack/bind/doctor/pause/resume` seams through `internal/client`; verify API-only operation, independent blocked workers, cancellation, rate limiting, protected crash journal and restart reconciliation through remote-built binaries and transport fixtures.
-- [ ] 2.5 Package launchd/systemd installation/removal with owned configuration and credential references; verify idempotent preview/install/uninstall and preservation of foreign hooks remotely, then inspect rendered operator files without local compilation and document reload requirements.
-- [ ] 2.6 Validate installed Herdr session/safe-input capabilities in a named isolated session, then implement explicit socket/binding transport if supported; verify replacement occupant, busy/blocked/unknown/occupied composer, reconnect and uncertain submission. If that contract is unavailable, ship one proven Claude/Pi native boundary path instead; document the actual supported adapter, not an untested universal fallback.
+- [x] 2.4 Add `internal/worker` host loop and CLI `worker serve/check-in/ack/bind/doctor/pause/resume` seams through `internal/client`; verify API-only operation, independent blocked workers, cancellation, rate limiting, protected crash journal and restart reconciliation through remote-built binaries and transport fixtures.
+- [x] 2.5 Package launchd/systemd installation/removal with owned configuration and credential references; verify idempotent preview/install/uninstall and preservation of foreign hooks remotely, then inspect rendered operator files without local compilation and document reload requirements.
+- [x] 2.6 Validate installed Herdr session/safe-input capabilities in a named isolated session, then implement explicit socket/binding transport if supported; verify replacement occupant, busy/blocked/unknown/occupied composer, reconnect and uncertain submission. If that contract is unavailable, ship one proven Claude/Pi native boundary path instead; document the actual supported adapter, not an untested universal fallback.
 - [x] 2.7 Add visible connector/binding/pending/received/handled/uncertainty state to existing agent/task views; verify stale heartbeat versus live lease/healthy connector distinctions remotely and in a real browser, and keep Herdr out of roster GC authority.
 
 ## 3. First release: red CI reaches the owner and stays accountable
@@ -182,3 +182,13 @@ Mattermost-authoritative; unavailable versions are not fabricated or consumed.
 See [implemented contracts](../../../docs/mattermost-inbox.md). Task5.4, chat
 cutover, live fleet parity, Herdr activation and PR publication/CI remain distinct
 gates; this checkbox does not imply production enablement.
+
+## Host packaged acceptance evidence
+
+Tasks 2.4–2.6 now have shipped host/native implementation and [fresh real packaged
+API/CLI acceptance plus isolated Pi evidence](../../../docs/verification/worker-packaged-api.md).
+Five focused remote suites passed; actual Pi0.99.2 exclusive-RPC idle wake and busy
+dedicated-tool-return passed with exact receipts and generation replacement.
+Disposable launchd/systemd files were inspected without service activation.
+Herdr unsafe prompt/TUI and universal harness parity remain unsupported.
+Production task3.4 stays captain-gated; controlled joint tasks3.2–3.3 remain open.
