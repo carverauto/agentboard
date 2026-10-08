@@ -8,14 +8,36 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
-    paths-ignore:
-      # Deployment pins (written back by Argo CD Image Updater) and docs do
-      # not change the images.
-      - k8s/**
-      - docs/**
-      - openspec/**
-      - contrib/**
-      - "**/*.md"
+    # Build on everything except paths that cannot change the images, then
+    # re-include the Markdown the CLI embeds (skill_bundle.go / BUILD.bazel
+    # embedsrcs and Dockerfile.cli). Order matters: a later pattern overrides
+    # an earlier one. Deployment pins (written back by Argo CD Image Updater)
+    # live under k8s/. Path filters are not evaluated for v* tag pushes, so
+    # releases always build. No branch protection or ruleset requires these
+    # checks today; if publish is ever made required, switch to a job-level
+    # changes check so a skipped run still reports a status.
+    paths:
+      - "**"
+      - "!k8s/**"
+      - "!docs/**"
+      - "!openspec/**"
+      - "!contrib/**"
+      - "!.lavish/**"
+      - "!.github/ISSUE_TEMPLATE/**"
+      - "!.github/actionlint.yaml"
+      - "!**/*.md"
+      - "!.no-mistakes.yaml"
+      - "!treehouse.toml"
+      - "!.editorconfig"
+      - "!.env.example"
+      - "!.bazelrc.remote.example"
+      # Embedded in the CLI binary, so a change must republish the images.
+      - "skills/**"
+      - GROK_BOT.md
+      - docs/api.md
+      - docs/quota.md
+      - docs/participation.md
+      - docs/context.md
   pull_request:
     branches: [main]
     paths:

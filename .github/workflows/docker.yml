@@ -25,8 +25,37 @@ on:
       - go.sum
       - LICENSE
       - .github/workflows/docker.yml
+  # Same allowlist as pull_request: the Compose smoke builds three images on a
+  # GitHub-hosted runner (~10-45 min), so a merge that touches only docs,
+  # openspec, k8s pins, contrib, or other repo metadata must not rebuild them.
+  # Keep these two lists identical. No branch protection or ruleset requires
+  # these checks today; if one is ever made required, replace the workflow-
+  # level filter with a job-level changes check so skipped runs still report.
   push:
     branches: [main]
+    paths:
+      - Dockerfile
+      - Dockerfile.cli
+      - Dockerfile.db
+      - .dockerignore
+      - docker-compose.yml
+      - deploy/compose/**
+      - scripts/compose-smoke
+      - scripts/quota-push.sh
+      - web/**
+      - cmd/**
+      - internal/**
+      - skill_bundle.go
+      - skills/**
+      - GROK_BOT.md
+      - docs/api.md
+      - docs/quota.md
+      - docs/context.md
+      - docs/participation.md
+      - go.mod
+      - go.sum
+      - LICENSE
+      - .github/workflows/docker.yml
   workflow_dispatch:
 permissions:
   contents: read

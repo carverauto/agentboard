@@ -14,7 +14,7 @@ The dashboard image uses a pinned Ubuntu Noble base, UID/GID 10001, release stat
 ## Automation
 
 - **BuildBuddy workflow** (`buildbuddy.yaml`): on pushes and pull requests to `main`, runs `//:acceptance` and builds the release artifacts and `//k8s:manifests`. It needs a `BUILDBUDDY_API_KEY` secret; `scripts/ci-bazelrc` writes it to the gitignored `.bazelrc.remote` without logging it.
-- **Docker images workflow** (`.github/workflows/docker.yml`): builds both Dockerfiles and runs the Compose smoke test on pull requests.
+- **Docker images workflow** (`.github/workflows/docker.yml`): builds both Dockerfiles and runs the Compose smoke test on pull requests and on pushes to `main` that touch a build path. Merges touching only docs, `openspec/`, `k8s/` pins, or other repo metadata skip it (same allowlist on both triggers).
 - **Container images workflow** (`.github/workflows/images.yml`): after a push to `main` or a `v*` tag, runs `//:acceptance` and builds both images on BuildBuddy, then pushes them to `registry.carverauto.dev/agentboard/{dashboard,cli}`:
 
   | Trigger | Tags |
@@ -22,7 +22,7 @@ The dashboard image uses a pinned Ubuntu Noble base, UID/GID 10001, release stat
   | Push to `main` | `sha-<commit>` and `latest` |
   | Push of tag `vX.Y.Z` | `sha-<commit>` and `vX.Y.Z` |
 
-  `sha-<commit>` tags are immutable; deploy by digest. Pushes that only touch `k8s/`, docs, or Markdown skip the build. On pull requests the workflow runs a plan job only: it prints the tags it would push and checks the reference overlay, without secrets. It uses the `agentboard-release` environment and its secrets (below).
+  `sha-<commit>` tags are immutable; deploy by digest. Pushes to `main` that touch only non-image paths (`k8s/`, `docs/` except the CLI-embedded pages, `openspec/`, `contrib/`, other repo metadata, or Markdown outside the CLI bundle) skip the build; the Markdown the CLI embeds (`skills/**`, `GROK_BOT.md`, `docs/api.md`, `docs/quota.md`, `docs/participation.md`, `docs/context.md`) still builds, and `v*` tag pushes always build. On pull requests the workflow runs a plan job only: it prints the tags it would push and checks the reference overlay, without secrets. It uses the `agentboard-release` environment and its secrets (below).
 - **Publish workflow** (`.github/workflows/release.yml`, manual): accepts an existing release tag whose commit is on `main`, reruns the remote acceptance targets and packaging, pushes the verified OCI digest to the maintainers' registry, and creates a **draft** GitHub release with the binaries, checksums, release archive, image reference, and a matching Kustomization. It runs in the protected `agentboard-release` environment with these secrets (values are provisioned out of band and never recorded in Git):
 
   | Secret | Purpose |
