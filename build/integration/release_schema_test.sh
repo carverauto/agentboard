@@ -157,3 +157,21 @@ echo 'Schema-14 to 15 retains watches/tasks/history and seeds no availability po
 [[ "$(avail_psql "SELECT jsonb_agg(to_jsonb(o)-'resolution_reason'-'resolution_snapshot_id' ORDER BY episode) FROM delivery_obligations o")" == "$before_obligations" ]]
 [[ "$(avail_psql "SELECT coalesce(resolution_reason,'unset') FROM delivery_obligations ORDER BY episode")" == $'legacy\nunset' ]]
 echo 'Schema21 preserves resolved/unresolved obligation prefixes and records legacy without certifying CI.'
+
+# Reserve a higher version before the pending decision migration: it must not lower it.
+"$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_decision_upgrade
+export DATABASE_NAME=agentboard_decision_upgrade
+PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=$DATABASE_NAME user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION pg_textsearch VERSION '1.5.1'" >/dev/null
+"$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261008000300) end)'
+decision_psql() {
+  PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=$DATABASE_NAME user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -Atc "$1"
+}
+decision_psql 'UPDATE board_schema SET version=22 WHERE id=1' >/dev/null
+"$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261008000800) end)'
+[[ "$(decision_psql 'SELECT version FROM board_schema WHERE id=1')" == 22 ]]
+[[ "$(decision_psql 'SELECT count(*) FROM decision_requests')" == 0 ]]
+[[ "$(decision_psql 'SELECT count(*) FROM decision_wakes')" == 0 ]]
+echo 'Pending schema-20 migration preserves higher schema21 and seeds no requests/wakes.'
+
+"$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+[[ "$(decision_psql 'SELECT version FROM board_schema WHERE id=1')" == 22 ]]

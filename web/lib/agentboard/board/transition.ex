@@ -9,6 +9,14 @@ defmodule Agentboard.Board.Transition do
     if data["revision"] && data["revision"] != task.revision,
       do: conflict("Task revision changed; reload before editing")
 
+    if Agentboard.Decisions.held?(task.id, task.assignee_id) and
+         (action in ~w(release handoff) or
+            (action == "update" and data["status"] in ~w(done cancelled))),
+       do:
+         conflict(
+           "Apply, withdraw or supersede outstanding captain decisions before changing ownership"
+         )
+
     permitted =
       task.status == "open" or
         (task.status == "assigned" and actor in [task.assignee_id, task.assigner_id]) or
@@ -118,7 +126,10 @@ defmodule Agentboard.Board.Transition do
   defp live?(t, actor, now),
     do: t.status in @active and t.assignee_id == actor and not expired?(t, now)
 
-  defp expired?(t, now), do: DateTime.compare(t.claim_expires_at, now) != :gt
+  defp expired?(t, now),
+    do:
+      DateTime.compare(t.claim_expires_at, now) != :gt and
+        not Agentboard.Decisions.held?(t.id, t.assignee_id)
 
   defp expiry(now, data) do
     seconds = Map.get(data, "ttl_seconds", 7200)
@@ -130,4 +141,3 @@ defmodule Agentboard.Board.Transition do
 
   defp conflict(message), do: Operations.reject("conflict", message)
 end
-

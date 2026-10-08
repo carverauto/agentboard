@@ -73,7 +73,7 @@ func NewRoot() *cobra.Command {
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), Version)
 		return err
 	}})
-	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.chat(), c.prs())
+	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.chat(), c.prs(), c.decisions())
 	return root
 }
 func env(key, fallback string) string {
@@ -141,6 +141,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if fields, ok := payload.(map[string]any); ok && fields["kind"] == "task_order" {
 		required = 15
 	}
+	if strings.HasPrefix(path, "decisions") || query.Get("waiting") != "" {
+		required = 20
+	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
 	}
@@ -160,7 +163,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts"} {
+	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "decision", "decisions", "wake", "wakes"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue

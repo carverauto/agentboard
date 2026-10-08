@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
@@ -67,17 +68,28 @@ func TestRejectedRequestLeavesCLIStdoutEmpty(t *testing.T) {
 	}
 }
 
-// A legacy server accepts assignment and ignores auth headers. New availability
-// commands must fail compatibility before an unsafe legacy mutation or roster read.
-// Both the pre-feature schema and the pre-availability schema 14 stay fenced.
-func TestAvailabilityRequiresCompatibleServer(t *testing.T) {
-	for _, schema := range []string{"12", "14"} {
-		for _, args := range [][]string{
-			{"task", "assign", "fixture-task", "--to", "fixture-agent", "--captain"},
-			{"agent", "list", "--availability", "active"},
-			{"msg", "send", "--to", "fixture-agent", "--kind", "task_order", "--body", "Work order"},
-			{"agent", "availability", "set", "--agent-id", "fixture-agent", "--state", "active"},
+// Legacy servers may ignore new auth headers or filters. Feature commands must
+// reject incompatible schemas before any mutation or misleading roster read.
+func TestFeatureCommandsRequireCompatibleServer(t *testing.T) {
+	for _, schema := range []string{"12", "14", "15", "19"} {
+		for _, feature := range []struct {
+			minimum int
+			args    []string
+		}{
+			{15, []string{"task", "assign", "fixture-task", "--to", "fixture-agent", "--captain"}},
+			{15, []string{"agent", "list", "--availability", "active"}},
+			{15, []string{"msg", "send", "--to", "fixture-agent", "--kind", "task_order", "--body", "Work order"}},
+			{15, []string{"agent", "availability", "set", "--agent-id", "fixture-agent", "--state", "active"}},
+			{20, []string{"decision", "list"}},
+			{20, []string{"decision", "answer", "00000000-0000-4000-8000-000000000001", "--answer", "Approved"}},
+			{20, []string{"decision", "ack", "00000000-0000-4000-8000-000000000001"}},
+			{20, []string{"agent", "list", "--waiting", "true"}},
 		} {
+			version, _ := strconv.Atoi(schema)
+			if version >= feature.minimum {
+				continue
+			}
+			args := feature.args
 			t.Run(schema+"-"+args[0]+"-"+args[1], func(t *testing.T) {
 				var requests atomic.Int32
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +118,7 @@ func TestAvailabilityRequiresCompatibleServer(t *testing.T) {
 				err := root.Execute()
 				var apiError *client.Error
 				if !errors.As(err, &apiError) || apiError.Code != "schema_unavailable" || requests.Load() != 0 || output.Len() != 0 {
-					t.Fatalf("legacy availability call not fenced: error=%v requests=%d stdout=%q", err, requests.Load(), output.String())
+					t.Fatalf("legacy feature call not fenced: error=%v requests=%d stdout=%q", err, requests.Load(), output.String())
 				}
 			})
 		}

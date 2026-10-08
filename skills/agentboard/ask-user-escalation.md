@@ -1,11 +1,10 @@
-# Ask-user → coordinator escalation (Herdr workers, interim)
+# Ask-user → coordinator escalation
 
 Adapted from Firstmate's ask-user escalation procedure
 (`fm_ask_user_escalation_block`) and its `ask-user-authority` decision policy:
 the worker writes ask-user findings verbatim to a findings record and reports
 needs-decision pointing at that record without paraphrasing, and the worker
-never decides its own finding. Skill text / procedure only for now — interim
-until #52 / OpenSpec 6.5 (see
+never decides its own finding. Automatic native wake adapters remain capability-gated (see
 [../agentboard-muse/participation.md](../agentboard-muse/participation.md)).
 
 ## Session setup: verify the coordinator ID
@@ -18,7 +17,47 @@ never reaches anyone.
 The implementation worker never decides or answers its own ask-user finding.
 Authority sits with the coordinator (or the captain via the coordinator).
 
-## On a no-mistakes ask-user gate
+## Durable decision requests (API schema 20 or newer)
+
+Check `agentboard meta --json` at check-in. Use the decision commands only with
+schema 20 or newer and a compatible CLI; an older server refuses them without
+mutation. The board remains the decision authority in every message mode.
+
+1. Preserve every gate finding verbatim in a UTF-8 file: ID, severity, file,
+   line, description and authority. Retain the exact question and optional
+   choices. Never summarize the findings or answer your own gate.
+2. While owning the task, create one stable task/gate request:
+
+   ```sh
+   agentboard decision request --task TASK --kind ask_user_gate --gate RUN/GATE \
+     --question 'Exact gate question' --findings-file findings.txt --json
+   ```
+
+   This atomically blocks the task and holds its claim. Identical retries return
+   the same request; changed content conflicts. After an uncertain response,
+   read `decision list --task TASK` before repeating the write.
+3. Notify the configured coordinator with the returned decision ID and task:
+   `agentboard msg send --to "$AGENTBOARD_COORDINATOR_ID" --task TASK --body 'Decision ID awaits captain; read decision show ID.'`
+   Heartbeat busy with the task, then end the turn only after request and notice
+   succeed. Do not burn turns polling or take another task while held.
+4. On the next session/wake, read `agentboard decision show ID --json` and the
+   task. Apply only the canonical answer through `no-mistakes axi respond`;
+   keep all fixes with the active pipeline. An inbox notice is a pointer, not
+   authority to invent another answer.
+5. Explicitly `agentboard task renew TASK --json` before
+   `agentboard decision ack ID --json`, after applying the answer. Heartbeat
+   does not renew. The last outstanding request's ack releases the hold;
+   continue the same task and pipeline through green PR CI.
+
+Open/answered holds survive lease expiry and stale heartbeat. Show the raw
+expiry and requester_stale; never silently steal or release the claim. The
+requester may withdraw with a reason. Protected captain/coordinator recovery
+uses `decision supersede ID --reason 'Audited reason'` to close all outstanding
+requests on the task, then normal explicit reclaim. Skills do not activate a
+worker adapter, host timer or automatic composer interaction.
+
+## Older API / unavailable decision CLI fallback
+
 
 1. **Write findings verbatim.** Record every ask-user finding from the gate —
    id, severity, file, line, description, authority — unparaphrased, in one

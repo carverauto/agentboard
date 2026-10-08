@@ -161,6 +161,9 @@ defmodule Agentboard.Board.Operations do
   # A dedicated Ash action records the policy; the compatible update event
   # carries merge proof and captures normal notification intents atomically.
   def complete_merged_pr(task, snapshot, url, snapshots, stamp) do
+    if Agentboard.Decisions.held?(task.id, task.assignee_id),
+      do: reject("conflict", "Outstanding captain decision prevents terminal disposition")
+
     actor = %{"agent" => "ci-accountability", "model" => "system", "harness" => "ash"}
 
     changed =
@@ -445,6 +448,8 @@ defmodule Agentboard.Board.Operations do
            [
              Agent,
              Agentboard.Availability.Policy,
+             Agentboard.Decisions.Request,
+             Agentboard.Decisions.Wake,
              Task,
              Message,
              TaskEvent,
