@@ -48,7 +48,7 @@ defmodule Agentboard.Mattermost.Conversations do
           end
 
         {:ok, post} ->
-          {:ok, %{"duplicate" => true, "post" => post}}
+          {:ok, %{"duplicate" => true, "post" => post, "msg_id" => get_in(post, ["props", "msg_id"])}}
 
         {:error, _code, _message} = error ->
           error
@@ -93,6 +93,7 @@ defmodule Agentboard.Mattermost.Conversations do
          {:ok, limit} <- read_limit(limit),
          {:ok, cfg} <- Delivery.bot_config(),
          {:ok, order, posts} <- channel_history(cfg, channel_id, limit) do
+      since = normalize_since(since)
       {selected, newest, found_since} = select_since(order, posts, agent_id, since)
       {caught_up, reason} = catch_up_state(since, found_since, nil)
 
@@ -103,7 +104,8 @@ defmodule Agentboard.Mattermost.Conversations do
           {:ok, %{"channel_id" => channel_id, "posts" => [], "caught_up" => caught_up, "incomplete_reason" => reason}}
         end
       else
-        case record_coverage(agent_id, channel_id, newest, caught_up, reason) do
+        {cover_id, cover_version} = coverage_target(agent_id, channel_id, order, posts, newest, since, found_since)
+        case record_coverage(agent_id, channel_id, cover_id, cover_version, caught_up, reason) do
           {:ok, _} ->
             {:ok, %{"channel_id" => channel_id, "posts" => selected, "caught_up" => caught_up, "incomplete_reason" => reason}}
 
@@ -154,11 +156,63 @@ defmodule Agentboard.Mattermost.Conversations do
          {:ok, body} <- capped(body, 16_383, "body exceeds 16383 characters"),
          {:ok, kind} <- send_kind(params["kind"]),
          {:ok, retry_key} <- optional_text(params["retry_key"], 128),
-         {:ok, task_id} <- optional_text(params["task_id"], 128),
+         {:ok, task_id} <- send_task_id(params["task_id"]),
          {:ok, root_id} <- optional_text(params["root_id"], 128),
          {:ok, icon_url} <- optional_text(params["icon_url"], 512) do
       {:ok, channel_id, body, task_id || "general", kind, root_id, retry_key, icon_url}
     end
+  end
+
+  defp send_task_id(value) do
+    with {:ok, task_id} <- optional_text(value, 128),
+         :ok <- task_id_shape(task_id) do
+      {:ok, task_id}
+    end
+  end
+
+  defp task_id_shape(nil), do: :ok
+
+  defp task_id_shape(task_id) do
+    if String.contains?(task_id, ["\n", "\r", "[", "]"]) do
+      {:error, "invalid_input", "task_id must not contain newlines or brackets"}
+    else
+      :ok
+    end
+  end
+
+  defp normalize_since(nil), do: nil
+
+  defp normalize_since(since) when is_binary(since) do
+    case String.trim(since) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_since(since), do: since
+
+  defp coverage_target(_agent_id, _channel_id, _order, _posts, newest, since, found_since)
+       when is_nil(since) or found_since == true do
+    {newest, 0}
+  end
+
+  defp coverage_target(agent_id, channel_id, order, posts, newest, _since, _found_since) do
+    case fetch_coverage(agent_id, channel_id) do
+      %{last_post_id: last_id, last_version: version} when is_binary(last_id) ->
+        {last_id, version || 0}
+
+      _ ->
+        {window_floor(order, posts) || newest, 0}
+    end
+  end
+
+  defp window_floor(order, posts) do
+    Enum.find_value(Enum.reverse(order), fn id ->
+      case posts[id] do
+        %{"id" => pid} when is_binary(pid) -> pid
+        _ -> nil
+      end
+    end)
   end
 
   defp send_kind(nil), do: {:ok, "note"}
