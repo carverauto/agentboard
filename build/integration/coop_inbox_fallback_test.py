@@ -107,7 +107,7 @@ if modes2.get((repair2, 'ci_failure')) != 'worker':
 pr4 = source(404)
 observe(pr4)
 repair4 = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id='" + pr4 + "'")
-sql("UPDATE cooperation_subscriptions SET revoked=true WHERE id='inbox-owner'")
+sql("UPDATE cooperation_subscriptions SET revoked=true, paused=true WHERE id='inbox-owner'")
 api('/agents/register', {'name': 'cooperation'}, agent='cooperation')
 rpc('Agentboard.Board.Operations.send_message(%{"agent" => "cooperation", "model" => "fixture-model", "harness" => "codex"}, %{"to" => "inbox-owner", "task" => ' + json.dumps(repair4) + ', "kind" => "note", "body" => "markerless decoy"}, Agentboard.Board.Operations.now())')
 sql("UPDATE delivery_obligations SET next_reminder_at=clock_timestamp()-interval '1 second' WHERE repair_task_id='" + repair4 + "'")

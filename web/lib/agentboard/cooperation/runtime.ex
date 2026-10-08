@@ -815,7 +815,7 @@ defmodule Agentboard.Cooperation.Runtime do
       not Application.get_env(:agentboard, :cooperation_enabled, false) ->
         {:disabled, event}
 
-      event.audience != [] ->
+      event.audience != [] and live_pinned_audience?(event, opts) ->
         {:worker, event}
 
       is_nil(event.task_id) ->
@@ -841,7 +841,7 @@ defmodule Agentboard.Cooperation.Runtime do
     audience =
       Enum.filter(
         subs,
-        &(event.repo in &1.repos and &1.id != excluded and
+        &(not &1.paused and event.repo in &1.repos and &1.id != excluded and
             (is_nil(recipient) or recipient == &1.id))
       )
 
@@ -857,6 +857,20 @@ defmodule Agentboard.Cooperation.Runtime do
     else
       {:worker, event}
     end
+  end
+
+  defp live_pinned_audience?(event, opts) do
+    recipient = Keyword.get(opts, :recipient)
+    excluded = Keyword.get(opts, :exclude_recipient)
+    pinned = event.audience
+
+    Subscription
+    |> Ash.Query.filter(revoked == false)
+    |> Ash.read!()
+    |> Enum.any?(fn s ->
+      not s.paused and s.id in pinned and s.id != excluded and event.repo in s.repos and
+        (is_nil(recipient) or recipient == s.id)
+    end)
   end
 
   # Adoption is exact-source-marker only. A markerless note from a system
