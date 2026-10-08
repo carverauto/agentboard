@@ -26,7 +26,7 @@ on:
       - LICENSE
       - .github/workflows/docker.yml
   # Same allowlist as pull_request: the Compose smoke builds three images on a
-  # GitHub-hosted runner (~10-45 min), so a merge that touches only docs,
+  # GitHub-hosted runner (3-4 min a run, 45 min cap), so a merge touching only docs,
   # openspec, k8s pins, contrib, or other repo metadata must not rebuild them.
   # Keep these two lists identical. No branch protection or ruleset requires
   # these checks today; if one is ever made required, replace the workflow-

@@ -8,7 +8,7 @@ docker build -f Dockerfile.cli -t agentboard-cli .         # static CLI on distr
 docker compose build                                       # both, as used by docker-compose.yml
 ```
 
-The dashboard image matches the Bazel-built release image: Elixir 1.19.4, OTP 28.1, esbuild 0.25.4, the release in `/app`, release state under `/tmp` (so the root filesystem can be read-only), and `bin/agentboard` as the entrypoint (`start` by default; `eval 'Agentboard.Release.migrate()'` for migrations). Both Dockerfiles honor `TARGETARCH`, so `docker buildx build --platform linux/arm64 ...` works too. The `Docker images` GitHub workflow builds both images and runs a Compose smoke test on every pull request.
+The dashboard image matches the Bazel-built release image: Elixir 1.19.4, OTP 28.1, esbuild 0.25.4, the release in `/app`, release state under `/tmp` (so the root filesystem can be read-only), and `bin/agentboard` as the entrypoint (`start` by default; `eval 'Agentboard.Release.migrate()'` for migrations). Both Dockerfiles honor `TARGETARCH`, so `docker buildx build --platform linux/arm64 ...` works too. The `Docker images` GitHub workflow builds both images and runs a Compose smoke test on pull requests that touch a build path (see [release automation](../release.md#automation)).
 
 ## Go CLI
 
