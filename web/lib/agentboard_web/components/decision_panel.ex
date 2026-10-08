@@ -87,6 +87,8 @@ defmodule AgentboardWeb.DecisionPanel do
         <input type="hidden" name="source_id" value={@r["source_id"]} />
         <input type="hidden" name="revision" value={@r["revision"]} />
         <label>Explicit captain question<textarea name="question" required maxlength="8192" class="w-full bg-canvas text-ink border border-line p-2 rounded-md">{@r["question"]}</textarea></label>
+        <label>Kind<select name="kind" class="w-full bg-canvas text-ink border border-line p-2 rounded-md"><option value="approval" selected>approval</option><option value="merge">merge</option><option value="policy">policy</option><option value="credential">credential</option><option value="scope">scope</option><option value="blocked_decision">blocked_decision</option><option value="other">other</option></select></label>
+        <label>Choices, one per line, optional<textarea name="options" maxlength="8192" class="w-full bg-canvas text-ink border border-line p-2 rounded-md"></textarea></label>
         <button type="submit">Promote owner ask to decision</button>
       </form>
     </article>

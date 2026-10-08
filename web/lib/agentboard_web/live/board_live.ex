@@ -168,8 +168,19 @@ defmodule AgentboardWeb.BoardLive do
         :decision_admin => true
       }
 
+      kind = if(is_binary(params["kind"]) and params["kind"] != "", do: params["kind"], else: "approval")
+
+      options =
+        case params["options"] do
+          nil -> []
+          values when is_list(values) -> values |> Enum.map(&String.trim(to_string(&1))) |> Enum.reject(&(&1 == ""))
+          value when is_binary(value) -> value |> String.split(~r/\r?\n/) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+          _ -> []
+        end
+
       data =
-        Map.take(params, ~w(task source_type source_id question)) |> Map.put("kind", "approval")
+        Map.take(params, ~w(task source_type source_id question))
+        |> Map.merge(%{"kind" => kind, "options" => options})
 
       result =
         with {revision, ""} <- Integer.parse(params["revision"] || ""),

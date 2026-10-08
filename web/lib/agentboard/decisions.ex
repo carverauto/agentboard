@@ -151,8 +151,9 @@ defmodule Agentboard.Decisions do
           owner!(task, %{"agent" => task.assignee_id})
           source = Agentboard.Decisions.Waiting.source(task.id)
 
-          unless ((task.revision == data["revision"] and source) &&
-                    source["source_type"] == data["source_type"]) and
+          unless task.revision == data["revision"] &&
+                   not is_nil(source) &&
+                   source["source_type"] == data["source_type"] &&
                    source["source_id"] == data["source_id"],
                  do:
                    Ops.reject(
