@@ -40,10 +40,25 @@ Use **Tailwind CSS v4** for dashboard styles. The CSS-first entrypoint is `web/a
 ## Starting the next PR
 
 Fetch `origin/main` before starting a new feature or rollout branch, and create
-the branch from that freshly fetched ref. Before publishing, check it still
-merges cleanly with current `main`. Preserve pipeline-owned fixes through the
-reported No-mistakes custody flow; let its active CI monitor resolve conflicts
-and revalidate rather than hand-rebasing an active run.
+the branch from that freshly fetched ref. **Immediately before every final push,
+PR open/update, and every no-mistakes rerun**, fetch `origin`, rebase the task
+branch onto the freshly fetched `origin/main`, resolve conflicts, and rerun the
+relevant checks remotely (`./scripts/bazel`, `--config=remote`). A check at the
+start of a long run does not satisfy the final publication check.
+
+Perform caller-owned rebases before starting the native run. For a rerun or
+follow-up, obey the reported No-mistakes custody/synchronization action first
+and preserve its fixes. During an active run, the pipeline owns the final
+fetch/rebase/retest: require it in the intent, verify the evidence, and stop
+publication if freshness cannot be established. Never hand-rebase an active
+run or replace its branch; let its CI monitor resolve conflicts and revalidate.
+
+Bind the owned task/branch with `scripts/publish-seat TASK` before native
+publication. Immediately when the PR opens, run `agentboard task link TASK --pr
+PR_URL --json` and verify the card's `pr_url`, before starting another task.
+Track current-head CI on that same PR. Never direct-push, use `--no-verify`, or
+open a second PR to bypass a refusal. Server enforcement is separate GH169 work;
+these instructions do not claim that the current hook already enforces freshness.
 
 ## Agentboard seat isolation
 
