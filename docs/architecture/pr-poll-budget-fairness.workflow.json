@@ -1,0 +1,158 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Fair PR polling within the GitHub budget",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "lanes": [
+    {
+      "id": "schedule",
+      "label": "Eligible PR and observation"
+    },
+    {
+      "id": "budget",
+      "label": "Shared PostgreSQL admission"
+    },
+    {
+      "id": "provider",
+      "label": "Bounded GitHub collection"
+    }
+  ],
+  "mainPath": [
+    "due",
+    "reserve",
+    "fetch",
+    "commit",
+    "cadence"
+  ],
+  "nodes": [
+    {
+      "id": "due",
+      "lane": "schedule",
+      "col": 0,
+      "type": "backend",
+      "label": "Oldest observation",
+      "sublabel": "Due open PRs",
+      "width": 155
+    },
+    {
+      "id": "reserve",
+      "lane": "budget",
+      "col": 1,
+      "type": "database",
+      "label": "Reserve 32 credits",
+      "sublabel": "Atomic admission; cap 60",
+      "width": 165
+    },
+    {
+      "id": "fetch",
+      "lane": "provider",
+      "col": 2,
+      "type": "external",
+      "label": "Collect current head",
+      "sublabel": "Conditional TLS requests",
+      "width": 165
+    },
+    {
+      "id": "commit",
+      "lane": "schedule",
+      "col": 3,
+      "type": "database",
+      "label": "Fenced observation",
+      "sublabel": "Policy + generation checks",
+      "width": 170
+    },
+    {
+      "id": "cadence",
+      "lane": "schedule",
+      "col": 4,
+      "type": "backend",
+      "label": "Next eligible poll",
+      "sublabel": "Stable: 1 \u2192 2 \u2192 5 min",
+      "width": 165
+    },
+    {
+      "id": "defer",
+      "lane": "budget",
+      "col": 2,
+      "type": "backend",
+      "label": "Defer without spend",
+      "sublabel": "No network requests",
+      "width": 160
+    },
+    {
+      "id": "refund",
+      "lane": "budget",
+      "col": 3,
+      "type": "database",
+      "label": "Return unused credit",
+      "sublabel": "Completion or lease expiry",
+      "width": 170
+    }
+  ],
+  "edges": [
+    {
+      "id": "due-credit",
+      "from": "due",
+      "to": "reserve",
+      "label": "fair ordering",
+      "variant": "emphasis"
+    },
+    {
+      "id": "credit-fetch",
+      "from": "reserve",
+      "to": "fetch",
+      "label": "admitted",
+      "variant": "emphasis"
+    },
+    {
+      "id": "credit-defer",
+      "from": "reserve",
+      "to": "defer",
+      "label": "wait",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "fetch-observe",
+      "from": "fetch",
+      "to": "commit",
+      "label": "complete evidence",
+      "variant": "emphasis"
+    },
+    {
+      "id": "observe-cadence",
+      "from": "commit",
+      "to": "cadence",
+      "variant": "emphasis"
+    },
+    {
+      "id": "fetch-refund",
+      "from": "fetch",
+      "to": "refund",
+      "label": "finally",
+      "variant": "dashed",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Budget remains bounded",
+      "items": [
+        "60/min shared cap stays",
+        "Unused and authorized 304 credit returned"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Freshness remains honest",
+      "items": [
+        "Changes and pending CI reset to 60s",
+        "Merged PRs remain retired"
+      ]
+    }
+  ]
+}

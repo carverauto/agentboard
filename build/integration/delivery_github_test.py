@@ -416,7 +416,7 @@ with tls_provider(Provider) as (api_url, ca, server):
     poll('clean', 'unknown')
     assert sql("SELECT enabled||','||lifecycle FROM delivery_poll_states") == 'true,open'
     poll('clean', 'unknown')
-    assert sql("SELECT next_poll_at-observed_at=interval '10 minutes' FROM delivery_poll_states") == 't'
+    assert sql("SELECT next_poll_at-observed_at=interval '120 seconds' FROM delivery_poll_states") == 't'
     poll('normal', 'pending')
     assert sql("SELECT next_poll_at-observed_at=interval '60 seconds' FROM delivery_poll_states") == 't'
     # A fresh explicit PR submission can reconcile a closed row immediately.

@@ -109,10 +109,21 @@ defmodule Agentboard.Delivery.Polling do
           (linked? or DateTime.compare(state.next_poll_at, stamp) != :gt) ->
         Operations.update(state, :resume, %{next_poll_at: stamp}, actor)
 
+      state.enabled and linked? ->
+        Operations.update(
+          state,
+          :request_poll,
+          %{generation: state.generation + 1, next_poll_at: stamp},
+          actor
+        )
+
       true ->
         state
     end
   end
+
+  def public_state(state),
+    do: state |> Operations.public() |> Map.drop(["github_cache", "check_fingerprint"])
 
   def reserve_due(limit \\ 20)
 
@@ -121,7 +132,7 @@ defmodule Agentboard.Delivery.Polling do
       Operations.transaction(fn ->
         %{rows: rows} =
           Repo.statement!(
-            "SELECT id FROM delivery_poll_states WHERE enabled AND next_poll_at <= clock_timestamp() AND (lease_expires_at IS NULL OR lease_expires_at <= clock_timestamp()) ORDER BY next_poll_at,id LIMIT $1 FOR UPDATE SKIP LOCKED",
+            "SELECT id FROM delivery_poll_states WHERE enabled AND next_poll_at <= clock_timestamp() AND (lease_expires_at IS NULL OR lease_expires_at <= clock_timestamp()) ORDER BY COALESCE(observed_at,registered_at),next_poll_at,id LIMIT $1 FOR UPDATE SKIP LOCKED",
             [limit]
           )
 
@@ -160,7 +171,9 @@ defmodule Agentboard.Delivery.Polling do
                "rate_limited",
                "unauthorized",
                "incomplete",
-               "base_changed"
+               "base_changed",
+               "budget_deferred",
+               "fairness_deferred"
              ] do
     if enabled?() do
       Operations.transaction(fn ->
@@ -175,7 +188,12 @@ defmodule Agentboard.Delivery.Polling do
           attempt_id: nil,
           lease_expires_at: nil,
           next_poll_at: DateTime.add(stamp, delay_seconds),
-          last_error: reason
+          last_error: reason,
+          budget_deferred_at:
+            if(reason in ["budget_deferred", "fairness_deferred"],
+              do: state.budget_deferred_at || stamp,
+              else: state.budget_deferred_at
+            )
         })
         |> Ash.Changeset.filter(
           Ash.Expr.expr(
@@ -184,7 +202,7 @@ defmodule Agentboard.Delivery.Polling do
           )
         )
         |> Ash.update!()
-        |> Operations.public()
+        |> public_state()
       end)
     else
       {:error, "disabled", "PR observation is disabled"}
@@ -239,11 +257,17 @@ defmodule Agentboard.Delivery.Polling do
             @actor
           )
 
+        fingerprint =
+          :crypto.hash(:sha256, Jason.encode!(result.payload["attempts"] || []))
+          |> Base.encode16(case: :lower)
+
         changed? =
           state.head_sha != result.head_sha or state.base_sha != result.base_sha or
             state.ci_state != result.ci_state or state.lifecycle != result.lifecycle or
-            state.last_error != policy_error
+            state.check_fingerprint != fingerprint
 
+        stable = stable_poll?(result, changed?)
+        unchanged = if stable, do: min(2, state.unchanged_polls + 1), else: 0
         terminal? = result.lifecycle in ["merged", "closed"]
 
         action =
@@ -271,14 +295,24 @@ defmodule Agentboard.Delivery.Polling do
               last_error: policy_error,
               attempt_id: nil,
               lease_expires_at: nil,
-              next_poll_at: DateTime.add(stamp, cadence(result, changed?))
+              next_poll_at: DateTime.add(stamp, cadence(result, unchanged)),
+              unchanged_polls: unchanged,
+              check_fingerprint: fingerprint,
+              budget_deferred_at: nil
             },
             @actor
           )
 
+        projection
+        |> Ash.Changeset.for_update(
+          :save_cache,
+          %{github_cache: Map.get(result, :github_cache, %{})}
+        )
+        |> Ash.update!()
+
         Accountability.observe(snapshot, result, stamp)
         Agentboard.Delivery.Rebase.observe(snapshot, result, stamp)
-        Operations.public(projection)
+        public_state(projection)
       end)
     else
       {:error, "disabled", "PR observation is disabled"}
@@ -286,10 +320,14 @@ defmodule Agentboard.Delivery.Polling do
   end
 
   # Closed PRs get one metadata-only reopen check per hour; merged PRs stay
-  # disabled. Stable non-pending evidence is sampled every ten minutes.
+  # disabled. Stable non-pending evidence backs off from one to two to five minutes.
   defp cadence(%{lifecycle: lifecycle}, _) when lifecycle in ["merged", "closed"], do: 3600
 
-  defp cadence(result, changed?) do
+  defp cadence(_result, 0), do: 60
+  defp cadence(_result, 1), do: 120
+  defp cadence(_result, _), do: 300
+
+  defp stable_poll?(result, changed?) do
     pending? =
       Enum.any?(result.payload["attempts"] || [], fn attempt ->
         Map.get(attempt, :latest, attempt["latest"]) == true and
@@ -303,9 +341,7 @@ defmodule Agentboard.Delivery.Polling do
     conflict? =
       result.payload["mergeable"] == false and result.payload["mergeable_state"] == "dirty"
 
-    if changed? or result.ci_state == "pending" or pending? or computing? or conflict?,
-      do: 60,
-      else: 600
+    not (changed? or result.ci_state == "pending" or pending? or computing? or conflict?)
   end
 
   defp assert_reservation!(state, attempt_id, generation, stamp) do
@@ -342,7 +378,8 @@ defmodule Agentboard.Delivery.Polling do
       owner: pr.owner,
       repo: pr.repo,
       base_watches: Agentboard.Delivery.BaseMonitor.capture(pr),
-      number: pr.number
+      number: pr.number,
+      github_cache: reserved.github_cache
     }
   end
 
