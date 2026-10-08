@@ -8,6 +8,7 @@ import http.server
 import json
 import os
 import subprocess
+import urllib.error
 import urllib.parse
 import urllib.request
 from provider_fixture import tls_provider
@@ -131,6 +132,21 @@ with tls_provider(Provider) as (api_url, ca, _):
         assert p.returncode == 4, (p.returncode, p.stdout, p.stderr)
     refused('duplicate-replayed', 'fixture-coordinator')
     refused('duplicate-original', 'duplicate-owner')
+    def post_decision(body, owner='duplicate-owner'):
+        req = urllib.request.Request(URL + '/api/v1/prs/' + replay + '/duplicate-decision',
+                                     data=json.dumps(body).encode(), method='POST',
+                                     headers={'Content-Type': 'application/json', 'X-Agentboard-Agent': owner,
+                                              'X-Agentboard-Model': 'fixture-model', 'X-Agentboard-Harness': 'codex'})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                return response.status, json.load(response)
+        except urllib.error.HTTPError as error:
+            return error.code, json.load(error)
+    for malformed in ('', 'Duplicate-Replayed', 'has space', 0, 12.5, True,
+                       ['duplicate-replayed'], {'id': 'duplicate-replayed'}, None):
+        rejected, payload = post_decision({'task': malformed})
+        assert rejected == 422 and payload['error']['code'] == 'invalid_input', (malformed, rejected, payload)
+    assert sql("SELECT count(*) FROM decision_requests") == '0'
     decision = ab('pr', 'duplicate-decision', replay, '--task', 'duplicate-replayed')
     assert decision['decision']['requester_id'] == 'duplicate-owner'
     assert decision['decision']['task_id'] == 'duplicate-replayed'

@@ -118,7 +118,8 @@ defmodule Agentboard.Delivery.Duplicates do
   end
 
   def request_decision(id, actor, %{"task" => task_id} = data) when map_size(data) == 1 do
-    with {:ok, request} <- Ops.transaction(fn ->
+    if Agentboard.Input.slug?(task_id) do
+      with {:ok, request} <- Ops.transaction(fn ->
       finding = Ops.fetch!(DuplicateFinding, id, "Duplicate finding not found")
       %{rows: [[linked?]]} = Repo.statement!("SELECT EXISTS(SELECT 1 FROM delivery_task_links WHERE pull_request_id=$1 AND task_id=$2)", [id, task_id])
       unless linked?, do: Ops.reject("conflict", "Decision must belong to the duplicate PR's own linked card")
@@ -133,6 +134,9 @@ defmodule Agentboard.Delivery.Duplicates do
       # #100 verifies caller identity/live ownership under its own task lock.
       # The collector never calls this function or manufactures an owner actor.
       Agentboard.Decisions.request(actor, request)
+    end
+    else
+      {:error, "invalid_input", "Only a linked task field is accepted"}
     end
   end
   def request_decision(_, _, _), do: {:error, "invalid_input", "Only a linked task field is accepted"}
