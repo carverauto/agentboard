@@ -97,7 +97,11 @@ defmodule Agentboard.Mattermost.Conversations do
       {caught_up, reason} = catch_up_state(since, found_since, nil)
 
       if is_nil(newest) do
-        {:ok, %{"channel_id" => channel_id, "posts" => [], "caught_up" => false, "incomplete_reason" => "no_posts"}}
+        if since in [nil, ""] do
+          {:ok, %{"channel_id" => channel_id, "posts" => [], "caught_up" => false, "incomplete_reason" => "no_posts"}}
+        else
+          {:ok, %{"channel_id" => channel_id, "posts" => [], "caught_up" => caught_up, "incomplete_reason" => reason}}
+        end
       else
         case record_coverage(agent_id, channel_id, newest, caught_up, reason) do
           {:ok, _} ->
