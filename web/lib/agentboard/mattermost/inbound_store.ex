@@ -30,11 +30,18 @@ defmodule Agentboard.Mattermost.InboundStore do
   end
 
   def fenced(cfg, fun) do
-    Ops.transaction(fn ->
+    case Ops.transaction(fn ->
       %{rows: rows} = Repo.statement!("SELECT source FROM mattermost_inbound_runs WHERE source=$1 AND run_id=$2 AND expires_at>clock_timestamp() FOR SHARE", [cfg.source, uuid(cfg.run)])
       if rows == [], do: Ops.reject("conflict", "Inbound owner expired or replaced")
       fun.()
-    end)
+    end) do
+      {:ok, value} -> {:ok, value}
+      {:error, "conflict", _} -> {:error, :owner_expired}
+      {:error, _, _} -> {:error, :store_unavailable}
+      {:error, _} -> {:error, :store_unavailable}
+    end
+  rescue
+    _ -> {:error, :store_unavailable}
   end
 
   def coverage(cfg, channel, page, complete, reason) do
@@ -58,32 +65,40 @@ defmodule Agentboard.Mattermost.InboundStore do
   defp canonical(v) when is_list(v), do: Enum.map(v, &canonical/1)
   defp canonical(v), do: v
 
-  defmodule CapacityReached do
-    defexception [:message]
-  end
-
   def capture(cfg, post, recipients, attribution) do
     version = version(post)
-    fenced(cfg, fn ->
+    case fenced(cfg, fn ->
       %{rows: existing} = Repo.statement!("SELECT 1 FROM mattermost_post_versions WHERE source=$1 AND channel_id=$2 AND post_id=$3 AND version=$4", [cfg.source, post["channel_id"], post["id"], version])
       if existing == [] do
         %{rows: [[count]]} = Repo.statement!("SELECT count(*) FROM mattermost_post_versions WHERE source=$1", [cfg.source])
-        if count >= 100_000, do: raise(CapacityReached, message: "metadata capacity reached")
+        if count >= 100_000 do
+          {:capacity_reached, version}
+        else
+          store_version(cfg, post, recipients, attribution, version)
+        end
+      else
+        store_version(cfg, post, recipients, attribution, version)
       end
+    end) do
+      {:ok, {:stored, version}} -> {:ok, version}
+      {:ok, {:capacity_reached, _version}} -> {:error, :metadata_capacity_reached}
+      {:error, :owner_expired} = error -> error
+      {:error, :store_unavailable} = error -> error
+    end
+  end
+
+  defp store_version(cfg, post, recipients, attribution, version) do
+    Repo.statement!("""
+    INSERT INTO mattermost_post_versions(source,channel_id,post_id,version,user_id,root_id,update_at,delete_at,observed_at)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp()) ON CONFLICT DO NOTHING
+    """, [cfg.source, post["channel_id"], post["id"], version, post["user_id"], post["root_id"] || "", post["update_at"] || post["create_at"] || 0, post["delete_at"] || 0])
+    Enum.each(recipients, fn id ->
       Repo.statement!("""
-      INSERT INTO mattermost_post_versions(source,channel_id,post_id,version,user_id,root_id,update_at,delete_at,observed_at)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp()) ON CONFLICT DO NOTHING
-      """, [cfg.source, post["channel_id"], post["id"], version, post["user_id"], post["root_id"] || "", post["update_at"] || post["create_at"] || 0, post["delete_at"] || 0])
-      Enum.each(recipients, fn id ->
-        Repo.statement!("""
-        INSERT INTO mattermost_inbox(id,source,channel_id,post_id,version,worker_id,repo,task_id,sender_agent_id,msg_id,kind,created_at)
-        VALUES(gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT DO NOTHING
-        """, [cfg.source, post["channel_id"], post["id"], version, id, cfg.repo, attribution[:task_id], attribution[:agent_id], attribution[:msg_id], attribution[:kind] || "note"])
-      end)
-      version
+      INSERT INTO mattermost_inbox(id,source,channel_id,post_id,version,worker_id,repo,task_id,sender_agent_id,msg_id,kind,created_at)
+      VALUES(gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT DO NOTHING
+      """, [cfg.source, post["channel_id"], post["id"], version, id, cfg.repo, attribution[:task_id], attribution[:agent_id], attribution[:msg_id], attribution[:kind] || "note"])
     end)
-  rescue
-    _ in CapacityReached -> {:error, :metadata_capacity_reached}
+    {:stored, version}
   end
 
   def known_posts(cfg, channel) do
