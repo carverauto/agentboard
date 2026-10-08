@@ -205,6 +205,7 @@ defmodule Agentboard.Delivery.Polling do
         assert_reservation!(state, reservation.attempt_id, reservation.generation, stamp)
 
         pr = Operations.fetch!(PullRequest, state.id, "PR not found")
+        Agentboard.Delivery.BaseMonitor.assert_current!(pr, state, result)
         result = Policy.classify(pr, result)
 
         policy_error =
@@ -253,6 +254,8 @@ defmodule Agentboard.Delivery.Polling do
               expected_attempt_id: reservation.attempt_id,
               head_sha: result.head_sha,
               base_sha: result.base_sha,
+              base_ref: result.payload["base_ref"],
+              expected_base_sha: result.base_sha,
               ci_state: result.ci_state,
               lifecycle: result.lifecycle,
               observed_at: stamp,
@@ -266,6 +269,7 @@ defmodule Agentboard.Delivery.Polling do
           )
 
         Accountability.observe(snapshot, result, stamp)
+        Agentboard.Delivery.Rebase.observe(snapshot, result, stamp)
         Operations.public(projection)
       end)
     else
@@ -284,7 +288,16 @@ defmodule Agentboard.Delivery.Polling do
           Map.get(attempt, :status, attempt["status"]) != "completed"
       end)
 
-    if changed? or result.ci_state == "pending" or pending?, do: 60, else: 600
+    computing? =
+      Map.has_key?(result.payload, "base_ref") and
+        not is_nil(result.payload["base_ref"]) and is_nil(result.payload["mergeable"])
+
+    conflict? =
+      result.payload["mergeable"] == false and result.payload["mergeable_state"] == "dirty"
+
+    if changed? or result.ci_state == "pending" or pending? or computing? or conflict?,
+      do: 60,
+      else: 600
   end
 
   defp assert_reservation!(state, attempt_id, generation, stamp) do

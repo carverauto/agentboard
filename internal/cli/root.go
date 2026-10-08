@@ -72,7 +72,7 @@ func NewRoot() *cobra.Command {
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), Version)
 		return err
 	}})
-	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.chat())
+	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.chat(), c.prs())
 	return root
 }
 func env(key, fallback string) string {
@@ -110,6 +110,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	}
 	if strings.HasPrefix(path, "context") {
 		required = 5
+	}
+	if strings.HasPrefix(path, "prs") {
+		required = 14
 	}
 	if strings.HasPrefix(path, "conversations") {
 		required = 12

@@ -702,6 +702,29 @@ defmodule Agentboard.Cooperation.Runtime do
     end
   end
 
+  # Enrollment holds the worker lock. Recover an immutable event's signal for
+  # that worker when its original audience was empty, without duplicating it.
+  def ensure_delivery(event, worker_id, actor) do
+    prior =
+      Delivery
+      |> Ash.Query.filter(event_id == ^event.id and worker_id == ^worker_id)
+      |> Ash.read_one!()
+
+    prior ||
+      Ops.create(
+        Delivery,
+        :record,
+        %{
+          id: Ash.UUID.generate(),
+          event_id: event.id,
+          worker_id: worker_id,
+          state: "pending",
+          created_at: Ops.now()
+        },
+        actor
+      )
+  end
+
   # Caller already owns canonical transaction. Audience is pinned at capture.
   def capture(attrs, audience_options \\ []) do
     key = attrs.source_key
@@ -844,6 +867,7 @@ defmodule Agentboard.Cooperation.Runtime do
     end)
 
     Agentboard.Delivery.Accountability.bootstrap(s)
+    Agentboard.Delivery.Rebase.bootstrap(s)
   end
 
   defp suppress_context(id) do

@@ -10,16 +10,6 @@ defmodule Agentboard.Delivery.PollWorker do
     ]
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"id" => id}}) do
-    Agentboard.Delivery.Observation
-    |> Ash.ActionInput.for_action(:poll, %{id: id},
-      actor: %{role: :system, id: "delivery-observation"}
-    )
-    |> Ash.run_action()
-    |> case do
-      {:ok, result} -> {:ok, result}
-      {:error, error} -> AshOban.check_for_oban_return(error) || {:error, error}
-    end
-  end
+  def perform(%Oban.Job{args: %{"id" => id}}),
+    do: Agentboard.Delivery.WorkerAction.run(Agentboard.Delivery.Observation, :poll, %{id: id})
 end
-

@@ -51,3 +51,14 @@ When PR observation is enabled, a system-only AshOban catch-up SHALL complete a 
 #### Scenario: Disabled action and ineligible source
 - **WHEN** observation is disabled, the source is outside Review, it has no canonical PR, it is a CI repair task, or it exceeds the bounded submission limit
 - **THEN** the action leaves it unchanged; queued disabled jobs snooze without completing tasks
+
+### Requirement: Cooperation-gated rebase accountability
+With cooperation enabled, a definitive current-head conflict SHALL create one retained rebase follow-up per PR/head through system Ash actions, assigned from immutable submitting-owner attribution or visible unassigned for captain routing. An identified owner SHALL receive one durable inbox message and the same cooperation wake/receipt path. The source task and independent CI obligations SHALL remain unchanged. Disabling cooperation SHALL retain observations without publishing rebase work.
+
+#### Scenario: Repeated conflicting-head polls
+- **WHEN** repeated or concurrent polls observe the same conflicting head with cooperation enabled
+- **THEN** one repair task, follow-up proof, owner message and cooperation event commit, including across restart or flag reenablement
+
+#### Scenario: Conflict clears or notification capture fails
+- **WHEN** definitive newer mergeable evidence arrives or transactional audit/notification capture fails
+- **THEN** successful resolution clears the machine signal without auto-completing repair work, and failed publication commits no partial task/message/proof

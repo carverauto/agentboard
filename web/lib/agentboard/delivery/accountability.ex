@@ -49,7 +49,8 @@ defmodule Agentboard.Delivery.Accountability do
       |> Ash.Query.filter(
         pull_request_id == ^id and
           fragment(
-            "NOT EXISTS (SELECT 1 FROM delivery_obligations WHERE repair_task_id = ?)",
+            "NOT EXISTS (SELECT 1 FROM delivery_obligations WHERE repair_task_id = ?) AND NOT EXISTS (SELECT 1 FROM delivery_rebase_follow_ups WHERE repair_task_id = ?)",
+            task_id,
             task_id
           )
       )
@@ -292,25 +293,7 @@ defmodule Agentboard.Delivery.Accountability do
       if String.downcase(pr.owner <> "/" <> pr.repo) in subscription.repos do
         e = capture(o, "failure", subscription.id)
 
-        d =
-          Agentboard.Cooperation.Delivery
-          |> Ash.Query.filter(event_id == ^e.id and worker_id == ^subscription.id)
-          |> Ash.read_one!()
-
-        if is_nil(d),
-          do:
-            Ops.create(
-              Agentboard.Cooperation.Delivery,
-              :record,
-              %{
-                id: Ash.UUID.generate(),
-                event_id: e.id,
-                worker_id: subscription.id,
-                state: "pending",
-                created_at: Ops.now()
-              },
-              @actor
-            )
+        Runtime.ensure_delivery(e, subscription.id, @actor)
       end
     end)
   end

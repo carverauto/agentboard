@@ -144,13 +144,23 @@ defmodule Agentboard.Delivery.Reads do
       |> Ash.Query.limit(1)
       |> Ash.read_one!()
 
+    rebase =
+      Agentboard.Delivery.RebaseFollowUp
+      |> Ash.Query.filter(pull_request_id == ^pr.id)
+      |> Ash.Query.sort(created_at: :desc)
+      |> Ash.Query.limit(1)
+      |> Ash.read_one!()
+
+    responsible = (o && o.responsible_id) || (rebase && rebase.responsible_id)
+
     %{
       pr: Ops.public(pr),
       poll: if(s, do: Ops.public(s)),
       overdue:
         !!o and is_nil(o.resolved_at) and DateTime.compare(o.next_reminder_at, Ops.now()) != :gt,
       obligation: if(o, do: Ops.public(o)),
-      worker: if(o && o.responsible_id, do: health(o.responsible_id))
+      rebase_follow_up: if(rebase, do: Ops.public(rebase)),
+      worker: if(responsible, do: health(responsible))
     }
     |> Map.merge(ci_projection(pr, s))
   end
@@ -158,26 +168,71 @@ defmodule Agentboard.Delivery.Reads do
   defp ci_projection(pr),
     do: ci_projection(pr, Ash.get!(PollState, pr.id, not_found_error?: false))
 
-  defp ci_projection(_pr, s) do
-    fresh =
-      s && s.observed_at && DateTime.diff(Ops.now(), s.observed_at) <= 180 &&
-        s.last_error in [nil, "policy_unknown"]
-
-    state =
-      cond do
-        is_nil(s) or is_nil(s.observed_at) -> "unknown"
-        not fresh -> "stale"
-        s.ci_state == "passing" and s.last_error == "policy_unknown" -> "unknown"
-        true -> s.ci_state
-      end
-
+  defp ci_projection(pr, s) do
     snapshot = if s && s.snapshot_id, do: Ash.get!(CISnapshot, s.snapshot_id)
+    payload = snapshot_payload(s, snapshot)
 
-    draft =
-      if snapshot && snapshot.head_sha == s.head_sha && snapshot.observed_at == s.observed_at &&
-           is_boolean(snapshot.payload["draft"]),
-         do: snapshot.payload["draft"]
+    expected =
+      Agentboard.Delivery.BaseMonitor.expected_sha(pr, s && s.base_ref, s && s.expected_base_sha)
 
-    %{ci_state: state, fresh: !!fresh, observed_at: if(s, do: s.observed_at), draft: draft}
+    fresh = fresh?(s, expected)
+
+    %{
+      ci_state: ci_state(s, fresh),
+      fresh: fresh,
+      observed_at: if(s, do: s.observed_at),
+      draft: if(is_boolean(payload["draft"]), do: payload["draft"]),
+      mergeable: payload["mergeable"],
+      mergeable_state: payload["mergeable_state"],
+      merge_state: merge_state(s, payload, fresh),
+      base_ref: payload["base_ref"],
+      expected_base_sha: expected
+    }
   end
+
+  defp snapshot_payload(s, snapshot) when not is_nil(s) and not is_nil(snapshot) do
+    if snapshot.head_sha == s.head_sha and snapshot.base_sha == s.base_sha and
+         snapshot.observed_at == s.observed_at, do: snapshot.payload, else: %{}
+  end
+
+  defp snapshot_payload(_, _), do: %{}
+
+  defp fresh?(
+         %{lifecycle: lifecycle, observed_at: %DateTime{} = observed, last_error: error},
+         _expected
+       )
+       when lifecycle in ["merged", "closed"],
+       do: DateTime.diff(Ops.now(), observed) <= 180 and error in [nil, "policy_unknown"]
+
+  defp fresh?(
+         %{observed_at: %DateTime{} = observed, last_error: error, base_sha: base},
+         expected
+       ),
+       do:
+         DateTime.diff(Ops.now(), observed) <= 180 and error in [nil, "policy_unknown"] and
+           (is_nil(expected) or expected == base)
+
+  defp fresh?(_, _), do: false
+
+  defp ci_state(nil, _), do: "unknown"
+  defp ci_state(%{observed_at: nil}, _), do: "unknown"
+  defp ci_state(%{lifecycle: lifecycle, ci_state: state}, _)
+       when lifecycle in ["merged", "closed"],
+       do: state
+  defp ci_state(_, false), do: "stale"
+  defp ci_state(%{ci_state: "passing", last_error: "policy_unknown"}, _), do: "unknown"
+  defp ci_state(s, _), do: s.ci_state
+
+  defp merge_state(%{lifecycle: lifecycle}, _, _) when lifecycle in ["merged", "closed"],
+    do: "not_applicable"
+
+  defp merge_state(%{observed_at: %DateTime{}}, _, false), do: "stale"
+  defp merge_state(_, %{"mergeable" => nil}, _), do: "unknown"
+  defp merge_state(_, %{"mergeable" => false, "mergeable_state" => "dirty"}, _), do: "conflicting"
+
+  defp merge_state(_, %{"mergeable_state" => state}, _)
+       when state in ~w(behind blocked unstable draft), do: state
+
+  defp merge_state(_, %{"mergeable" => true}, _), do: "mergeable"
+  defp merge_state(_, _, _), do: "unknown"
 end

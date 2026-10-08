@@ -57,3 +57,18 @@ Provider keys SHALL remain in server-side Secrets. The monitor SHALL call config
 #### Scenario: Malicious details URL
 - **WHEN** a PR check advertises a URL on an unconfigured host
 - **THEN** no authenticated log request is sent to that host and evidence reports the rejected source
+
+### Requirement: Mergeability and base-move rechecks
+The monitor SHALL retain bounded raw GitHub mergeability with the same revision-fenced immutable observation as CI, keeping unknown and non-conflict restrictions distinct. It SHALL check known base branches on a minute schedule and durably invalidate/recheck matching observed open PRs after movement, through bounded pages and the existing shared GitHub budget/cooldowns. Old-base in-flight responses SHALL NOT restore stale current evidence. Terminal PRs SHALL NOT be branch-conflict polling targets.
+
+#### Scenario: Base moves while another PR was green
+- **WHEN** a base-branch observation changes while an open PR has retained earlier-base evidence
+- **THEN** that PR becomes due and stale until rechecked, and its new conflict is visible without fabricating failing CI
+
+#### Scenario: Mergeability still computing or provider budget exhausted
+- **WHEN** GitHub returns null mergeability or denies request admission
+- **THEN** the monitor retains truthful unknown/degraded evidence and schedules bounded retry without busy-looping or exceeding the shared 60/minute ceiling
+
+#### Scenario: Superseded branch page or PR response
+- **WHEN** a newer branch revision overtakes queued invalidation or an old PR fetch
+- **THEN** the obsolete work cannot overwrite expected-base or current snapshot evidence

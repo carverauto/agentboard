@@ -31,6 +31,9 @@ defmodule Agentboard.Delivery.Github do
        ci_state: "unknown",
        payload: %{
          "draft" => before.draft,
+         "mergeable" => before.mergeable,
+         "mergeable_state" => before.mergeable_state,
+         "base_ref" => before.base_ref,
          "coverage" => "terminal_metadata",
          "policy" => "unknown",
          "tested_ref" => "head",
@@ -48,7 +51,7 @@ defmodule Agentboard.Delivery.Github do
            pages(root <> "/commits/" <> before.head_sha <> "/statuses", nil, ctx),
          {:ok, attempts} <- normalize(runs, statuses, before.head_sha),
          {:ok, after_read, _ctx} <- metadata(root, pr, ctx),
-         true <- before == after_read do
+         true <- revision(before) == revision(after_read) do
       # A clean set is not policy-verified green. No expected checks, required
       # rules, merge/test-ref association or BuildBuddy correlation are inferred.
       state =
@@ -59,10 +62,13 @@ defmodule Agentboard.Delivery.Github do
         end
 
       {:ok,
-       Map.merge(before, %{
+       Map.merge(after_read, %{
          ci_state: state,
          payload: %{
-           "draft" => before.draft,
+           "draft" => after_read.draft,
+           "mergeable" => after_read.mergeable,
+           "mergeable_state" => after_read.mergeable_state,
+           "base_ref" => after_read.base_ref,
            "coverage" => "complete_head",
            "policy" => "unknown",
            "tested_ref" => "head",
@@ -76,6 +82,36 @@ defmodule Agentboard.Delivery.Github do
       {:error, reason} -> {:error, reason, 60}
     end
   end
+
+  # Same admitted HTTPS transport as PR collection; never follow a provider URL.
+  def branch(owner, repo, ref) do
+    with true <- ref?(ref),
+         {:ok, root} <- root(%{owner: owner, repo: repo, number: "1"}),
+         {:ok, %{"name" => ^ref, "commit" => %{"sha" => sha}}, _} <-
+           GithubHTTP.get(
+             root <> "/branches/" <> URI.encode(ref, &URI.char_unreserved?/1),
+             10_000
+           ),
+         true <- sha?(sha) do
+      {:ok, sha}
+    else
+      {:error, _, _} = error -> error
+      _ -> {:error, "incomplete", 60}
+    end
+  end
+
+  defp revision(metadata),
+    do: Map.take(metadata, [:head_sha, :base_sha, :base_ref, :lifecycle, :draft])
+
+  defp bounded_state(value)
+       when value in ~w(clean dirty unstable behind blocked unknown draft has_hooks), do: value
+
+  defp bounded_state(_), do: nil
+
+  defp ref?(ref),
+    do:
+      is_binary(ref) and byte_size(ref) in 1..255 and
+        not String.contains?(ref, ["\u0000", "\n", "\r"])
 
   defp root(pr) do
     if Regex.match?(~r/\A[A-Za-z0-9_.-]+\z/, pr.owner) and
@@ -102,7 +138,10 @@ defmodule Agentboard.Delivery.Github do
          head_sha: head,
          base_sha: base,
          lifecycle: if(merged, do: "merged", else: state),
-         draft: if(is_boolean(data["draft"]), do: data["draft"], else: nil)
+         draft: if(is_boolean(data["draft"]), do: data["draft"], else: nil),
+         mergeable: if(is_boolean(data["mergeable"]), do: data["mergeable"], else: nil),
+         mergeable_state: bounded_state(data["mergeable_state"]),
+         base_ref: if(ref?(data["base"]["ref"]), do: data["base"]["ref"])
        }, ctx}
     else
       {:error, _, _} = error -> error

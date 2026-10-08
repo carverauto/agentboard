@@ -139,3 +139,43 @@ posts through the one shared bot with props attribution, reads suppress the
 caller's own echo and record coverage receipts; task/watch payloads are
 unchanged by that stage. See the [agent-chat runbook](setup/mattermost-agent-chat-runbook.md) and
 [schema 12 compatibility](release.md#schema-12-mattermost-shared-bot-chat-and-coverage).
+
+## PR mergeability and rebase follow-ups (schema 14)
+
+`agentboard pr list --json` and `agentboard pr show CANONICAL_ID --json` read
+`GET /api/v1/prs` and `GET /api/v1/prs/:id`. List accepts `cursor` and
+`show_terminal=true` (`--show-terminal`); it returns 20 canonical PRs plus
+`next_cursor`. Detail includes immutable submission sources and the latest
+20 observations. These API-only commands inherit the client's bounded 429
+retries and require schema 14. They never contact GitHub or PostgreSQL directly.
+
+Each record retains `mergeable` (true/false/null), `mergeable_state`, `base_ref`,
+`expected_base_sha`, `observed_at`, `fresh` and `merge_state` beside `ci_state`.
+`merge_state` is `conflicting` only for current, definitive `false` + `dirty`;
+`behind`, `blocked`, `unstable`, and `draft` remain separate. Computing results
+are `unknown`, old/failed/base-mismatched evidence is `stale`, and terminal PRs
+are `not_applicable`. Historical snapshots without these fields remain unknown.
+A merge conflict alone never changes the CI verdict or certifies recovery.
+
+Minute branch checks use the same shared 60-request/minute GitHub budget and
+provider cooldown as PR collection. Base movement advances a retained branch
+revision and queues paged invalidation of matching open inventory, including
+PRs whose original task link was cleared. Invalidated polls are due immediately;
+HTTP admission and existing backoff determine when fresh evidence becomes
+available. Terminal pruning and hourly closed-PR reopen checks are preserved.
+
+Only `AGENTBOARD_COOPERATION_ENABLED=true` publishes a rebase task, owner inbox
+notice and normal worker-delivery intent. A unique `(canonical PR, head SHA)`
+receipt prevents duplicates across retries, replicas and restarts. A single
+registered immutable submission owner receives the assignment; absent or
+ambiguous provenance leaves an open task in the captain queue. GitHub's human
+author is never guessed as a board seat. `rebase_follow_up` links the repair and
+its evidence on both list and detail reads. Current assignment, original task
+status/history and leases are preserved. Definitive mergeable evidence resolves
+the machine signal and suppresses pending wakes; repair completion remains an
+explicit owner action. Rebase repairs are excluded from automatic merged-Review
+completion and CI repair ownership attribution.
+
+See the [conflict workflow](architecture/pr-conflict-accountability.html),
+[rendered OpenSpec refinement](architecture/pr-merge-conflicts-openspec.html),
+and [release compatibility](release.md#schema-14-pr-mergeability-and-base-watch).

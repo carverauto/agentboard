@@ -266,3 +266,30 @@ Behavior, bounds and operation live in the
 
 Roll back by retaining the schema-12 tables and deploying a compatible prior
 digest. No down migration or coverage deletion is permitted.
+
+## Schema 14: PR mergeability and base watch
+
+Migrate and serve the same schema-14 image. Migration `20261008000200` adds
+nullable base-ref/expected-base fields to polling state, durable branch watches
+and unique per-head rebase follow-up receipts. Readiness requires schema 14 and
+the new tables. Existing snapshot bytes, PR attribution, board history, documents,
+context and provider backoff are retained. Old snapshots have unknown mergeability.
+Schema 13 is reserved for parallel agent-availability work; before publication,
+advance the migration timestamp/version beyond current main if merge order changes.
+
+The minute `ScheduleBases` AshOban job uses existing delivery queues. Provider
+I/O runs outside reservation transactions and shares the 60/minute GitHub budget;
+there is no process-wide SQL or provider-call singleton. Branch generations fence
+late replies. Changed-SHA revisions own durable 100-PR invalidation pages, with
+minute catch-up for a discarded continuation or a crash before enrollment.
+Unknown provider computation retries in 60 seconds; denials retain evidence and
+honor existing cooldowns. Cooperation remains independently configurable and
+must be enabled for new rebase tasks/notices/wake intents. No flag or deployment
+change is implied by this release.
+
+Roll back to a schema-compatible image while retaining the additive data and
+explicitly deciding observation/cooperation settings. Do not run destructive down
+migrations, reset budgets, prune receipts, or erase pending/uncertain worker delivery.
+Remote acceptance is owned by `//build/integration:pr_conflicts_test`, with
+provider, polling, scheduling, accountability, merged-Review and fresh/upgrade
+migration contracts in their existing sibling targets.

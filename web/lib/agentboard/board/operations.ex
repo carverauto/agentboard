@@ -197,20 +197,22 @@ defmodule Agentboard.Board.Operations do
         stamp
       )
 
-    if changed.assignee_id do
-      send_message(
-        actor,
-        %{
-          "to" => changed.assignee_id,
-          "task" => changed.id,
-          "body" =>
-            "Review completed by system: #{url} was observed merged at #{snapshot.observed_at}. CI qualification is unchanged; investigate any outstanding CI repair obligations before taking new work."
-        },
-        stamp
-      )
-    end
+    notify_task_owner(
+      changed,
+      actor,
+      "Review completed by system: #{url} was observed merged at #{snapshot.observed_at}. CI qualification is unchanged; investigate any outstanding CI repair obligations before taking new work.",
+      stamp
+    )
 
     result
+  end
+
+  # Internal system notifications share the same audited message + notice path.
+  # Caller must own the task transaction; do not require a registered human sender.
+  def notify_task_owner(task, actor, body, stamp) do
+    if task.assignee_id,
+      do:
+        send_message(actor, %{"to" => task.assignee_id, "task" => task.id, "body" => body}, stamp)
   end
 
   def message(id, actor, data) do
@@ -334,7 +336,8 @@ defmodule Agentboard.Board.Operations do
     end
   end
 
-  def registered_agent(_, _), do: {:error, "invalid_context", "Register a matching agent identity first"}
+  def registered_agent(_, _),
+    do: {:error, "invalid_context", "Register a matching agent identity first"}
 
   def fetch!(resource, id, message, code \\ "not_found") do
     Ash.get!(resource, id, not_found_error?: false) || reject(code, message)
@@ -435,7 +438,9 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Cooperation.Batch,
              Agentboard.Cooperation.Attempt,
              Agentboard.Cooperation.Receipt,
-             Agentboard.Delivery.Obligation
+             Agentboard.Delivery.Obligation,
+             Agentboard.Delivery.BaseWatch,
+             Agentboard.Delivery.RebaseFollowUp
            ],
            fun,
            timeout: Repo.write_timeout()
@@ -509,4 +514,3 @@ defmodule Agentboard.Board.Operations do
     defp action_name(unquote(Atom.to_string(name))), do: unquote(name)
   end
 end
-

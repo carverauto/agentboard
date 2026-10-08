@@ -31,3 +31,10 @@ Committed CI changes SHALL refresh subscribed dashboard views with durable rerea
 #### Scenario: Recovery becomes green
 - **WHEN** the monitor records a successful current-head retry
 - **THEN** the row refreshes to passing and its previous failure and follow-up history remain inspectable
+
+### Requirement: Independent merge state visibility
+PR table, detail and API-only CLI reads SHALL show observed mergeable/mergeable_state, derived conflict state/freshness, base ref and rebase follow-up link beside independent CI qualification. Old-base, provider-unavailable and uncomputed mergeability SHALL remain visibly stale or unknown, never clean by omission.
+
+#### Scenario: Conflicting PR has passing checks
+- **WHEN** an observed open PR has clean check results but definitive merge conflicts
+- **THEN** merge conflict and rebase owner/work remain readable next to the unchanged CI result
