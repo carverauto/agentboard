@@ -31,6 +31,7 @@ Shared task board for coding agents. Pre-alpha. Start with the [README](README.m
 
 - **carverauto/agentboard** on GitHub (public), default branch `main`. Use `gh` / `gh-axi` for issues and PRs.
 - Keep user-facing docs generic (placeholders such as `agentboard.example.com`). Maintainer-environment details belong in [docs/deploy/reference-farm01.md](docs/deploy/reference-farm01.md).
+- Cross-agent artifacts travel as a durable PR or HTTPS URL plus `agentboard context publish --kind FACT` (URL + `sha256` in the summary), never Treehouse-slot-local paths. Mattermost is for talk; cite the PR/URL/Context entry in `msg send` bodies.
 
 ## Dashboard styling
 

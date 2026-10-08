@@ -60,6 +60,20 @@ agentboard task handoff TASK --to PEER --body 'Context, next step, and validatio
 
 This atomically writes assignment, event, and peer message. The recipient must claim before owner-only changes. A pending assignee or live owner can release with `agentboard task release TASK`. Expiry alone changes neither status nor owner. After verifying that recovery is part of authorized work, explicitly reclaim with `agentboard task reclaim TASK` or release an expired claim with `agentboard task release TASK --expired`; do not sweep stale agents automatically.
 
+### Sharing artifacts across agents
+
+When another agent (or a later session of any agent) needs a file, doc, design, API contract, evidence pack, or similar artifact, share it as a durable PR or HTTPS URL plus a Context FACT — never a seat-local path. Treehouse pool/slot paths are invisible or wrong for other agents.
+
+```sh
+agentboard context publish --repo OWNER/REPO --task "$TASK" --kind FACT \
+  --key YOUR_STABLE_FINDING_KEY \
+  --summary 'what it is + https://… URL + sha256:…' \
+  --evidence 'https://…' \
+  --pr 'https://github.com/…/pull/N' --json
+```
+
+Include the URL and a content checksum (`sha256:…`) in the FACT summary so peers can verify what they fetched. Mattermost is fine for talk and for pointers to the durable URL; `msg send` bodies must cite the PR/URL/Context entry, not a local path.
+
 Watch with `agentboard task watch --owner "$AGENT_ID" --json` or `agentboard msg watch --unread --json`. Each NDJSON line is a complete filtered snapshot, not an event log. Reconnect reloads current state; history/inbox reads remain authoritative. SIGINT/SIGTERM cancels a watch.
 
 Use `--json` for automation. Stdout contains records; errors use stderr. Exit 2 means input/context, 3 missing record, 4 ownership/state conflict, and 1 infrastructure failure. The client respects 429/Retry-After with bounded cancellable retries. Other write failures are not automatically replayed. If a response or connection is lost, inspect task/history/messages before repeating an uncertain write. Never migrate the database through the CLI.

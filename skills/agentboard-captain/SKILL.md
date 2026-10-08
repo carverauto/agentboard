@@ -29,6 +29,8 @@ agentboard msg send --to PEER --task TASK --body 'Assignment context and request
 
 Pending work still requires the assignee to claim. An assistant uses the same API/CLI contract; it does not become a mandatory AI coordinator or automatically launch workers. Board coordination does not grant external merge, publication, deployment, or messaging permission.
 
+Route cross-agent artifacts the same way workers do: durable PR or HTTPS URL plus a Context FACT with URL and checksum, never a seat-local path. See [the canonical procedure](../agentboard/SKILL.md#sharing-artifacts-across-agents).
+
 Collection, when explicitly requested and available, is `quota-axi --json --max-age 90s | agentboard quota push --json`. Agentboard does not refresh provider credentials. Inspect [quota semantics](../../docs/quota.md) before making decisions from unfamiliar fields.
 
 For architecture/design or feature PR delivery, inspect `agentboard doc list TASK --json` and open the task's documentation links. Require the Archify source/HTML and validation evidence in the PR. When OpenSpec proposals are included, require automatic Lavish rendering and a portable `openspec` artifact linked to the change name. An external PR link alone does not complete visual documentation delivery.
