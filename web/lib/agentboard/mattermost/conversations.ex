@@ -218,7 +218,16 @@ defmodule Agentboard.Mattermost.Conversations do
   defp read_limit(_), do: {:error, "invalid_input", "limit must be between 1 and 200"}
 
   defp non_negative(nil), do: {:ok, 0}
+  defp non_negative(""), do: {:ok, 0}
   defp non_negative(n) when is_integer(n) and n >= 0, do: {:ok, n}
+
+  defp non_negative(n) when is_binary(n) do
+    case Integer.parse(String.trim(n)) do
+      {v, ""} when v >= 0 -> {:ok, v}
+      _ -> {:error, "invalid_input", "last_version must be a non-negative integer"}
+    end
+  end
+
   defp non_negative(_), do: {:error, "invalid_input", "last_version must be a non-negative integer"}
 
   defp adopt_retry(_cfg, _channel_id, nil, _agent_id), do: {:ok, nil}
