@@ -1,14 +1,14 @@
 {
   "diagram_type": "architecture",
-  "specification_sha256": "b31dc37047ac30617716a36ebd3a6e8a15545c998fd5f6890af2bcae2d9c97f1",
-  "artifact_sha256": "ce63f0ea67a2996284b41b7e51dcaa9fa4df891fce2f9a930ce4491a2e5e1f24",
+  "specification_sha256": "dcf20c7057548403f55aa0e2057d1261d5a3877e4301c198c6b4c919fa3f911f",
+  "artifact_sha256": "b83fbf539508d54d551110b6e54842eb06451d2b87abb870784e577e1ce0ab39",
   "validation": "9/9 showcase, 0 errors, 0 warnings",
   "browser_evidence": "passed",
   "visual_review": "passed",
   "correction_rounds": 2,
   "perceptual_review": {
-    "reviewer": "codex-agent-b-worker",
-    "scope": "READ, Still; 1440x900 and2048x1320 light/dark screenshots actually inspected",
+    "reviewer": "document-phase (fresh repin inspection)",
+    "scope": "READ, Still; 1440x900 and 2048x1320 light/dark screenshots actually inspected after 8d5a56b repin",
     "observations": "Clear main event/signature/cue/collector/ledger path, readable labels, no crossings/cutoff, large-screen vertical rhythm balanced."
   },
   "panel_review": {
