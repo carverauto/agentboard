@@ -60,6 +60,21 @@ defmodule AgentboardWeb.ContextLiveTest do
       assert ContextLive.resolve_repo(%{"repo" => "  a/b  ", "repo_other" => "  "}) ==
                {:ok, %{"repo" => "a/b"}}
     end
+
+    test "nested repo params error instead of raising" do
+      assert ContextLive.resolve_repo(%{"repo" => %{"foo" => "bar"}}) ==
+               {:error, "Repository and Other repository disagree; clear one."}
+    end
+
+    test "nested typed repo params error instead of raising" do
+      assert ContextLive.resolve_repo(%{"repo" => "a/b", "repo_other" => %{"foo" => "bar"}}) ==
+               {:error, "Repository and Other repository disagree; clear one."}
+    end
+
+    test "list repo params error instead of raising" do
+      assert ContextLive.resolve_repo(%{"repo" => ["a/b"], "repo_other" => "  "}) ==
+               {:error, "Repository and Other repository disagree; clear one."}
+    end
   end
 
   describe "handle_params/3" do

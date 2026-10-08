@@ -73,9 +73,14 @@ defmodule AgentboardWeb.ContextLive do
           Context.recent(Map.drop(filters, ~w(id q)) |> Map.put("limit", "50"))
       end
 
+    repos = load_repos()
+
     case result do
-      {:ok, data} -> assign(socket, data: data, error: nil, loaded: true)
-      {:error, _code, message} -> assign(socket, data: nil, error: message, loaded: true)
+      {:ok, data} ->
+        assign(socket, repos: repos, data: data, error: nil, loaded: true)
+
+      {:error, _code, message} ->
+        assign(socket, repos: repos, data: nil, error: message, loaded: true)
     end
   end
 
@@ -96,29 +101,35 @@ defmodule AgentboardWeb.ContextLive do
   with `repo_other=<typed>`. Returns `{:ok, params}` with the resolved
   `repo` (or no `repo` key when nothing usable was chosen) and without
   `repo_other`, or `{:error, message}` when a selected repository and a
-  different typed repository disagree.
+  different typed repository disagree, or when either value is not a string.
   """
   def resolve_repo(params) when is_map(params) do
-    other = params |> Map.get("repo_other", "") |> to_string() |> String.trim()
-    cleaned = Map.delete(params, "repo_other")
-    trimmed_repo = cleaned |> Map.get("repo") |> to_string() |> String.trim()
+    with {:ok, other} <- trimmed_param(Map.get(params, "repo_other", "")),
+         {:ok, trimmed_repo} <- trimmed_param(Map.get(params, "repo", "")) do
+      cleaned = Map.delete(params, "repo_other")
 
-    cond do
-      other == "" ->
-        if trimmed_repo in ["", "other"],
-          do: {:ok, Map.delete(cleaned, "repo")},
-          else: {:ok, Map.put(cleaned, "repo", trimmed_repo)}
+      cond do
+        other == "" ->
+          if trimmed_repo in ["", "other"],
+            do: {:ok, Map.delete(cleaned, "repo")},
+            else: {:ok, Map.put(cleaned, "repo", trimmed_repo)}
 
-      trimmed_repo in ["", "other"] ->
-        {:ok, Map.put(cleaned, "repo", other)}
+        trimmed_repo in ["", "other"] ->
+          {:ok, Map.put(cleaned, "repo", other)}
 
-      trimmed_repo == other ->
-        {:ok, Map.put(cleaned, "repo", other)}
+        trimmed_repo == other ->
+          {:ok, Map.put(cleaned, "repo", other)}
 
-      true ->
-        {:error, "Repository and Other repository disagree; clear one."}
+        true ->
+          {:error, "Repository and Other repository disagree; clear one."}
+      end
+    else
+      _ -> {:error, "Repository and Other repository disagree; clear one."}
     end
   end
+
+  defp trimmed_param(value) when is_binary(value), do: {:ok, String.trim(value)}
+  defp trimmed_param(_), do: :error
 
   @doc """
   Builds dropdown options from known repos plus the current selection.
