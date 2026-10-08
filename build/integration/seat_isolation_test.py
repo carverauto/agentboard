@@ -39,6 +39,13 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
 ''')
     env = dict(os.environ, AGENT_ID="codex-fixture-seat", AGENTBOARD_COORDINATOR_ID="codex-fixture-captain", AGENTBOARD_URL="https://agentboard.example.invalid", AGENTBOARD_TOKEN="fixture-seat-board-token", AGENTBOARD_HARNESS="codex", AGENTBOARD_MODEL="fixture-model", AGENTBOARD_TREEHOUSE_BIN=str(treehouse), AGENTBOARD_SEAT_ROOT=str(pool), TREEHOUSE_NO_UPDATE_CHECK="1")
     env.pop("TREEHOUSE_ROOT", None)
+    cli_dir = root / "fixture-cli"
+    cli_dir.mkdir()
+    cli = cli_dir / "agentboard"
+    compatible_cli = '#!/usr/bin/env python3\nimport json,sys\nif sys.argv[1]=="doctor": print(json.dumps({"compatible":True,"cli_capabilities":{"decision_intake":1},"required_decision_intake_version":1,"schema_version":29}))\nelse: print("decision request fixture help")\n'
+    cli.write_text(compatible_cli)
+    cli.chmod(0o755)
+    env["PATH"] = str(cli_dir) + os.pathsep + env["PATH"]
     seats = []
     for form in ("text", "file"):
         output = root / f"{form}.json"
@@ -64,6 +71,23 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
         assert command(["git", "rev-parse", "HEAD"], repo).stdout.strip() == original
         check_env = dict(env, AGENTBOARD_SEAT_WORKTREE=str(seat))
         command([sys.executable, launcher, "--repo", repo, "--check"], seat, check_env)
+    # An old executable, unavailable server and malformed proof all refuse
+    # before acquisition or native input; do not assert source text.
+    for bad_cli in (
+        '#!/bin/sh\nexit 2\n',
+        '#!/usr/bin/env python3\nimport sys\nif sys.argv[1]=="doctor": sys.exit(1)\n',
+        '#!/usr/bin/env python3\nprint("{}")\n',
+    ):
+        cli.write_text(bad_cli)
+        output = root / "old-cli-must-not-launch.json"
+        before = command([treehouse,"status","--root",pool],repo,env).stdout
+        result = command([sys.executable,launcher,"--repo",repo,"--brief",task,"--",sys.executable,recorder,output,"{brief}","file"],repo,env,ok=False)
+        assert result.returncode == 2 and not output.exists()
+        assert "SHA256SUMS" in result.stderr
+        assert command([treehouse,"status","--root",pool],repo,env).stdout == before
+        result = command([sys.executable,launcher,"--repo",repo,"--check"],seats[0],dict(env,AGENTBOARD_SEAT_WORKTREE=str(seats[0])),ok=False)
+        assert result.returncode == 2 and "STOP" in result.stderr
+    cli.write_text(compatible_cli)
     for changed, reason in (("codex-fixture-captain", "coordinator"), ("codex-fixture-other", "lease holder")):
         mismatch = dict(env, AGENT_ID=changed, AGENTBOARD_SEAT_WORKTREE=str(seats[0]))
         result = command([sys.executable, launcher, "--repo", repo, "--check"], seats[0], mismatch, ok=False)

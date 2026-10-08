@@ -411,7 +411,7 @@ tables alongside the shipped auth and poll-credit tables. Current readiness is i
 preserved; repeat migration is harmless, and no obligations are seeded. The
 stamp uses `GREATEST(version, 27)`, so it never lowers a higher stamp (25 is
 the shipped credential schema above, 26 remains reserved for parked work; 28
-is the shipped poll-fairness schema above and 29 is the higher-stamp upgrade
+is the shipped poll-fairness schema above and 30 is the higher-stamp upgrade
 proof marker).
 
 Behavior, intake, routing, recovery, and the operator rollout prerequisites
@@ -421,6 +421,15 @@ not here.
 Roll back by retaining the schema-27 tables and deploying a compatible prior
 digest. The down migration refuses a destructive downgrade; no down migration
 or obligation deletion is permitted.
+
+## Schema 29: universal captain intake
+
+Migration 20261008002900 adds nullable decision identity, retry, TTL and promotion
+metadata and extends kind constraints. Existing decisions/history stay unchanged;
+the waiting lane is derived. Aggregate stamping uses GREATEST(version,29).
+The higher-stamp upgrade fixture is 99, not a migration reservation. Ship a
+compatible CLI/skills before enforcing launcher decision-intake diagnostics.
+Cleanup defaults off; operators enable it explicitly. Rollback preserves history.
 
 ## Schema 31: disabled recovery checkpoint
 

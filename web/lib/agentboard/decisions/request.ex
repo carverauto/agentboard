@@ -30,6 +30,15 @@ defmodule Agentboard.Decisions.Request do
         :requester_id,
         :kind,
         :gate_ref,
+        :question_key,
+        :normalization_version,
+        :retry_key,
+        :expires_at,
+        :expires_in,
+        :bound_pr,
+        :source_type,
+        :source_id,
+        :promoted_by,
         :question,
         :findings,
         :options,
@@ -111,6 +120,16 @@ defmodule Agentboard.Decisions.Request do
       allow_nil?: false,
       constraints: [trim?: false, allow_empty?: true]
     )
+
+    attribute(:question_key, :string, public?: true)
+    attribute(:normalization_version, :integer, public?: true)
+    attribute(:retry_key, :string, public?: true, constraints: [trim?: false])
+    attribute(:expires_in, :integer, public?: true)
+    attribute(:expires_at, :utc_datetime_usec, public?: true)
+    attribute(:bound_pr, :string, public?: true)
+    attribute(:source_type, :string, public?: true)
+    attribute(:source_id, :string, public?: true)
+    attribute(:promoted_by, :string, public?: true)
 
     attribute(:options, {:array, :string}, public?: true, allow_nil?: false)
 

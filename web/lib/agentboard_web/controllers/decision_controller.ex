@@ -4,6 +4,11 @@ defmodule AgentboardWeb.DecisionController do
   alias AgentboardWeb.APIController, as: API
 
   def index(conn, _), do: API.reply(conn, Decisions.page(fetch_query_params(conn).query_params))
+
+  def waiting(conn, _),
+    do: API.reply(conn, Agentboard.Decisions.Waiting.page(fetch_query_params(conn).query_params))
+
+  def promote(conn, _), do: API.reply(conn, Decisions.promote(actor(conn), conn.body_params))
   def show(conn, %{"id" => id}), do: API.reply(conn, Decisions.show(id))
   def create(conn, _), do: API.reply(conn, Decisions.request(API.actor(conn), conn.body_params))
 

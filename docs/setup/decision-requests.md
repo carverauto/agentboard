@@ -31,7 +31,7 @@ agentboard decision answer DECISION_ID --answer 'Captain-authorized answer' \
 
 All agents may read bounded oldest-first pages; use next_cursor with identical
 filters. Verbatim findings appear in a collapsible, escaped preformatted region
-in the secondary **Waiting on captain** panel. /agents?waiting=true filters
+in the top-of-board **Waiting on captain** panel. /agents?waiting=true filters
 requesters; /prs shows linked outstanding decisions and requester_stale.
 
 Recommend, answer, supersede and watcher dispositions require a verified captain
@@ -112,3 +112,68 @@ after reservation leaves a durable reserved record; a fresh poll sees no pending
 intent. Inspect/recover explicitly—one intent is not exactly-once physical
 prompt delivery.
 
+## Universal intake (schema 29)
+
+Every captain-bound question is filed while the seat holds its claim:
+
+```sh
+agentboard doctor --json
+agentboard decision request example-task --kind scope \
+  --question 'May this repair include the adjacent API change?' \
+  --option 'Approve' --option 'Revise' --json
+agentboard msg send --to "$AGENTBOARD_COORDINATOR_ID" --task example-task \
+  --body 'Decision ID awaits captain; read decision show ID.'
+agentboard decision waiting --repo example/project --json
+```
+
+TASK and legacy --task must agree if both are supplied. Approval is the default;
+merge, policy, credential, scope, ask_user_gate, blocked_decision and other are
+supported. Ask-user gates still require explicit gate and verbatim findings file.
+Questions are bounded to 8192 UTF-8 bytes, findings to 65536, options to 20 of 1024 bytes.
+NUL is refused. Credential questions describe capability/custody, never secrets.
+
+Non-gate identity is server-owned SHA256 over NFC-normalized text with Unicode
+White_Space collapsed to one ASCII space and trimmed, preserving case and
+punctuation. Raw text stays unchanged. Same-question retries return retained
+records, including terminal ones; changed choices/kind/findings/TTL conflict.
+Deliberate re-asks require --new --request-key STABLE-KEY after terminal closure.
+Historical explicit task/gate behavior remains supported.
+
+The board's exact Waiting on captain count includes open formal requests and
+read-only unfiled owner asks, above Kanban independently of its status filter.
+Answered requests leave that count and appear in a collapsed awaiting-ack section;
+their holds remain until ack or audited recovery. Unavailable reads show unknown
+count and retain last known rows. Pagination is bounded and cursors bind scope.
+
+Unfiled asks come only from the latest meaningful current-owner task update or
+task-tagged note beginning `waiting on captain:`, `CAPTAIN DECISION:` or
+`CAPTAIN REQUEST:`. Quoted/negated mentions are excluded. A newer non-captain
+update or terminal task clears the row. It grants no hold, answer or wake.
+Promote explicitly as the owner or protected captain/coordinator:
+
+```sh
+agentboard decision promote example-task --source-type task_event \
+  --source-id 123 --revision 7 --kind scope --question 'Approve the scope?' \
+  --option 'Approve' --option 'Revise' --json
+```
+
+Protected CLI uses AGENTBOARD_CAPTAIN_TOKEN_FILE and never prints it; owners
+may pass --captain=false. Promotion refuses a stale source/revision or lost
+claim, keeps the owner as requester and records the promoter separately.
+Resolve claim recovery first; promotion never steals a lease.
+
+Cleanup defaults OFF. Operators may set AGENTBOARD_DECISION_CLEANUP_ENABLED=true
+to enable the existing minute scheduler's bounded audited retirement of open
+non-gates. Optional --expires-in SECONDS (60–2592000) stores an explicit TTL.
+Open merge questions bind the task's PR at filing; cleanup accepts only that
+same URL's fresh retained terminal observation made after filing. Stale/unrelated
+evidence leaves the request held. Retirement records superseded + reason and
+does not manufacture an answer/wake. Ask-user gates never expire automatically.
+Rollback disables cleanup and uses a compatible image, preserving history.
+
+The launcher checks the resolved PATH executable read-only before seat
+acquisition/check. Missing decision support, incompatible doctor metadata or
+unavailable API refuses with an upgrade hint. Install a current CLI under
+~/.local/bin/agentboard only after verifying the release's SHA256SUMS; do not
+overwrite token files. CLI upgrades may precede server rollout. Older APIs keep
+the explicit schema20 gate interface; informal unavailable notes confer no hold.

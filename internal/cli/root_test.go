@@ -128,3 +128,64 @@ func TestFeatureCommandsRequireCompatibleServer(t *testing.T) {
 		}
 	}
 }
+
+// Compatibility is a public read-only executable diagnostic. It must refuse an
+// unavailable/older contract before launcher acquisition, and general check-ins
+// warn without losing their normal machine-readable records.
+func TestDecisionDoctorAndCheckinDiagnostics(t *testing.T) {
+	for _, tc := range []struct {
+		schema, required int
+		compatible       bool
+	}{
+		{29, 1, true}, {28, 0, false}, {29, 2, false},
+	} {
+		t.Run(strconv.Itoa(tc.schema)+"-"+strconv.Itoa(tc.required), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/v1/meta" {
+					_ = json.NewEncoder(w).Encode(map[string]any{"api_version": 1, "schema_version": tc.schema, "required_decision_intake_version": tc.required})
+				} else if r.URL.Path == "/api/v1/agents" {
+					io.WriteString(w, `{"agents":[]}`)
+				} else {
+					w.WriteHeader(404)
+				}
+			}))
+			defer server.Close()
+			t.Setenv("AGENTBOARD_URL", server.URL)
+			root := cli.NewRoot()
+			var out, stderr bytes.Buffer
+			root.SetOut(&out)
+			root.SetErr(&stderr)
+			root.SetArgs([]string{"doctor", "--json"})
+			err := root.Execute()
+			var record struct {
+				Compatible   bool           `json:"compatible"`
+				Capabilities map[string]int `json:"cli_capabilities"`
+			}
+			if parseErr := json.Unmarshal(out.Bytes(), &record); parseErr != nil {
+				t.Fatal(parseErr)
+			}
+			if record.Compatible != tc.compatible || record.Capabilities["decision_intake"] != 1 || (err == nil) != tc.compatible {
+				t.Fatalf("doctor %s err%v", out.String(), err)
+			}
+			if tc.required > 1 {
+				root = cli.NewRoot()
+				out.Reset()
+				stderr.Reset()
+				root.SetOut(&out)
+				root.SetErr(&stderr)
+				root.SetArgs([]string{"agent", "list", "--json"})
+				if err = root.Execute(); err != nil {
+					t.Fatal(err)
+				}
+				var warning struct {
+					Warning struct {
+						Code string `json:"code"`
+					} `json:"warning"`
+				}
+				if json.Unmarshal(stderr.Bytes(), &warning) != nil || warning.Warning.Code != "cli_incompatible" || out.String() != `{"agents":[]}`+"\n" {
+					t.Fatalf("checkin stdout%s stderr%s", out.String(), stderr.String())
+				}
+			}
+		})
+	}
+}

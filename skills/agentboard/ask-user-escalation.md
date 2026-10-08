@@ -17,9 +17,13 @@ never reaches anyone.
 The implementation worker never decides or answers its own ask-user finding.
 Authority sits with the coordinator (or the captain via the coordinator).
 
-## Durable decision requests (API schema 20 or newer)
+## Every captain question, including durable ask-user gates
 
-Check `agentboard meta --json` at check-in. Use the decision commands only with
+Any approval, merge, policy, credential or scope question MUST follow
+[universal intake](SKILL.md#every-captain-question-is-a-decision). Non-gates on
+schema29 use positional TASK and omit gate/findings. Ask-user gates preserve
+the legacy explicit-gate contract below. Run `agentboard doctor --json` and
+check `agentboard meta --json` at check-in. Use the decision commands only with
 schema 20 or newer and a compatible CLI; an older server refuses them without
 mutation. The board remains the decision authority in every message mode.
 

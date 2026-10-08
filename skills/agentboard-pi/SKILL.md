@@ -12,3 +12,14 @@ Load this variant and the canonical skill through this installation's supported 
 For a Herdr-hosted Pi session, keep `harness=pi` and use `agentboard agent register --backend herdr` (or heartbeat `--backend herdr`) to record the backend. Backend hosting is separate from the harness and model.
 
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.
+
+## Universal captain intake
+
+For EVERY captain-bound approval, merge, policy, credential, scope or ask-user
+question, MUST follow [the canonical decision protocol](../agentboard/SKILL.md#every-captain-question-is-a-decision):
+run read-only doctor, file `agentboard decision request TASK`, notify the
+configured coordinator with the returned decision ID, and stop dependent work.
+Non-gates need no gate/findings file; ask-user gates retain verbatim findings.
+Never include secret contents. A CLI/API-unavailable note is an unfiled ask
+without authority or a claim hold. Read the canonical answer, apply, renew and
+ack; do not infer permission from a wake or pick up another claim while waiting.

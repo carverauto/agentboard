@@ -20,6 +20,7 @@ import (
 )
 
 const Version = "0.1.0"
+const DecisionIntakeVersion = 1
 
 type commands struct {
 	cfg        config.Config
@@ -67,13 +68,20 @@ func NewRoot() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintln(cmd.OutOrStdout(), string(result))
+		var metadata map[string]any
+		if err = json.Unmarshal(result, &metadata); err != nil {
+			return err
+		}
+		metadata["cli_version"] = Version
+		metadata["cli_capabilities"] = map[string]any{"decision_intake": DecisionIntakeVersion}
+		err = json.NewEncoder(cmd.OutOrStdout()).Encode(metadata)
 		return err
 	}})
 	root.AddCommand(&cobra.Command{Use: "version", Short: "Print CLI version", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), Version)
 		return err
 	}})
+	root.AddCommand(c.doctor())
 	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.chat(), c.prs(), c.decisions(), c.seat(), c.adminCommands())
 	return root
 }
@@ -121,8 +129,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 		return err
 	}
 	var meta struct {
-		API    int `json:"api_version"`
-		Schema int `json:"schema_version"`
+		API            int `json:"api_version"`
+		Schema         int `json:"schema_version"`
+		DecisionIntake int `json:"required_decision_intake_version"`
 	}
 	required := 1
 	if strings.HasPrefix(path, "messages") || strings.HasSuffix(path, "/heartbeat") || strings.HasSuffix(path, "/handoff") {
@@ -155,6 +164,20 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasPrefix(path, "decisions") || query.Get("waiting") != "" {
 		required = 20
 	}
+	if path == "decisions/waiting" || path == "decisions/promote" {
+		required = 29
+	}
+	if path == "decisions" && method == http.MethodPost {
+		if fields, ok := payload.(map[string]any); ok {
+			if fields["gate"] == nil || fields["new"] == true || fields["expires_in"] != nil {
+				required = 29
+			}
+			switch fields["kind"] {
+			case "merge", "scope", "policy", "credential":
+				required = 29
+			}
+		}
+	}
 	if strings.HasSuffix(path, "/duplicate-decision") {
 		required = 24
 	}
@@ -171,6 +194,14 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
+	}
+	if meta.DecisionIntake > DecisionIntakeVersion {
+		warning := "Installed CLI lacks required decision intake; upgrade from a SHA256SUMS-verified agentboard release"
+		if c.json {
+			_ = json.NewEncoder(cmd.ErrOrStderr()).Encode(map[string]any{"warning": map[string]any{"code": "cli_incompatible", "message": warning, "required": meta.DecisionIntake, "supported": DecisionIntakeVersion}})
+		} else {
+			fmt.Fprintln(cmd.ErrOrStderr(), warning)
+		}
 	}
 	raw, err = api.JSON(cmd.Context(), method, path, query, payload)
 	if err != nil {
@@ -265,4 +296,38 @@ func printRecord(table io.Writer, r map[string]any) {
 		encoded, _ := json.Marshal(r)
 		fmt.Fprintln(table, string(encoded))
 	}
+}
+
+func (c *commands) doctor() *cobra.Command {
+	return &cobra.Command{Use: "doctor", Short: "Read-only API and decision-intake compatibility check", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		api, err := client.New(c.cfg)
+		if err != nil {
+			return err
+		}
+		defer api.Close()
+		raw, err := api.JSON(cmd.Context(), http.MethodGet, "meta", nil, nil)
+		if err != nil {
+			return err
+		}
+		var m struct {
+			API      int `json:"api_version"`
+			Schema   int `json:"schema_version"`
+			Required int `json:"required_decision_intake_version"`
+		}
+		if err = json.Unmarshal(raw, &m); err != nil {
+			return err
+		}
+		compatible := m.API == 1 && m.Schema >= 29 && m.Required >= 1 && m.Required <= DecisionIntakeVersion
+		diagnostic := map[string]any{"compatible": compatible, "cli_version": Version, "cli_capabilities": map[string]any{"decision_intake": DecisionIntakeVersion}, "required_decision_intake_version": m.Required, "schema_version": m.Schema}
+		if !compatible {
+			diagnostic["upgrade_hint"] = "Install a current agentboard release after verifying SHA256SUMS; operator must provide decision-intake compatible server"
+		}
+		if err = json.NewEncoder(cmd.OutOrStdout()).Encode(diagnostic); err != nil {
+			return err
+		}
+		if !compatible {
+			return &client.Error{Code: "schema_unavailable", Message: "CLI/server decision intake is incompatible; verify release SHA256SUMS before upgrading"}
+		}
+		return nil
+	}}
 }

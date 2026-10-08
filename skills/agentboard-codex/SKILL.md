@@ -42,3 +42,14 @@ fleet dispatch merely by being loaded.
 When running Herdr-hosted, a no-mistakes ask-user gate follows [the shared ask-user → coordinator procedure](../agentboard/ask-user-escalation.md): on API schema20 create a durable decision with verbatim findings, notify the configured coordinator, and end the turn after delivery. On resumption read the canonical answer, apply it through the active no-mistakes gate, explicitly renew, then ack. For an older API/CLI, write the findings verbatim and escalate with `agentboard msg send --to "$AGENTBOARD_COORDINATOR_ID" --task TASK --body '...'` (env-resolved; `--body` is required; include `--task` when a board task is active), mark blocked, then end the turn — only if the escalation went through. Never pass `--yes`, and never prompt the Herdr human pane for ask-user authority.
 
 Share cross-agent artifacts per [the canonical procedure](../agentboard/SKILL.md#sharing-artifacts-across-agents): durable PR or HTTPS URL plus a Context FACT with URL and checksum — never a Treehouse-slot-local path.
+
+## Universal captain intake
+
+For EVERY captain-bound approval, merge, policy, credential, scope or ask-user
+question, MUST follow [the canonical decision protocol](../agentboard/SKILL.md#every-captain-question-is-a-decision):
+run read-only doctor, file `agentboard decision request TASK`, notify the
+configured coordinator with the returned decision ID, and stop dependent work.
+Non-gates need no gate/findings file; ask-user gates retain verbatim findings.
+Never include secret contents. A CLI/API-unavailable note is an unfiled ask
+without authority or a claim hold. Read the canonical answer, apply, renew and
+ack; do not infer permission from a wake or pick up another claim while waiting.

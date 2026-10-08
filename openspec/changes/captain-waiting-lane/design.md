@@ -2,14 +2,14 @@
 
 ## Context
 
-See proposal.md for motivation. Baseline main is 5cf25aba. The existing CLI in internal/cli/decisions.go requires --task, --gate and a findings file for all kinds. Decisions.request/2 locks the task before lookup and mutation, deduplicates by unique task/gate, blocks the owned task, and preserves verbatim payload. Answer already retries idempotently on exact answer and answering actor, delivering one message/event/wake. Open and answered requests hold the lease; applied/withdrawn/superseded clear it.
+See proposal.md for motivation. Original proposal baseline was main 5cf25aba; approved implementation starts from freshly fetched main 5595a136. The existing CLI in internal/cli/decisions.go requires --task, --gate and a findings file for all kinds. Decisions.request/2 locks the task before lookup and mutation, deduplicates by unique task/gate, blocks the owned task, and preserves verbatim payload. Answer already retries idempotently on exact answer and answering actor, delivering one message/event/wake. Open and answered requests hold the lease; applied/withdrawn/superseded clear it.
 
 BoardLive currently loads waiting=open+answered pages of 20 and renders DecisionPanel below all columns. A page length cannot provide a total count. The main OpenSpec spec inventory is empty; the shipped add-decision-requests change remains the compatibility baseline. Schema20 limits kind and status through database checks. The source launcher validates Treehouse3.1.2 physical isolation but does not check decision CLI capabilities.
 
 ## Goals / Non-Goals
 
 **Goals:** one durable intake for all captain questions; exact, bounded, truthful visibility independent of Kanban pagination; attributed recovery of informal asks; compatible retry/answer and wake custody.
-**Non-Goals:** GH145 policy-rule automation, Mattermost decision delivery, autonomous merges, deployment or token provisioning, interpreting credentials in public questions, releasing ambiguous wake reservations, sweeping another seat's claims. This deliverable creates planning and review artifacts only.
+**Non-Goals:** GH145 policy-rule automation, Mattermost decision delivery, autonomous merges, deployment or token provisioning, interpreting credentials in public questions, releasing ambiguous wake reservations, sweeping another seat's claims. Implementation follows captain approval; merge and rollout remain captain-owned.
 
 ## Decisions
 
@@ -25,7 +25,7 @@ Retained answered/terminal matching requests are returned without reopening or h
 
 No waiting-lane table. Add nullable question identity/normalization version, request generation or client retry key, optional expiry, and promotion source metadata only if needed by the universal protocol; use existing task events for promotion attribution where possible. Extend the existing kind constraint. Old gate rows remain valid and their keys/immutable history are never rewritten. Enforce active normalized-key uniqueness with the task lock and, where compatible, a partial database uniqueness constraint over open/answered; historical closed generations remain retained.
 
-New kinds and expiry cannot honestly be added without changing schema20's constraints. Recommend a narrowly additive migration for those durable contracts, while keeping the list entirely derived. The task's suggested29 is stale: pending PR140 already has a higher-schema proof29. The coordinator must allocate the next free number before apply; proposed30 is a candidate, not a reservation. Do not introduce a competing migration29 or lower a higher schema value. An alternative alias-only CLI could avoid migration but would lose exact requested kind/expiry semantics; it is not the recommended design.
+New kinds and expiry cannot honestly be added without changing schema20's constraints. Recommend a narrowly additive migration for those durable contracts, while keeping the list entirely derived. Coordinator task_order 1347 reserves migration 29 after captain approval. PR140 merged at main 5595a136 with required schema 28; its test-only higher-schema stamp 29 moves to 30. The migration uses GREATEST(version,29) and preserves higher deployed values. An alternative alias-only CLI could avoid migration but would lose exact requested kind/expiry semantics; it is not the recommended design.
 
 ### 3. One waiting read model supplies rows and counts
 

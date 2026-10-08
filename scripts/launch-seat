@@ -37,6 +37,33 @@ def probe(argv, cwd, timeout=15):
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
+def decision_compatibility(cwd):
+    """Probe the exact PATH CLI read-only before acquisition/edit permission."""
+    exe = shutil.which("agentboard")
+    hint = ("Install ~/.local/bin/agentboard from a current agentboard release, "
+            "verify its SHA256SUMS, then retry; see docs/setup/decision-requests.md")
+    if not exe:
+        raise RuntimeError("agentboard CLI is missing from PATH. " + hint)
+    code, _, _ = probe([exe, "decision", "request", "--help"], str(cwd))
+    if code:
+        raise RuntimeError("resolved agentboard CLI lacks decision support. " + hint)
+    code, out, _ = probe([exe, "doctor", "--json"], str(cwd))
+    if code:
+        raise RuntimeError("decision compatibility unavailable or CLI/server incompatible. " + hint)
+    try:
+        data = json.loads(out)
+        supported = data["cli_capabilities"]["decision_intake"]
+        required = data["required_decision_intake_version"]
+        schema = data["schema_version"]
+        valid = (data["compatible"] is True and type(supported) is int and
+                 type(required) is int and type(schema) is int and
+                 supported >= required >= 1 and schema >= 29)
+    except (ValueError, KeyError, TypeError):
+        valid = False
+    if not valid:
+        raise RuntimeError("resolved agentboard CLI has no compatible decision-intake proof. " + hint)
+
+
 SEAT_RECORD_PREFIX = "agentboard-seat"
 
 
@@ -425,6 +452,11 @@ When the task is done or cancelled and its work has landed (pushed, PR
 merged, or already in base), return the slot with the same-version
 `treehouse return` before claiming or acquiring anything new; never
 --force, never rm -rf.
+For EVERY captain question (approval, merge, policy, credential, scope or ask-user),
+file agentboard decision request TASK --question ... with explicit choices, notify
+the coordinator with its decision ID, and stop dependent work. Non-gates need no
+gate/findings file; ask-user gates retain their stable gate and verbatim findings.
+Never include secret contents. Informal fallback has no authority or hold.
 For ask-user gates, read the installed agentboard ask-user-escalation procedure.
 On schema20 create one durable decision with verbatim findings, notify the
 configured coordinator, and end the turn only after delivery. Resume by reading
@@ -478,6 +510,7 @@ def main():
         if actual != Path(expected).resolve(strict=True):
             raise RuntimeError("cwd differs from the expected seat worktree")
         lease_identity(actual, pool_root(args.root if args.root is not None else os.environ.get("AGENTBOARD_SEAT_ROOT", "")))
+        decision_compatibility(source)
         print(actual)
         return 0
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
@@ -489,6 +522,7 @@ def main():
         raise RuntimeError("--attach requires --task")
     task_brief = args.brief.read_text(encoding="utf-8")
     root = pool_root(args.root if args.root is not None else os.environ.get("AGENTBOARD_SEAT_ROOT", ""))
+    decision_compatibility(source)
     binary = os.environ.get("AGENTBOARD_TREEHOUSE_BIN", str(Path.home() / f".local/share/agentboard/tools/treehouse/v{VERSION}/treehouse"))
     version = run([binary, "--version"], source)
     if version != f"v{VERSION}":

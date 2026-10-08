@@ -25,7 +25,10 @@ defmodule Agentboard.Delivery.Observation do
 
   actions do
     action :schedule_due, :map do
-      run(fn _input, _context -> Agentboard.Delivery.Scheduling.tick() end)
+      run(fn _input, _context ->
+        Agentboard.Decisions.cleanup()
+        Agentboard.Delivery.Scheduling.tick()
+      end)
     end
 
     action :poll, :map do
@@ -34,4 +37,3 @@ defmodule Agentboard.Delivery.Observation do
     end
   end
 end
-
