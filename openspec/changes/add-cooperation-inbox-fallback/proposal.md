@@ -16,4 +16,4 @@ With cooperation enabled and no enrolled workers, CI failure, reminder and escal
 None; this repository has no archived capability specs.
 
 ## Impact
-Cooperation capture/enrollment, Accountability reminders, Rebase notices, PR reads and LiveView. Additive schema26 migration, no new dependency or host wake mechanism.
+Cooperation capture/enrollment, Accountability reminders, Rebase notices, PR reads and LiveView. No schema migration (schema26 request withdrawn per coordinator ruling msg 1646; single-source keeps existing tables), no new dependency or host wake mechanism.
