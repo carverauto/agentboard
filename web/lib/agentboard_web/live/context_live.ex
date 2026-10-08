@@ -5,7 +5,16 @@ defmodule AgentboardWeb.ContextLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket), do: Process.send_after(self(), :refresh, 5000)
-    {:ok, assign(socket, filters: %{}, repos: load_repos(), data: nil, error: nil, loaded: false)}
+
+    {:ok,
+     assign(socket,
+       filters: %{},
+       repos: load_repos(),
+       data: nil,
+       error: nil,
+       param_error: nil,
+       loaded: false
+     )}
   end
 
   @impl true
@@ -17,18 +26,30 @@ defmodule AgentboardWeb.ContextLive do
           |> Map.take(~w(id repo task kind q cursor))
           |> Map.reject(fn {_key, value} -> value == "" end)
 
-        socket = assign(socket, filters: filters)
+        socket = assign(socket, filters: filters, param_error: nil)
         {:noreply, if(connected?(socket), do: reload(socket), else: socket)}
 
       {:error, message} ->
-        {:noreply, assign(socket, filters: %{}, data: nil, error: message, loaded: true)}
+        {:noreply,
+         assign(socket,
+           filters: %{},
+           data: nil,
+           error: message,
+           param_error: message,
+           loaded: true
+         )}
     end
   end
 
   @impl true
   def handle_info(:refresh, socket) do
     Process.send_after(self(), :refresh, 5000)
-    {:noreply, reload(socket)}
+
+    if socket.assigns[:param_error] do
+      {:noreply, socket}
+    else
+      {:noreply, reload(socket)}
+    end
   end
 
   defp reload(socket) do
@@ -36,6 +57,9 @@ defmodule AgentboardWeb.ContextLive do
 
     result =
       cond do
+        socket.assigns.live_action == :entry and filters["id"] in [nil, ""] ->
+          {:ok, nil}
+
         socket.assigns.live_action == :entry ->
           Context.show(filters["id"])
 
@@ -77,16 +101,15 @@ defmodule AgentboardWeb.ContextLive do
   def resolve_repo(params) when is_map(params) do
     other = params |> Map.get("repo_other", "") |> to_string() |> String.trim()
     cleaned = Map.delete(params, "repo_other")
-    repo = Map.get(cleaned, "repo")
-    trimmed_repo = repo |> to_string() |> String.trim()
+    trimmed_repo = cleaned |> Map.get("repo") |> to_string() |> String.trim()
 
     cond do
       other == "" ->
-        if repo == "other",
+        if trimmed_repo in ["", "other"],
           do: {:ok, Map.delete(cleaned, "repo")},
           else: {:ok, cleaned}
 
-      repo in [nil, "", "other"] ->
+      trimmed_repo in ["", "other"] ->
         {:ok, Map.put(cleaned, "repo", other)}
 
       trimmed_repo == other ->
@@ -134,6 +157,7 @@ defmodule AgentboardWeb.ContextLive do
       <p class="notice">Entries are worker assertions. Evidence links and relationships are retained; the server does not certify their conclusions. Reads do not acknowledge an agent's feed.</p>
       <p :if={!@loaded}>Loading shared context…</p>
       <p :if={@error} class="notice danger" role="alert">{@error}</p>
+      <p :if={@param_error} class="notice danger" role="alert">{@param_error}</p>
       <div :if={@live_action == :index}>
         <form action="/context" method="get" class="filters">
           <label>Repository
@@ -152,7 +176,7 @@ defmodule AgentboardWeb.ContextLive do
           <label>Kind<input name="kind" value={@filters["kind"]} placeholder="OBSERVED, FACT, FAIL…" /></label>
           <button type="submit">Find context</button>
         </form>
-        <p :if={@loaded && !@data && !@error}>Choose a repository to browse its latest findings or search with BM25.</p>
+        <p :if={@loaded && !@data && !@error && !@param_error}>Choose a repository to browse its latest findings or search with BM25.</p>
         <div :if={@data}>
           <p :if={@data[:backend]} class="context">Ranked with {@data.backend}; at most 100 results. Refine the query for a smaller result set.</p>
           <p :if={@data.entries == []}>No matching findings.</p>

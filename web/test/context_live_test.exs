@@ -41,6 +41,42 @@ defmodule AgentboardWeb.ContextLiveTest do
       assert ContextLive.resolve_repo(%{"q" => "boom", "repo_other" => "x/y"}) ==
                {:ok, %{"q" => "boom", "repo" => "x/y"}}
     end
+
+    test "whitespace-only repo with typed repo resolves to the typed value" do
+      assert ContextLive.resolve_repo(%{"repo" => "   ", "repo_other" => "x/y"}) ==
+               {:ok, %{"repo" => "x/y"}}
+    end
+
+    test "padded other with typed repo resolves to the typed value" do
+      assert ContextLive.resolve_repo(%{"repo" => "  other  ", "repo_other" => "x/y"}) ==
+               {:ok, %{"repo" => "x/y"}}
+    end
+
+    test "whitespace-only repo with blank typed repo drops the repo key" do
+      assert ContextLive.resolve_repo(%{"repo" => "   ", "repo_other" => "  "}) == {:ok, %{}}
+    end
+  end
+
+  describe "handle_info(:refresh)" do
+    test "refresh preserves a param error instead of reloading" do
+      message = "Repository and Other repository disagree; clear one."
+
+      socket = %Phoenix.LiveView.Socket{
+        assigns: %{
+          param_error: message,
+          error: message,
+          filters: %{},
+          data: nil,
+          loaded: true,
+          live_action: :index
+        }
+      }
+
+      assert {:noreply, returned} = ContextLive.handle_info(:refresh, socket)
+      assert returned.assigns.param_error == message
+      assert returned.assigns.error == message
+      assert returned.assigns.data == nil
+    end
   end
 
   describe "repo_options/2" do
