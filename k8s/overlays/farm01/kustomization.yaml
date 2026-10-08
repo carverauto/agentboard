@@ -10,6 +10,7 @@ components:
 patches:
   - path: dashboard-mattermost.yaml
   - path: dashboard-github-token.yaml
+  - path: dashboard-workflow-hook.yaml
   - target:
       kind: Cluster
       name: agentboard-db
@@ -42,6 +43,9 @@ configMapGenerator:
       # Captain-confirmed hostname (2026-10-05).
       - AGENTBOARD_PR_DISCOVERY_ENABLED=true
       - AGENTBOARD_PR_OBSERVATION_ENABLED=true
+      # #140 preparation: signed workflow_run cues, scoped to these two repos.
+      # Hook registration/secret provisioning waits for the captain's next roll.
+      - AGENTBOARD_WORKFLOW_REPOSITORIES=carverauto/agentboard,carverauto/serviceradar
       # Captain-approved 2026-10-07: cooperation on after the #102 fix (PR111, live in
       # 1bf92ae) and a 30-minute clean-poll window. Roll back by setting false.
       - AGENTBOARD_COOPERATION_ENABLED=true

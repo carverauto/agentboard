@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentboard-dashboard
+spec:
+  template:
+    spec:
+      containers:
+        - name: dashboard
+          env:
+            # Preparation for the next captain-controlled image roll only.
+            # Provision/register the matching secret out of band; no value here.
+            - name: AGENTBOARD_WORKFLOW_WEBHOOK_SECRET_FILE
+              value: /etc/agentboard/github-hooks/webhook-secret
+          volumeMounts:
+            - name: workflow-webhook-secret
+              mountPath: /etc/agentboard/github-hooks
+              readOnly: true
+      volumes:
+        - name: workflow-webhook-secret
+          secret:
+            secretName: agentboard-workflow-hook
+            # Missing material keeps intake unconfigured (503) while permitting
+            # the dashboard to start. Captain owns creation and activation.
+            optional: true
+            defaultMode: 0440
+            items:
+              - key: webhook-secret
+                path: webhook-secret
