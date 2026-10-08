@@ -18,6 +18,7 @@ COPY internal internal
 COPY skill_bundle.go GROK_BOT.md ./
 COPY skills skills
 COPY docs/api.md docs/quota.md docs/participation.md docs/context.md docs/
+COPY docs/coordinator/adapters/grok-bot.md docs/coordinator/adapters/
 ARG TARGETOS
 ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
