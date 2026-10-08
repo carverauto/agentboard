@@ -23,6 +23,9 @@ defmodule AgentboardWeb.BoardLive do
         loaded: false,
         refresh_pending: false,
         quota_detail: nil,
+        availability_form: nil,
+        availability_error: nil,
+        availability_return_focus: "availability-open",
         captain: session["captain"],
         archive_error: nil,
         statuses: @statuses
@@ -52,6 +55,8 @@ defmodule AgentboardWeb.BoardLive do
       assign(socket,
         filters: filters,
         quota_detail: nil,
+        availability_form: nil,
+        availability_error: nil,
         paging_view: socket.assigns.live_action,
         column_pages: if(changed, do: %{}, else: socket.assigns.column_pages)
       )
@@ -84,6 +89,35 @@ defmodule AgentboardWeb.BoardLive do
 
   def handle_event("column_page", _params, socket), do: {:noreply, socket}
 
+  def handle_event("open_availability", params, socket) do
+    id = params["id"]
+
+    with true <- socket.assigns.live_action == :agents,
+         true <- Agentboard.Captain.authorized?(socket.assigns.captain),
+         true <- is_nil(id) or Enum.any?(socket.assigns.data["agents"] || [], &(&1["id"] == id)) do
+      {:noreply,
+       assign(socket,
+         availability_form: availability_draft(%{"agent_id" => id}),
+         availability_error: nil,
+         availability_return_focus:
+           if(is_nil(id), do: "availability-open", else: "availability-open-#{id}")
+       )}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("close_availability", _params, socket),
+    do: {:noreply, assign(socket, availability_form: nil, availability_error: nil)}
+
+  def handle_event("availability_draft", params, socket) do
+    if Agentboard.Captain.authorized?(socket.assigns.captain) and socket.assigns.availability_form do
+      {:noreply, assign(socket, availability_form: availability_draft(params))}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("set_availability", params, socket) do
     if Agentboard.Captain.authorized?(socket.assigns.captain) do
       actor = %{
@@ -101,9 +135,18 @@ defmodule AgentboardWeb.BoardLive do
              |> Enum.reject(fn {_k, v} -> v == "" end)
              |> Map.new(),
            {:ok, _} <- Agentboard.Availability.set(actor, data) do
-        {:noreply, socket |> assign(archive_error: nil) |> reload()}
+        {:noreply,
+         socket
+         |> assign(archive_error: nil, availability_form: nil, availability_error: nil)
+         |> put_flash(:info, "Availability updated.")
+         |> reload()}
       else
-        {:error, _, message} -> {:noreply, assign(socket, archive_error: message)}
+        {:error, _, message} ->
+          {:noreply,
+           assign(socket,
+             availability_form: availability_draft(params),
+             availability_error: message
+           )}
       end
     else
       {:noreply, assign(socket, archive_error: "Unlock captain controls in Settings first")}
@@ -160,6 +203,20 @@ defmodule AgentboardWeb.BoardLive do
         {:noreply,
          assign(socket, archive_error: "Unlock captain controls in Settings before archiving")}
     end
+  end
+
+  defp availability_draft(params) do
+    defaults =
+      Map.new(~w(agent_id harness model_pattern reason until), &{&1, ""})
+      |> Map.put("state", "active")
+
+    values =
+      params
+      |> Map.take(~w(agent_id harness model_pattern state reason until))
+      |> Enum.filter(fn {_key, value} -> is_binary(value) end)
+      |> Map.new()
+
+    Map.merge(defaults, values)
   end
 
   defp initial_page, do: %{cursor: nil, history: [], number: 1}
@@ -434,10 +491,12 @@ defmodule AgentboardWeb.BoardLive do
       <aside :if={@health_unavailable} class="notice warning" role="alert">Worker delivery health is unavailable. Retained values are last known.</aside>
       <div class="page-title">
         <h1>{if @live_action == :task, do: "Task detail", else: label(Atom.to_string(@live_action))}</h1>
+        <button :if={@live_action == :agents and @loaded and Agentboard.Captain.authorized?(@captain)} id="availability-open" type="button" phx-click="open_availability" aria-haspopup="dialog">Set availability</button>
         <p :if={@last_read}>Updated <time datetime={DateTime.to_iso8601(@last_read)}>{Calendar.strftime(@last_read,"%H:%M:%S UTC")}</time></p>
       </div>
       <aside :if={@unavailable} class="notice danger" role="alert">Board unavailable. <span :if={@last_read}>Showing the last successful read; retrying automatically.</span><span :if={!@last_read}>No board data has been loaded. Check readiness and migrations.</span></aside>
       <p :if={!@loaded and !@unavailable} class="notice" role="status">Connecting to the board…</p>
+      <p :if={@live_action == :agents and Phoenix.Flash.get(@flash, :info)} class="notice" role="status">{Phoenix.Flash.get(@flash, :info)}</p>
       <p :if={@archive_error} class="notice danger" role="alert">{@archive_error}</p>
       <%= if @loaded do %>
         <%= case @live_action do %>
@@ -508,20 +567,13 @@ defmodule AgentboardWeb.BoardLive do
               <details><summary>Recent attribution evidence</summary><p :for={entry <- @data["authentication"]["recent"]}>{entry["created_at"]} · {entry["outcome"]} · attributed {entry["attributed_agent_id"] || "unregistered"} · verified {entry["verified_agent_id"] || "none"} · {entry["method"]} {entry["route"]}</p></details>
               </div>
             </section>
-            <form :if={Agentboard.Captain.authorized?(@captain)} phx-submit="set_availability" class="settings-form settings-panel">
-              <h2>Set availability</h2><p>Use an agent override, or a harness/model selector. Reserved and out-of-service require a reason. Current task ownership is retained.</p>
-              <label>Agent ID (override)<input name="agent_id" placeholder="codex-example-agent-a" /></label>
-              <label>Harness (default)<input name="harness" placeholder="claude" /></label>
-              <label>Model pattern (default)<input name="model_pattern" placeholder="glm-*" /></label>
-              <label>State<select name="state"><option value="active">Active</option><option value="reserved">Reserved</option><option value="out_of_service">Out of service</option></select></label>
-              <label>Reason<input name="reason" /></label><label>Until (out of service, RFC3339)<input name="until" placeholder="2026-10-12T00:00:00Z" /></label><button type="submit">Save availability</button>
-            </form>
             <p><a href="/agents?waiting=true">Seats waiting on captain</a> · <a href="/agents">All seats</a></p>
             <p :if={!Agentboard.Captain.authorized?(@captain)}><a href="/settings">Unlock captain availability controls</a></p>
             <p :if={@data["agents"]==[]} class="empty">No registered agents. Register a stable identity with <code>agentboard agent register</code>.</p>
             <div class="table-scroll"><table><thead><tr><th>Agent / harness</th><th>Model / host</th><th>Activity</th><th>Availability</th><th>Heartbeat</th><th>Capabilities</th></tr></thead><tbody>
-              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<span :if={agent["waiting_on_captain"]} class="flag warning">Waiting on captain</span><p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
+              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<span :if={agent["waiting_on_captain"]} class="flag warning">Waiting on captain</span><p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p><button :if={Agentboard.Captain.authorized?(@captain)} id={"availability-open-#{agent["id"]}"} type="button" class="text-button" phx-click="open_availability" phx-value-id={agent["id"]} aria-haspopup="dialog" aria-label={"Set availability for #{agent["id"]}"}>Set availability</button></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
             </tbody></table></div>
+            <.availability_modal :if={@availability_form != nil and Agentboard.Captain.authorized?(@captain)} form={@availability_form} error={@availability_error} return_focus={@availability_return_focus} />
             <a :if={@data["next_cursor"]} href={page_link(:agents,@filters,@data["next_cursor"])}>Next agents</a>
           <% :messages -> %>
             <form action="/messages" method="get" class="filters"><label>Recipient <input name="to" value={@filters["to"]} placeholder="All recipients" /></label><label>Task <input name="task" value={@filters["task"]} placeholder="All threads" /></label><label class="check"><input type="checkbox" name="unread" value="true" checked={@filters["unread"]=="true"} /> Unread only</label><button type="submit">Filter messages</button><a href="/messages">Clear filters</a></form>
@@ -559,6 +611,29 @@ defmodule AgentboardWeb.BoardLive do
         <% end %>
       <% end %>
     </main>
+    """
+  end
+
+  attr(:form, :map, required: true)
+  attr(:error, :any, required: true)
+  attr(:return_focus, :string, required: true)
+
+  defp availability_modal(assigns) do
+    ~H"""
+    <dialog id="availability-dialog" phx-hook="QuotaDialog" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")} class="quota-dialog availability-dialog" aria-labelledby="availability-title" data-return-focus={@return_focus} data-close-event="close_availability">
+      <header class="quota-dialog-header"><h2 id="availability-title">Set availability</h2><button type="button" phx-click="close_availability" aria-label="Close availability controls" autofocus>Close</button></header>
+      <form phx-submit="set_availability" phx-change="availability_draft" class="settings-form">
+        <p>Use an agent override, or a harness/model selector. Reserved and out-of-service require a reason. Current task ownership is retained.</p>
+        <p :if={@error} role="alert" class="notice danger break-words">{@error}</p>
+        <label>Agent ID (override)<input name="agent_id" value={@form["agent_id"]} placeholder="codex-example-agent-a" /></label>
+        <label>Harness (default)<input name="harness" value={@form["harness"]} placeholder="claude" /></label>
+        <label>Model pattern (default)<input name="model_pattern" value={@form["model_pattern"]} placeholder="glm-*" /></label>
+        <label>State<select name="state"><option :for={{value, name} <- [{"active", "Active"}, {"reserved", "Reserved"}, {"out_of_service", "Out of service"}]} value={value} selected={@form["state"] == value}>{name}</option></select></label>
+        <label :if={@form["state"] in ~w(reserved out_of_service)}>Reason<input name="reason" value={@form["reason"]} /></label>
+        <label :if={@form["state"] == "out_of_service"}>Until (out of service, RFC3339)<input name="until" value={@form["until"]} placeholder="2026-10-12T00:00:00Z" /></label>
+        <div class="flex flex-wrap gap-3"><button type="submit">Save availability</button><button type="button" class="text-button" phx-click="close_availability">Cancel</button></div>
+      </form>
+    </dialog>
     """
   end
 

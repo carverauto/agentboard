@@ -4,6 +4,8 @@ Invented actors and capability. This fixture owns policy precedence, authorizati
 expiry, admission and eligible fanout; cooperation owns receipt lifecycle proof.
 """
 import concurrent.futures
+import http.cookiejar
+from html.parser import HTMLParser
 from datetime import datetime, timedelta, timezone
 import json
 import os
@@ -13,7 +15,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from liveview_client import LiveView, contains
+from liveview_client import LiveView, RenderedView, Page, contains
 
 URL = os.environ['AGENTBOARD_URL']
 CAPTAIN = 'fixture-availability-capability-0123456789'
@@ -135,6 +137,119 @@ view.send(['1','policy-spoof',view.topic,'event',{'type':'form','event':'set_ava
 assert view.wait(lambda e:e[3]=='phx_reply' and e[1]=='policy-spoof')
 assert api('availability')==prior
 view.close()
+# Modal behavior through the real HTTP session, LiveView transport, pinned SDK
+# diff consumer, and persisted Ash policies. Parse generated DOM contracts only.
+class AvailabilityDocument(HTMLParser):
+    def __init__(self, document):
+        super().__init__()
+        self.dialog = None
+        self.dialogs = {}
+        self.buttons = {}
+        self.forms = []
+        self.fields = {}
+        self.alerts = []
+        self.current_alert = None
+        self.feed(document)
+    def handle_starttag(self, tag, attributes):
+        attrs = dict(attributes)
+        if tag == 'dialog':
+            self.dialog = attrs.get('id')
+            self.dialogs[self.dialog] = attrs
+        if tag == 'button' and attrs.get('id'):
+            self.buttons[attrs['id']] = attrs
+        if tag == 'form' and attrs.get('phx-submit') == 'set_availability':
+            self.forms.append(self.dialog)
+        if tag == 'input' and attrs.get('name'):
+            self.fields[attrs['name']] = attrs.get('value', '')
+        if attrs.get('role') == 'alert':
+            self.current_alert = [self.dialog, '']
+            self.alerts.append(self.current_alert)
+    def handle_data(self, value):
+        if self.current_alert is not None:
+            self.current_alert[1] += value
+    def handle_endtag(self, tag):
+        if tag == 'dialog':
+            self.dialog = None
+        if tag in ('p', 'aside'):
+            self.current_alert = None
+
+# The public view must have neither availability actions nor a writable modal.
+public = RenderedView(URL, '/agents')
+page = AvailabilityDocument(public.document)
+assert not page.forms and not page.dialogs
+assert not any(b.get('phx-click') == 'open_availability' for b in page.buttons.values())
+prior = api('availability')
+
+# Real CSRF-protected captain unlock and signed cookie, not a forged assign.
+jar = http.cookiejar.CookieJar()
+opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+with opener.open(URL + '/settings') as response:
+    csrf = Page(); csrf.feed(response.read().decode())
+with opener.open(urllib.request.Request(URL + '/settings/unlock', data=urllib.parse.urlencode(
+        {'token': CAPTAIN, '_csrf_token': csrf.csrf}).encode())) as response:
+    assert response.status == 200
+cookie = '; '.join(c.name + '=' + c.value for c in jar)
+api('agents/register', {'name': 'Modal fixture'}, actor='availability-ui-target', harness='pi')
+roster = RenderedView(URL, '/agents', cookie)
+def ui_event(name, fields=None, form=False):
+    payload = {'type': 'form' if form else 'click', 'event': name,
+               'value': urllib.parse.urlencode(fields or {}) if form else fields or {}}
+    return AvailabilityDocument(roster.request('event', payload))
+
+page = AvailabilityDocument(roster.document)
+assert not page.forms and not page.dialogs, 'Form is still permanently visible'
+assert page.buttons['availability-open']['phx-click'] == 'open_availability'
+row_button = 'availability-open-availability-ui-target'
+assert page.buttons[row_button]['phx-value-id'] == 'availability-ui-target'
+public.request('event', {'type': 'click', 'event': 'open_availability',
+                         'value': {'id': 'reserved-b'}})
+assert not AvailabilityDocument(public.document).dialogs
+assert api('availability') == prior
+public.close()
+prior = api('availability')
+page = ui_event('open_availability', {'id': 'availability-ui-target'})
+assert page.forms == ['availability-dialog'], (page.forms, page.dialogs)
+assert page.fields['agent_id'] == 'availability-ui-target'
+assert 'reason' not in page.fields and 'until' not in page.fields
+assert page.dialogs['availability-dialog']['data-return-focus'] == row_button
+assert page.dialogs['availability-dialog']['data-close-event'] == 'close_availability'
+draft = {'agent_id': 'availability-ui-target', 'state': 'reserved', 'reason': 'Draft survives refresh'}
+page = ui_event('availability_draft', draft, form=True)
+assert page.fields['reason'] == draft['reason'] and 'until' not in page.fields
+# Drive the actual fallback reload, then consume its diff before a no-op event.
+time.sleep(5.2)
+page = ui_event('column_page', {'status': 'invalid', 'direction': 'next'})
+assert page.forms == ['availability-dialog'] and page.fields['reason'] == draft['reason']
+assert api('availability') == prior, 'Editing a draft wrote a policy'
+page = ui_event('close_availability')
+assert not page.dialogs and not page.forms
+assert api('availability') == prior, 'Cancel saved a policy'
+
+# Header opens the same modal with blank selectors, not the previous row id.
+page = ui_event('open_availability')
+assert page.fields['agent_id'] == '' and page.fields['harness'] == ''
+assert page.dialogs['availability-dialog']['data-return-focus'] == 'availability-open'
+invalid = {'agent_id': 'availability-ui-target', 'state': 'reserved', 'reason': ''}
+page = ui_event('set_availability', invalid, form=True)
+assert page.forms == ['availability-dialog']
+assert page.fields['agent_id'] == 'availability-ui-target'
+assert len(page.alerts) == 1 and page.alerts[0][0] == 'availability-dialog'
+assert api('availability') == prior, 'Invalid reserved policy was saved'
+invalid.update(state='out_of_service', reason='Fixture maintenance', until='not-a-timestamp')
+page = ui_event('set_availability', invalid, form=True)
+assert page.fields['reason'] == 'Fixture maintenance' and page.fields['until'] == 'not-a-timestamp'
+assert len(page.alerts) == 1 and page.alerts[0][0] == 'availability-dialog'
+assert 'RFC3339' in page.alerts[0][1]
+assert api('availability') == prior, 'Invalid until was saved'
+valid = {'agent_id': 'availability-ui-target', 'state': 'reserved', 'reason': 'Named work only'}
+page = ui_event('set_availability', valid, form=True)
+assert not page.dialogs and not page.forms and not page.alerts
+assert 'Availability updated.' in roster.document
+assert show('availability-ui-target')['availability']['state'] == 'reserved'
+assert show('availability-ui-target')['availability']['reason'] == 'Named work only'
+assert api('agents/availability-ui-target')['availability_history']
+roster.close()
+
 # Admission locks the registered model: a register cannot commit its model
 # change while the claim is using that identity. A real row lock makes the
 # ordering observable without adding any production injection seam.

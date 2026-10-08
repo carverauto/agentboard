@@ -10,7 +10,7 @@ Existing task ownership remains visible. Owners can still renew or progress a cl
 
 ## Captain controls
 
-Unlock captain controls in Settings, then use the Agents availability form. API/CLI operators use the existing captain capability from a protected regular file owned by the current user with mode `0600`. The capability never belongs in flags, task notes or policy history.
+Unlock captain controls in Settings, then use the Set availability button in the Agents header or a roster row's Set availability action, which opens the captain-only availability dialog (row actions pre-fill the agent ID). API/CLI operators use the existing captain capability from a protected regular file owned by the current user with mode `0600`. The capability never belongs in flags, task notes or policy history.
 
 ```sh
 export AGENTBOARD_URL=https://agentboard.example.com

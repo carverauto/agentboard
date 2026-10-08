@@ -1,6 +1,5 @@
 """Column totals and independent navigation through the real LiveView wire boundary."""
 import base64
-import copy
 import re
 import urllib.request
 from pathlib import Path
@@ -8,7 +7,7 @@ import json
 import os
 import subprocess
 from html.parser import HTMLParser
-from liveview_client import LiveView
+from liveview_client import RenderedView
 
 base = os.environ['AGENTBOARD_URL']
 env = dict(os.environ, AGENT_ID='paging-worker', AGENTBOARD_HARNESS='codex', AGENTBOARD_MODEL='fixture')
@@ -18,54 +17,6 @@ def ab(*args):
                             capture_output=True, text=True, timeout=15)
     assert result.returncode == 0, (args, result.stderr)
     return json.loads(result.stdout)
-
-# Decode the pinned Phoenix 1.1 rendered wire protocol, not implementation source.
-# Static templates and keyed patches follow the upstream Rendered consumer:
-# https://github.com/phoenixframework/phoenix_live_view/blob/v1.1.33/assets/js/phoenix_live_view/rendered.js
-# No application behavior (filtering, counts or navigation) is simulated here.
-def merge(target, source):
-    if not isinstance(source, dict) or 's' in source:
-        return copy.deepcopy(source)
-    result = copy.deepcopy(target)
-    if 'k' in source:
-        old = copy.deepcopy(result.get('k', {}))
-        count = source['k']['kc']
-        entries = result.setdefault('k', {})
-        for key, item in source['k'].items():
-            if key == 'kc':
-                continue
-            if isinstance(item, list):
-                entries[key] = merge(old[str(item[0])], item[1])
-            elif isinstance(item, int):
-                entries[key] = copy.deepcopy(old[str(item)])
-            else:
-                entries[key] = merge(entries.get(key, {}), item)
-        result['k'] = {str(i): entries[str(i)] for i in range(count)} | {'kc': count}
-    for key, value in source.items():
-        if key != 'k':
-            result[key] = merge(result.get(key, {}), value) if isinstance(value, dict) else copy.deepcopy(value)
-    return result
-
-def html(node, templates=None):
-    if isinstance(node, str):
-        return node
-    assert isinstance(node, dict), ('Unsupported rendered value', node)
-    templates = node.get('p', templates)
-    statics = node['s']
-    if isinstance(statics, int):
-        statics = templates[str(statics)]
-        node['s'] = statics
-    if 'k' in node:
-        rows = [node['k'][str(i)] for i in range(node['k']['kc'])]
-    else:
-        rows = [node]
-    output = ''
-    for row in rows:
-        output += statics[0]
-        for i, text in enumerate(statics[1:]):
-            output += html(row[str(i)], templates) + text
-    node.pop('p', None)
-    return output
 
 class Columns(HTMLParser):
     def __init__(self, document):
@@ -96,30 +47,13 @@ class Columns(HTMLParser):
         if self.current and self.counting and data.strip():
             self.columns[self.current]['total'] = int(data.strip())
 
-class BoardView:
+class BoardView(RenderedView):
     def __init__(self, path):
-        self.live = LiveView(base, path)
-        self.tree = copy.deepcopy(self.live.initial)
-        self.ref = 1
-        self.document = html(self.tree)
+        super().__init__(base, path)
     def read(self):
         return Columns(self.document).columns
     def request(self, event, payload):
-        self.ref += 1
-        ref = str(self.ref)
-        self.live.send(['1', ref, self.live.topic, event, payload])
-        response = self.live.wait(lambda e: e[1] == ref and e[3] == 'phx_reply')
-        assert response and response[4]['status'] == 'ok', response
-        for received in self.live.events:
-            if received[3] == 'diff':
-                self.tree = merge(self.tree, received[4])
-                self.document = html(self.tree)
-        self.live.events.clear()
-        diff = response[4]['response'].get('diff', {})
-        if diff:
-            self.tree = merge(self.tree, diff)
-            self.document = html(self.tree)
-        assert not any(key in response[4]['response'] for key in ('live_redirect', 'redirect'))
+        super().request(event, payload)
         return self.read()
     def page(self, status, direction):
         return self.request('event', {'type': 'click', 'event': 'column_page',
