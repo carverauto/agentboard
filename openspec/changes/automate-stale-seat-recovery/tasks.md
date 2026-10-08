@@ -1,6 +1,19 @@
 # Tasks
 
-Planning checkpoint: all implementation items remain unchecked. Captain must approve the proposal before project code changes; proposed defaults and dependency contracts are presented in the review artifact.
+Captain implementation approval is applied. Coordinator orders1438/1449 authorize the bounded disabled checkpoint below; the full approved rollout checklist is retained as blocked follow-up work, not completed by this PR.
+
+## Current disabled checkpoint (orders1438/1449)
+
+- [x] C1 Record applied captain defaults, corrected schema31 reservation and explicit dependency/activation holds.
+- [x] C2 Add audited episode/attempt resources and additive migration20261008003100 with uniqueness and retained history; verify packaged schema upgrades and higher stamps remotely.
+- [x] C3 Implement disabled default, authorized idempotent dry-run capture and bounded episode reducer; verify active capture and ordinary attribution are refused.
+- [x] C4 Verify lifecycle contract remotely: cadence/availability, retry limits, uncertain effects, old-generation rejection, startup proof, override, original responsibility references and escalation identity.
+- [ ] C5 Publish current implementation Archify and portable OpenSpec artifacts with honest proof and explicit blocked-on follow-ups.
+- [ ] C6 Deliver through native No-mistakes without --yes and green exact-head PR CI; link the PR, never merge, preserve and coordinate return of only this seat lease.
+
+## Follow-up / blocked-on full approved recovery
+
+The checklist below remains unchecked until the real #154 policy store, #155 escalation transport and #156 authenticated host intent contracts land. Unit/contract results do not substitute for native restart or retained-answer application proof. Production activation and worker3.4 still require separate captain decisions.
 
 ## 1. Approved contracts and policy admission
 

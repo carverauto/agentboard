@@ -1,5 +1,10 @@
 # Proposal
 
+## Current delivery scope
+
+Coordinator task orders 1438/1449 authorize a disabled resources and episode-machine checkpoint, with schema31. Full detector, policy-store, host restart, escalation transport and end-to-end retained-answer proof remain explicit follow-ups blocked on #154/#155/#156. The full approved target below is retained; this PR does not claim it is operational. See `approval.md` and `checkpoint.md`.
+
+
 ## Why
 
 A stopped seat can retain claimed work and unanswered or answered-but-unapplied captain decisions indefinitely. Recovery currently depends on a human or coordinator noticing the stale requester, restarting its session, and delivering the retained answer; the server should run this bounded recovery process regardless of coordinator platform.
@@ -30,4 +35,4 @@ None in the main spec inventory (currently empty). This change extends the activ
 - Proposed external contracts: #154 policy activation/versioning, #156 authenticated host intent reservations and receipts, #141 isolated seat ensure/check/env, #155 escalation delivery. Those issues remain dependencies, not deployed features.
 - Host: a narrowly scoped recovery adapter behind #156; HTTPS only, protected credential-file references, no database access, no server-supplied shell commands or site-specific seat IDs.
 - CLI/API/UI: bounded recovery inspection and captain overrides, accurate `requester_stale` plus recovery progress, no automatic decision acknowledgement or native gate bypass.
-- Additive schema number must be reserved during implementation through the agreed ledger/coordinator process; this proposal allocates none. Remote packaged tests, fresh-session recovery proof, Archify/OpenSpec documentation, native No-mistakes and green CI precede implementation delivery. This commit is planning only.
+- Schema31 is reserved through coordinator order1449. This disabled checkpoint requires remote reducer/storage/schema proof, current Archify/OpenSpec documentation, native No-mistakes and green CI. Fresh-session restart and retained-answer application remain blocked-on integration work, not proof furnished by this PR.

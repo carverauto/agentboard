@@ -1,6 +1,6 @@
 # Recovery dependency boundary checkpoint
 
-Captain implementation approval is applied in `../approval.md`; this records the first implementation interface work, not runtime completion. `restart-boundary.json` contains invented placeholders and a proposed transport-neutral wire shape, with no credential value or server-supplied native argv.
+Captain implementation approval is applied in `../approval.md`; orders1438/1449 bound this PR to the disabled checkpoint in `../checkpoint.md`, not runtime completion. `restart-boundary.json` contains invented placeholders and a proposed transport-neutral wire shape, with no credential value or server-supplied native argv.
 
 ## Verified #141 interface
 
@@ -18,7 +18,7 @@ Owning fixture: [packaged seat attachment scenario](https://github.com/carveraut
 
 Fresh main `5595a136` has worker host/receipt capabilities, bindings and canonical check-in; it does not have #154 captain-approved decision-policy versions, #156 host wake-intent reservations, or #155 escalation delivery. Existing `Cooperation.Runtime.request` takes its worker lock before dispatching operations. Recovery must keep the approved task/decision/worker lock order rather than simply nesting task locks inside that dispatcher.
 
-#164 integrates these boundaries; this checkpoint neither silently replaces them with stubs nor claims they are deployed. Coordinator schema allocation requested in msg1397 (waiting-lane29 is already reserved); dependency interface/scope clarification requested separately. Schema migration remains unwritten until allocation is explicit. Task1.1 is not complete until agreed interfaces/fixtures are verified.
+#164 integrates these boundaries; this checkpoint neither silently replaces them with stubs nor claims they are deployed. Coordinator corrected the reservation to schema31 in msg1449; waiting-lane29 and roster30 belong to other seats. Full #154/#155/#156 remain blocked follow-ups; supplied policy/observation types are compile/contract inputs, never operational readiness. The full task1.1 agreement is not claimed by this checkpoint.
 
 ## Contract verification to implement at owning boundaries
 
@@ -27,4 +27,4 @@ Fresh main `5595a136` has worker host/receipt capabilities, bindings and canonic
 - Canonical native gate: retrieve the original answer and apply/ack once only while the original gate and rightful live ownership match. A mismatched/terminal gate retains a diagnostic, not an invented acknowledgement.
 - Exhaustion: retain claims/decisions after the approved budget; create one durable human escalation even while the coordinator process is absent.
 
-No product code, tests, service activation, credential provisioning, or production rollout has occurred at this interface checkpoint. Full implementation and remote No-mistakes proof remain required.
+Disabled resources, dry-run capture and reducer logic are implemented in this checkpoint. Full runtime integration, service activation, credential provisioning and production rollout are not implemented. Remote proof and native No-mistakes delivery are recorded separately.

@@ -235,8 +235,10 @@ defmodule Agentboard.Board.Operations do
          ) do
       {:ok, %{rows: [[body]]}} ->
         path = seat_slot_path(body)
+
         if path do
           quoted = if String.contains?(path, " "), do: "\"#{path}\"", else: path
+
           " Seat slot #{quoted}: return it with the same-version `treehouse return #{quoted}` before claiming new work; never --force, never rm -rf."
         else
           ""
@@ -503,6 +505,8 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Availability.Policy,
              Agentboard.Decisions.Request,
              Agentboard.Decisions.Wake,
+             Agentboard.Recovery.Episode,
+             Agentboard.Recovery.Attempt,
              Task,
              Message,
              TaskEvent,
@@ -600,3 +604,4 @@ defmodule Agentboard.Board.Operations do
     defp action_name(unquote(Atom.to_string(name))), do: unquote(name)
   end
 end
+

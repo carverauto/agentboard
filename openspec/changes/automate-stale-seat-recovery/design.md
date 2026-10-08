@@ -1,3 +1,7 @@
+# Implementation checkpoint
+
+Orders1438/1449 bound this PR to disabled audited recovery resources, dry-run capture, and the lifecycle contract. Schema31 is reserved. No AshOban detector, operational reservation, host command, policy activation or notification is installed. The full approved design follows as the future integration contract. See `checkpoint.md` for actual implemented boundaries and blocked follow-ups.
+
 # Design
 
 ## Context
