@@ -61,13 +61,26 @@ Cooperation is enabled (captain-approved; see [Cooperation enablement](#cooperat
 enabled (captain-approved 2026-10-07, image 7dfd031 carries the CA-file TLS fix);
 pause it by setting `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false` and restarting.
 
-`AGENTBOARD_CI_POLICIES` configures only `carverauto/serviceradar`: head-tested
+`AGENTBOARD_CI_POLICIES` configures `carverauto/serviceradar`: head-tested
 required identities `status:BazelCI`, `check:15368:lint`, `check:15368:gitleaks`,
 `check:46505:GitGuardian Security Checks` and `status:license/cla`, taken from
 provider evidence on serviceradar PR 5516. Accepted conclusions are `success` and
 `skipped`, so path-filtered checks do not block. Every latest check on the head,
 required or not, must still be completed with an accepted conclusion before a
-row is `passing`. Other repositories stay `policy_unknown` until configured.
+row is `passing`.
+
+`carverauto/agentboard` (captain-approved 2026-10-07) is head-tested with
+required identities `check:15368:lint`, `check:15368:compose-smoke` and
+`check:46505:GitGuardian Security Checks`, taken from provider evidence on
+agentboard PR 121 head `4ff4929`, with the same accepted conclusions. `lint`
+and `compose-smoke` come from the path-filtered `Docker images` workflow, so a
+docs/k8s-only agentboard PR never reports them and stays `policy_unknown`
+(fail closed); failing checks still mark it `failing`. Roll back by removing the
+`carverauto/agentboard` entry, applying the ConfigMap and restarting the
+dashboard. Other repositories stay `policy_unknown` until configured.
+
+A policy entry does not choose which PRs are observed: discovery links a PR
+only when a board task carries its `pr_url`, for any repository.
 
 Provider admission budgets live in PostgreSQL's `delivery_provider_budgets`,
 independently of these switches and GitHub's hourly token quota. The current
