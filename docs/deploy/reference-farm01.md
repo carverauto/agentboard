@@ -297,7 +297,7 @@ API-only CLI, on top of PR90's team ID and PR89's pin record) was rolled to farm
 using dashboard digest
 `sha256:5193d83379a629cf2e4af3e756839efed745c93f497cc0642eb20c7db33ef029`
 from [Container images run 37709658623](https://github.com/carverauto/agentboard/actions/runs/37709658623).
-This is the current operator image pin. Job `agentboard-migrate-901f6a6` ran
+This was the operator image pin before 268c394 (below). Job `agentboard-migrate-901f6a6` ran
 `20261007000602_mattermost_phase1_shared_bot`, which drops the per-agent
 `conversation_identities` registry and its history table. Both were empty at
 rollout. The coverage ledger stays. Schema stays 12/API 1/required 12.
@@ -336,3 +336,38 @@ queue repair and no guessed assignment to the GitHub human author. Record the
 actual later head and evidence before asserting owner routing. This live case
 remains untested until the separately authorized rollout; remote fixtures use
 invented data rather than exporting PR #93 into tests.
+
+## Merge-conflict detection image rollout (268c394)
+
+On 2026-10-08 UTC, merged main `268c394` (PR96 integration-fixture fix, on top
+of PR94 PR merge-conflict detection and PR93 shared-bot chat hardening) was
+rolled to farm01 using dashboard digest
+`sha256:c7739931faab0c8fd5c75e232d0f35d6e598a2f1ed8a5e93fd1fcdc2dad73781`
+from [Container images run 37717226576](https://github.com/carverauto/agentboard/actions/runs/37717226576).
+This is the current operator image pin. No image was published for PR94's own
+merge commit `75425c7`
+([run 37714728085](https://github.com/carverauto/agentboard/actions/runs/37714728085)
+failed `board_api_test` until PR96). See issue #97 for the PR-time test gap.
+
+Before migrating, `delivery_poll_states` (71 rows), `delivery_poll_states_versions`
+(433) and `board_schema` (12) were dumped with `pg_dump -Fc`, plus the
+`delivery_poll_states` definition and SHA256SUMS. The dump stays on the CNPG primary's data volume, outside
+PGDATA, at `/var/lib/postgresql/data/agentboard-backups/pre-268c394-20261008/`.
+Job `agentboard-migrate-268c394` ran `20261008000200_pr_merge_conflicts`, an
+additive change: `base_ref`/`expected_base_sha` on poll states, plus the
+`delivery_base_watches` and `delivery_rebase_follow_ups` tables. It upgraded
+schema 12 to 14. Meta reports schema 14/API 1/required 14.
+
+The ConfigMap was unchanged. Discovery, observation and the bridge stay
+enabled, and cooperation stays disabled, so no rebase follow-ups are dispatched.
+The new optional `AGENTBOARD_MATTERMOST_CHANNEL_ALLOWLIST` is unset, which
+means any channel is allowed. No new secret is required. The dashboard is Ready
+with zero restarts on the exact image ID. `/health/live`, `/health/ready`, `/`,
+`/prs` and `/api/v1/meta` return 200, the CLI works, and the bridge delivered
+new board events. After the first post-roll poll, `/prs` showed
+carverauto/agentboard #95 as `Merge conflicting · Base main · dirty`, which
+matches GitHub's `mergeable=false`. See the
+[rollout receipt](../verification/farm01-268c394-rollout.json). Keep schema 14
+if an older image must be restored. Images before 268c394 require schema 12 and
+will report `schema_unavailable`, so roll forward instead.
+

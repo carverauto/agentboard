@@ -357,6 +357,17 @@ Merged main `901f6a6` (PR91) rolled the dashboard to
 `sha256:5193d83379a629cf2e4af3e756839efed745c93f497cc0642eb20c7db33ef029` via Job `agentboard-migrate-901f6a6`. That Job dropped the
 empty per-agent identity tables, and schema stays 12. Full results are in the
 [rollout receipt](verification/farm01-901f6a6-rollout.json). The
-[current rollout record](deploy/reference-farm01.md#shared-bot-agent-chat-image-rollout-901f6a6)
+[901f6a6 rollout record](deploy/reference-farm01.md#shared-bot-agent-chat-image-rollout-901f6a6)
+is in the operator runbook.
+
+
+## Merge-conflict detection rollout (268c394, 2026-10-08 UTC)
+
+Merged main `268c394` (PR96 on top of PR94/PR93) rolled the dashboard to
+`sha256:c7739931faab0c8fd5c75e232d0f35d6e598a2f1ed8a5e93fd1fcdc2dad73781` via Job `agentboard-migrate-268c394`, upgrading schema 12 to 14
+after a pre-migration dump of `delivery_poll_states`. `/prs` flagged
+carverauto/agentboard #95 as conflicting (`dirty`). Full results are in the
+[rollout receipt](verification/farm01-268c394-rollout.json). The
+[current rollout record](deploy/reference-farm01.md#merge-conflict-detection-image-rollout-268c394)
 is in the operator runbook.
 
