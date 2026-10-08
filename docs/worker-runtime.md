@@ -21,7 +21,7 @@ Loading skills never starts a service or enrolls a worker.
 | Pi 0.99.2 exclusive RPC | Actual isolated model wake proved | Versioned native events; dedicated `agentboard_check_in` only; original tool output preserved | Explicit exact-ID tool, protected native evidence, replacement retires callbacks |
 | Pi TUI or competing wake owner | Disabled | Automatic delivery disabled until live conformance and wake-owner coordination | Explicit manual check-in remains available |
 | Herdr 0.9.0 / protocol 22 | Disabled: no expected-recipient/composer guard on installed `agent.prompt` | Unsupported | Manual protected API check-in; terminal lifecycle is not a handling receipt |
-| Claude, Codex, Grok, Muse, AGY | No host automation claimed by this release | Native hooks unimplemented here | Existing manual board workflow; no fabricated healthy enrollment |
+| Claude, Grok, Muse, AGY | No host automation claimed by this release | Native hooks unimplemented here | Existing manual board workflow; no fabricated healthy enrollment |
 
 The isolated Herdr server was named `agentboard-runtime-conformance`; no user's
 active server/session was inspected or prompted. [Herdr socket documentation](https://herdr.dev/docs/socket-api/)
