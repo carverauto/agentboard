@@ -270,6 +270,35 @@ closed=api("decisions/"+merge["id"])["decision"]
 assert closed["status"] == "superseded" and closed["close_reason"] == "bound PR terminal: merged"
 assert json.loads(counts("merge-expiry-task"))[0] == json.loads(prior)[0] and closed["answer"] is None
 assert sql("SELECT count(*) FROM decision_wakes WHERE task_id='merge-expiry-task'") == "0"
+# Scheduling isolation: one poisoned cleanup candidate neither stalls delivery
+# scheduling nor starves a healthy peer retirement. A trigger fails updates to
+# the poison row through the real public cleanup and schedule_due actions.
+create_task("cleanup-healthy-task")
+create_task("cleanup-poison-task")
+healthy=ab("decision","request","cleanup-healthy-task","--kind","policy","--question","Healthy TTL fixture","--expires-in","60")["decision"]
+poison=ab("decision","request","cleanup-poison-task","--kind","policy","--question","Poison TTL fixture","--expires-in","60")["decision"]
+sql("UPDATE decision_requests SET expires_at=clock_timestamp()-interval '1 second' WHERE task_id IN ('cleanup-healthy-task','cleanup-poison-task')")
+sql("CREATE FUNCTION poison_decision_cleanup() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.task_id='cleanup-poison-task' THEN RAISE EXCEPTION 'fixture cleanup poison'; END IF; RETURN NEW; END $$")
+sql("CREATE TRIGGER poison_decision_cleanup BEFORE UPDATE ON decision_requests FOR EACH ROW EXECUTE FUNCTION poison_decision_cleanup()")
+rpc('Application.put_env(:agentboard,:decision_cleanup_enabled,true)')
+rpc('Application.put_env(:agentboard,:pr_observation_enabled,true)')
+try:
+    rpc('{:ok,_}=Agentboard.Decisions.cleanup()')
+    assert api("decisions/"+healthy["id"])["decision"]["status"] == "superseded"
+    assert api("decisions/"+poison["id"])["decision"]["status"] == "open"
+    rpc('input = Ash.ActionInput.for_action(Agentboard.Delivery.Observation, :schedule_due, %{}, actor: %{role: :system}); {:ok, %{enrolled: _}} = Ash.run_action(input)')
+    assert api("decisions/"+healthy["id"])["decision"]["status"] == "superseded"
+    assert api("decisions/"+poison["id"])["decision"]["status"] == "open"
+    sql("ALTER TABLE decision_requests RENAME TO decision_requests_fixture_hidden")
+    try:
+        rpc('input = Ash.ActionInput.for_action(Agentboard.Delivery.Observation, :schedule_due, %{}, actor: %{role: :system}); {:ok, %{enrolled: _}} = Ash.run_action(input)')
+    finally:
+        sql("ALTER TABLE decision_requests_fixture_hidden RENAME TO decision_requests")
+finally:
+    sql("DROP TRIGGER poison_decision_cleanup ON decision_requests")
+    sql("DROP FUNCTION poison_decision_cleanup()")
+    rpc('Application.put_env(:agentboard,:pr_observation_enabled,false)')
+print("Poisoned cleanup candidate cannot stall scheduling or starve peer retirement proof passed")
 rpc('Application.put_env(:agentboard,:decision_cleanup_enabled,false)')
 print("Universal requests, retained retries, re-ask, derived intake, promotion, paging and default-off TTL proof passed")
 
