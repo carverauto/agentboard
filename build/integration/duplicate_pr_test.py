@@ -175,13 +175,17 @@ with tls_provider(Provider) as (api_url, ca, _):
     assert ab('pr', 'show', later)['duplicate_of']['basis'] == 'task_submission'
     assert ab('task', 'show', 'duplicate-task-source')['task']['status'] == 'review'
     late_a = create(107, 'duplicate-late-a', branch='feat/late')
+    # Admit the older PR first so fairness does not defer the later open observation.
+    assert 'observed' in poll(late_a)
     late_b = create(108, 'duplicate-late-b', branch='feat/late')
-    poll(late_b)
+    assert 'observed' in poll(late_b)
     assert ab('pr', 'show', late_b).get('duplicate_of') is None
     prs[107]['merged'] = True
-    poll(late_a)
+    assert 'observed' in poll(late_a)
     rpc('input = Ash.ActionInput.for_action(Agentboard.Delivery.DuplicateMonitor, :reconcile, %{}, actor: %{role: :system}); {:ok, _} = Ash.run_action(input)')
-    assert ab('pr', 'show', late_b)['duplicate_of']['merged_pull_request_id'] == late_a
+    late_detail = ab('pr', 'show', late_b)
+    finding = late_detail.get('duplicate_of')
+    assert finding and finding['merged_pull_request_id'] == late_a, late_detail
     assert sql("SELECT count(*) FROM delivery_duplicate_findings WHERE id='" + replay + "'") == '1'
     assert sql("SELECT count(*) FROM board_action_events WHERE resource LIKE '%DuplicateFinding%' AND action='record'") != '0'
     print('Merged-branch/task replay findings, fork isolation, board/API reads and once-only cooperation inbox notices passed')
