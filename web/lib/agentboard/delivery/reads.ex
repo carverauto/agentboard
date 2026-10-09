@@ -206,6 +206,11 @@ defmodule Agentboard.Delivery.Reads do
 
     responsible = (o && o.responsible_id) || (rebase && rebase.responsible_id)
 
+    repair_tasks =
+      [o && o.repair_task_id, rebase && rebase.repair_task_id]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
     %{
       duplicate_of: Agentboard.Delivery.Duplicates.projection(pr.id),
       decisions: waiting_decisions(pr.id),
@@ -220,9 +225,58 @@ defmodule Agentboard.Delivery.Reads do
         !!o and is_nil(o.resolved_at) and DateTime.compare(o.next_reminder_at, Ops.now()) != :gt,
       obligation: if(o, do: Ops.public(o)),
       rebase_follow_up: if(rebase, do: Ops.public(rebase)),
-      worker: if(responsible, do: health(responsible))
+      worker: if(responsible, do: health(responsible)),
+      follow_up_delivery: follow_up_delivery(repair_tasks)
     }
     |> Map.merge(ci_projection(pr, s))
+  end
+
+  # Derived per-event delivery mode for open repair tasks: worker when a
+  # cooperation delivery exists, inbox_fallback when the single-source
+  # canonical message was retained (exact source marker only; markerless
+  # notes never count), undeliverable otherwise. Read-only derivation; the
+  # marker shape must match Runtime.fallback_marker/1.
+  defp follow_up_delivery([]), do: []
+
+  defp follow_up_delivery(repair_tasks) do
+    %{rows: rows} =
+      Agentboard.Repo.statement!(
+        """
+        SELECT e.kind, e.source_key, e.task_id, e.created_at,
+          (SELECT coalesce(jsonb_agg(jsonb_build_object('worker', d.worker_id, 'state', d.state) ORDER BY d.id), '[]'::jsonb)
+             FROM cooperation_deliveries d WHERE d.event_id = e.id) AS deliveries,
+          (SELECT m.id FROM messages m WHERE m.task_id = e.task_id AND
+             position('[coop-fallback source=' || e.source_key || ']' in m.body) > 0
+             ORDER BY m.id LIMIT 1) AS fallback_message_id,
+          (SELECT m.recipient_id FROM messages m WHERE m.task_id = e.task_id AND
+             position('[coop-fallback source=' || e.source_key || ']' in m.body) > 0
+             ORDER BY m.id LIMIT 1) AS fallback_recipient
+        FROM cooperation_events e
+        WHERE e.task_id = ANY($1) AND e.kind IN ('ci_failure', 'ci_reminder', 'ci_digest', 'pr_conflict')
+        ORDER BY e.created_at DESC, e.id DESC LIMIT 20
+        """,
+        [repair_tasks]
+      )
+
+    Enum.map(rows, fn [kind, source_key, task_id, created_at, deliveries, message_id, recipient] ->
+      mode =
+        cond do
+          deliveries != [] -> "worker"
+          not is_nil(message_id) -> "inbox_fallback"
+          true -> "undeliverable"
+        end
+
+      %{
+        kind: kind,
+        source_key: source_key,
+        task_id: task_id,
+        event_created_at: created_at,
+        mode: mode,
+        deliveries: deliveries,
+        fallback_message_id: message_id,
+        fallback_recipient_id: recipient
+      }
+    end)
   end
 
   defp ci_projection(pr),

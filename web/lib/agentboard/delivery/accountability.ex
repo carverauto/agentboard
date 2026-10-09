@@ -510,19 +510,24 @@ defmodule Agentboard.Delivery.Accountability do
         true -> "ci_failure"
       end
 
-    Runtime.capture(
-      %{
-        source_key: "obligation:#{o.id}:#{suffix}",
-        kind: kind,
-        repo: pr.owner <> "/" <> pr.repo,
-        task_id: o.repair_task_id,
-        summary:
-          "#{pr.url} failed at #{o.head_sha}; repair #{o.repair_task_id}; episode #{o.episode}. Failed jobs: #{Enum.join(o.evidence_urls, ", ")}",
-        source_url: pr.url,
-        priority: 1
-      },
-      recipient: recipient || "captain"
-    )
+    event =
+      Runtime.capture(
+        %{
+          source_key: "obligation:#{o.id}:#{suffix}",
+          kind: kind,
+          repo: pr.owner <> "/" <> pr.repo,
+          task_id: o.repair_task_id,
+          summary:
+            "#{pr.url} failed at #{o.head_sha}; repair #{o.repair_task_id}; episode #{o.episode}. Failed jobs: #{Enum.join(o.evidence_urls, ", ")}",
+          source_url: pr.url,
+          priority: 1
+        },
+        recipient: recipient || "captain"
+      )
+
+    Runtime.fallback(event, [], @actor, recipient: recipient || "captain")
+
+    event
   end
 
   defp suppress(o) do

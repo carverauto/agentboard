@@ -150,14 +150,27 @@ defmodule Agentboard.Delivery.Rebase do
         stamp
       )
 
+      event = capture_event(f, pr)
+
       Ops.notify_task_owner(
         task,
         @actor,
-        "Merge conflict: #{pr.url} at head #{result.head_sha}, base #{result.base_sha}. Follow up on #{task.id}; rebase and verify CI before moving on.",
+        "Merge conflict: #{pr.url} at head #{result.head_sha}, base #{result.base_sha}. Follow up on #{task.id}; rebase and verify CI before moving on.\n" <>
+          Runtime.fallback_marker(event.source_key),
         stamp
       )
 
-      capture(f, pr)
+      assignee =
+        case Ash.get!(Task, f.repair_task_id, not_found_error?: false) do
+          nil -> nil
+          current -> current.assignee_id
+        end
+
+      # The notify above carries the exact source marker, so the fallback
+      # adopts it instead of a second DM. Markerless notes are never adopted.
+      Runtime.fallback(event, [assignee], @actor, recipient: f.responsible_id || "captain")
+
+      event
     end
   end
 
@@ -203,7 +216,7 @@ defmodule Agentboard.Delivery.Rebase do
 
         if is_nil(f.resolved_at) and
              String.downcase(pr.owner <> "/" <> pr.repo) in subscription.repos do
-          e = capture(f, pr)
+          e = capture_event(f, pr)
 
           Runtime.ensure_delivery(e, subscription.id, @actor)
         end
@@ -211,21 +224,21 @@ defmodule Agentboard.Delivery.Rebase do
     end
   end
 
-  defp capture(f, pr),
-    do:
-      Runtime.capture(
-        %{
-          source_key: "rebase:#{f.id}",
-          kind: "pr_conflict",
-          repo: pr.owner <> "/" <> pr.repo,
-          task_id: f.repair_task_id,
-          summary:
-            "#{pr.url} conflicts at head #{f.head_sha}, base #{f.base_sha}; rebase repair #{f.repair_task_id}.",
-          source_url: pr.url,
-          priority: 1
-        },
-        recipient: f.responsible_id || "captain"
-      )
+  defp capture_event(f, pr) do
+    Runtime.capture(
+      %{
+        source_key: "rebase:#{f.id}",
+        kind: "pr_conflict",
+        repo: pr.owner <> "/" <> pr.repo,
+        task_id: f.repair_task_id,
+        summary:
+          "#{pr.url} conflicts at head #{f.head_sha}, base #{f.base_sha}; rebase repair #{f.repair_task_id}.",
+        source_url: pr.url,
+        priority: 1
+      },
+      recipient: f.responsible_id || "captain"
+    )
+  end
 
   defp enabled?, do: Application.get_env(:agentboard, :cooperation_enabled, false)
 end

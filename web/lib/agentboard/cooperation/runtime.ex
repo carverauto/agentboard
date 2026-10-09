@@ -776,6 +776,152 @@ defmodule Agentboard.Cooperation.Runtime do
     end
   end
 
+  # SOLE DELIVERY SELECTOR for cooperation CI/conflict signals (#122 owns it;
+  # conflict-order producers call this and run no election of their own).
+  #
+  # Signature: fallback(event, recipient_ids, actor, opts \\ []) where event is
+  # a cooperation_events row (source_key, repo, task_id, summary), recipient_ids
+  # is the ordered capture-filter chain (sentinel "captain" never resolves),
+  # actor is %{"agent" => _, "model" => _, "harness" => _}, and opts carries
+  # :recipient / :exclude_recipient scoping. Returns {:disabled | :worker, event}
+  # | {:adopted | :sent, message} | {:undeliverable, :no_task | :no_registered_recipient}.
+  #
+  # The caller owns the canonical transaction and calls this for every
+  # captured signal. The delivery mode is elected atomically
+  # under the source election lock (pg_advisory_xact_lock on
+  # "fallback:" <> source_key) BEFORE any worker/delivery insertion: a live
+  # subscription that appeared meanwhile (unrevoked, repo-enrolled, recipient
+  # scoping) sends the event down the worker path, otherwise exactly one
+  # canonical Board.Message (kind "note") is retained -- adopted when the
+  # exact source marker is already present, sent otherwise. Late enrollment
+  # recovers through ensure_delivery/3 (exact prior check, no re-election),
+  # so a logically delivered occurrence is never replayed as a worker frame.
+  #
+  # LOCK CONTRACT (worker-first full graph): the caller must NOT hold worker
+  # ("worker:" <> id) or provision locks. Election locks are taken only in
+  # producer transactions (collector/accountability tick, conflict publish),
+  # which hold obligation/PR row locks at most. Worker-lock holders
+  # (provision/enroll -> bootstrap) run pure capture + ensure_delivery only
+  # and take no advisory source/event locks.
+  #
+  # SOURCE MARKER CONTRACT: "[coop-fallback source=<source_key>]"; namespaces
+  # "obligation:<id>:<suffix>", "rebase:<follow_id>", "task:<id>",
+  # "context:<id>", "conflict-order:<order UUID>:<revision>". Adoption matches
+  # the exact marker only; markerless notes are never adopted.
+  def fallback_marker(source_key), do: "[coop-fallback source=#{source_key}]"
+
+  def fallback(event, recipient_ids, actor, opts \\ []) do
+    cond do
+      not Application.get_env(:agentboard, :cooperation_enabled, false) ->
+        {:disabled, event}
+
+      event.audience != [] and live_pinned_audience?(event, opts) ->
+        {:worker, event}
+
+      is_nil(event.task_id) ->
+        {:undeliverable, :no_task}
+
+      true ->
+        elect(event, recipient_ids, actor, opts)
+    end
+  end
+
+  # The "captain" capture filter is a sentinel meaning "no specific worker",
+  # never a recipient: escalations carrying it resolve to the configured
+  # coordinator, never back to the owner.
+  @captain_sentinel "captain"
+
+  defp elect(event, recipient_ids, actor, opts) do
+    lock("fallback:" <> event.source_key)
+
+    subs = Subscription |> Ash.Query.filter(revoked == false) |> Ash.read!()
+    recipient = Keyword.get(opts, :recipient)
+    excluded = Keyword.get(opts, :exclude_recipient)
+
+    audience =
+      Enum.filter(
+        subs,
+        &(not &1.paused and event.repo in &1.repos and &1.id != excluded and
+            (is_nil(recipient) or recipient == &1.id))
+      )
+
+    if audience == [] do
+      # Capture filter leads: a real recipient owns the fallback, the
+      # sentinel falls through to extras, then the configured coordinator.
+      ids = [Keyword.get(opts, :recipient) | recipient_ids]
+
+      case fallback_message(event) do
+        nil -> send_fallback(event, ids, actor)
+        message -> {:adopted, message}
+      end
+    else
+      {:worker, event}
+    end
+  end
+
+  defp live_pinned_audience?(event, opts) do
+    recipient = Keyword.get(opts, :recipient)
+    excluded = Keyword.get(opts, :exclude_recipient)
+    pinned = event.audience
+
+    Subscription
+    |> Ash.Query.filter(revoked == false)
+    |> Ash.read!()
+    |> Enum.any?(fn s ->
+      not s.paused and s.id in pinned and s.id != excluded and event.repo in s.repos and
+        (is_nil(recipient) or recipient == s.id)
+    end)
+  end
+
+  # Adoption is exact-source-marker only. A markerless note from a system
+  # sender is never adopted: without the exact marker the candidate is
+  # ambiguous and the election sends the canonical message instead.
+  def fallback_message(event) do
+    marker = fallback_marker(event.source_key)
+
+    Agentboard.Board.Resources.Message
+    |> Ash.Query.filter(
+      task_id == ^event.task_id and fragment("position(? in ?) > 0", ^marker, body)
+    )
+    |> Ash.Query.sort(id: :asc)
+    |> Ash.Query.limit(1)
+    |> Ash.read_one!()
+  end
+
+  defp send_fallback(event, recipient_ids, actor) do
+    chain =
+      recipient_ids
+      |> Enum.reject(&(&1 in [nil, @captain_sentinel]))
+      |> Enum.uniq()
+      |> Kernel.++([Application.get_env(:agentboard, :coordinator_id)])
+
+    recipient =
+      Enum.find(chain, fn id ->
+        case get(Agentboard.Board.Resources.Agent, id) do
+          %{retired_at: nil} -> true
+          _ -> false
+        end
+      end)
+
+    if recipient do
+      message =
+        Ops.send_message(
+          actor,
+          %{
+            "to" => recipient,
+            "task" => event.task_id,
+            "kind" => "note",
+            "body" => event.summary <> "\n" <> fallback_marker(event.source_key)
+          },
+          Ops.now()
+        )
+
+      {:sent, message}
+    else
+      {:undeliverable, :no_registered_recipient}
+    end
+  end
+
   def route do
     %{rows: rows} =
       Repo.statement!(

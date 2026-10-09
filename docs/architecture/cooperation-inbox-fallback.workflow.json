@@ -1,0 +1,30 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {"title": "Cooperation follow-up delivery", "quality_profile": "showcase", "animation": "none"},
+  "lanes": [{"id": "capture", "label": "Durable capture"}, {"id": "worker", "label": "Enrolled worker"}],
+  "mainPath": ["signal", "fence", "recipient", "route", "inbox", "receipt"],
+  "nodes": [
+    {"id": "signal", "lane": "capture", "col": 0, "type": "backend", "label": "Follow-up", "sublabel": "CI or conflict"},
+    {"id": "fence", "lane": "capture", "col": 1, "type": "database", "label": "Source fence", "sublabel": "Lock + unique key"},
+    {"id": "recipient", "lane": "capture", "col": 2, "type": "security", "label": "Recipient", "sublabel": "Owner or coordinator"},
+    {"id": "route", "lane": "capture", "col": 3, "type": "backend", "label": "Freeze route", "sublabel": "Scoped enrollment"},
+    {"id": "inbox", "lane": "capture", "col": 4, "type": "messagebus", "label": "Board inbox", "sublabel": "One task-linked note"},
+    {"id": "receipt", "lane": "capture", "col": 5, "type": "database", "label": "Receipt", "sublabel": "Immutable message ID"},
+    {"id": "delivery", "lane": "worker", "col": 3, "type": "messagebus", "label": "Worker intent", "sublabel": "Enabled + unpaused"},
+    {"id": "boundary", "lane": "worker", "col": 4, "type": "frontend", "label": "Safe boundary", "sublabel": "Existing host protocol"}
+  ],
+  "edges": [
+    {"from": "signal", "to": "fence", "role": "main"},
+    {"from": "fence", "to": "recipient", "role": "main"},
+    {"from": "recipient", "to": "route", "role": "main"},
+    {"from": "route", "to": "inbox", "role": "main", "label": "No worker"},
+    {"from": "inbox", "to": "receipt", "role": "main"},
+    {"from": "route", "to": "delivery", "role": "branch"},
+    {"from": "delivery", "to": "boundary", "role": "async"}
+  ],
+  "cards": [
+    {"dot": "amber", "title": "One captured signal", "items": ["Inbox note and source receipt commit together.", "Missing recipient is retained as undeliverable; never broadcast."]},
+    {"dot": "emerald", "title": "Enrollment continuity", "items": ["Late enrollment skips sources already delivered by inbox.", "Future signals use the worker; reminder cadence and cap stay shared."]}
+  ]
+}
