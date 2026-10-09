@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/carverauto/agentboard/internal/config"
 	"github.com/spf13/cobra"
@@ -112,7 +115,18 @@ func (c *commands) agents() *cobra.Command {
 			if backend != "" {
 				data["metadata"] = map[string]string{"backend": backend}
 			}
-			return c.request(cmd, http.MethodPost, "agents/register", nil, data)
+			if err := c.request(cmd, http.MethodPost, "agents/register", nil, data); err != nil {
+				return err
+			}
+			if agentIDNeedsNamingHint(c.cfg.Actor.ID, c.cfg.Actor.Harness) {
+				message := fmt.Sprintf("Agent ID %q may lack repository context; prefer {harness}-{repo-slug}-{role} for new worker IDs (e.g. codex-agentboard-agent-a). This is advisory; existing IDs remain valid.", c.cfg.Actor.ID)
+				if c.json {
+					_ = json.NewEncoder(cmd.ErrOrStderr()).Encode(map[string]any{"warning": map[string]string{"code": "agent_id_naming", "message": message}})
+				} else {
+					fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+message)
+				}
+			}
+			return nil
 		}}
 	register.Flags().StringVar(&name, "name", "", "Descriptive agent name")
 	register.Flags().StringVar(&kind, "kind", "", "Identity kind: seat, human, system, or fixture")
@@ -142,6 +156,22 @@ func (c *commands) agents() *cobra.Command {
 	group.AddCommand(register, retire, restore, c.heartbeat(), c.availabilityCommands(), c.scopeCommands(), c.agentTokens())
 	return group
 }
+
+// agentIDNeedsNamingHint only recognizes obviously short IDs and bare worker
+// nicknames, optionally prefixed by the caller's harness. It never infers a repo,
+// verifies identity, or changes validation, registration, or authorization.
+func agentIDNeedsNamingHint(id, harness string) bool {
+	parts := strings.FieldsFunc(id, func(r rune) bool { return r == '-' })
+	if len(parts) < 3 {
+		return true
+	}
+	if harness == "" || !strings.HasPrefix(id, harness+"-") {
+		return false
+	}
+	rest := strings.Split(strings.TrimPrefix(id, harness+"-"), "-")
+	return len(rest) == 2 && (rest[0] == "agent" || rest[0] == "worker")
+}
+
 func (c *commands) tasks() *cobra.Command {
 	group := &cobra.Command{Use: "task", Short: "Task records, ownership leases, and append-only timeline"}
 	group.AddCommand(c.list("tasks", []string{"status", "owner", "repo", "label"}), c.show("tasks"), c.watchCommand("tasks", []string{"status", "owner", "repo", "label"}))

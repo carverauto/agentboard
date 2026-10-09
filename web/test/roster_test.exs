@@ -65,3 +65,108 @@ defmodule Agentboard.RosterTest do
     end
   end
 end
+
+defmodule AgentboardWeb.AgentIdentityTest do
+  use ExUnit.Case, async: true
+  import Phoenix.LiveViewTest, only: [render_component: 2]
+  alias AgentboardWeb.BoardLive
+
+  test "identity links keep full selectable IDs and exact encoded owner filters" do
+    for id <- [
+          "agent-a",
+          "codex-agent-a-server",
+          "custom-repo_with_underscores-role",
+          String.duplicate("x", 128)
+        ] do
+      for archived <- [false, true] do
+        html = render_component(&BoardLive.agent_identity/1, id: id, archived: archived)
+        path = if archived, do: "/archive", else: "/"
+        assert html =~ ~s(href="#{path}?owner=#{URI.encode_www_form(id)}")
+        assert html =~ ~s(aria-label="View tasks owned by #{id}")
+        assert html =~ ~s(<code class="select-all [overflow-wrap:anywhere]">#{id}</code>)
+      end
+    end
+  end
+
+  test "identity output escapes markup and encodes query metacharacters defensively" do
+    id = ~s(worker&repo=<script>"#)
+    html = render_component(&BoardLive.agent_identity/1, id: id)
+    assert html =~ ~s(href="/?owner=worker%26repo%3D%3Cscript%3E%22%23")
+    assert html =~ "worker&amp;repo=&lt;script&gt;&quot;#"
+    refute html =~ "<script>"
+  end
+
+  test "unassigned tasks have no invented owner link" do
+    html = render_component(&BoardLive.agent_identity/1, id: nil)
+    assert html =~ "Unassigned"
+    refute html =~ "<a"
+    refute html =~ "owner="
+  end
+
+  test "roster keeps friendly names separate from full linked board identities" do
+    id = "codex-repo_with_underscores-agent-a"
+
+    agent = %{
+      "id" => id,
+      "name" => "Friendly worker",
+      "harness" => "codex",
+      "kind" => "seat",
+      "stale" => false,
+      "availability" => %{"state" => "active"},
+      "capabilities" => [],
+      "scope" => Agentboard.SeatScope.public(nil, id)
+    }
+
+    html = render_page(:agents, %{"agents" => [agent], "roster_stale_after" => 1200})
+    assert html =~ "<strong>Friendly worker</strong>"
+    assert html =~ ~s(href="/?owner=#{id}")
+    assert html =~ ~s(>#{id}</code>)
+    assert html =~ "Unmanaged"
+  end
+
+  test "open, completed and archived cards and task detail use the full owner" do
+    id = "codex-agent-a-server"
+
+    for status <- ["in_progress", "done"], view <- [:board, :archive] do
+      task = %{
+        "id" => "task-one",
+        "title" => "Fixture task",
+        "status" => status,
+        "assignee_id" => id,
+        "priority" => 3
+      }
+
+      data = %{
+        "columns" => %{status => %{"total" => 1, "page" => 1, "tasks" => [task]}},
+        "roster" => %{}
+      }
+
+      html = render_page(view, data)
+      path = if view == :archive and status == "done", do: "/archive", else: "/"
+      assert html =~ ~s(href="#{path}?owner=#{id}")
+      assert html =~ ~s(>#{id}</code>)
+    end
+
+    for archived_at <- [nil, "2026-10-09T00:00:00Z"] do
+      data = %{
+        "task" => %{"id" => "task-one", "status" => "done", "assignee_id" => id},
+        "archive" => %{"archived_at" => archived_at},
+        "roster" => %{},
+        "events" => [],
+        "documents" => [],
+        "messages" => []
+      }
+
+      html = render_page(:task, data)
+      path = if archived_at, do: "/archive", else: "/"
+      assert html =~ ~s(href="#{path}?owner=#{id}")
+      assert html =~ ~s(>#{id}</code>)
+    end
+  end
+
+  defp render_page(view, data) do
+    {:ok, socket} = BoardLive.mount(%{}, %{}, %Phoenix.LiveView.Socket{})
+    socket = Phoenix.Component.assign(socket, live_action: view, loaded: true, data: data)
+    render_component(&BoardLive.render/1, Map.to_list(Map.put(socket.assigns, :flash, %{})))
+  end
+end

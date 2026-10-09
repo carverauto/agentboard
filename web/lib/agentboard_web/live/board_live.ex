@@ -718,7 +718,7 @@ defmodule AgentboardWeb.BoardLive do
                   <div class="card-meta"><span>{task["id"]}</span><span class="priority">P{task["priority"]}</span></div>
                   <h3><a href={"/tasks/"<>task["id"]}>{task["title"]}</a></h3>
                   <p>{task["repo"] || "No repository"}</p>
-                  <div class="owner">{task["assignee_id"] || "Unassigned"}</div>
+                  <div class="owner"><.agent_identity id={task["assignee_id"]} /></div>
                   <div class="flags"><span :if={task["held_by_decision"]} class="flag">Claim held by decision</span><span :if={task["requester_stale"]} class="flag warning">requester_stale</span><span :if={task["claim_expired"]} class="flag danger">Claim expired</span><span :if={owner_stale?(task,@data["roster"])} class="flag warning">Agent stale</span></div>
                   <.review_ci :if={status == "review" && task["pr_url"]} state={@review_ci[task["pr_url"]]} unavailable={@ci_unavailable || @unavailable} />
                   <AgentboardWeb.DuplicateNotice.notice finding={get_in(@review_ci, [task["pr_url"], :duplicate_of])} />
@@ -734,7 +734,7 @@ defmodule AgentboardWeb.BoardLive do
               <h2>{@data["task"]["title"]}</h2><p class="description">{@data["task"]["description"]}</p>
               <p :if={@data["archive"]["archived_at"]} class="notice">Archived {@data["archive"]["archived_at"]}. This task remains Done and its records are retained.</p>
               <button :if={@data["task"]["status"]=="done" and Agentboard.Captain.authorized?(@captain)} type="button" phx-click="archive_task" phx-value-id={@data["task"]["id"]} phx-value-archived={if @data["archive"]["archived_at"],do: "false",else: "true"} phx-value-revision={@data["archive"]["revision"]}>{if @data["archive"]["archived_at"],do: "Restore to Done",else: "Archive task"}</button>
-              <dl><dt>Worker delivery</dt><dd><AgentboardWeb.PRLive.delivery worker={@workers[@data["task"]["assignee_id"]]} /></dd><dt>Owner</dt><dd>{@data["task"]["assignee_id"] || "Unassigned"}</dd><dt>Assigned by</dt><dd>{@data["task"]["assigner_id"] || "None"}</dd><dt>Claimed</dt><dd>{@data["task"]["claimed_at"] || "No active claim"}</dd><dt>Lease expires</dt><dd>{@data["task"]["claim_expires_at"] || "No active lease"}</dd><dt>Revision</dt><dd>{@data["task"]["revision"]}</dd><dt>Repository</dt><dd>{@data["task"]["repo"] || "None"}</dd></dl>
+              <dl><dt>Worker delivery</dt><dd><AgentboardWeb.PRLive.delivery worker={@workers[@data["task"]["assignee_id"]]} /></dd><dt>Owner</dt><dd><.agent_identity id={@data["task"]["assignee_id"]} archived={not is_nil(@data["archive"]["archived_at"])} /></dd><dt>Assigned by</dt><dd>{@data["task"]["assigner_id"] || "None"}</dd><dt>Claimed</dt><dd>{@data["task"]["claimed_at"] || "No active claim"}</dd><dt>Lease expires</dt><dd>{@data["task"]["claim_expires_at"] || "No active lease"}</dd><dt>Revision</dt><dd>{@data["task"]["revision"]}</dd><dt>Repository</dt><dd>{@data["task"]["repo"] || "None"}</dd></dl>
               <div class="flags"><span :if={@data["task"]["held_by_decision"]} class="flag">Claim held by decision</span><span :if={@data["task"]["requester_stale"]} class="flag warning">requester_stale</span><span :if={@data["task"]["claim_expired"]} class="flag danger">Claim expired; explicit recovery required</span><span :if={owner_stale?(@data["task"],@data["roster"])} class="flag warning">Agent stale</span></div>
               <div class="links"><a :if={@data["task"]["issue_url"]} href={@data["task"]["issue_url"]} target="_blank" rel="noopener noreferrer">GitHub issue</a><a :if={@data["task"]["pr_url"]} href={@data["task"]["pr_url"]} target="_blank" rel="noopener noreferrer">GitHub pull request</a></div>
             </article>
@@ -766,7 +766,7 @@ defmodule AgentboardWeb.BoardLive do
             <p :if={!Agentboard.Captain.authorized?(@captain)}><a href="/settings">Unlock captain controls</a></p>
             <p :if={@data["agents"]==[]} class="empty">No registered agents. Register a stable identity with <code>agentboard agent register</code>.</p>
             <div class="table-scroll"><table><thead><tr><th>Agent / harness</th><th>Model / host</th><th>Activity</th><th>Availability</th><th>Seat scope</th><th>Heartbeat (stale after {stale_label(@data["roster_stale_after"])})</th><th>Capabilities</th></tr></thead><tbody>
-              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p><p><span :if={agent["kind"] != "seat"} class="flag">{agent["kind"]}</span><span :if={agent["retired_at"]} class="flag warning">Retired</span></p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<span :if={agent["waiting_on_captain"]} class="flag warning">Waiting on captain</span><p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p><button :if={Agentboard.Captain.authorized?(@captain)} id={"availability-open-#{agent["id"]}"} type="button" class="text-button" phx-click="open_availability" phx-value-id={agent["id"]} aria-haspopup="dialog" aria-label={"Set availability for #{agent["id"]}"}>Set availability</button></td><td><.seat_scope agent={agent} captain={@captain} /></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p :if={agent["stale"] and agent["reported_status"] == "busy"}>last reported busy (unreliable)</p><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
+              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p><.agent_identity id={agent["id"]} /> / {agent["harness"]}</p><p><span :if={agent["kind"] != "seat"} class="flag">{agent["kind"]}</span><span :if={agent["retired_at"]} class="flag warning">Retired</span></p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<span :if={agent["waiting_on_captain"]} class="flag warning">Waiting on captain</span><p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p><button :if={Agentboard.Captain.authorized?(@captain)} id={"availability-open-#{agent["id"]}"} type="button" class="text-button" phx-click="open_availability" phx-value-id={agent["id"]} aria-haspopup="dialog" aria-label={"Set availability for #{agent["id"]}"}>Set availability</button></td><td><.seat_scope agent={agent} captain={@captain} /></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p :if={agent["stale"] and agent["reported_status"] == "busy"}>last reported busy (unreliable)</p><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
             </tbody></table></div>
             <.availability_modal :if={@availability_form != nil and Agentboard.Captain.authorized?(@captain)} form={@availability_form} error={@availability_error} return_focus={@availability_return_focus} />
             <.scope_modal :if={@scope_form != nil and Agentboard.Captain.authorized?(@captain)} form={@scope_form} error={@scope_error} />
@@ -910,13 +910,22 @@ defmodule AgentboardWeb.BoardLive do
     """
   end
 
+  attr(:id, :string, default: nil)
+  attr(:archived, :boolean, default: false)
+
+  def agent_identity(assigns) do
+    ~H"""
+    <a :if={@id} href={(if @archived, do: "/archive", else: "/") <> "?" <> URI.encode_query(%{"owner" => @id})} aria-label={"View tasks owned by " <> @id}><code class="select-all [overflow-wrap:anywhere]">{@id}</code></a><span :if={is_nil(@id)}>Unassigned</span>
+    """
+  end
+
   defp completed_card(assigns) do
     ~H"""
     <details id={"completed-"<>@task["id"]} class="task-card completed-card" phx-hook="CompletedCard">
       <summary title={@task["title"]}><strong>{@task["title"]}</strong><span>{@task["repo"] || "No repository"}</span></summary>
       <div class="completed-detail">
         <div class="card-meta"><span>{@task["id"]}</span><span>P{@task["priority"]}</span></div>
-        <p class="owner">{@task["assignee_id"] || "Unassigned"}</p>
+        <p class="owner"><.agent_identity id={@task["assignee_id"]} archived={@archived} /></p>
         <div class="links"><a href={"/tasks/"<>@task["id"]}>Task history &amp; docs</a><a :if={@task["pr_url"]} href={@task["pr_url"]} target="_blank" rel="noopener noreferrer">Pull request</a><a :if={@task["issue_url"]} href={@task["issue_url"]} target="_blank" rel="noopener noreferrer">Issue</a></div>
         <button :if={Agentboard.Captain.authorized?(@captain)} type="button" phx-click="archive_task" phx-value-id={@task["id"]} phx-value-archived={if @archived,do: "false",else: "true"} phx-value-revision={@task["archive_revision"]}>{if @archived,do: "Restore to Done",else: "Archive task"}</button>
         <a :if={!Agentboard.Captain.authorized?(@captain)} href="/settings">Unlock archive controls</a>

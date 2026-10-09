@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -135,5 +136,126 @@ func TestHeartbeatEveryTicksUntilError(t *testing.T) {
 	}
 	if f.beats.Load() != 2 {
 		t.Fatalf("expected immediate beat plus one tick, got %d", f.beats.Load())
+	}
+}
+
+// The register request and response remain byte-for-byte identity preserving;
+// naming hints are advisory stderr output, including structured --json warnings.
+func TestAgentRegistrationNamingHints(t *testing.T) {
+	for _, tc := range []struct {
+		id, harness string
+		warn        bool
+	}{
+		{"agent-a", "codex", true},
+		{"worker-1", "codex", true},
+		{"legacy", "codex", true},
+		{"legacy_id", "codex", true},
+		{"agent--a", "codex", true},
+		{"codex-agent-a", "codex", true},
+		{"codex-worker-1", "codex", true},
+		{"custom-harness-worker-1", "custom-harness", true},
+		{"codex-serviceradar-agent-a", "codex", false},
+		{"codex-agentboard-agent-b", "codex", false},
+		{"claude-serviceradar-coordinator", "claude", false},
+		{"codex-agent-a-server", "codex", false},
+		{"codex-agent-b-worker", "codex", false},
+		{"custom-repo_with_underscores-role", "custom", false},
+		{"custom-multi-part-repo-role", "custom", false},
+		// A spelling hint must not interpret or enforce an arbitrary prefix.
+		{"unrelated-agent-a", "codex", false},
+		{"codex-a-b", "codex", false},
+	} {
+		t.Run(tc.id, func(t *testing.T) {
+			var calls atomic.Int32
+			response := `{"agent":{"id":"` + tc.id + `","harness":"` + tc.harness + `"}}`
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/v1/meta" {
+					io.WriteString(w, `{"api_version":1,"schema_version":33}`)
+					return
+				}
+				if r.URL.Path != "/api/v1/agents/register" || r.Method != http.MethodPost {
+					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+				}
+				if r.Header.Get("X-Agentboard-Agent") != tc.id || r.Header.Get("X-Agentboard-Harness") != tc.harness {
+					t.Error("registration changed the supplied identity")
+				}
+				body, _ := io.ReadAll(r.Body)
+				if string(body) != `{"name":"Friendly worker"}` {
+					t.Errorf("registration payload changed: %s", body)
+				}
+				calls.Add(1)
+				io.WriteString(w, response)
+			}))
+			defer server.Close()
+			t.Setenv("AGENTBOARD_URL", server.URL)
+			// Flags must take precedence over the environment for the hint too.
+			t.Setenv("AGENT_ID", "other-repo-role")
+			t.Setenv("AGENTBOARD_HARNESS", "other")
+			t.Setenv("AGENTBOARD_MODEL", "fixture")
+			for _, jsonOutput := range []bool{false, true} {
+				root := cli.NewRoot()
+				var stdout, stderr bytes.Buffer
+				root.SetOut(&stdout)
+				root.SetErr(&stderr)
+				args := []string{"agent", "register", "--name", "Friendly worker", "--agent", tc.id, "--harness", tc.harness}
+				if jsonOutput {
+					args = append(args, "--json")
+				}
+				root.SetArgs(args)
+				if err := root.Execute(); err != nil {
+					t.Fatalf("legacy ID was rejected: %v", err)
+				}
+				if jsonOutput && stdout.String() != response+"\n" {
+					t.Fatalf("JSON stdout changed: %q", stdout.String())
+				}
+				if !strings.Contains(stdout.String(), tc.id) {
+					t.Fatalf("full identity missing from output %q", stdout.String())
+				}
+				if (stderr.Len() > 0) != tc.warn {
+					t.Fatalf("warn=%t, stderr=%q", tc.warn, stderr.String())
+				}
+				if tc.warn {
+					if !strings.Contains(stderr.String(), "advisory") || !strings.Contains(stderr.String(), tc.id) {
+						t.Fatalf("missing advisory context: %q", stderr.String())
+					}
+					if jsonOutput {
+						var warning struct{ Warning struct{ Code string } }
+						if err := json.Unmarshal(stderr.Bytes(), &warning); err != nil || warning.Warning.Code != "agent_id_naming" {
+							t.Fatalf("invalid structured warning: %q (%v)", stderr.String(), err)
+						}
+					}
+				}
+			}
+			if calls.Load() != 2 {
+				t.Fatalf("register was not sent once per invocation: %d", calls.Load())
+			}
+		})
+	}
+}
+
+func TestAgentRegistrationFailureDoesNotPrintNamingHint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/meta" {
+			io.WriteString(w, `{"api_version":1,"schema_version":33}`)
+			return
+		}
+		w.WriteHeader(http.StatusConflict)
+		io.WriteString(w, `{"error":{"code":"harness_conflict","message":"Harness cannot change"}}`)
+	}))
+	defer server.Close()
+	t.Setenv("AGENTBOARD_URL", server.URL)
+	t.Setenv("AGENT_ID", "agent-a")
+	t.Setenv("AGENTBOARD_HARNESS", "codex")
+	t.Setenv("AGENTBOARD_MODEL", "fixture")
+	root := cli.NewRoot()
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"agent", "register", "--json"})
+	if err := root.Execute(); err == nil || cli.ExitCode(err) != 4 {
+		t.Fatalf("expected unchanged conflict error, got %v", err)
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("failure printed success output or naming hint: %q %q", stdout.String(), stderr.String())
 	}
 }

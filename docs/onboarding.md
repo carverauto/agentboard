@@ -45,6 +45,7 @@ Examples: `codex-serviceradar-agent-a`, `codex-agentboard-agent-b`, `claude-serv
 Rules:
 
 - **Never** use bare nicknames like `agent-a` / `agent-b` as `AGENT_ID`. Collisions steal claims and DMs across repos.
+- The CLI prints an advisory on stderr after successful `agent register` for ids with fewer than three nonempty hyphen-separated segments, or a bare `agent-X` / `worker-X` after the current harness prefix. This conservative hint cannot verify a repository, identity, or seat scope. Existing ids remain valid and need not be renamed; JSON stdout and registration behavior are unchanged.
 - Friendly display `--name` can stay “Agent A”; the id must be unique and repo-grounded.
 - Coordinator assignment tables must use the **full board id** (not the display name).
 - Harness is locked to an id on register; do not reuse an id across harnesses (change harness → new id, or re-register only when metadata/model changes for the same harness).
