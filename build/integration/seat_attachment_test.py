@@ -21,6 +21,7 @@ def command(argv, cwd, env, ok=True):
 
 
 class Board(BaseHTTPRequestHandler):
+    meta = {"api_version": 1, "schema_version": 29, "required_decision_intake_version": 1}
     tasks = {}
     records = {}
     fail_record = set()
@@ -38,7 +39,7 @@ class Board(BaseHTTPRequestHandler):
     def do_GET(self):
         path, _, query = self.path.partition("?")
         if path == "/api/v1/meta":
-            return self.reply(200, {"api_version": 1, "schema_version": 22})
+            return self.reply(200, self.meta)
         task = path.rsplit("/", 1)[-1]
         with self.lock:
             body = self.records.get(task)
@@ -188,6 +189,25 @@ with tempfile.TemporaryDirectory(prefix="seat-attachment-") as temporary:
     recorder.write_text("import json,os,pathlib,sys\npathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'env':{k:os.environ[k] for k in ['AGENTBOARD_SEAT_WORKTREE','AGENTBOARD_SEAT_SOURCE','AGENTBOARD_SEAT_ROOT']},'brief':pathlib.Path(sys.argv[2]).read_text()}))\n")
     output = base / "native.json"
     argv = [sys.executable, launcher, "--repo", repo, "--root", pool, "--task", "attach-task", "--brief", brief, "--attach", "--", sys.executable, recorder, output, "{brief}"]
+    # The packaged CLI probes the HTTP capability boundary before acquiring a
+    # seat or running native input. Existing unrelated leases must survive.
+    compatible_meta = Board.meta
+    before_attach = json.loads(state_path.read_text())["worktrees"]
+    try:
+        for incompatible_meta in (
+            {"api_version": 1, "schema_version": 28, "required_decision_intake_version": 1},
+            {"api_version": 1, "schema_version": 29},
+            {"api_version": 1, "schema_version": 29, "required_decision_intake_version": 2},
+        ):
+            Board.meta = incompatible_meta
+            refused = command(argv, repo, env, ok=False)
+            assert refused.returncode == 2, refused.stderr
+            assert "STOP" in refused.stderr and "SHA256SUMS" in refused.stderr, refused.stderr
+            assert not output.exists(), "incompatible server allowed native execution"
+            assert "attach-task" not in Board.records, "incompatible server recorded a seat"
+            assert json.loads(state_path.read_text())["worktrees"] == before_attach, "incompatible server changed leases"
+    finally:
+        Board.meta = compatible_meta
     command(argv, repo, env)
     first = json.loads(output.read_text())
     attached = Path(first["cwd"])
