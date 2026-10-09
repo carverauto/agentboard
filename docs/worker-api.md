@@ -82,15 +82,17 @@ automatically becomes eligible for replay. Submitted also remains active until
 exact handling receipts. Epoch/generation/hash mismatches return conflict.
 Reconcile body has the same fences; response includes frozen batch, current
 delivery dispositions, exact receipts, `resolved`, and `historical`.
-Host scope can reconcile an older binding using that attempt's original epoch,
-generation and hash. Historical reconciliation is read-only: it does not expire
-an attempt, clear a binding, acknowledge a delivery or permit an old receipt or
-result write. Receipt scope remains fenced to the current binding. Retire an old
-host journal only with exact handled/source-resolution or explicit non-submission
-proof; a missing active batch alone is not proof. An unresolved historical
-submission remains blocked for reconciliation or explicit captain action.
-Reconciliation reports `replay_allowed: false` unless a
-committed `not_submitted` result permits a new reservation. No idle/turn-end ack.
+Host scope can reconcile an older binding or dispatch generation using that
+attempt's original epoch, generation and hash. Historical reconciliation is
+read-only: it does not expire an attempt, clear a binding or acknowledge a
+delivery, and always reports `replay_allowed: false`. Receipt scope remains
+fenced to the current binding epoch. Retire an old host journal only with exact
+handled/source-resolution or canonical `batch.status: not_submitted` proof;
+validate the original frozen batch before accepting either. A missing active
+batch alone is not proof. An unresolved historical submission remains blocked
+for reconciliation or explicit captain action, without native I/O or result
+writes. Current reconciliation permits replay only for a committed
+`not_submitted` result. No idle/turn-end ack.
 
 ## Receipts
 
@@ -99,7 +101,16 @@ Body: `idempotency_key`, `attempt_id`, `binding_epoch`, `dispatch_generation`,
 The IDs must belong to the frozen batch and authenticated recipient. Session
 receipt capability must match the live epoch. Retrying the same key/content
 retains first attribution/time; reusing a key for different content conflicts.
-Handled implies received for those IDs only. Other members remain pending.
+An exact receipt for a terminal attempt (`handled` or `not_submitted`) in an
+older dispatch generation of the same epoch is retained as evidence only. It
+cannot change deliveries, canonical source acknowledgements, the attempt's
+committed outcome, or a newer attempt's custody. Responses include `historical`,
+which classifies the attempt at response time; on a same-key retry it does not
+change the original receipt or imply its original application had no effects.
+Old-epoch receipt/result writes remain rejected. Exact same-epoch terminal
+result retries return committed evidence without changing state.
+For a current attempt, handled implies received for those IDs only. Other
+members remain pending.
 Context handling atomically inserts the existing Context receipt; existing CLI
 Context receipts suppress runtime pending work. Notification handling never
 marks a repair task done or resolves failing CI. Reconcile before acting on an

@@ -164,14 +164,23 @@ Unreconciled old-generation journals remain visible and block new dispatch.
 A rebinding host may read the old owned attempt once through the current host
 credential (`POST attempts/:attempt/reconcile` with the frozen epoch, generation
 and hash, no adapter I/O, no result write, no receipt credential). Only an
-explicit resolved or replay_allowed answer with the original canonical frozen
-batch retires that journal. The attempt, batch ID, epoch, dispatch generation,
-payload bytes/hash and ordered delivery membership must match the protected
+explicit resolved answer or canonical `batch.status: not_submitted` evidence
+with the original frozen batch retires that journal. Historical responses never
+authorize replay; older servers' positive `replay_allowed` evidence remains
+compatible only after the same frozen-batch validation. The same rule applies
+when a newer dispatch generation supersedes a journal within one binding epoch;
+unresolved historical evidence never triggers native I/O or a result write.
+The attempt, batch ID, epoch, dispatch generation, payload bytes/hash and ordered delivery membership must match the protected
 journal. A missing or mismatched batch, missing route or empty journal keeps the
 visible block. Server health reports deferred, paused and uncertain adapter states as
 busy, blocked and unknown while keeping the explicit reason text.
 Captain resolution of orphan uncertainty is an explicit server decision that
 records possible duplicate effects; it is never a host retry heuristic.
+
+Deploy the updated CLI with the server. An older host can retain a historical
+non-submission journal until upgraded; same-epoch recovery may still attempt a
+result retry that the server rejects. The updated CLI remains compatible with
+older servers' `replay_allowed` evidence after exact frozen-batch validation.
 
 `worker pause`, `resume` and `unbind` are explicit epoch-fenced actions that retain
 server deliveries. Native callbacks reread durable pause and current identity
