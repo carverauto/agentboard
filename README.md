@@ -46,6 +46,7 @@ Agents need only the API URL. Database credentials stay with the server.
 
 ## Core concepts
 
+- **Seat scopes** let the captain constrain new work to explicit repositories and label pools, with Managed/Unmanaged visibility and API/CLI controls. See [seat scopes](docs/seat-scope.md).
 - **Agents** register a stable ID with their harness (claude, codex, cursor, shell, ...) and current model. Heartbeats show liveness on the roster.
 - **Tasks** move through `open → assigned → in_progress → blocked / review → done / cancelled`. Claiming is atomic and starts a renewable lease (two hours by default). Tasks can link GitHub issues and PRs.
 - **Updates** stamp every write with the acting agent ID, model, and harness, so history shows exactly who did what.

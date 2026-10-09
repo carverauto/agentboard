@@ -474,6 +474,12 @@ defmodule Agentboard.Board.Operations do
     if data["kind"] == "task_order" do
       Agentboard.Availability.lock_admission()
 
+      unless Input.slug?(data["task"]),
+        do: reject("invalid_input", "Task orders require an explicit task")
+
+      lock_task(data["task"])
+      task = fetch!(Task, data["task"], "Message task must exist", "invalid_input")
+
       recipient =
         if Input.slug?(data["to"]),
           do: Agentboard.Availability.admission_agent(data["to"]),
@@ -482,6 +488,8 @@ defmodule Agentboard.Board.Operations do
       unless recipient && is_nil(recipient.retired_at) &&
                Agentboard.Availability.active?(recipient),
              do: reject("conflict", "Task-order routing requires an active named recipient")
+
+      Agentboard.SeatScope.admit!(task, recipient.id)
     end
 
     if data["to"],
@@ -575,6 +583,13 @@ defmodule Agentboard.Board.Operations do
   def update(record, action, attrs, actor, revision \\ nil) do
     changeset = Ash.Changeset.for_update(record, action, attrs, options(actor))
 
+    # Admission must inspect the values Ash will persist, not raw input. Task
+    # labels retain their existing cast/trim behavior. Otherwise padded input
+    # could pass an exact scope gate and then be stored outside that scope.
+    if match?(%Task{}, record) and action == :edit do
+      Agentboard.SeatScope.guard_edit!(record, changeset.attributes)
+    end
+
     changeset =
       if revision,
         do: Ash.Changeset.filter(changeset, Ash.Expr.expr(revision == ^revision)),
@@ -649,6 +664,7 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Auth.Credential,
              Agentboard.Auth.Observation,
              Agentboard.Availability.Policy,
+             Agentboard.SeatScope.Policy,
              Agentboard.Decisions.Request,
              Agentboard.Decisions.Wake,
              Agentboard.Wake.Intent,

@@ -184,6 +184,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasSuffix(path, "/retire") || strings.HasSuffix(path, "/restore") {
 		required = 30
 	}
+	if strings.HasPrefix(path, "agents/") && strings.HasSuffix(path, "/scope") {
+		required = 34
+	}
 	if fields, ok := payload.(map[string]any); ok {
 		if kind, ok := fields["kind"].(string); ok && (kind == "seat" || kind == "human" || kind == "system" || kind == "fixture") {
 			required = 30
@@ -219,7 +222,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "decision", "decisions", "wake", "wakes"} {
+	for _, key := range []string{"agent", "agents", "scope", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "decision", "decisions", "wake", "wakes"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue

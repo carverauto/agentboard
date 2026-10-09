@@ -32,6 +32,8 @@ defmodule AgentboardWeb.BoardLive do
         availability_form: nil,
         availability_error: nil,
         availability_return_focus: "availability-open",
+        scope_form: nil,
+        scope_error: nil,
         captain: session["captain"],
         archive_error: nil,
         statuses: @statuses
@@ -63,6 +65,8 @@ defmodule AgentboardWeb.BoardLive do
         quota_detail: nil,
         availability_form: nil,
         availability_error: nil,
+        scope_form: nil,
+        scope_error: nil,
         paging_view: socket.assigns.live_action,
         column_pages: if(changed, do: %{}, else: socket.assigns.column_pages)
       )
@@ -94,6 +98,79 @@ defmodule AgentboardWeb.BoardLive do
   end
 
   def handle_event("column_page", _params, socket), do: {:noreply, socket}
+
+  def handle_event("open_scope", %{"id" => id}, socket) do
+    with true <- socket.assigns.live_action == :agents,
+         true <- Agentboard.Captain.authorized?(socket.assigns.captain),
+         %{} = agent <- Enum.find(socket.assigns.data["agents"] || [], &(&1["id"] == id)),
+         %{"revision" => revision} = scope when is_integer(revision) <- agent["scope"] do
+      form =
+        Map.new(~w(allowed_repos required_labels allowed_labels), fn key ->
+          {key, Enum.join(scope[key] || [], "\n")}
+        end)
+        |> Map.merge(%{"agent_id" => id, "revision" => revision})
+
+      {:noreply, assign(socket, scope_form: form, scope_error: nil)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("open_scope", _params, socket), do: {:noreply, socket}
+
+  def handle_event("close_scope", _params, socket),
+    do: {:noreply, assign(socket, scope_form: nil, scope_error: nil)}
+
+  def handle_event("scope_draft", params, socket) do
+    if scope_editable?(socket) do
+      {:noreply, assign(socket, scope_form: scope_draft(socket.assigns.scope_form, params))}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("set_scope", params, socket) do
+    if scope_editable?(socket) do
+      form = scope_draft(socket.assigns.scope_form, params)
+
+      actor = %{
+        "agent" => "captain",
+        "model" => "human",
+        "harness" => "captain",
+        :availability_admin => true
+      }
+
+      result =
+        with {:ok, data} <- scope_data(form, params),
+             {:ok, _} <- Board.register(actor, %{"name" => "Captain"}) do
+          Agentboard.SeatScope.set(form["agent_id"], actor, data)
+        end
+
+      case result do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> assign(scope_form: nil, scope_error: nil)
+           |> put_flash(:info, "Seat scope updated.")
+           |> reload()}
+
+        {:error, code, message} ->
+          # Refresh the displayed baseline without replacing the unsaved draft.
+          # Closing and reopening can then review the competing committed edit.
+          socket = if code == "conflict", do: reload(socket), else: socket
+
+          message =
+            if code == "conflict",
+              do:
+                "Seat scope changed since you opened this editor. Your draft is kept. Close and reopen to review the latest scope before saving again.",
+              else: message
+
+          {:noreply, assign(socket, scope_form: form, scope_error: message)}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
 
   def handle_event("open_availability", params, socket) do
     id = params["id"]
@@ -278,6 +355,41 @@ defmodule AgentboardWeb.BoardLive do
       |> Map.new()
 
     Map.merge(defaults, values)
+  end
+
+  defp scope_editable?(socket),
+    do:
+      socket.assigns.live_action == :agents and
+        Agentboard.Captain.authorized?(socket.assigns.captain) and
+        is_map(socket.assigns.scope_form)
+
+  defp scope_draft(form, params) do
+    values =
+      params
+      |> Map.take(~w(allowed_repos required_labels allowed_labels))
+      |> Enum.filter(fn {_key, value} -> is_binary(value) end)
+      |> Map.new()
+
+    # The rendered agent and revision stay server-owned across forged events,
+    # draft changes and roster refreshes. Conflicts never advance this revision.
+    Map.merge(form, values)
+  end
+
+  defp scope_data(form, params) do
+    fields = ~w(allowed_repos required_labels allowed_labels)
+
+    if Enum.all?(fields, &is_binary(params[&1])) do
+      data =
+        Map.new(fields, fn key ->
+          {key, form[key] |> String.split(~r/\r?\n/) |> Enum.reject(&(&1 == ""))}
+        end)
+        |> Map.put("revision", form["revision"])
+
+      with {:ok, _} <- Agentboard.SeatScope.validate(data), do: {:ok, data}
+    else
+      {:error, "invalid_input",
+       "Supply every scope field as text; empty label fields disable their gate."}
+    end
   end
 
   defp initial_page, do: %{cursor: nil, history: [], number: 1}
@@ -482,6 +594,7 @@ defmodule AgentboardWeb.BoardLive do
   end
 
   defp owner_stale?(task, roster), do: get_in(roster, [task["assignee_id"], "stale"]) == true
+
   defp stale_label(seconds) when is_number(seconds) do
     total = round(seconds)
     if rem(total, 60) == 0, do: "#{div(total, 60)}m", else: "#{total}s"
@@ -650,12 +763,13 @@ defmodule AgentboardWeb.BoardLive do
               </div>
             </section>
             <p><a href="/agents?waiting=true">Seats waiting on captain</a> · <a href="/agents">All seats</a> · <a href="/agents?kind=human">Human</a> · <a href="/agents?kind=system">System</a> · <a href="/agents?kind=fixture">Fixture</a> · <a href="/agents?kind=all&retired=true">Retired</a></p>
-            <p :if={!Agentboard.Captain.authorized?(@captain)}><a href="/settings">Unlock captain availability controls</a></p>
+            <p :if={!Agentboard.Captain.authorized?(@captain)}><a href="/settings">Unlock captain controls</a></p>
             <p :if={@data["agents"]==[]} class="empty">No registered agents. Register a stable identity with <code>agentboard agent register</code>.</p>
-            <div class="table-scroll"><table><thead><tr><th>Agent / harness</th><th>Model / host</th><th>Activity</th><th>Availability</th><th>Heartbeat (stale after {stale_label(@data["roster_stale_after"])})</th><th>Capabilities</th></tr></thead><tbody>
-              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p><p><span :if={agent["kind"] != "seat"} class="flag">{agent["kind"]}</span><span :if={agent["retired_at"]} class="flag warning">Retired</span></p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<span :if={agent["waiting_on_captain"]} class="flag warning">Waiting on captain</span><p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p><button :if={Agentboard.Captain.authorized?(@captain)} id={"availability-open-#{agent["id"]}"} type="button" class="text-button" phx-click="open_availability" phx-value-id={agent["id"]} aria-haspopup="dialog" aria-label={"Set availability for #{agent["id"]}"}>Set availability</button></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p :if={agent["stale"] and agent["reported_status"] == "busy"}>last reported busy (unreliable)</p><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
+            <div class="table-scroll"><table><thead><tr><th>Agent / harness</th><th>Model / host</th><th>Activity</th><th>Availability</th><th>Seat scope</th><th>Heartbeat (stale after {stale_label(@data["roster_stale_after"])})</th><th>Capabilities</th></tr></thead><tbody>
+              <tr :for={agent <- @data["agents"]}><td><strong>{agent["name"]}</strong><p>{agent["id"]} / {agent["harness"]}</p><p><span :if={agent["kind"] != "seat"} class="flag">{agent["kind"]}</span><span :if={agent["retired_at"]} class="flag warning">Retired</span></p></td><td>{agent["model"]}<p>{agent["host"] || "Host unknown"}</p></td><td>{agent["reported_status"] || "Not reported"}<span :if={agent["waiting_on_captain"]} class="flag warning">Waiting on captain</span><p><a :if={agent["current_task_id"]} href={"/tasks/"<>agent["current_task_id"]}>{agent["current_task_id"]}</a></p></td><td><span class={if agent["availability"]["state"] == "active", do: "flag healthy", else: "flag warning"}>{label(agent["availability"]["state"])}</span><p>{agent["availability"]["reason"]}</p><p :if={agent["availability"]["until"]}>Until {agent["availability"]["until"]}</p><p>Source: {agent["availability"]["source"]}</p><button :if={Agentboard.Captain.authorized?(@captain)} id={"availability-open-#{agent["id"]}"} type="button" class="text-button" phx-click="open_availability" phx-value-id={agent["id"]} aria-haspopup="dialog" aria-label={"Set availability for #{agent["id"]}"}>Set availability</button></td><td><.seat_scope agent={agent} captain={@captain} /></td><td><span class={if agent["stale"],do: "flag warning",else: "flag healthy"}>{if agent["stale"],do: "Stale",else: "Fresh"}</span><p :if={agent["stale"] and agent["reported_status"] == "busy"}>last reported busy (unreliable)</p><p>{agent["last_heartbeat"] || "Never"}</p><p>{age(agent["last_heartbeat"])}</p></td><td>{Enum.join(agent["capabilities"],", ")}<AgentboardWeb.PRLive.delivery worker={@workers[agent["id"]]} /></td></tr>
             </tbody></table></div>
             <.availability_modal :if={@availability_form != nil and Agentboard.Captain.authorized?(@captain)} form={@availability_form} error={@availability_error} return_focus={@availability_return_focus} />
+            <.scope_modal :if={@scope_form != nil and Agentboard.Captain.authorized?(@captain)} form={@scope_form} error={@scope_error} />
             <a :if={@data["next_cursor"]} href={page_link(:agents,@filters,@data["next_cursor"])}>Next agents</a>
           <% :messages -> %>
             <form action="/messages" method="get" class="filters"><label>Recipient <input name="to" value={@filters["to"]} placeholder="All recipients" /></label><label>Task <input name="task" value={@filters["task"]} placeholder="All threads" /></label><label class="check"><input type="checkbox" name="unread" value="true" checked={@filters["unread"]=="true"} /> Unread only</label><button type="submit">Filter messages</button><a href="/messages">Clear filters</a></form>
@@ -714,6 +828,60 @@ defmodule AgentboardWeb.BoardLive do
         <label :if={@form["state"] in ~w(reserved out_of_service)}>Reason<input name="reason" value={@form["reason"]} /></label>
         <label :if={@form["state"] == "out_of_service"}>Until (out of service, RFC3339)<input name="until" value={@form["until"]} placeholder="2026-10-12T00:00:00Z" /></label>
         <div class="flex flex-wrap gap-3"><button type="submit">Save availability</button><button type="button" class="text-button" phx-click="close_availability">Cancel</button></div>
+      </form>
+    </dialog>
+    """
+  end
+
+  attr(:agent, :map, required: true)
+  attr(:captain, :any, default: nil)
+
+  @doc false
+  def seat_scope(assigns) do
+    assigns = assign(assigns, :scope, assigns.agent["scope"])
+
+    ~H"""
+    <div id={"seat-scope-#{@agent["id"]}"}>
+      <%= if @scope do %>
+        <span class={if @scope["state"] == "managed", do: "flag healthy", else: "flag warning"}>{label(@scope["state"])}</span>
+        <%= if @scope["state"] == "managed" do %>
+          <p>Revision {@scope["revision"]}</p>
+          <dl>
+            <dt>Allowed repositories</dt><dd><ul><li :for={repo <- @scope["allowed_repos"]}><code class="whitespace-pre-wrap">{repo}</code></li></ul></dd>
+            <dt>Required labels (all)</dt><dd><span :if={@scope["required_labels"] == []}>No required-label gate</span><ul><li :for={label <- @scope["required_labels"]}><code class="whitespace-pre-wrap">{label}</code></li></ul></dd>
+            <dt>Allowed labels (any)</dt><dd><span :if={@scope["allowed_labels"] == []}>No allowed-label gate</span><ul><li :for={label <- @scope["allowed_labels"]}><code class="whitespace-pre-wrap">{label}</code></li></ul></dd>
+          </dl>
+          <p>Repository and label gates must all pass. Additional task labels are allowed.</p>
+          <p>Managed scope alone does not enable automatic claiming.</p>
+          <p>Changed by {@scope["changed_by"]} at {@scope["updated_at"]}</p>
+        <% else %>
+          <p>No captain-managed scope. Legacy manual admission remains; automatic claiming is not authorized.</p>
+        <% end %>
+        <button :if={Agentboard.Captain.authorized?(@captain)} id={"scope-open-#{@agent["id"]}"} type="button" class="text-button" phx-click="open_scope" phx-value-id={@agent["id"]} aria-haspopup="dialog" aria-label={"Edit seat scope for #{@agent["id"]}"}>Edit scope</button>
+      <% else %>
+        <span class="flag warning">Scope unavailable</span>
+      <% end %>
+    </div>
+    """
+  end
+
+  attr(:form, :map, required: true)
+  attr(:error, :any, default: nil)
+
+  @doc false
+  def scope_modal(assigns) do
+    ~H"""
+    <dialog id="scope-dialog" phx-hook="QuotaDialog" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")} class="quota-dialog availability-dialog" aria-labelledby="scope-title" data-return-focus={"scope-open-#{@form["agent_id"]}"} data-close-event="close_scope">
+      <header class="quota-dialog-header"><h2 id="scope-title">Edit seat scope</h2><button type="button" phx-click="close_scope" aria-label="Close seat scope editor" autofocus>Close</button></header>
+      <form phx-submit="set_scope" phx-change="scope_draft" class="settings-form">
+        <p>Agent <strong>{@form["agent_id"]}</strong> · Expected revision {@form["revision"]}</p>
+        <p>Saving replaces the complete scope. At least one explicit owner/repo is required; no wildcards. Enter one repository or exact label per line. Label case and spaces are preserved.</p>
+        <p>Every required label and at least one allowed label must match, when supplied. Empty label fields disable that gate. Additional task labels are allowed.</p>
+        <p :if={@error} role="alert" class="notice danger break-words">{@error}</p>
+        <label>Allowed repositories<textarea name="allowed_repos" rows="4" class="w-full min-w-0" required placeholder="owner/repo">{@form["allowed_repos"]}</textarea></label>
+        <label>Required labels (all)<textarea name="required_labels" rows="3" class="w-full min-w-0">{@form["required_labels"]}</textarea></label>
+        <label>Allowed labels (any)<textarea name="allowed_labels" rows="3" class="w-full min-w-0">{@form["allowed_labels"]}</textarea></label>
+        <div class="flex flex-wrap gap-3"><button type="submit">Save scope</button><button type="button" class="text-button" phx-click="close_scope">Cancel</button></div>
       </form>
     </dialog>
     """

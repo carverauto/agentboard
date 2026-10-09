@@ -62,7 +62,8 @@ defmodule Agentboard.Auth.APIAuthPolicy do
   # These operations already require a separately verified captain capability
   # downstream. This list does not promote an agent or coordinator credential.
   def captain_operation?(%{plug: APIController, plug_opts: action}, _params)
-      when action in [:set_availability, :broadcast_orders, :retire, :restore], do: true
+      when action in [:set_availability, :set_seat_scope, :broadcast_orders, :retire, :restore],
+      do: true
 
   def captain_operation?(%{plug: APIController, plug_opts: :mutate}, params),
     do: params["action"] in ~w(assign handoff)
@@ -77,7 +78,7 @@ defmodule Agentboard.Auth.APIAuthPolicy do
 
   # Admin bootstrap needs a read-before-write without possessing the new agent's token.
   def captain_operation?(%{plug: APIController, plug_opts: action}, _)
-      when action in [:agent, :availability], do: true
+      when action in [:agent, :availability, :seat_scope], do: true
 
   def captain_operation?(_, _), do: false
 
@@ -90,7 +91,7 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       when method in ["GET", "HEAD"] do
     case info do
       %{plug: APIController, plug_opts: action}
-      when action in [:tasks, :task, :prs, :pr, :agents, :agent] ->
+      when action in [:tasks, :task, :prs, :pr, :agents, :agent, :seat_scope] ->
         true
 
       %{plug: DecisionController, plug_opts: action}

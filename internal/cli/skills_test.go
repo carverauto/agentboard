@@ -68,6 +68,12 @@ func TestSkillsInstallOfflineAndRepeat(t *testing.T) {
 				t.Fatalf("skill points outside reported bundle: %s", link)
 			}
 			checkInstalledMarkdownLinks(t, dir, name, "SKILL.md")
+			if name == "agentboard" || name == "agentboard-captain" {
+				scope, err := os.ReadFile(filepath.Join(dir, name, "references", "seat-scope.md"))
+				if err != nil || !bytes.Contains(scope, []byte("Captain-managed seat scopes")) {
+					t.Fatalf("missing installed scope API reference: %v", err)
+				}
+			}
 			if _, err := os.Stat(filepath.Join(dir, name, "references", "GROK_BOT.md")); err == nil {
 				checkInstalledMarkdownLinks(t, dir, name, filepath.Join("references", "GROK_BOT.md"))
 			} else if !os.IsNotExist(err) {

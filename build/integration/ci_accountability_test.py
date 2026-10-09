@@ -536,6 +536,55 @@ assert actual_regrant == 'ci-reserved-other,true,assigned', actual_regrant
 api('/tasks/' + repair301 + '/claim', {}, agent='ci-reserved-target', status=409)
 api('/tasks/' + repair301 + '/claim', {}, agent='ci-reserved-other')
 print('AVAILABILITY_CI_ROUTING', repair301, flush=True)
+
+
+# Internal CI assignment uses the repair's scope, not the source task's labels.
+# A captain may redirect responsibility but cannot grant out-of-scope work.
+api('/agents/register', {'name': 'ci-scope-captain'}, agent='ci-scope-captain')
+rpc('Application.put_env(:agentboard, :coordinator_id, "ci-scope-captain")')
+for number, owner, repos, required, allowed in (
+        (303, 'ci-scope-repo', ['fixture/elsewhere'], ['ci-repair'], ['ci-repair']),
+        (304, 'ci-scope-label', ['fixture/repo'], ['ci-repair', 'scope-extra'], ['ci-repair']),
+        (305, 'ci-scope-match', ['fixture/repo'], ['ci-repair'], ['unmatched', 'ci-repair'])):
+    api('/agents/register', {'name': owner}, agent=owner)
+    policy = api('/agents/' + owner + '/scope', {
+        'allowed_repos': repos, 'required_labels': required, 'allowed_labels': allowed,
+        'revision': 0}, captain=True, token=CAPABILITY, method='PUT')['scope']
+    assert policy['state'] == 'managed' and policy['revision'] == 1, policy
+    api('/tasks', {'id': 'ci-scope-source-' + str(number), 'title': 'Managed CI source',
+        'repo': 'fixture/repo', 'labels': ['ci-repair', 'scope-extra'],
+        'pr_url': f'https://github.com/fixture/repo/pull/{number}'}, agent=owner)
+    scope_pr = sql("SELECT id FROM delivery_pull_requests WHERE number='" + str(number) + "'")
+    sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 second' WHERE id='" + scope_pr + "'")
+    reservation = json.loads(rpc('{:ok, [r]} = Agentboard.Delivery.Polling.reserve_pr(' +
+        json.dumps(scope_pr) + '); IO.puts("RESERVATION:" <> Jason.encode!(r))').split('RESERVATION:', 1)[1].strip())
+    observe(reservation=reservation)
+    obligation = json.loads(sql("SELECT to_jsonb(o) FROM delivery_obligations o WHERE pull_request_id='" + scope_pr + "'"))
+    scope_repair = obligation['repair_task_id']
+    repair_task = api('/tasks/' + scope_repair)['task']
+    assert repair_task['labels'] == ['ci-repair'], repair_task
+    assert sql("SELECT count(*) FROM cooperation_events WHERE kind='ci_failure' AND task_id='" + scope_repair + "'") == '1'
+    assert sql("SELECT count(*) FROM delivery_ci_snapshots WHERE pull_request_id='" + scope_pr + "'") == '1'
+    if owner == 'ci-scope-match':
+        assert obligation['responsible_id'] == owner and obligation['escalated_at'] is None, obligation
+        assert repair_task['status'] == 'assigned' and repair_task['assignee_id'] == owner, repair_task
+        assert repair_task['assignment_authorized'] is False, repair_task
+        assert sql("SELECT count(*) FROM messages WHERE task_id='" + scope_repair + "' AND recipient_id='" + owner + "'") == '1'
+    else:
+        assert obligation['responsible_id'] is None and obligation['escalated_at'], obligation
+        assert repair_task['status'] == 'open' and repair_task['assignee_id'] is None, repair_task
+        assert repair_task['assignment_authorized'] is False, repair_task
+        assert sql("SELECT count(*) FROM messages WHERE task_id='" + scope_repair + "' AND recipient_id='ci-scope-captain'") == '1'
+        assert sql("SELECT count(*) FROM messages WHERE task_id='" + scope_repair + "' AND recipient_id='" + owner + "'") == '0'
+        denial = api('/obligations/' + obligation['id'] + '/responsibility', {
+            'to': owner, 'expected_responsible_id': None, 'reason': 'Captain cannot bypass seat scope',
+            'idempotency_key': 'scope-denied-' + str(number)}, captain=True, status=409)
+        assert 'scope' in denial['error']['message'].lower(), denial
+        assert json.loads(sql("SELECT to_jsonb(o) FROM delivery_obligations o WHERE id='" + obligation['id'] + "'")) == obligation
+        assert api('/tasks/' + scope_repair)['task'] == repair_task
+        assert sql("SELECT count(*) FROM cooperation_events WHERE task_id='" + scope_repair + "'") == '1'
+        assert sql("SELECT count(*) FROM messages WHERE task_id='" + scope_repair + "'") == '1'
+print('SEAT_SCOPE_CI_ROUTING', flush=True)
 import time
 print('COLLECTOR_ADMISSION_LOCK', flush=True)
 api('/tasks', {'id': 'ci-lock-source', 'title': 'Lock barrier source', 'repo': 'fixture/repo',

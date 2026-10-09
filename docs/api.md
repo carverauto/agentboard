@@ -248,3 +248,7 @@ rollback and request-admission revocation semantics.
 ## Default-branch workflow health (schema 27)
 
 `GET /api/v1/prs` list reads carry an additive `default_branch_health` array of retained unresolved default-branch run obligations (oldest red first), alongside the existing `prs` page. Each entry retains `repository`, `workflow_name`, `branch`, `head_sha`, `run_id`, `run_attempt`, `conclusion`, `failed_at`, `responsible_id`, `source_tasks`, failing `jobs` (name, failed steps, log URL), `source_url`, and any `last_error` deferral note. An empty array means no retained red runs, not verified-green coverage. Intake, routing, recovery, and operator setup live in [default-branch workflow accountability](default-branch-workflows.md), not here. Per-PR detail shape is otherwise unchanged.
+
+## Captain-managed seat scope (schema 34)
+
+GET/PUT `/api/v1/agents/:id/scope` reads/replaces the complete trusted scope. PUT requires verified captain capability and `allowed_repos`, `required_labels`, `allowed_labels`, `revision`; revision 0 creates and stale revisions return 409. The response has a `scope` object, also projected on agent reads. Unmanaged is legacy manual compatibility, not automatic eligibility. Full validation, matching, CLI and continuity contracts: [Seat scopes](seat-scope.md). No standalone MCP server exists; clients using central task endpoints inherit their admission guards.

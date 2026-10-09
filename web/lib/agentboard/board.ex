@@ -14,6 +14,7 @@ defmodule Agentboard.Board do
     resource(Agentboard.Recovery.Episode)
     resource(Agentboard.Recovery.Attempt)
     resource(Agentboard.Availability.Policy)
+    resource(Agentboard.SeatScope.Policy)
     resource(Agentboard.Board.Resources.Agent)
     resource(Agentboard.Board.Resources.Task)
     resource(Agentboard.Board.Resources.TaskEvent)

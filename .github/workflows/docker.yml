@@ -20,6 +20,7 @@ on:
       - docs/api.md
       - docs/quota.md
       - docs/context.md
+      - docs/seat-scope.md
       - docs/participation.md
       - go.mod
       - go.sum
@@ -51,6 +52,7 @@ on:
       - docs/api.md
       - docs/quota.md
       - docs/context.md
+      - docs/seat-scope.md
       - docs/participation.md
       - go.mod
       - go.sum

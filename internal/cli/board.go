@@ -139,7 +139,7 @@ func (c *commands) agents() *cobra.Command {
 			return c.request(cmd, http.MethodPost, "agents/"+args[0]+"/restore", nil, map[string]any{})
 		}}
 	restore.Flags().Bool("captain", true, "Use protected AGENTBOARD_CAPTAIN_TOKEN_FILE capability")
-	group.AddCommand(register, retire, restore, c.heartbeat(), c.availabilityCommands(), c.agentTokens())
+	group.AddCommand(register, retire, restore, c.heartbeat(), c.availabilityCommands(), c.scopeCommands(), c.agentTokens())
 	return group
 }
 func (c *commands) tasks() *cobra.Command {

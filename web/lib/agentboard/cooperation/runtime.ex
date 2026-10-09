@@ -27,7 +27,9 @@ defmodule Agentboard.Cooperation.Runtime do
              Enum.all?(data["repos"], &repo?/1),
          true <- Input.text?(data["model"]) and Input.text?(data["harness"]) do
       Ops.transaction(fn ->
+        Agentboard.Availability.lock_admission()
         id = data["worker_id"]
+        Agentboard.SeatScope.admit_repos!(id, data["repos"])
         lock("provision:" <> id)
         lock_worker(id)
         agent = Ops.fetch!(Agentboard.Board.Resources.Agent, id, "Register agent first")
@@ -450,11 +452,16 @@ defmodule Agentboard.Cooperation.Runtime do
       |> Ash.Query.filter(worker_id == ^s.id and idempotency_key == ^data["idempotency_key"])
       |> Ash.read_one!()
 
+    agent = Agentboard.Availability.admission_agent(s.id)
+
     cond do
       not enabled?(s) ->
         %{batch: nil, degraded_reasons: reasons(s, b)}
 
-      not Agentboard.Availability.active?(Agentboard.Availability.admission_agent(s.id)) ->
+      not is_nil(agent.retired_at) ->
+        %{batch: nil, degraded_reasons: ["retired"]}
+
+      not Agentboard.Availability.active?(agent) ->
         %{batch: nil, degraded_reasons: ["agent_unavailable"]}
 
       existing ->
