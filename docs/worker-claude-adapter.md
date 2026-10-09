@@ -63,6 +63,12 @@ Missing or unreadable surface evidence fails closed. A successful native submiss
 turn ending never records received/handled. Those receipts require exact IDs
 and a stable key through the dedicated ack tool or explicit CLI.
 
+The separate `agentboard_mattermost_read` and `agentboard_mattermost_ack` tools
+inspect and explicitly handle exact inbox `{id, version}` references from
+check-in. They invoke the protected receipt-scoped worker CLI, retain the same
+native generation guards, and never acknowledge automatically. See
+[inbox handling](mattermost-inbox.md#inspect-and-handle-an-exact-inbox-item).
+
 ## Lifecycle and readiness
 
 `session.end` invalidates the generation before awaiting other middleware or

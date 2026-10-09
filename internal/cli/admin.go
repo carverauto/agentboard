@@ -5,7 +5,7 @@ package cli
 // state, diffs, applies only the diff, and reports the shared JSON envelope
 // {command, dry_run, diff, result} under --json. Exit codes: dry-run 0 = no
 // changes, 2 = pending, 1 = error; apply 0 = converged, 1 = error,
-// 3 = rolled back. No token or secret value is ever written to stdout,
+// 2 = runtime setup incomplete, 3 = rolled back. No token or secret value is ever written to stdout,
 // stderr, logs, JSON output, or board records.
 
 import (
@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/carverauto/agentboard/internal/client"
@@ -35,6 +36,35 @@ type adminExit struct {
 func (e *adminExit) Error() string { return e.msg }
 func (e *adminExit) ExitCode() int { return e.code }
 
+// adminFailure keeps an operation's diagnostic cause while enforcing the
+// admin exit contract instead of the ordinary CLI's default invalid-input 2.
+type adminFailure struct{ cause error }
+
+func (e *adminFailure) Error() string { return e.cause.Error() }
+func (e *adminFailure) Unwrap() error { return e.cause }
+func (e *adminFailure) ExitCode() int { return 1 }
+
+// Argument/flag parsing still belongs to Cobra. Once an admin operation starts,
+// only explicit adminExit results may report pending changes or rollback.
+func adminErrorBoundary(cmd *cobra.Command) {
+	if run := cmd.RunE; run != nil {
+		cmd.RunE = func(cmd *cobra.Command, args []string) error {
+			err := run(cmd, args)
+			if err == nil {
+				return nil
+			}
+			var status *adminExit
+			if errors.As(err, &status) {
+				return err
+			}
+			return &adminFailure{cause: err}
+		}
+	}
+	for _, child := range cmd.Commands() {
+		adminErrorBoundary(child)
+	}
+}
+
 // adminDiff is one current-vs-desired entry. Values must never carry secrets:
 // secret state is reported with markers only (absent/present/created).
 type adminDiff struct {
@@ -47,6 +77,7 @@ type adminDiff struct {
 func (c *commands) adminCommands() *cobra.Command {
 	group := &cobra.Command{Use: "admin", Short: "Idempotent operator setup: workers, config, safe rollouts"}
 	group.AddCommand(c.adminWorker(), c.adminAgent(), c.adminConfig(), c.adminRollout(), c.adminDoctor(), c.adminApply())
+	adminErrorBoundary(group)
 	return group
 }
 
@@ -60,6 +91,20 @@ func (c *commands) adminReport(cmd *cobra.Command, name string, dryRun bool, dif
 			"diff":    diff,
 			"result":  result,
 		})
+	}
+	if pending, ok := result["pending_steps"].([]string); ok && len(pending) > 0 {
+		for _, d := range diff {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s: %s %s: %s -> %s\n", name, d.Scope, d.Field, d.Current, d.Desired)
+		}
+		if dryRun {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s: setup planned; runtime readiness unverified\n", name)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s: setup prepared; runtime readiness unverified\n", name)
+		}
+		for _, step := range pending {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s: pending: %s\n", name, step)
+		}
+		return nil
 	}
 	if len(diff) == 0 {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s: converged, no changes\n", name)
@@ -104,6 +149,43 @@ func (c *commands) openCaptain(ctx context.Context) (*client.Client, error) {
 		return nil, &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
 	}
 	return api, nil
+}
+
+// preflightToken checks custody before a one-shot provisioning response can be
+// issued. It is read-only, including in plan mode. Presence alone is never
+// proof that a capability belongs to an enrollment.
+func preflightToken(path string, rotate bool) (bool, error) {
+	if path == "" {
+		return false, errors.New("--token-file is required; credentials are never printed")
+	}
+	parent, err := os.Lstat(filepath.Dir(path))
+	if err != nil || !parent.IsDir() || parent.Mode()&os.ModeSymlink != 0 || parent.Mode().Perm()&0022 != 0 || parent.Mode().Perm()&0300 != 0300 {
+		return false, errors.New("credential parent directory must exist and must not be linked or group/world-writable")
+	}
+	owner, ok := parent.Sys().(*syscall.Stat_t)
+	if !ok || int(owner.Uid) != os.Getuid() {
+		return false, errors.New("credential parent directory must be owned by the current user")
+	}
+	_, err = os.Lstat(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, errors.New("cannot inspect credential output path")
+	}
+	data, err := worker.ReadProtected(path, 4096)
+	if err != nil {
+		return false, errors.New("existing credential file must be owned, regular and protected; inspect it before retrying")
+	}
+	token := strings.TrimSpace(string(data))
+	if !rotate && (len(token) < 32 || len(token) > 256 || strings.ContainsAny(token, "\r\n\t ")) {
+		return false, errors.New("existing credential file is invalid; inspect it before using --rotate")
+	}
+	return true, nil
+}
+
+func enrollmentPending(name string) error {
+	return &adminExit{code: 2, msg: name + ": runtime readiness unverified; complete the reported explicit bind, doctor and activation steps"}
 }
 
 // writeProtectedToken atomically creates path with mode 0600 holding token.
@@ -181,7 +263,7 @@ type provisionResult struct {
 }
 
 func (c *commands) provisionEnsure(ctx context.Context, api *client.Client, id, host string, repos []string, model, harness, key string) (*provisionResult, error) {
-	raw, err := api.JSON(ctx, http.MethodPost, "workers/provision", nil, map[string]any{
+	raw, err := api.WorkerControl(ctx, "provision", "", map[string]any{
 		"worker_id":       id,
 		"host_id":         host,
 		"idempotency_key": key,
@@ -255,7 +337,7 @@ func (c *commands) adminWorkerEnroll() *cobra.Command {
 	var repos []string
 	tokenFile := ""
 	dryRun := false
-	cmd := &cobra.Command{Use: "enroll WORKER_ID", Short: "Converge-only enroll: ensure identity, install supervision, report", Args: adminIDArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &cobra.Command{Use: "enroll WORKER_ID", Short: "Prepare scoped identity and supervision; report explicit runtime steps", Args: adminIDArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		id := args[0]
 		if len(repos) < 1 {
 			return errors.New("at least one --repo is required")
@@ -292,10 +374,10 @@ func (c *commands) adminWorkerEnroll() *cobra.Command {
 		if dryRun && len(diff) > 0 {
 			return adminPending("admin worker enroll", len(diff))
 		}
-		return nil
+		return enrollmentPending("admin worker enroll")
 	}}
 	cmd.Flags().StringVar(&configPath, "config", "", "Protected worker config path")
-	cmd.Flags().StringVar(&tokenFile, "token-file", "", "0600 file for a fresh identity token (required when creating)")
+	cmd.Flags().StringVar(&tokenFile, "token-file", "", "0600 host token path (default: selected worker config token_file)")
 	cmd.Flags().StringVar(&host, "host", "", "Worker host scope (default: local hostname)")
 	cmd.Flags().StringArrayVar(&repos, "repo", nil, "Repository scope owner/repo (repeatable, at least one)")
 	cmd.Flags().StringVar(&model, "model", "", "Worker model scope (default: AGENTBOARD_MODEL)")

@@ -834,6 +834,15 @@ func (c *commands) runApply(cmd *cobra.Command, af adminFile, dryRun bool) error
 	name := "admin apply"
 	all := []adminDiff{}
 	ctx := cmd.Context()
+	pending := []string{}
+	// Worker provisioning requires its registered agent to exist first.
+	for _, a := range af.Agents {
+		diff, _, err := c.convergeAgentRegister(ctx, a.ID, a.Harness, a.Model, dryRun)
+		if err != nil {
+			return &adminExit{code: 1, msg: name + ": agent " + a.ID + ": " + err.Error()}
+		}
+		all = append(all, diff...)
+	}
 	for _, w := range af.Workers {
 		w = workerDefaults(c, w)
 		switch w.Action {
@@ -860,7 +869,7 @@ func (c *commands) runApply(cmd *cobra.Command, af adminFile, dryRun bool) error
 			if len(w.Repos) < 1 {
 				return errors.New("worker " + w.ID + ": at least one repo is required")
 			}
-			diff, _, err := c.convergeWorkerEnroll(ctx, enrollParams{
+			diff, result, err := c.convergeWorkerEnroll(ctx, enrollParams{
 				id: w.ID, host: w.Host, repos: w.Repos, model: w.Model, harness: w.Harness,
 				tokenFile: w.TokenFile, configPath: w.Config, home: w.Home, platform: w.Platform,
 			}, dryRun)
@@ -868,6 +877,11 @@ func (c *commands) runApply(cmd *cobra.Command, af adminFile, dryRun bool) error
 				return &adminExit{code: 1, msg: name + ": worker " + w.ID + ": " + err.Error()}
 			}
 			all = append(all, diff...)
+			if steps, ok := result["pending_steps"].([]string); ok {
+				for _, step := range steps {
+					pending = append(pending, w.ID+": "+step)
+				}
+			}
 		case "revoke":
 			diff, _, err := c.convergeWorkerRevoke(ctx, w.ID, dryRun)
 			if err != nil {
@@ -875,13 +889,6 @@ func (c *commands) runApply(cmd *cobra.Command, af adminFile, dryRun bool) error
 			}
 			all = append(all, diff...)
 		}
-	}
-	for _, a := range af.Agents {
-		diff, _, err := c.convergeAgentRegister(ctx, a.ID, a.Harness, a.Model, dryRun)
-		if err != nil {
-			return &adminExit{code: 1, msg: name + ": agent " + a.ID + ": " + err.Error()}
-		}
-		all = append(all, diff...)
 	}
 	if af.Config.Overlay != "" || af.Config.Compose != "" {
 		t, err := resolveEnvTarget(af.Config.Overlay, af.Config.Compose)
@@ -939,11 +946,14 @@ func (c *commands) runApply(cmd *cobra.Command, af adminFile, dryRun bool) error
 			}
 		}
 	}
-	if err := c.adminReport(cmd, name, dryRun, all, map[string]any{"converged": len(all) == 0}); err != nil {
+	if err := c.adminReport(cmd, name, dryRun, all, map[string]any{"converged": len(all) == 0 && len(pending) == 0, "pending_steps": pending}); err != nil {
 		return err
 	}
 	if dryRun && len(all) > 0 {
 		return adminPending(name, len(all))
+	}
+	if len(pending) > 0 {
+		return enrollmentPending(name)
 	}
 	return nil
 }

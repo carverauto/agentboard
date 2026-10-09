@@ -91,13 +91,18 @@ exit after a possible write is `uncertain`. An accepted or uncertain attempt is
 never replayed because the session is idle or a lease expired. Changed retry
 fences and old generations also cannot turn a known effect into non-submission.
 
-Only two scoped dynamic tools are registered:
+Four scoped dynamic tools are registered:
 
 - `agentboard_check_in` returns the existing explicit check-in result unchanged.
   It does not append source frames or manufacture receipts.
 - `agentboard_ack` calls the existing protected exact-ID receipt operation with
   `received` or `handled` and a stable key. Native thread, turn, generation and
   epoch must still match. The server owns membership and source reconciliation.
+- `agentboard_mattermost_read` inspects one exact inbox `id`/`version` without
+  acknowledging it; unavailable source versions remain explicit.
+- `agentboard_mattermost_ack` explicitly handles up to 50 exact inbox versions
+  through the current receipt capability. It shares the same native thread,
+  turn, generation and epoch checks; it grants no task or CI completion.
 
 Unavailable workers retain explicit check-in, receipt and reconciliation access.
 Turn completion, acceptance, tool return and heartbeat never acknowledge work,

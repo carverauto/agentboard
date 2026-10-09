@@ -14,11 +14,12 @@ const socket = process.env.AGENTBOARD_PI_SOCKET;
 const handlers = new Map();
 const tools = new Map();
 const wakes = [];
+const cliCalls = [];
 let idle = true, editor = '', session = 'isolated-session-1', paused = false;
 process.env.AGENTBOARD_WORKER_CONFIG = '/invented/config.json';
 process.env.AGENTBOARD_WORKER_ID = 'invented-worker';
 const ctx = { sessionManager: { getSessionId: () => session }, hasUI: true, mode: 'rpc', ui: { getEditorText: () => editor }, isIdle: () => idle, hasPendingMessages: () => false };
-const pi = { on: (event, handler) => handlers.set(event, handler), registerTool: tool => tools.set(tool.name, tool), sendUserMessage: async content => { wakes.push(content); }, exec: async () => ({ stdout: JSON.stringify({state:{worker:{enabled:true,paused},binding:{binding_epoch:1,session_id:session,pane_id:JSON.parse(fs.readFileSync(socket+'.identity.json')).generation}}}), code:0 }) };
+const pi = { on: (event, handler) => handlers.set(event, handler), registerTool: tool => tools.set(tool.name, tool), sendUserMessage: async content => { wakes.push(content); }, exec: async (_binary, args) => { cliCalls.push(args); return ({ stdout: JSON.stringify({state:{worker:{enabled:true,paused},binding:{binding_epoch:1,session_id:session,pane_id:JSON.parse(fs.readFileSync(socket+'.identity.json')).generation}}}), code:0 }); } };
 const extension = (await import(pathToFileURL(process.argv[2]))).default;
 extension(pi);
 function call(identity, action, batch) {
@@ -73,6 +74,20 @@ try {
   assert.equal(result.content.length, 2);
   assert.equal(await handlers.get('before_agent_start')({}, ctx), undefined, 'no turn-end receipt or duplicate injection');
   assert.ok(tools.has('agentboard_ack'));
+  const inboxItem = { id: '00000000-0000-4000-8000-000000000001', version: 'a'.repeat(64) };
+  assert.ok(tools.has('agentboard_mattermost_read') && tools.has('agentboard_mattermost_ack'));
+  await tools.get('agentboard_mattermost_read').execute('read', inboxItem);
+  assert.equal(cliCalls.at(-1)[1], 'mattermost-read');
+  assert.equal(cliCalls.at(-1).at(-1), inboxItem.version);
+  assert.equal(cliCalls.filter(args => args[1] === 'mattermost-ack').length, 0, 'read does not acknowledge');
+  await tools.get('agentboard_mattermost_ack').execute('ack', { items: [inboxItem] });
+  assert.equal(cliCalls.at(-1)[1], 'mattermost-ack');
+  assert.equal(cliCalls.at(-1).at(-1), inboxItem.id + ':' + inboxItem.version);
+  const callsBeforeInvalid = cliCalls.length;
+  assert.throws(() => tools.get('agentboard_mattermost_read').execute('bad', { ...inboxItem, version: 'bad' }));
+  assert.throws(() => tools.get('agentboard_mattermost_ack').execute('bad', { items: [inboxItem, inboxItem] }));
+  assert.equal(cliCalls.length, callsBeforeInvalid);
+
   idle = false;
   assert.equal((await call(identity, 'submit', batch('paused'))).outcome, 'submitted');
   paused = true;

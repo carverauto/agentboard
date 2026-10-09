@@ -6,6 +6,7 @@ package cli_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,27 +16,39 @@ import (
 	"testing"
 
 	"github.com/carverauto/agentboard/internal/cli"
+	"github.com/carverauto/agentboard/internal/client"
 )
 
 const admSecretPrefix = "test-host-token-00000000000000000000"
 
 type admBoard struct {
-	t           *testing.T
-	server      *httptest.Server
-	provisioned map[string]int // idempotency_key -> token serial
-	revoked     map[string]bool
-	registered  map[string]bool
-	provisions  int
+	t                        *testing.T
+	server                   *httptest.Server
+	provisioned              map[string]int // idempotency_key -> token serial
+	revoked                  map[string]bool
+	registered               map[string]bool
+	workers                  map[string]map[string]any
+	hostTokens               map[string]string
+	requireRegistration      bool
+	failProvisionAfterRevoke bool
+	hostScope                string
+	doctorReads              int
+	provisions               int
 }
 
 func newAdmBoard(t *testing.T) *admBoard {
 	t.Helper()
-	f := &admBoard{t: t, provisioned: map[string]int{}, revoked: map[string]bool{}, registered: map[string]bool{}}
+	f := &admBoard{t: t, provisioned: map[string]int{}, revoked: map[string]bool{}, registered: map[string]bool{}, workers: map[string]map[string]any{}, hostTokens: map[string]string{}, hostScope: "host"}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"api_version":1,"schema_version":22}`))
 	})
 	mux.HandleFunc("POST /api/v1/workers/provision", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Agentboard-Captain-Token") != "test-captain-capability-000000000000" || r.Header.Get("X-Agentboard-Worker-Protocol") != "1" {
+			w.WriteHeader(403)
+			w.Write([]byte(`{"error":{"code":"forbidden","message":"Worker captain headers required"},"protocol_revision":1}`))
+			return
+		}
 		var body struct {
 			WorkerID string   `json:"worker_id"`
 			HostID   string   `json:"host_id"`
@@ -50,19 +63,67 @@ func newAdmBoard(t *testing.T) *admBoard {
 			w.Write([]byte(`{"error":{"code":"invalid_input","message":"bad provision"},"protocol_revision":1}`))
 			return
 		}
-		if n, seen := f.provisioned[body.Key]; seen {
-			json.NewEncoder(w).Encode(map[string]any{"worker": map[string]any{"id": body.WorkerID}, "idempotent": true, "seen": n, "protocol_revision": 1})
+		if f.requireRegistration && !f.registered[body.WorkerID] {
+			w.WriteHeader(404)
+			w.Write([]byte(`{"error":{"code":"not_found","message":"Register agent first"},"protocol_revision":1}`))
 			return
+		}
+		if n, seen := f.provisioned[body.Key]; seen {
+			prior := f.workers[body.WorkerID]
+			priorRepos, _ := json.Marshal(prior["repos"])
+			requestedRepos, _ := json.Marshal(body.Repos)
+			if prior["host_id"] != body.HostID || prior["model"] != body.Model || prior["harness"] != body.Harness || string(priorRepos) != string(requestedRepos) {
+				w.WriteHeader(409)
+				w.Write([]byte(`{"error":{"code":"conflict","message":"Provisioning key content differs"},"protocol_revision":1}`))
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{"worker": prior, "idempotent": true, "seen": n, "protocol_revision": 1})
+			return
+		}
+		if f.failProvisionAfterRevoke && f.revoked[body.WorkerID] {
+			w.WriteHeader(422)
+			w.Write([]byte(`{"error":{"code":"invalid_input","message":"fixture provision failure"},"protocol_revision":1}`))
+			return
+		}
+		if prior := f.workers[body.WorkerID]; prior != nil {
+			priorRepos, _ := json.Marshal(prior["repos"])
+			requestedRepos, _ := json.Marshal(body.Repos)
+			if !f.revoked[body.WorkerID] || prior["host_id"] != body.HostID || string(priorRepos) != string(requestedRepos) {
+				w.WriteHeader(409)
+				w.Write([]byte(`{"error":{"code":"conflict","message":"Active enrollment or changed retained scope"},"protocol_revision":1}`))
+				return
+			}
 		}
 		n := len(f.provisioned) + 1
 		f.provisioned[body.Key] = n
+		f.workers[body.WorkerID] = map[string]any{"id": body.WorkerID, "host_id": body.HostID, "model": body.Model, "harness": body.Harness, "repos": body.Repos}
+		f.hostTokens[body.WorkerID] = fmt.Sprintf("%s%02d", admSecretPrefix, n)
+		f.revoked[body.WorkerID] = false
 		json.NewEncoder(w).Encode(map[string]any{
 			"worker":     map[string]any{"id": body.WorkerID},
 			"host_token": fmt.Sprintf("%s%02d", admSecretPrefix, n),
 			"idempotent": false, "protocol_revision": 1,
 		})
 	})
+	mux.HandleFunc("GET /api/v1/workers/{id}/doctor", func(w http.ResponseWriter, r *http.Request) {
+		f.doctorReads++
+		id := r.PathValue("id")
+		if f.hostTokens[id] == "" || f.revoked[id] || r.Header.Get("Authorization") != "Bearer "+f.hostTokens[id] {
+			w.WriteHeader(401)
+			w.Write([]byte(`{"error":{"code":"unauthorized","message":"Runtime capability invalid or revoked"},"protocol_revision":1}`))
+			return
+		}
+		if r.Header.Get("X-Agentboard-Worker-Protocol") != "1" {
+			t.Error("missing worker protocol on capability verification")
+		}
+		json.NewEncoder(w).Encode(map[string]any{"worker": f.workers[id], "scope": f.hostScope, "protocol_revision": 1})
+	})
 	mux.HandleFunc("POST /api/v1/workers/{id}/revoke", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Agentboard-Captain-Token") != "test-captain-capability-000000000000" || r.Header.Get("X-Agentboard-Worker-Protocol") != "1" {
+			w.WriteHeader(403)
+			w.Write([]byte(`{"error":{"code":"forbidden","message":"Worker captain headers required"},"protocol_revision":1}`))
+			return
+		}
 		id := r.PathValue("id")
 		enrolled := false
 		for key := range f.provisioned {
@@ -79,6 +140,9 @@ func newAdmBoard(t *testing.T) *admBoard {
 		w.Write([]byte(`{"revoked":true,"protocol_revision":1}`))
 	})
 	mux.HandleFunc("POST /api/v1/agents/register", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-captain-capability-000000000000" || r.Header.Get("X-Agentboard-Captain-Token") != "" || r.Header.Get("X-Agentboard-Worker-Protocol") != "" {
+			t.Error("agent bootstrap must retain ordinary bearer transport without worker captain headers")
+		}
 		id := r.Header.Get("X-Agentboard-Agent")
 		if id == "" {
 			w.WriteHeader(401)
@@ -235,6 +299,9 @@ func TestAdminWorkerCreateRefusesExistingFile(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "--rotate") {
 		t.Fatalf("must refuse existing file naming --rotate, got %v", err)
 	}
+	if f.provisions != 0 {
+		t.Fatal("invalid existing file must be refused before provisioning")
+	}
 	kept, _ := os.ReadFile(tokenPath)
 	if string(kept) != "existing" {
 		t.Fatalf("refusal must not touch the existing file")
@@ -378,7 +445,7 @@ func TestAdminEnrollDryRunTouchesNothing(t *testing.T) {
 	f := newAdmBoard(t)
 	dir := admEnv(t, f)
 	home := filepath.Join(dir, "home")
-	cfg := filepath.Join(dir, "worker-config.json")
+	cfg := admWorkerConfig(t, f, dir, "worker-a", filepath.Join(dir, "worker.token"))
 	_, _, err := runAdm(t, "admin", "worker", "enroll", "worker-a",
 		"--repo", "owner/repo", "--host", "host-a", "--model", "m", "--harness", "h",
 		"--home", home, "--config", cfg, "--platform", "linux", "--dry-run")
@@ -1106,5 +1173,447 @@ func TestAdminAgentRegisterDoesNotTreatForbiddenAsAbsent(t *testing.T) {
 	}
 	if writes != 0 {
 		t.Fatalf("authorization failure triggered %d writes", writes)
+	}
+}
+
+func admWorkerConfig(t *testing.T, f *admBoard, dir, id, tokenPath string) string {
+	t.Helper()
+	path := filepath.Join(dir, "worker-config.json")
+	body := map[string]any{
+		"version": 1, "url": f.server.URL, "journal_dir": filepath.Join(dir, "journal"),
+		"bindings": []map[string]any{{
+			"agent_id": id, "model": "m", "harness": "h", "host_id": "host-a",
+			"server_id": "fixture-server", "session_id": "fixture-session", "adapter_generation": "fixture-generation",
+			"adapter": "manual", "socket_path": filepath.Join(dir, "fixture.sock"), "token_file": tokenPath, "binding_epoch": 0,
+		}},
+	}
+	data, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func admEnrollArgs(dir, configPath string, extra ...string) []string {
+	base := []string{"admin", "worker", "enroll", "worker-a", "--repo", "owner/repo",
+		"--host", "host-a", "--model", "m", "--harness", "h", "--home", filepath.Join(dir, "home"),
+		"--platform", "linux", "--config", configPath}
+	return append(base, extra...)
+}
+
+func TestAdminWorkerOutputPreflightBeforeProvision(t *testing.T) {
+	for _, kind := range []string{"missing-parent", "writable-parent", "readonly-parent", "symlink", "directory", "unprotected", "malformed"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newAdmBoard(t)
+			dir := admEnv(t, f)
+			token := filepath.Join(dir, "worker.token")
+			switch kind {
+			case "missing-parent":
+				token = filepath.Join(dir, "missing", "worker.token")
+			case "writable-parent":
+				parent := filepath.Join(dir, "unsafe")
+				if err := os.Mkdir(parent, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(parent, 0777); err != nil {
+					t.Fatal(err)
+				}
+				token = filepath.Join(parent, "worker.token")
+			case "readonly-parent":
+				parent := filepath.Join(dir, "readonly")
+				if err := os.Mkdir(parent, 0500); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = os.Chmod(parent, 0700) })
+				token = filepath.Join(parent, "worker.token")
+			case "symlink":
+				if err := os.Symlink(filepath.Join(dir, "target"), token); err != nil {
+					t.Fatal(err)
+				}
+			case "directory":
+				if err := os.Mkdir(token, 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "unprotected":
+				if err := os.WriteFile(token, []byte(admSecretPrefix), 0644); err != nil {
+					t.Fatal(err)
+				}
+			case "malformed":
+				if err := os.WriteFile(token, []byte("invalid"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			args := admCreateArgs(dir)
+			for i := range args {
+				if args[i] == "--token-file" {
+					args[i+1] = token
+				}
+			}
+			if _, _, err := runAdm(t, args...); err == nil || cli.ExitCode(err) != 1 {
+				t.Fatalf("unsafe output must fail with admin exit 1: %v", err)
+			}
+			if f.provisions != 0 {
+				t.Fatal("unsafe output provisioned a one-shot token")
+			}
+			cfg := admWorkerConfig(t, f, dir, "worker-a", token)
+			if _, _, err := runAdm(t, admEnrollArgs(dir, cfg)...); err == nil || cli.ExitCode(err) != 1 {
+				t.Fatalf("unsafe enrollment output must fail with admin exit 1: %v", err)
+			}
+			if f.provisions != 0 {
+				t.Fatal("unsafe enrollment output provisioned a one-shot token")
+			}
+		})
+	}
+}
+
+func TestAdminEnrollRejectsInvalidConfigBeforeProvision(t *testing.T) {
+	for _, kind := range []string{"missing", "unprotected", "wrong-worker", "wrong-host", "wrong-model", "wrong-harness", "wrong-url", "token-mismatch", "foreign-install", "unsafe-install-dir", "nonprivate-manifest-dir"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newAdmBoard(t)
+			dir := admEnv(t, f)
+			token := filepath.Join(dir, "worker.token")
+			cfg := admWorkerConfig(t, f, dir, "worker-a", token)
+			args := admEnrollArgs(dir, cfg)
+			switch kind {
+			case "missing":
+				if err := os.Remove(cfg); err != nil {
+					t.Fatal(err)
+				}
+			case "unprotected":
+				if err := os.Chmod(cfg, 0644); err != nil {
+					t.Fatal(err)
+				}
+			case "wrong-worker":
+				admWorkerConfig(t, f, dir, "another-worker", token)
+			case "wrong-host", "wrong-model", "wrong-harness", "wrong-url":
+				data, err := os.ReadFile(cfg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var value map[string]any
+				if err := json.Unmarshal(data, &value); err != nil {
+					t.Fatal(err)
+				}
+				if kind == "wrong-url" {
+					value["url"] = "https://another.example"
+				} else {
+					field := map[string]string{"wrong-host": "host_id", "wrong-model": "model", "wrong-harness": "harness"}[kind]
+					value["bindings"].([]any)[0].(map[string]any)[field] = "wrong"
+				}
+				data, err = json.Marshal(value)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(cfg, data, 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "token-mismatch":
+				args = append(args, "--token-file", filepath.Join(dir, "wrong.token"))
+			case "nonprivate-manifest-dir":
+				unsafe := filepath.Join(dir, "home", ".config", "agentboard", "worker")
+				if err := os.MkdirAll(unsafe, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(unsafe, 0755); err != nil {
+					t.Fatal(err)
+				}
+			case "unsafe-install-dir":
+				unsafe := filepath.Join(dir, "home", ".config", "systemd", "user")
+				if err := os.MkdirAll(unsafe, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(unsafe, 0777); err != nil {
+					t.Fatal(err)
+				}
+			case "foreign-install":
+				foreign := filepath.Join(dir, "home", ".config", "agentboard", "worker", "pi-native.mjs")
+				if err := os.MkdirAll(filepath.Dir(foreign), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(foreign, []byte("foreign file"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, _, err := runAdm(t, args...); err == nil || cli.ExitCode(err) != 1 {
+				t.Fatalf("invalid setup must fail with admin exit 1: %v", err)
+			}
+			if f.provisions != 0 {
+				t.Fatal("invalid setup provisioned a one-shot token")
+			}
+		})
+	}
+}
+
+func TestAdminEnrollNeverReportsRuntimeConverged(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	token := filepath.Join(dir, "worker.token")
+	cfg := admWorkerConfig(t, f, dir, "worker-a", token)
+	for attempt := 0; attempt < 2; attempt++ {
+		out, errb, err := runAdm(t, append([]string{"--json"}, admEnrollArgs(dir, cfg)...)...)
+		if err == nil || cli.ExitCode(err) != 2 {
+			t.Fatalf("setup must report pending runtime steps: %v", err)
+		}
+		var envelope struct {
+			Result struct {
+				Converged       bool     `json:"converged"`
+				RuntimeVerified bool     `json:"runtime_verified"`
+				SetupConverged  bool     `json:"setup_converged"`
+				Pending         []string `json:"pending_steps"`
+			} `json:"result"`
+		}
+		if json.Unmarshal([]byte(out), &envelope) != nil || envelope.Result.Converged || envelope.Result.RuntimeVerified || !envelope.Result.SetupConverged || len(envelope.Result.Pending) == 0 {
+			t.Fatalf("false runtime readiness: %s", out)
+		}
+		if strings.Contains(out+errb, admSecretPrefix) {
+			t.Fatal("capability leaked")
+		}
+	}
+	if f.provisions != 1 || f.doctorReads != 1 {
+		t.Fatalf("reuse must verify capability without reprovisioning: provisions=%d reads=%d", f.provisions, f.doctorReads)
+	}
+	out, _, err := runAdm(t, admEnrollArgs(dir, cfg)...)
+	if err == nil || strings.Contains(out, "converged, no changes") || !strings.Contains(out, "runtime readiness unverified") {
+		t.Fatalf("human output hides pending readiness: %s, %v", out, err)
+	}
+	if err := os.Remove(token); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, admEnrollArgs(dir, cfg)...); err == nil || !strings.Contains(err.Error(), "--rotate") {
+		t.Fatalf("lost host capability accepted: %v", err)
+	}
+}
+
+func TestAdminWorkerCreateVerifiesExistingCapability(t *testing.T) {
+	for _, kind := range []string{"wrong-token", "scope-mismatch", "receipt-only", "revoked"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newAdmBoard(t)
+			dir := admEnv(t, f)
+			if _, _, err := runAdm(t, admCreateArgs(dir)...); err != nil {
+				t.Fatal(err)
+			}
+			switch kind {
+			case "wrong-token":
+				if err := os.WriteFile(filepath.Join(dir, "worker.token"), []byte("wrong-host-capability-00000000000000000"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "scope-mismatch":
+				f.workers["worker-a"]["host_id"] = "different-host"
+			case "receipt-only":
+				f.hostScope = "receipt"
+			case "revoked":
+				f.revoked["worker-a"] = true
+			}
+			if _, _, err := runAdm(t, admCreateArgs(dir)...); err == nil {
+				t.Fatal("unverified capability counted as converged")
+			}
+			if f.provisions != 1 {
+				t.Fatal("reuse mutated provisioning")
+			}
+		})
+	}
+}
+
+func TestAdminCreatePlanDoesNotInferConvergenceFromFile(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	if err := os.WriteFile(filepath.Join(dir, "worker.token"), []byte(admSecretPrefix), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runAdm(t, append([]string{"--json"}, admCreateArgs(dir, "--dry-run")...)...)
+	if err == nil || cli.ExitCode(err) != 2 || strings.Contains(out, `"converged":true`) || f.provisions != 0 || f.doctorReads != 0 {
+		t.Fatalf("plan claimed verified server convergence: %s, %v", out, err)
+	}
+}
+
+func TestAdminApplyRegistersBeforeWorkerProvision(t *testing.T) {
+	f := newAdmBoard(t)
+	f.requireRegistration = true
+	dir := admEnv(t, f)
+	t.Setenv("AGENT_ID", "worker-a")
+	t.Setenv("AGENTBOARD_MODEL", "m")
+	t.Setenv("AGENTBOARD_HARNESS", "h")
+	path := filepath.Join(dir, "admin.yaml")
+	body := "apiVersion: agentboard.carverauto.dev/v1\nkind: AdminConfig\nworkers:\n- id: worker-a\n  action: create\n  host: host-a\n  repos:\n    - owner/repo\n  model: m\n  harness: h\n  token_file: " + filepath.Join(dir, "worker.token") + "\nagents:\n- id: worker-a\n  model: m\n  harness: h\n"
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, _, err := runAdm(t, "admin", "apply", "-f", path); err != nil {
+			t.Fatalf("bootstrap apply failed: %v", err)
+		}
+	}
+	if f.provisions != 1 || !f.registered["worker-a"] {
+		t.Fatal("bootstrap or idempotent reuse failed")
+	}
+}
+
+func TestAdminApplyRetainsEnrollmentPending(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	cfg := admWorkerConfig(t, f, dir, "worker-a", filepath.Join(dir, "worker.token"))
+	path := filepath.Join(dir, "admin.yaml")
+	body := "apiVersion: agentboard.carverauto.dev/v1\nkind: AdminConfig\nworkers:\n- id: worker-a\n  action: enroll\n  host: host-a\n  repos:\n    - owner/repo\n  model: m\n  harness: h\n  config: " + cfg + "\n  home: " + filepath.Join(dir, "home") + "\n  platform: linux\n"
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		out, _, err := runAdm(t, "admin", "apply", "-f", path, "--json")
+		if err == nil || cli.ExitCode(err) != 2 || strings.Contains(out, `"converged":true`) || !strings.Contains(out, "pending_steps") {
+			t.Fatalf("apply discarded pending runtime status: %s, %v", out, err)
+		}
+	}
+}
+
+func TestAdminRotateRejectsScopeChangeBeforeRevocation(t *testing.T) {
+	for _, missing := range []bool{false, true} {
+		for _, field := range []string{"--host", "--repo"} {
+			t.Run(fmt.Sprintf("%s-missing=%t", field, missing), func(t *testing.T) {
+				f := newAdmBoard(t)
+				dir := admEnv(t, f)
+				if _, _, err := runAdm(t, admCreateArgs(dir)...); err != nil {
+					t.Fatal(err)
+				}
+				if missing {
+					if err := os.Remove(filepath.Join(dir, "worker.token")); err != nil {
+						t.Fatal(err)
+					}
+				}
+				args := admCreateArgs(dir, "--rotate")
+				for i := range args {
+					if args[i] == field {
+						if field == "--host" {
+							args[i+1] = "other-host"
+						} else {
+							args[i+1] = "other/repo"
+						}
+					}
+				}
+				if _, _, err := runAdm(t, args...); err == nil || cli.ExitCode(err) != 1 {
+					t.Fatalf("scope-changing rotation must fail with admin exit 1: %v", err)
+				}
+				if f.revoked["worker-a"] {
+					t.Fatal("scope mismatch revoked the original enrollment")
+				}
+			})
+		}
+	}
+}
+
+func TestAdminRotateRecoversMissingTokenWithOriginalScope(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	if _, _, err := runAdm(t, admCreateArgs(dir)...); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(filepath.Join(dir, "worker.token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(dir, "worker.token")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, admCreateArgs(dir, "--rotate")...); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(filepath.Join(dir, "worker.token"))
+	if err != nil || string(before) == string(after) {
+		t.Fatal("missing-token rotation failed")
+	}
+}
+
+func TestAdminRotateRecoversRevokedTokenWithOriginalScope(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	if _, _, err := runAdm(t, admCreateArgs(dir)...); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, "admin", "worker", "revoke", "worker-a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, admCreateArgs(dir, "--rotate")...); err != nil {
+		t.Fatal(err)
+	}
+	if f.revoked["worker-a"] {
+		t.Fatal("matching original scope was not recovered")
+	}
+}
+
+func TestAdminRotateRecoversAfterProvisionFailure(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	if _, _, err := runAdm(t, admCreateArgs(dir)...); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(filepath.Join(dir, "worker.token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.failProvisionAfterRevoke = true
+	if _, _, err := runAdm(t, admCreateArgs(dir, "--rotate")...); err == nil {
+		t.Fatal("fixture failure was not reported")
+	}
+	if !f.revoked["worker-a"] {
+		t.Fatal("fixture did not reach post-revoke failure")
+	}
+	f.failProvisionAfterRevoke = false
+	if _, _, err := runAdm(t, admCreateArgs(dir, "--rotate")...); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(filepath.Join(dir, "worker.token"))
+	if err != nil || string(before) == string(after) {
+		t.Fatal("partial rotation did not recover")
+	}
+}
+
+func TestAdminRotateCanReplaceMalformedFileForNewEnrollment(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	if err := os.WriteFile(filepath.Join(dir, "worker.token"), []byte("invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, admCreateArgs(dir, "--rotate")...); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runAdm(t, admCreateArgs(dir)...); err != nil {
+		t.Fatalf("fresh rotated token cannot authenticate: %v", err)
+	}
+}
+
+func TestAdminExecutionErrorsAreDistinctFromPendingAndSyntax(t *testing.T) {
+	f := newAdmBoard(t)
+	dir := admEnv(t, f)
+	for _, dryRun := range []bool{false, true} {
+		args := admCreateArgs(dir)
+		args = append(args, "--token-file", filepath.Join(dir, "missing", "worker.token"))
+		if dryRun {
+			args = append(args, "--dry-run")
+		}
+		out, _, err := runAdm(t, args...)
+		if err == nil || cli.ExitCode(err) != 1 || out != "" {
+			t.Fatalf("operation failure must exit1 without pending result: %v %q", err, out)
+		}
+	}
+	if f.provisions != 0 {
+		t.Fatal("invalid output mutated provisioning")
+	}
+	out, _, err := runAdm(t, "admin", "worker", "create")
+	if err == nil || cli.ExitCode(err) != 2 || out != "" {
+		t.Fatalf("missing argument must retain syntax exit2: %v %q", err, out)
+	}
+	out, _, err = runAdm(t, admCreateArgs(dir, "--dry-run")...)
+	if err == nil || cli.ExitCode(err) != 2 || out == "" {
+		t.Fatalf("pending plan must retain exit2 with result: %v %q", err, out)
+	}
+	// A structured API failure also belongs to the admin execution contract,
+	// while its original diagnostic type remains discoverable for PrintError.
+	f.requireRegistration = true
+	out, _, err = runAdm(t, admCreateArgs(dir)...)
+	var apiErr *client.Error
+	if err == nil || cli.ExitCode(err) != 1 || !errors.As(err, &apiErr) || apiErr.Code != "not_found" || out != "" {
+		t.Fatalf("API failure lost admin status or cause: %v %q", err, out)
 	}
 }

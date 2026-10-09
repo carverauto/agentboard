@@ -187,7 +187,7 @@ defmodule Agentboard.Mattermost.InboundStream do
       _ -> %{}
     end
     id = if InboundHTTP.segment?(decoded["id"]), do: decoded["id"], else: "invalid_id"
-    if state.cfg and InboundHTTP.segment?(decoded["channel_id"]) do
+    if is_map(state.cfg) and InboundHTTP.segment?(decoded["channel_id"]) do
       InboundStore.coverage(state.cfg, decoded["channel_id"], nil, false, "live_post_gap:" <> id)
     end
     state

@@ -1,3 +1,13 @@
+const inboxItemSchema = { type: 'object', properties: { id: { type: 'string', pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' }, version: { type: 'string', pattern: '^[0-9a-f]{64}$' } }, required: ['id', 'version'], additionalProperties: false };
+const inboxAckSchema = { type: 'object', properties: { items: { type: 'array', minItems: 1, maxItems: 50, items: inboxItemSchema } }, required: ['items'], additionalProperties: false };
+function validInboxItem(item) {
+  return item && typeof item === 'object' && !Array.isArray(item) && Object.keys(item).sort().join(',') === 'id,version' && typeof item.id === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(item.id) && typeof item.version === 'string' && /^[0-9a-f]{64}$/.test(item.version);
+}
+function inboxArgs(action, args) {
+  if (action === 'mattermost-read' && validInboxItem(args)) return ['--id', args.id, '--version', args.version];
+  if (action === 'mattermost-ack' && args && typeof args === 'object' && Object.keys(args).join(',') === 'items' && Array.isArray(args.items) && args.items.length >= 1 && args.items.length <= 50 && args.items.every(validInboxItem) && new Set(args.items.map(item => item.id.toLowerCase())).size === args.items.length) return args.items.flatMap(item => ['--item', item.id + ':' + item.version]);
+  throw new Error('Exact bounded Mattermost inbox id/version pairs required');
+}
 // Explicitly activated, exclusive Codex stdio client. No shared daemon or UI attach.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -65,6 +75,8 @@ if (installed.stdout.trim() !== 'codex-cli ' + nativeVersion) throw new Error('U
 let child, server, socketIdentity, owner, closing = false, requestSequence = 0, dispatchQueue = Promise.resolve();
 const pendingRPC = new Map(), operatorRequests = new Map(), toolCalls = new Set(), connections = new Set();
 const tools = [
+  { type: 'function', name: 'agentboard_mattermost_read', description: 'Read one exact Mattermost inbox version from check-in using the scoped receipt capability. Reading never acknowledges; unavailable source text is not invented.', inputSchema: inboxItemSchema },
+  { type: 'function', name: 'agentboard_mattermost_ack', description: 'Explicitly mark exact Mattermost inbox versions handled after inspection. Does not resolve CI or complete tasks. Never call automatically after a read.', inputSchema: inboxAckSchema },
   { type: 'function', name: 'agentboard_check_in', description: 'Explicitly reread scoped Agentboard responsibilities, obligations and pending deliveries; consumes and acknowledges nothing.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { type: 'function', name: 'agentboard_ack', description: 'Explicitly acknowledge unique frozen delivery IDs as received or handled, using a stable idempotency key; grants no task-completion or CI authority.', inputSchema: { type: 'object', properties: { kind: { enum: ['received', 'handled'] }, ids: { type: 'array', minItems: 1, maxItems: 20, uniqueItems: true, items: { type: 'string' } }, key: { type: 'string', minLength: 1, maxLength: 128 } }, required: ['kind', 'ids', 'key'], additionalProperties: false } },
 ];
@@ -205,6 +217,8 @@ async function toolRequest(message) {
     if (!live(current) || p.turnId !== current.activeTurn) throw new Error('Native turn retired');
     let text;
     if (p.tool === 'agentboard_check_in' && exactKeys(p.arguments, []) && !p.namespace) text = await execute(current, 'check-in', epoch);
+    else if (p.tool === 'agentboard_mattermost_read' && !p.namespace) text = await execute(current, 'mattermost-read', epoch, inboxArgs('mattermost-read', p.arguments));
+    else if (p.tool === 'agentboard_mattermost_ack' && !p.namespace) text = await execute(current, 'mattermost-ack', epoch, inboxArgs('mattermost-ack', p.arguments));
     else {
       const args = p.arguments;
       if (p.tool !== 'agentboard_ack' || p.namespace || !exactKeys(args, ['kind', 'ids', 'key']) || !['received', 'handled'].includes(args.kind) || !Array.isArray(args.ids) || args.ids.length < 1 || args.ids.length > 20 || args.ids.some(id => !validText(id)) || new Set(args.ids).size !== args.ids.length || !validText(args.key)) throw new Error('Invalid exact receipt');

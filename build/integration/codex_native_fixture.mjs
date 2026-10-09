@@ -15,6 +15,8 @@ if (args[0] === '--version') {
   else if (args[1] === 'state') console.log(JSON.stringify({ protocol_revision: 1, state: control().state }));
   else if (args[1] === 'check-in') console.log(JSON.stringify({ protocol_revision: 1, state: control().state, responsibilities: [{ entries: [] }], obligations: [{ entries: [] }], pending: [{ entries: [] }] }));
   else if (args[1] === 'ack') console.log(JSON.stringify({ protocol_revision: 1, receipt: { kind: args[args.indexOf('--kind') + 1], ids: args[args.indexOf('--ids') + 1], key: args[args.indexOf('--key') + 1] } }));
+  else if (args[1] === 'mattermost-read') console.log(JSON.stringify({ protocol_revision: 1, items: [{ id: args[args.indexOf('--id') + 1], version: args[args.indexOf('--version') + 1], message: 'Invented scoped source' }] }));
+  else if (args[1] === 'mattermost-ack') console.log(JSON.stringify({ protocol_revision: 1, handled: [args[args.indexOf('--item') + 1].split(':')[0]] }));
   else process.exitCode = 1;
 } else if (args[0] === 'app-server') {
   log({ launch: args });

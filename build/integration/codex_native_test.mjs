@@ -128,6 +128,32 @@ try {
   f.update({ tool: { name: 'agentboard_check_in', args: {}, turn: 'invented-foreign-turn' } });
   await until(() => toolResults(f).length === 4); assert.equal(toolResults(f)[3].native.result.success, false);
   assert.equal(f.records().filter(r => r.cli?.[1] === 'ack').length, 1);
+  const inboxItem = { id: '00000000-0000-4000-8000-000000000001', version: 'a'.repeat(64) };
+  assert.ok(threadStart.dynamicTools.some(t => t.name === 'agentboard_mattermost_read'));
+  assert.ok(threadStart.dynamicTools.some(t => t.name === 'agentboard_mattermost_ack'));
+  f.update({ tool: { name: 'agentboard_mattermost_read', args: inboxItem } });
+  await until(() => toolResults(f).length === 5);
+  assert.equal(toolResults(f)[4].native.result.success, true);
+  assert.equal(f.records().filter(r => r.cli?.[1] === 'mattermost-ack').length, 0, 'inbox body read is not handling');
+  const inboxRead = f.records().find(r => r.cli?.[1] === 'mattermost-read').cli;
+  assert.equal(inboxRead[inboxRead.indexOf('--id') + 1], inboxItem.id);
+  assert.equal(inboxRead[inboxRead.indexOf('--version') + 1], inboxItem.version);
+  f.update({ tool: { name: 'agentboard_mattermost_ack', args: { items: [inboxItem] } } });
+  await until(() => toolResults(f).length === 6);
+  assert.equal(toolResults(f)[5].native.result.success, true);
+  const inboxAck = f.records().find(r => r.cli?.[1] === 'mattermost-ack').cli;
+  assert.equal(inboxAck[inboxAck.indexOf('--item') + 1], inboxItem.id + ':' + inboxItem.version);
+  for (const tool of [
+    { name: 'agentboard_mattermost_ack', args: { items: [inboxItem, inboxItem] } },
+    { name: 'agentboard_mattermost_read', args: { ...inboxItem, version: 'bad' } },
+    { name: 'agentboard_mattermost_read', args: inboxItem, turn: 'foreign-turn' },
+  ]) {
+    const count = toolResults(f).length;
+    f.update({ tool }); await until(() => toolResults(f).length === count + 1);
+    assert.equal(toolResults(f).at(-1).native.result.success, false);
+  }
+  assert.equal(f.records().filter(r => r.cli?.[1] === 'mattermost-ack').length, 1);
+  assert.equal(f.records().filter(r => r.cli?.[1] === 'mattermost-read').length, 1);
   await complete(f);
   assert.equal((await f.native('submit', before)).outcome, 'submitted'); assert.equal(turns(f).length, 1, 'idle never replays an accepted attempt');
   // Canonical state can change while the bridge's external preflight is pending.

@@ -59,6 +59,8 @@ type Client struct {
 	accessClientID     string
 	accessClientSecret string
 	workerProtocol     string
+	captain            bool
+	workerCaptain      bool
 }
 
 // NewRuntime uses the existing HTTPS/redirect/retry transport with scoped auth.
@@ -86,8 +88,29 @@ func NewCaptain(cfg config.Config, token string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.token = token
+	c.token, c.captain = token, true
 	return c, nil
+}
+
+// WorkerControl uses the worker API's independent captain boundary. Its
+// closed operation set prevents captain headers from reaching ordinary routes.
+// A request-local copy preserves concurrent ordinary bearer requests.
+func (c *Client) WorkerControl(ctx context.Context, operation, workerID string, payload any) (json.RawMessage, error) {
+	if !c.captain || c.token == "" {
+		return nil, errors.New("worker control requires a captain client")
+	}
+	var path string
+	switch {
+	case operation == "provision" && workerID == "":
+		path = "workers/provision"
+	case operation == "revoke" && config.ValidID(workerID):
+		path = "workers/" + workerID + "/revoke"
+	default:
+		return nil, errors.New("unsupported worker captain operation")
+	}
+	request := *c
+	request.workerCaptain = true
+	return request.JSON(ctx, http.MethodPost, path, nil, payload)
 }
 
 func New(cfg config.Config) (*Client, error) {
@@ -218,7 +241,10 @@ func (c *Client) open(ctx context.Context, method, path string, query url.Values
 			req.Header.Set("CF-Access-Client-Id", c.accessClientID)
 			req.Header.Set("CF-Access-Client-Secret", c.accessClientSecret)
 		}
-		if c.token != "" {
+		if c.workerCaptain {
+			req.Header.Set("X-Agentboard-Captain-Token", c.token)
+			req.Header.Set("X-Agentboard-Worker-Protocol", "1")
+		} else if c.token != "" {
 			req.Header.Set("Authorization", "Bearer "+c.token)
 			if c.workerProtocol != "" {
 				req.Header.Set("X-Agentboard-Worker-Protocol", c.workerProtocol)

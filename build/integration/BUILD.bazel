@@ -274,6 +274,16 @@ sh_test(
 )
 
 sh_test(
+    name = "admin_worker_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "admin_worker_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["admin_worker_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)
+
+sh_test(
     name = "cooperation_api_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "cooperation_api_test.py"},
     srcs = ["board_api_test.sh"],
@@ -393,7 +403,7 @@ sh_test(
     name = "mattermost_inbox_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "mattermost_inbox_test.py", "AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS": "2000"},
     srcs = ["board_api_test.sh"],
-    data = ["mattermost_inbox_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    data = ["mattermost_inbox_test.py", "mattermost_wake_assertions.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
     args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
     size = "medium",
     timeout = "long",

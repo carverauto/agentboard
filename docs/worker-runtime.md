@@ -136,6 +136,14 @@ completion never acknowledges. Handling a CI alert never resolves a still-red
 repair obligation or completes its task; keep inspecting `gh-axi pr checks NUMBER`
 and record the current head/CI status on the owned task.
 
+For Mattermost references in `worker check-in`, use the separate exact-version
+`worker mattermost-read --id UUID --version SHA256` and
+`worker mattermost-ack --item UUID:SHA256` commands, with the same `--config` and
+`--worker-id`. The Pi/Claude/Codex native tools are
+`agentboard_mattermost_read` and `agentboard_mattermost_ack`. Read and check-in
+remain non-consuming. See [inbox handling](mattermost-inbox.md#inspect-and-handle-an-exact-inbox-item)
+for batch limits, unavailable source versions and explicit receipt semantics.
+
 ## Recovery, pause and supervision
 
 Each binding has its own cancellation, dispatch state and retry loop. Default

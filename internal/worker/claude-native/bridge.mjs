@@ -1,3 +1,13 @@
+const inboxItemSchema = { type: 'object', properties: { id: { type: 'string', pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' }, version: { type: 'string', pattern: '^[0-9a-f]{64}$' } }, required: ['id', 'version'], additionalProperties: false };
+const inboxAckSchema = { type: 'object', properties: { items: { type: 'array', minItems: 1, maxItems: 50, items: inboxItemSchema } }, required: ['items'], additionalProperties: false };
+function validInboxItem(item) {
+  return item && typeof item === 'object' && !Array.isArray(item) && Object.keys(item).sort().join(',') === 'id,version' && typeof item.id === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(item.id) && typeof item.version === 'string' && /^[0-9a-f]{64}$/.test(item.version);
+}
+function inboxArgs(action, args) {
+  if (action === 'mattermost-read' && validInboxItem(args)) return ['--id', args.id, '--version', args.version];
+  if (action === 'mattermost-ack' && args && typeof args === 'object' && Object.keys(args).join(',') === 'items' && Array.isArray(args.items) && args.items.length >= 1 && args.items.length <= 50 && args.items.every(validInboxItem) && new Set(args.items.map(item => item.id.toLowerCase())).size === args.items.length) return args.items.flatMap(item => ['--item', item.id + ':' + item.version]);
+  throw new Error('Exact bounded Mattermost inbox id/version pairs required');
+}
 // MCP stdio child supervised by Claude. JSON-line native socket stays protocol 1.
 import fs from 'node:fs';
 import net from 'node:net';
@@ -181,6 +191,8 @@ await Promise.all([native, hooks].map((server, index) => new Promise((resolve, r
 fs.chmodSync(socket, 0o600); fs.chmodSync(socket + '.hooks', 0o600);
 
 const tools = [
+  { name: 'agentboard_mattermost_read', description: 'Read one exact Mattermost inbox version from check-in using the scoped receipt capability. Reading never acknowledges; unavailable source text is not invented.', inputSchema: inboxItemSchema },
+  { name: 'agentboard_mattermost_ack', description: 'Explicitly mark exact Mattermost inbox versions handled after inspection. Does not resolve CI or complete tasks. Never call automatically after a read.', inputSchema: inboxAckSchema },
   { name: 'agentboard_check_in', description: 'Read durable responsibilities and pending deliveries; reads do not acknowledge.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'agentboard_ack', description: 'Explicit exact-ID received/handled receipt. Handling does not resolve CI repair.', inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['received', 'handled'] }, ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 20 }, key: { type: 'string', minLength: 1 } }, required: ['kind', 'ids', 'key'], additionalProperties: false } },
 ];
@@ -191,6 +203,8 @@ async function rpc(request) {
   if (request.method !== 'tools/call') throw new Error('Unsupported MCP request');
   const current = owner, args = request.params?.arguments || {};
   if (request.params?.name === 'agentboard_check_in') return execute(current, 'check-in');
+  if (request.params?.name === 'agentboard_mattermost_read') return execute(current, 'mattermost-read', inboxArgs('mattermost-read', args));
+  if (request.params?.name === 'agentboard_mattermost_ack') return execute(current, 'mattermost-ack', inboxArgs('mattermost-ack', args));
   if (request.params?.name !== 'agentboard_ack' || !['received', 'handled'].includes(args.kind) || !Array.isArray(args.ids) || args.ids.length < 1 || args.ids.length > 20 || args.ids.some(id => typeof id !== 'string' || !id || id.includes(',')) || new Set(args.ids).size !== args.ids.length || typeof args.key !== 'string' || !args.key || args.key.length > 128) throw new Error('Invalid exact receipt');
   return execute(current, 'ack', ['--kind', args.kind, '--ids', args.ids.join(','), '--key', args.key]);
 }

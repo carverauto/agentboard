@@ -344,6 +344,9 @@ stamp = sql("SELECT handled_at FROM mattermost_inbox WHERE id='%s'" % item['id']
 api('/workers/worker-b/mattermost_ack', ack, token=TOKENS['worker-b'])
 assert sql("SELECT handled_at FROM mattermost_inbox WHERE id='%s'" % item['id']) == stamp
 assert find('bot-peer') is None
+from mattermost_wake_assertions import verify_wake_delivery
+verify_wake_delivery(globals())
+
 # New bot-joined DM is discovered before its buffered post routes.
 with LOCK:
     CHANNELS.append('new-dm')
@@ -362,12 +365,15 @@ new = wait(lambda: next((i for i in inbox()[0] if i['post_id'] == 'p-002' and i[
 assert read(old)['source_state'] == 'source_unavailable'
 assert read(new)['message'] == '@worker-b newest source'
 # A bad live event is dropped with gap evidence while a valid sibling routes and the stream stays up.
+malformed_pid = rpc('IO.inspect(Agentboard.Mattermost.InboundStream |> Process.whereis() |> :erlang.pid_to_list() |> to_string())')
 with LOCK:
     POSTS['live-poison'] = post('live-poison', '@worker-b bad\x00live event')
     emit('posted', {'post': json.dumps(POSTS['live-poison'])})
     POSTS['live-sibling'] = post('live-sibling', '@worker-b live sibling after bad event')
     emit('posted', {'post': json.dumps(POSTS['live-sibling'])})
 wait(lambda: find('live-sibling'))
+assert rpc('IO.inspect(Agentboard.Mattermost.InboundStream |> Process.whereis() |> :erlang.pid_to_list() |> to_string())') == malformed_pid, 'malformed live post must not crash the owner'
+assert TOKEN not in (Path(os.environ['TEST_TMPDIR']) / 'web.log').read_text(), 'malformed live post must not log the bot credential'
 assert find('live-poison') is None
 wait(lambda: any(c['live_connected'] for c in inbox()[1]))
 # A malformed live frame with no post is dropped without a phantom channel; ordered sibling still routes.
@@ -486,6 +492,7 @@ assert pid_after == pid_before, 'owner process must survive lease store fault'
 sql("DROP TRIGGER lease_fault_trigger ON mattermost_inbound_runs; DROP FUNCTION lease_fault_fn()")
 wait(lambda: any(c['live_connected'] for c in inbox()[1]))
 assert not FAILURES, FAILURES
+assert TOKEN not in (Path(os.environ['TEST_TMPDIR']) / 'web.log').read_text(), 'inbound recovery logs must not contain bot credentials'
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
 server.shutdown()
 print('PASS shared-bot subscription, overlapping equal-time history, page/live races, exact edits, human routing, new DM, outage, explicit gaps, scoped reads and exact receipts')
