@@ -40,11 +40,26 @@ The system SHALL retain one live conflict order per PR and current default tip. 
 - **THEN** current head/base evidence and order version supersede the prior version, obsolete deliveries are invalidated, and the earlier deadline is preserved.
 
 ### Requirement: Author-first orders have an explicit repair deadline
-A conflict order SHALL name the PR, observed head/base, responsible full agent ID and configurable deadline, defaulting to 45 minutes. Known conflicting files SHALL be included; unavailable file information SHALL be labeled unknown. Orders and wake intents MUST be durable independently of a coordinator's presence.
+A conflict order SHALL name the PR, observed head/base, responsible full agent ID and configurable deadline, defaulting to 45 minutes. Known conflicting files SHALL be included; unavailable file information SHALL be labeled unknown. Orders and selected delivery sources MUST be durable independently of a coordinator's presence.
 
 #### Scenario: Available author
 - **WHEN** a new conflict has a current active author with no relevant captain hold
-- **THEN** that author receives one repair-card task order and wake intent with the deadline and exact evidence identity.
+- **THEN** that author receives one repair-card order through the selected Event/Delivery or Message path, with the deadline and exact evidence identity.
+
+### Requirement: Conflict delivery uses one selected source and effect
+The system SHALL call #122's sole worker/inbox selector. Healthy worker mode SHALL use the existing Event/Delivery and bounded worker frame/receipt. Inbox fallback SHALL use one canonical Message and #156's existing typed inbox capture. Both SHALL carry the same closed order reference and enforce current order revision, recipient, assignment and watched identities. The system MUST NOT fabricate a second Message, wake enum, frame or native prompt for the other path. A delivery receipt MUST NOT grant publication or native custody authority.
+
+#### Scenario: Healthy worker receives the order
+- **WHEN** the selected recipient has a registered, enrolled, unpaused and live worker covering the repository
+- **THEN** the existing Event/Delivery carries the typed order in its normal worker frame, with no duplicate inbox Message or wake effect.
+
+#### Scenario: Worker unavailable and later enrolled
+- **WHEN** a paused, revoked, stale or absent worker causes inbox fallback and subsequently becomes eligible
+- **THEN** the retained canonical Message and exact-prior receipts suppress duplicate native delivery; bootstrap does not re-elect under a worker lock.
+
+#### Scenario: Frozen source superseded
+- **WHEN** an old worker batch or inbox intent references an order superseded by a newer tip, recipient or resolution
+- **THEN** canonical currentness refuses the obsolete order without a branch write, fabricated authority or second effect.
 
 ### Requirement: Eligibility and deadlines route only the repair
 At the deadline, or immediately for a stale, out-of-service or relevant captain-held author, the system SHALL select a free eligible repository seat using shared queue policy. It SHALL atomically transfer only the repair and invalidate old repair grants. Source ownership and author attribution MUST remain unchanged.

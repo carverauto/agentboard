@@ -4,7 +4,7 @@ This checklist is implementation work after proposal review. No runtime task is 
 
 ## 1. Durable contracts and migration
 
-- [ ] 1.1 Reconcile the #170 shared eligibility and #156/#150 wake/custody envelopes against their current portable proposals; publish agreed typed contracts and verify both consumers reference one version, without enabling host delivery.
+- [ ] 1.1 Reconcile #170 shared eligibility and #156/#150 wake/custody envelopes; apply captain decision aca78ca8's existing Event/Delivery worker versus canonical Message inbox amendment with #122's sole selector, jointly agree typed currentness/capture interfaces and verify both consumers reference one portable version, without enabling host delivery.
 - [x] 1.2 Recheck the schema reservation against current main and add schema32 migration `20261008003200` with binding, current-order/history and publication-grant Ash resources, constraints, AshEvents and mutable AshPaperTrail; verify remote migration from the actual preceding schema preserves old follow-ups and is idempotent.
 - [ ] 1.3 Implement order/binding/grant public serialization and auth policies; verify remote API tests reject cross-owner, expired-claim, ambiguous binding and wrong-repository writes and never serialize credentials; document response and permission contracts alongside this group.
 
@@ -18,7 +18,7 @@ This checklist is implementation work after proposal review. No runtime task is 
 ## 3. Current-base conflict orders
 
 - [ ] 3.1 Extend current `BaseMonitor` enrollment/invalidation and PR open/link scheduling without a second poller; verify remote provider-fixture tests for N linked PRs, unlinked/default-branch advance, absent webhook, multiple repos, page restart and stale response fencing; preserve main-failure repair tests.
-- [ ] 3.2 Extend `Rebase` with current-tip order identity/version, retained earliest deadline and supersession, using existing repair cards and transactional outbox/wake capture; verify repeated poll/webhook produces one live order, a new tip supersedes, and another dirty head does not stack repairs; document exact ledger identities.
+- [ ] 3.2 Extend `Rebase` with current-tip order identity/version, retained earliest deadline and supersession, using existing repair cards and transactional selected Event/Delivery or Message capture; verify repeated poll/webhook produces one live order, a new tip supersedes, another dirty head does not stack repairs, both source paths fence frozen stale orders, and fallback/bootstrap interleavings retain exactly one effect; document exact ledger identities.
 - [ ] 3.3 Implement changed-head/current-base resolution, unchanged-head conflict clearance and closure cancellation; verify remote races between newer base admission, clean old responses and owner completion, including preservation of rebaser credit and cancellation of obsolete grants/wakes.
 
 ## 4. Deadline routing and native custody
