@@ -516,25 +516,29 @@ defmodule Agentboard.Decisions do
             recipient: request.requester_id
           )
 
-    Ops.create(
-      Wake,
-      :create,
-      %{
-        id: Ash.UUID.generate(),
-        request_id: request.id,
-        requester_id: request.requester_id,
-        task_id: task.id,
-        source_key: key,
-        route: if(worker?, do: "worker", else: "seat_watcher"),
-        worker_event_id: event && event.id,
-        worker_id: if(worker?, do: request.requester_id),
-        status: "pending",
-        answered_at: stamp,
-        created_at: stamp,
-        updated_at: stamp
-      },
-      actor
-    )
+    wake =
+      Ops.create(
+        Wake,
+        :create,
+        %{
+          id: Ash.UUID.generate(),
+          request_id: request.id,
+          requester_id: request.requester_id,
+          task_id: task.id,
+          source_key: key,
+          route: if(worker?, do: "worker", else: "seat_watcher"),
+          worker_event_id: event && event.id,
+          worker_id: if(worker?, do: request.requester_id),
+          status: "pending",
+          answered_at: stamp,
+          created_at: stamp,
+          updated_at: stamp
+        },
+        actor
+      )
+
+    Agentboard.WakeIntents.capture_decision(wake, request, task, actor)
+    wake
   end
 
   defp eligible?(nil, _, _, _), do: false

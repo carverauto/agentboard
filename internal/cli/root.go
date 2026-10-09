@@ -82,7 +82,7 @@ func NewRoot() *cobra.Command {
 		return err
 	}})
 	root.AddCommand(c.doctor())
-	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.chat(), c.prs(), c.decisions(), c.seat(), c.adminCommands())
+	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.hostCommands(), c.chat(), c.prs(), c.decisions(), c.seat(), c.adminCommands())
 	return root
 }
 func env(key, fallback string) string {

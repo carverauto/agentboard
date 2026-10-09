@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentboard.example.com/schemas/proposed-host-wake-v1",
+  "title": "PROPOSED host wake reservation; not a deployed API",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_revision",
+    "intent_id",
+    "intent_revision",
+    "effect",
+    "reason",
+    "reason_hash",
+    "recipient",
+    "source",
+    "attempt_id",
+    "payload_hash",
+    "expires_at",
+    "source_refs"
+  ],
+  "properties": {
+    "protocol_revision": {
+      "const": 1
+    },
+    "intent_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "intent_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "effect": {
+      "enum": [
+        "wake.nudge",
+        "seat.restart"
+      ]
+    },
+    "reason": {
+      "enum": [
+        "unread_dm",
+        "decision_answered",
+        "claim_expiring",
+        "idle_assigned",
+        "blocker_shipped",
+        "recovery_restart"
+      ]
+    },
+    "reason_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "attempt_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "payload_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "recipient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_id",
+        "host_id",
+        "repo",
+        "enrollment_revision",
+        "binding_epoch",
+        "session_id",
+        "adapter_generation"
+      ],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "host_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "repo": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "enrollment_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "binding_epoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "adapter_generation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "board_message",
+            "mattermost_post",
+            "decision_wake",
+            "task_claim",
+            "task_assignment",
+            "blocker_event",
+            "recovery_attempt"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        }
+      }
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "id",
+          "version"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "delivery_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      }
+    },
+    "restart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "episode_id",
+        "attempt_number",
+        "policy_id",
+        "policy_version",
+        "seat_reference",
+        "expected_session_id"
+      ],
+      "properties": {
+        "episode_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "attempt_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "policy_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "policy_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "seat_reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "expected_session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "effect": {
+            "const": "seat.restart"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "restart"
+        ],
+        "properties": {
+          "reason": {
+            "const": "recovery_restart"
+          },
+          "source": {
+            "properties": {
+              "kind": {
+                "const": "recovery_attempt"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "restart"
+          ]
+        },
+        "properties": {
+          "reason": {
+            "enum": [
+              "unread_dm",
+              "decision_answered",
+              "claim_expiring",
+              "idle_assigned",
+              "blocker_shipped"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

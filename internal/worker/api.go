@@ -79,7 +79,15 @@ func OpenAPI(cfg Config, b Binding, receipt bool) (*API, error) {
 func (a *API) Close() { a.client.Close() }
 
 func (a *API) Call(ctx context.Context, method, action string, query url.Values, body any) (json.RawMessage, error) {
-	raw, err := a.client.JSON(ctx, method, "workers/"+url.PathEscape(a.agent)+"/"+action, query, body)
+	return a.call(ctx, method, "workers/"+url.PathEscape(a.agent)+"/"+action, query, body)
+}
+
+func (a *API) wakePage(ctx context.Context, b Binding, query url.Values) (json.RawMessage, error) {
+	return a.call(ctx, http.MethodGet, "hosts/"+url.PathEscape(b.Host)+"/wake-intents/"+url.PathEscape(a.agent), query, nil)
+}
+
+func (a *API) call(ctx context.Context, method, path string, query url.Values, body any) (json.RawMessage, error) {
+	raw, err := a.client.JSON(ctx, method, path, query, body)
 	if err != nil {
 		var e *client.Error
 		if errors.As(err, &e) {

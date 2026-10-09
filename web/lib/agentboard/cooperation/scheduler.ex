@@ -25,6 +25,8 @@ defmodule Agentboard.Cooperation.Scheduler do
   actions do
     action :reconcile, :map do
       run(fn _, _ ->
+        Agentboard.Wake.Reconcile.ensure_jobs()
+
         if Application.get_env(:agentboard, :cooperation_enabled, false) do
           with {:ok, routing} <-
                  Agentboard.Board.Operations.transaction(fn ->

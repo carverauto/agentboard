@@ -42,6 +42,7 @@ test_suite(
         "//web:frontend_auth_test",
         "//web:recovery_machine_test",
         "//build/integration:recovery_checkpoint_test",
+        "//build/integration:wake_intents_test",
         "//web:decision_panel_test",
         "//build/integration:details_hook_test",
         "//build/integration:postgres_tls_test",

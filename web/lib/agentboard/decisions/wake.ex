@@ -47,6 +47,12 @@ defmodule Agentboard.Decisions.Wake do
     update :change do
       accept([:status, :reservation_key, :reserved_at, :accepted_at, :reason, :updated_at])
     end
+
+    # Internal adoption owns the canonical task/request/wake lock. The public
+    # watcher mutation never accepts these fields and checks route under that lock.
+    update :adopt do
+      accept([:route, :worker_event_id, :worker_id, :updated_at])
+    end
   end
 
   attributes do

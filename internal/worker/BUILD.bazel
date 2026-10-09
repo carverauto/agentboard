@@ -2,7 +2,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "worker",
-    srcs = ["adapter.go", "api.go", "config.go", "install.go", "journal.go", "mattermost.go", "runtime.go", "storage_unix.go"],
+    srcs = ["adapter.go", "api.go", "config.go", "host.go", "install.go", "journal.go", "mattermost.go", "runtime.go", "storage_unix.go"],
     embedsrcs = ["pi-native.mjs", "codex-native.mjs"] + glob(["claude-native/**", "claude-native/.mcp.json", "claude-native/.claude-plugin/plugin.json"], exclude = ["claude-native/.claude-plugin/types/**", "claude-native/tsconfig.json"]),
     importpath = "github.com/carverauto/agentboard/internal/worker",
     visibility = ["//:__subpackages__"],
