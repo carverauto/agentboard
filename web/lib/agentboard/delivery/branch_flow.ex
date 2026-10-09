@@ -2,35 +2,12 @@ defmodule Agentboard.Delivery.BranchFlow do
   @moduledoc "Bounded, read-only retained branch evidence. No provider calls, enrollment or inferred branch health."
   alias Agentboard.{Repo, SeatScope}
   alias Agentboard.Delivery.{PullRequest, Reads, WorkflowRun}
-  alias Agentboard.Delivery.BranchFlow.Route
+  alias Agentboard.Delivery.BranchFlow.{Inventory, Route, Settings}
   alias Agentboard.Board.Operations, as: Ops
   require Ash.Query
+  require Ecto.Query
 
-  @inventory """
-  WITH tracked AS (
-    SELECT p.id,p.owner || '/' || p.repo AS repository,s.lifecycle
-    FROM delivery_pull_requests p JOIN delivery_poll_states s ON s.id=p.id
-    WHERE s.enabled OR s.lifecycle IN ('merged','closed')
-  ), eligible AS (
-    SELECT repository FROM tracked
-    UNION
-    SELECT repository FROM delivery_workflow_runs
-    WHERE observed_at IS NOT NULL AND NULLIF(branch,'') IS NOT NULL
-      AND NULLIF(workflow_id,'') IS NOT NULL AND NULLIF(head_sha,'') IS NOT NULL
-      AND repository=lower(repository) AND repository ~ '^[a-z0-9_.-]+/[a-z0-9_.-]+$'
-  ), red_counts AS (
-    SELECT repository,count(*)::bigint AS red_count FROM delivery_workflow_runs
-    WHERE failed_at IS NOT NULL AND resolved_at IS NULL GROUP BY repository
-  ), inventory AS (
-    SELECT e.repository,
-      count(t.id) FILTER (WHERE t.lifecycle='open')::bigint AS open_count,
-      count(t.id) FILTER (WHERE t.lifecycle IN ('merged','closed'))::bigint AS terminal_count,
-      count(t.id) FILTER (WHERE t.lifecycle IS NULL OR t.lifecycle NOT IN ('open','merged','closed'))::bigint AS unknown_lifecycle_count,
-      coalesce(r.red_count,0)::bigint AS red_count
-    FROM eligible e LEFT JOIN tracked t ON t.repository=e.repository
-    LEFT JOIN red_counts r ON r.repository=e.repository GROUP BY e.repository,r.red_count
-  )
-  """
+  @inventory Inventory.sql()
   @matched """
   c.id=s.snapshot_id AND c.pull_request_id=p.id AND c.head_sha=s.head_sha
     AND c.base_sha=s.base_sha AND c.observed_at=s.observed_at AND c.generation=s.generation
@@ -73,7 +50,22 @@ defmodule Agentboard.Delivery.BranchFlow do
         _ -> params |> Map.take(~w(repo node_kind node view q show_terminal cursor))
       end
 
-    inventory = inventory(opts, stamp)
+    settings = protected(:settings, &Settings.read/0)
+
+    pins =
+      case settings do
+        {:ok, config} -> config["pinned_repositories"]
+        _ -> []
+      end
+
+    inventory = inventory(opts, stamp, pins)
+    # An unavailable settings read cannot be interpreted as an empty pin list or
+    # offer an implicit pinless reorder over a last-known strip.
+    inventory =
+      if match?({:ok, _}, settings),
+        do: inventory,
+        else: Map.put(inventory, :ranked_repositories, Enum.map(inventory.cards, & &1.repository))
+
     cards = inventory.cards
     chooser = chooser(params, stamp)
     table = table(normalized, stamp)
@@ -85,7 +77,30 @@ defmodule Agentboard.Delivery.BranchFlow do
       as_of: stamp,
       coverage: "locally_tracked",
       source: "retained_database",
-      settings_revision: nil,
+      settings_revision:
+        case settings do
+          {:ok, config} -> config["revision"]
+          _ -> nil
+        end,
+      settings:
+        case settings do
+          {:ok, config} ->
+            %{
+              available: true,
+              pinned_repositories: pins,
+              error: nil,
+              revision: config["revision"]
+            }
+
+          _ ->
+            %{
+              available: false,
+              pinned_repositories: nil,
+              revision: nil,
+              error:
+                "Captain pin order unavailable; showing last-known cards or degraded busiest fallback"
+            }
+        end,
       selection: filters,
       github_budget:
         case budget do
@@ -95,11 +110,11 @@ defmodule Agentboard.Delivery.BranchFlow do
       chooser: chooser,
       table: table,
       attention: attention,
-      unavailable: [:pins, :branch_roles, :numeric_divergence]
+      unavailable: [:branch_roles, :numeric_divergence]
     })
   end
 
-  defp inventory(opts, stamp) do
+  defp inventory(opts, stamp, pins) do
     held = Keyword.get(opts, :card_repositories)
 
     held =
@@ -114,21 +129,28 @@ defmodule Agentboard.Delivery.BranchFlow do
           Repo.statement!(
             @inventory <>
               """
-              , ranked AS (SELECT * FROM inventory ORDER BY open_count DESC,repository LIMIT 5),
-              selected AS (
+              , prioritized AS (
+                SELECT i.*,pin.ordinality AS pin_position FROM inventory i
+                LEFT JOIN unnest($2::text[]) WITH ORDINALITY pin(repository,ordinality)
+                  ON pin.repository=i.repository
+              ), ranked AS (
+                SELECT * FROM prioritized
+                ORDER BY pin_position NULLS LAST,open_count DESC,repository LIMIT 5
+              ), selected AS (
                 SELECT i.*,h.ordinality FROM unnest($1::text[]) WITH ORDINALITY h(repository,ordinality)
-                LEFT JOIN inventory i ON i.repository=h.repository
+                LEFT JOIN prioritized i ON i.repository=h.repository
               )
               SELECT (SELECT count(*) FROM inventory),
-                (SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY open_count DESC,repository),'[]'::jsonb) FROM ranked r),
+                (SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY pin_position NULLS LAST,open_count DESC,repository),'[]'::jsonb) FROM ranked r),
                 (SELECT coalesce(jsonb_agg(jsonb_build_object('repository',h.repository,
                   'open_count',s.open_count,'terminal_count',s.terminal_count,
-                  'unknown_lifecycle_count',s.unknown_lifecycle_count,'red_count',s.red_count)
+                  'unknown_lifecycle_count',s.unknown_lifecycle_count,'red_count',s.red_count,
+                  'pin_position',s.pin_position)
                   ORDER BY h.ordinality),'[]'::jsonb)
                   FROM unnest($1::text[]) WITH ORDINALITY h(repository,ordinality)
                   LEFT JOIN selected s ON s.ordinality=h.ordinality)
               """,
-            [held || []]
+            [held || [], pins]
           )
 
         rows = if is_nil(held), do: ranked, else: selected
@@ -157,16 +179,20 @@ defmodule Agentboard.Delivery.BranchFlow do
           ranked_repositories: ranked,
           inventory_count: total,
           overflow_count: max(0, total - Enum.count(cards, & &1.available)),
-          inventory: metadata(stamp, %{ranking: "tracked_open_count"}) |> Map.put(:error, nil)
+          inventory:
+            metadata(stamp, %{ranking: "captain_pins_then_tracked_open_count"})
+            |> Map.put(:error, nil)
         }
 
       _ ->
-        repositories = held || fallback_repositories()
+        ranked = fallback_repositories("", 0, 5, pins)
+        repositories = held || ranked
 
         %{
           cards:
             Enum.map(repositories, fn repository ->
               summary(%{"repository" => repository}, stamp)
+              |> Map.put(:pin_position, pin_position(pins, repository))
               |> Map.merge(%{
                 available: is_nil(held),
                 counts_available: false,
@@ -177,11 +203,11 @@ defmodule Agentboard.Delivery.BranchFlow do
                   )
               })
             end),
-          ranked_repositories: repositories,
+          ranked_repositories: ranked,
           inventory_count: nil,
           overflow_count: nil,
           inventory:
-            metadata(stamp, %{ranking: "unavailable_alphabetical_fallback"})
+            metadata(stamp, %{ranking: "captain_pins_then_alphabetical_fallback"})
             |> Map.merge(%{
               error: "Repository counts unavailable; bounded alphabetical fallback",
               partial: true
@@ -190,28 +216,17 @@ defmodule Agentboard.Delivery.BranchFlow do
     end
   end
 
-  defp fallback_repositories(search \\ "", offset \\ 0, limit \\ 5) do
-    case protected(:inventory_fallback, fn ->
-           %{rows: rows} =
-             Repo.statement!(
-               """
-               SELECT repository FROM (
-                 SELECT p.owner || '/' || p.repo AS repository FROM delivery_pull_requests p
-                   JOIN delivery_poll_states s ON s.id=p.id WHERE s.enabled OR s.lifecycle IN ('merged','closed')
-                 UNION
-                 SELECT repository FROM delivery_workflow_runs WHERE observed_at IS NOT NULL
-                   AND NULLIF(branch,'') IS NOT NULL AND NULLIF(workflow_id,'') IS NOT NULL
-                   AND NULLIF(head_sha,'') IS NOT NULL AND repository=lower(repository)
-                   AND repository ~ '^[a-z0-9_.-]+/[a-z0-9_.-]+$'
-               ) eligible WHERE position(lower($1) in repository)>0 ORDER BY repository LIMIT $2 OFFSET $3
-               """,
-               [search, limit, offset]
-             )
-
-           List.flatten(rows)
-         end) do
+  defp fallback_repositories(search, offset, limit, pins) do
+    case protected(:inventory_fallback, fn -> Inventory.fallback(search, offset, limit, pins) end) do
       {:ok, repositories} -> repositories
       _ -> []
+    end
+  end
+
+  defp pin_position(pins, repository) do
+    case Enum.find_index(pins, &(&1 == repository)) do
+      nil -> nil
+      index -> index + 1
     end
   end
 
@@ -219,6 +234,7 @@ defmodule Agentboard.Delivery.BranchFlow do
     Map.new(@summary_fields, &{&1, row[Atom.to_string(&1)]})
     |> Map.merge(metadata(stamp, %{repository: row["repository"]}))
     |> Map.merge(%{
+      pin_position: row["pin_position"],
       available: not is_nil(row["open_count"]),
       counts_available: not is_nil(row["open_count"]),
       error: if(is_nil(row["open_count"]), do: "Repository no longer in tracked inventory"),
@@ -256,53 +272,8 @@ defmodule Agentboard.Delivery.BranchFlow do
   end
 
   defp chooser(params, stamp) do
-    with {:ok, search} <- Route.search(params["chooser_q"]),
-         filters = %{"chooser_q" => search},
-         {:ok, offset} <- Route.offset(params["chooser_cursor"], "chooser", filters) do
-      result =
-        protected(:chooser, fn ->
-          %{rows: [[total, rows]]} =
-            Repo.statement!(
-              @inventory <>
-                """
-                , matching AS (SELECT * FROM inventory WHERE position(lower($1) in repository)>0)
-                SELECT (SELECT count(*) FROM matching),
-                  (SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY repository),'[]'::jsonb)
-                    FROM (SELECT * FROM matching ORDER BY repository LIMIT 20 OFFSET $2) r)
-                """,
-              [search, offset]
-            )
-
-          {total, Enum.map(rows, &summary(&1, stamp))}
-        end)
-
-      case result do
-        {:ok, {total, rows}} ->
-          page("chooser", filters, offset, total, stamp)
-          |> Map.put(:repositories, rows)
-          |> Map.put(:error, expired_page(offset, total))
-
-        _ ->
-          rows = fallback_repositories(search, offset, 21)
-
-          page("chooser", filters, offset, nil, stamp)
-          |> with_more("chooser", filters, offset, length(rows) > 20)
-          |> Map.put(
-            :repositories,
-            Enum.map(Enum.take(rows, 20), fn repository ->
-              summary(%{"repository" => repository}, stamp)
-              |> Map.merge(%{
-                available: true,
-                counts_available: false,
-                error: "Repository counts unavailable"
-              })
-            end)
-          )
-          |> Map.put(:error, "Repository counts unavailable; bounded alphabetical fallback")
-      end
-    else
-      {:error, error} -> empty_section(:repositories, stamp, error)
-    end
+    Inventory.chooser_in_snapshot(params)
+    |> Map.merge(metadata(stamp, Map.take(params, ["chooser_q"])))
   end
 
   defp table({:error, error}, stamp), do: empty_section(:prs, stamp, error)
@@ -511,12 +482,17 @@ defmodule Agentboard.Delivery.BranchFlow do
   end
 
   defp attention_rows(offset, limit) do
-    WorkflowRun
-    |> Ash.Query.filter(not is_nil(failed_at) and is_nil(resolved_at))
-    |> Ash.Query.sort(failed_at: :asc, id: :asc)
-    |> Ash.Query.offset(offset)
-    |> Ash.Query.limit(limit)
-    |> Ash.read!()
+    # Keep optional read failures inside our section savepoint. WorkflowRun's
+    # default read has no policies/preparations; this Ecto schema read returns
+    # the same resource fields without Ash aborting the outer snapshot on error.
+    Repo.all(
+      Ecto.Query.from(run in WorkflowRun,
+        where: not is_nil(run.failed_at) and is_nil(run.resolved_at),
+        order_by: [asc: run.failed_at, asc: run.id],
+        offset: ^offset,
+        limit: ^limit
+      )
+    )
   end
 
   defp run(row, card_repositories, stamp) do
@@ -580,13 +556,21 @@ defmodule Agentboard.Delivery.BranchFlow do
 
     result =
       Enum.reduce([:inventory, :chooser, :table, :attention], result, fn section, acc ->
-        Map.update!(acc, section, &Map.put(&1, :projection_revision, revision))
+        Map.update!(acc, section, fn value ->
+          value
+          |> Map.put(:projection_revision, revision)
+          |> Map.put(:settings_revision, result.settings_revision)
+        end)
       end)
 
     Map.update!(
       result,
       :cards,
-      &Enum.map(&1, fn card -> Map.put(card, :projection_revision, revision) end)
+      &Enum.map(&1, fn card ->
+        card
+        |> Map.put(:projection_revision, revision)
+        |> Map.put(:settings_revision, result.settings_revision)
+      end)
     )
   end
 

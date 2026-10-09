@@ -1,6 +1,9 @@
 defmodule AgentboardWeb.SettingsLive do
   use Phoenix.LiveView, layout: false
   alias Agentboard.{Captain, FleetLoadout, Housekeeping}
+  alias AgentboardWeb.BranchFlowSettings
+
+  @branch_flow_events BranchFlowSettings.events()
 
   @fleet_events ~w(open_fleet fleet_draft save_fleet retry_fleet reload_fleet close_fleet)
   @desired_fields ~w(seat_id agent_id harness desired_host_id desired_model desired_effort scope_revision)
@@ -19,7 +22,12 @@ defmodule AgentboardWeb.SettingsLive do
         fleet_error: nil
       )
 
+    socket = BranchFlowSettings.init(socket)
     {:ok, if(connected?(socket), do: load(socket), else: socket)}
+  end
+
+  def handle_event(event, params, socket) when event in @branch_flow_events do
+    {:noreply, BranchFlowSettings.handle_event(event, params, socket)}
   end
 
   def handle_event("list_credentials", %{"agent_id" => id}, socket) do
@@ -304,6 +312,7 @@ defmodule AgentboardWeb.SettingsLive do
         <dl><dt>Next sweep</dt><dd>{@policy.next_run_at || "Not scheduled"}</dd><dt>Last sweep</dt><dd>{@policy.last_run_at || "Never"}</dd><dt>Cards archived last sweep</dt><dd>{@policy.last_archived_count}</dd></dl>
       </section>
       <.fleet_loadout_panel capability={@capability} form={@fleet_form} error={@fleet_error} />
+      <BranchFlowSettings.panel capability={@capability} form={@branch_flow_form} error={@branch_flow_error} />
       <section class="settings-panel" id="agent-token-settings">
         <h2>Agent API credentials</h2>
         <p>Authentication mode: {Agentboard.Auth.mode()}. Board credentials are separate from worker and Mattermost credentials.</p>

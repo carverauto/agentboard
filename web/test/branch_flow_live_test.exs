@@ -127,7 +127,7 @@ defmodule AgentboardWeb.BranchFlowLiveTest do
     refute html =~ "healthy"
   end
 
-  test "overview is busiest-only, pending features are explicit, and focus order is offered" do
+  test "overview is pin-aware, pending features are explicit, and focus order is offered" do
     card = %{
       repository: "fixture/repo",
       available: true,
@@ -153,8 +153,9 @@ defmodule AgentboardWeb.BranchFlowLiveTest do
         params: %{"repo" => "fixture/repo"}
       )
 
-    assert html =~ "busiest-only ordering"
-    assert html =~ "Captain pins/settings and integration intake are pending"
+    assert html =~ "eligible captain pins first"
+    assert html =~ "Integration intake, default-branch metadata"
+    assert html =~ "/settings#branch-flow-settings"
     assert html =~ "Default branch unknown"
     assert html =~ "ahead/behind unavailable"
     assert html =~ "Repository order updated; apply new order"

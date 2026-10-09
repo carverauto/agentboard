@@ -1,4 +1,4 @@
-# Approved implementation plan — partial preview only
+# Approved implementation plan — partial preview and pins
 
 The captain explicitly approved phased implementation on 2026-10-09 after the
 proposal merged. Documentation review/merge alone did not grant that approval.
@@ -6,8 +6,11 @@ The first product increment delivers a separately scoped busiest-only preview;
 none of the broader requirements below is considered fully done by that slice.
 See [preview scope](../../../docs/branch-flow.md) and
 [verification](../../../docs/verification/branch-flow-overview.md). Captain
-pins/settings, role intake, focused topology, row mini-trees and numeric evidence
-remain pending. Landing the preview does not close #185.
+pins/settings are the second bounded increment described in
+[pins verification](../../../docs/verification/branch-flow-pins.md). Role intake,
+focused topology, row mini-trees and numeric evidence remain pending. Combined
+checklist items stay open where those dependencies are unfinished. Landing these
+increments does not close #185.
 
 ## 0. Approval and dependency gates
 
