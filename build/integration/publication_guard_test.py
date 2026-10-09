@@ -63,7 +63,12 @@ import json,os,sys
 d=json.load(open(os.environ['FIXTURE_PROVIDER']))
 if d.get('error'): print('invented-secret-must-not-leak',file=sys.stderr); sys.exit(1)
 name=os.path.basename(sys.argv[0])
-print(json.dumps({'task':d['task']} if name=='agentboard' else d['pr'] if 'view' in sys.argv else d['merged']))
+if name=='agentboard' and sys.argv[1:]==['decision','request','--help']:
+    print('decision request fixture help')
+elif name=='agentboard' and sys.argv[1:]==['doctor','--json']:
+    print(json.dumps({'compatible':True,'cli_capabilities':{'decision_intake':1},'required_decision_intake_version':1,'schema_version':29}))
+else:
+    print(json.dumps({'task':d['task']} if name=='agentboard' else d['pr'] if 'view' in sys.argv else d['merged']))
 '''
     for name in ('agentboard', 'gh'):
         (tools / name).write_text(script)
