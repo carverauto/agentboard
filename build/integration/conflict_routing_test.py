@@ -284,5 +284,57 @@ with tls_provider(Provider) as (url,ca,_):
     assert api('tasks/routing-source-108')==stale_source
     assert stale_source['task']['claim_expires_at']==source8['task']['claim_expires_at']
     assert sql('SELECT count(*) FROM delivery_publication_grants')=='0'
+    # Retained earliest deadline still binds the current repair recipient after a
+    # repair-only handoff. The reassigned seat stays eligible past the retained
+    # deadline, so production AshOban routing must reassign again (never reset
+    # the deadline, stack a duplicate, or touch the source claim).
+    for who in ['good-a','good-b','good-c','author-6','author-7']: policy(who,'reserved')
+    for who in ['retain-author','retain-a','retain-b']: register(who)
+    retained_first, retained_source = create_order(109,'retain-author')
+    assert retained_first['recipient_id']=='retain-author'
+    policy('retain-author','out_of_service')
+    perform_persisted(retained_first)
+    retained_second = current(retained_first['pull_request_id'])
+    assert retained_second['recipient_id']=='retain-a', retained_second
+    assert retained_second['author_id']=='retain-author' and retained_second['revision']==2
+    assert retained_second['deadline_at']==retained_first['deadline_at']
+    assert retained_second['episode_id']==retained_first['episode_id']
+    assert retained_second['selection_reason']=='recipient_ineligible'
+    assert api('tasks/routing-source-109')==retained_source
+    elapsed(retained_second)
+    effects="SELECT jsonb_build_array((SELECT count(*) FROM tasks),(SELECT count(*) FROM task_events),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM cooperation_deliveries),(SELECT count(*) FROM wake_intents),(SELECT count(*) FROM decision_requests),(SELECT count(*) FROM delivery_publication_grants))"
+    before_effects=sql(effects)
+    before_repair=api('tasks/'+retained_second['repair_task_id'])
+    before_order=current(retained_first['pull_request_id'])
+    before_audits=int(sql("SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation'"))
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "dry_run")')
+    route(retained_second['id'])
+    rows=json.loads(sql("SELECT coalesce(jsonb_agg(data ORDER BY occurred_at,id),'[]') FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation'"))
+    assert len(rows)==before_audits+1, 'Dry-run retained deadline omitted its canonical selection evidence'
+    evaluation=rows[-1]
+    assert evaluation['pull_request_id']==retained_second['pull_request_id']
+    facts=evaluation['facts']
+    assert facts['phase']=='deadline' and facts['plan']=='reassign_repair' and facts['reason']=='retained_deadline'
+    assert facts['current_order_id']==retained_second['id'] and facts['current_order_revision']==retained_second['revision']
+    assert facts['candidate']['agent_id']=='retain-b' and facts['candidate']['eligible'] is True
+    assert sql(effects)==before_effects
+    assert api('tasks/'+retained_second['repair_task_id'])==before_repair
+    assert current(retained_first['pull_request_id'])==before_order
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "apply")')
+    routed = sql("SELECT count(*) FROM task_events WHERE task_id='"+retained_second['repair_task_id']+"' AND kind='repair_routed'")
+    route(retained_second['id'])
+    retained_third = current(retained_first['pull_request_id'])
+    assert retained_third['recipient_id']=='retain-b', retained_third
+    assert retained_third['author_id']=='retain-author' and retained_third['revision']==3
+    assert retained_third['deadline_at']==retained_first['deadline_at']
+    assert retained_third['episode_id']==retained_first['episode_id']
+    assert retained_third['selection_reason']=='retained_deadline'
+    assert api('tasks/routing-source-109')==retained_source
+    assert sql("SELECT count(*) FROM task_events WHERE task_id='"+retained_second['repair_task_id']+"' AND kind='repair_routed'")==str(int(routed)+1)
+    superseded_effects = sql('SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM decision_requests))')
+    route(retained_second['id'])
+    assert current(retained_first['pull_request_id'])['id']==retained_third['id']
+    assert sql('SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM decision_requests))')==superseded_effects
+    assert sql('SELECT count(*) FROM delivery_publication_grants')=='0'
 
 print('Shared eligibility profiles, queue/assignment/ID ties, repair-only lease transfer, duplicate timers, concurrent last-slot admission and owner-resolution fencing passed')
