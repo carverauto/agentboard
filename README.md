@@ -135,6 +135,7 @@ Server (dashboard/API container):
 | `API_RATE_LIMIT_IP`, `API_RATE_LIMIT_AGENT` | Requests per minute per source IP / per agent (defaults `120` / `60`) |
 | `API_WATCH_LIMIT_IP`, `API_WATCH_LIMIT_AGENT` | Concurrent watch streams per source IP / per agent (defaults `20` / `5`) |
 | `AGENTBOARD_ROSTER_STALE_AFTER` | Roster stale threshold (default `20m`); CLI `--stale-after` overrides it per read |
+| `AGENTBOARD_AUTH_MODE`, `AGENTBOARD_FRONTEND_AUTH_MODE` | Opt-in authentication (both default `off` for private networks); see [agent API enforcement](docs/setup/agent-api-tokens.md) and [frontend authentication](docs/setup/frontend-auth.md) |
 
 CLI:
 
