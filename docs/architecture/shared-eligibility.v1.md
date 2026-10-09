@@ -1,6 +1,6 @@
 # Shared eligibility and repair admission v1
 
-Captain task_order1824 assigns #169 the minimal shared evaluator, with #170 reusing it later. This server checkpoint builds on main 7db89ef and its captain-managed `SeatScope` contract. Native custody remains unsupported under decision fd4961ff; the installed consumer integration remains pending under task1.1.
+Captain task_order1824 assigns #169 the minimal shared evaluator, with #170 reusing it later. This server checkpoint builds on main 7db89ef and its captain-managed `SeatScope` contract. Native custody remains unsupported under decision fd4961ff; the installed native publication custody contract remains separately assigned.
 
 ## Shared functions
 
@@ -36,7 +36,7 @@ No eligible seat creates one durable captain decision for the current order/revi
 
 The `conflict_routing_test` collector/API/AshOban fixture owns this contract: eligibility profiles, queue/assignment/ID ties, early unavailable/waiting/stale routing, deadline transfer of an existing repair lease, duplicate jobs, concurrent admission for one remaining slot, unchanged source claims and resolution before a queued timer. `conflict_order_sources_test` owns canonical source/current-base and connected dashboard proof. All actors, provider metadata and capabilities are invented fixtures. The deadline/staleness cases advance retained timestamps; they do not pre-create an order, assignment, source or admission decision.
 
-All ten remote targets pass after the final runtime changes: https://carverauto.buildbuddy.io/invocation/db52c2f7-fb6f-4475-b87f-8ed681e0aa9a. The producer now defers generic fallback capture and retains a typed WakeIntents reference after the immutable relation, per inbox owner1828. The actual frozen/batch worker and wake consumers still require joint currentness integration. The companion conflict-audit-and-capture.v1.md records the snapshot dry-run ledger and its limits. Native consumer frozen/batch capture, custody adapters, verified rebaser completion, complete dry-run auditing and activation remain pending. No PR or live deployment is implied by this checkpoint.
+All ten remote targets pass after the final runtime changes: https://carverauto.buildbuddy.io/invocation/db52c2f7-fb6f-4475-b87f-8ed681e0aa9a. The producer now defers generic fallback capture and retains a typed WakeIntents reference after the immutable relation, per inbox owner1828. Coordinator1837 confirms #156/#122 on main. Both actual frozen worker and typed inbox wake consumers now share the currentness prefix and closed reference documented in conflict-consumers.v1.md. The companion conflict-audit-and-capture.v1.md records the snapshot dry-run ledger and its limits. Native publication custody adapters, verified rebaser completion, disable-time cleanup and activation remain pending. No PR or live deployment is implied by this checkpoint.
 
 ## Quality review
 

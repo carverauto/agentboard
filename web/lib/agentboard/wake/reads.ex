@@ -6,17 +6,8 @@ defmodule Agentboard.Wake.Reads do
   alias Agentboard.Wake.Intent
   require Ash.Query
 
-  def preview(subscription, binding, data) do
-    {cursor, limit} = page_params(data)
-
-    rows =
-      Intent
-      |> Ash.Query.filter(
-        recipient_id == ^subscription.id and repo in ^subscription.repos and id > ^cursor
-      )
-      |> Ash.Query.sort(id: :asc)
-      |> Ash.Query.limit(limit + 1)
-      |> Ash.read!()
+  def preview(subscription, binding, data, context) do
+    {rows, limit} = selection(subscription, data)
 
     selected = Enum.take(rows, limit)
     stamp = Ops.now()
@@ -26,7 +17,7 @@ defmodule Agentboard.Wake.Reads do
     %{
       mode: "dry_run",
       native_delivery_enabled: false,
-      intents: Enum.map(selected, &inspect_intent(&1, readiness, stamp)),
+      intents: Enum.map(selected, &inspect_intent(&1, readiness, stamp, context)),
       next_cursor: if(length(rows) > limit, do: List.last(selected).id),
       readiness: readiness,
       unsupported_producers: %{
@@ -38,8 +29,23 @@ defmodule Agentboard.Wake.Reads do
     }
   end
 
-  defp inspect_intent(row, readiness, stamp) do
-    source = canonical_state(row, stamp)
+  def selection(subscription, data) do
+    {cursor, limit} = page_params(data)
+
+    rows =
+      Intent
+      |> Ash.Query.filter(
+        recipient_id == ^subscription.id and repo in ^subscription.repos and id > ^cursor
+      )
+      |> Ash.Query.sort(id: :asc)
+      |> Ash.Query.limit(limit + 1)
+      |> Ash.read!()
+
+    {rows, limit}
+  end
+
+  defp inspect_intent(row, readiness, stamp, context) do
+    source = canonical_state(row, stamp, context)
 
     delivery =
       cond do
@@ -86,6 +92,19 @@ defmodule Agentboard.Wake.Reads do
       dispatch_allowed: false
     }
   end
+
+  def canonical_state(
+        %{source_kind: "board_message", source_ref: %{"order_ref" => _}} = row,
+        stamp,
+        context
+      ) do
+    case canonical_state(row, stamp) do
+      "unsupported" -> Agentboard.Delivery.ConflictConsumer.wake_state(row, context).state
+      state -> state
+    end
+  end
+
+  def canonical_state(row, stamp, _context), do: canonical_state(row, stamp)
 
   # Evaluate canonical facts without changing the retained occurrence or receipt.
   def canonical_state(%{source_kind: "board_message"} = row, _stamp) do

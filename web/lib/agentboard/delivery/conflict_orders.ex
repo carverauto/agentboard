@@ -1,7 +1,7 @@
 defmodule Agentboard.Delivery.ConflictOrders do
   @moduledoc "Base-fenced current orders and authoritative selected-source currentness. No native custody grants."
   alias Agentboard.Board.Operations, as: Ops
-  alias Agentboard.Board.Resources.{Agent, Task, Message}
+  alias Agentboard.Board.Resources.Task
   alias Agentboard.Cooperation.{Event, Runtime}
 
   alias Agentboard.Delivery.{
@@ -10,7 +10,6 @@ defmodule Agentboard.Delivery.ConflictOrders do
     ConflictOrder,
     ConflictPolicy,
     ConflictSource,
-    PollState,
     PullRequest,
     Rebase,
     RebaseFollowUp
@@ -220,7 +219,7 @@ defmodule Agentboard.Delivery.ConflictOrders do
       if order.recipient_id == message.recipient_id do
         Agentboard.WakeIntents.capture_message(message, @actor, %{
           "repo" => pr.owner <> "/" <> pr.repo,
-          "order_ref" => reference(order)
+          "order_ref" => Agentboard.Delivery.ConflictCurrentness.reference(order)
         })
       else
         # Unassigned repairs notify the captain for triage. This occurrence
@@ -355,77 +354,17 @@ defmodule Agentboard.Delivery.ConflictOrders do
       unless Input.slug?(recipient),
         do: Ops.reject("invalid_input", "Registered recipient ID required")
 
-      unless ConflictPolicy.mode() == "apply" and
-               Application.get_env(:agentboard, :cooperation_enabled, false),
-             do: Ops.reject("unsupported", "Conflict routing is disabled")
+      result =
+        Agentboard.Delivery.ConflictCurrentness.lock([{kind, id, version}], recipient)[
+          {kind, to_string(id), version}
+        ]
 
-      source = source!(kind, id)
-      order = Ash.get!(ConflictOrder, source.order_id)
-      pr = Ash.get!(PullRequest, order.pull_request_id)
-      watches = lock_evidence(order, pr)
-      Availability.lock_admission()
-      Repo.statement!("SELECT id FROM agents WHERE id=$1 FOR SHARE", [recipient])
-      agent = Ash.get!(Agent, recipient, not_found_error?: false)
-      Ops.lock_task(order.repair_task_id)
+      if result.state != "pending",
+        do: Ops.reject(result.state, "Conflict source is not the current assigned order")
 
-      Repo.statement!("SELECT id FROM delivery_conflict_orders WHERE id::text=$1 FOR SHARE", [
-        order.id
-      ])
-
-      order = Ash.get!(ConflictOrder, order.id)
-      task = Ash.get!(Task, order.repair_task_id)
-      poll = Ash.get!(PollState, pr.id)
-
-      follow =
-        RebaseFollowUp
-        |> Ash.Query.filter(current_order_id == ^order.id and is_nil(resolved_at))
-        |> Ash.read_one!()
-
-      event = Ash.get!(Event, source.id)
-      expected_version = if kind == "event", do: source.source_key, else: source.message_version
-      message = if kind == "board_message", do: Ash.get!(Message, source.message_id)
-
-      selected? =
-        (kind == "event" and source.disposition == "worker") or
-          (kind == "board_message" and source.disposition in ~w(sent adopted))
-
-      current? =
-        selected? and not is_nil(agent) and is_nil(agent.retired_at) and is_binary(recipient) and
-          order.state == "open" and is_nil(order.resolved_at) and
-          order.revision == source.order_revision and not is_nil(follow) and
-          order.recipient_id == recipient and task.assignee_id == recipient and
-          task.status not in ~w(done cancelled) and task.pr_url == pr.url and
-          event.source_key == source.source_key and event.task_id == task.id and
-          event.repo == pr.owner <> "/" <> pr.repo and expected_version == version and
-          (is_nil(message) or
-             (message.recipient_id == recipient and
-                DateTime.to_iso8601(message.created_at) == source.message_version)) and
-          poll.lifecycle == "open" and poll.head_sha == order.observed_head_sha and
-          poll.default_ref == order.default_ref and
-          poll.expected_default_sha == order.default_tip_sha and
-          poll.base_ref == order.evaluation_base_ref and
-          poll.expected_base_sha == order.evaluation_base_sha and
-          watches[order.default_ref] == order.default_tip_sha and
-          watches[order.evaluation_base_ref] == order.evaluation_base_sha
-
-      unless current?,
-        do: Ops.reject("stale_order", "Conflict source is no longer the current assigned order")
-
-      consumer.(reference(order))
+      consumer.(result.order_ref)
     end)
   end
-
-  defp source!("event", id) do
-    Ops.fetch!(ConflictSource, id, "Conflict source relation is unavailable", "unsupported")
-  end
-
-  defp source!("board_message", id) do
-    source = ConflictSource |> Ash.Query.filter(message_id == ^id) |> Ash.read_one!()
-    source || Ops.reject("unsupported", "Conflict source relation is unavailable")
-  end
-
-  defp source!(_, _),
-    do: Ops.reject("invalid_input", "Canonical Event or Board.Message identity required")
 
   # Shared prefix used by selected-source admission and the deadline consumer.
   # Both acquire canonical default/target -> PR -> poll before policy/candidate/task.
@@ -536,20 +475,5 @@ defmodule Agentboard.Delivery.ConflictOrders do
       watch = Ash.get!(BaseWatch, key, not_found_error?: false)
       {ref, if(watch, do: watch.head_sha)}
     end)
-  end
-
-  defp reference(order) do
-    %{
-      "kind" => "pr_conflict_order",
-      "order_id" => order.id,
-      "order_revision" => order.revision,
-      "repair_task_id" => order.repair_task_id,
-      "pull_request_id" => order.pull_request_id,
-      "default_ref" => order.default_ref,
-      "default_tip_sha" => order.default_tip_sha,
-      "evaluation_base_ref" => order.evaluation_base_ref,
-      "evaluation_base_sha" => order.evaluation_base_sha,
-      "recipient_id" => order.recipient_id
-    }
   end
 end

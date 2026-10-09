@@ -147,6 +147,13 @@ func Step(ctx context.Context, cfg Config, b Binding) (Report, error) {
 
 // submitAttempt journals the external-I/O boundary before touching the session.
 func submitAttempt(ctx context.Context, cfg Config, b Binding, a *API, j *Journal, report Report) (Report, error) {
+	if hasConflictOrder(j.Batch) {
+		if err := currentDispatch(ctx, a, b, j.Batch); err != nil {
+			j.Outcome = "not_submitted"
+			j.Reason = "server source/recipient admission unavailable; native call never began"
+			return commitResult(ctx, cfg, b, a, j, report)
+		}
+	}
 	j.Phase = "submitting"
 	if err := WriteProtected(JournalPath(cfg, b), j); err != nil {
 		return report, err
@@ -163,8 +170,7 @@ func submitAttempt(ctx context.Context, cfg Config, b Binding, a *API, j *Journa
 			case <-submitCtx.Done():
 				return
 			case <-ticker.C:
-				check, err := CurrentState(submitCtx, a, b)
-				if err != nil || check.Worker.Paused || !check.Worker.Enabled {
+				if err := currentDispatch(submitCtx, a, b, j.Batch); err != nil {
 					cancel()
 					return
 				}
@@ -203,6 +209,50 @@ func commitResult(ctx context.Context, cfg Config, b Binding, a *API, j *Journal
 		j.Phase = "awaiting_receipt"
 	}
 	return r, WriteProtected(JournalPath(cfg, b), j)
+}
+
+// The server rechecks the exact frozen sources, without rewriting a batch or
+// authorizing publication. A failure before AdapterCall proves non-submission;
+// once I/O starts, cancellation still retains uncertainty.
+func currentDispatch(ctx context.Context, a *API, binding Binding, batch *Batch) error {
+	state, err := CurrentState(ctx, a, binding)
+	if err != nil {
+		return err
+	}
+	if state.Worker.Paused || !state.Worker.Enabled {
+		return errors.New("server recipient unavailable")
+	}
+	if !hasConflictOrder(batch) {
+		return nil
+	}
+	raw, err := a.Call(ctx, http.MethodPost, "attempts/"+url.PathEscape(batch.Attempt)+"/dispatch", nil, batch.Fences())
+	if err != nil {
+		return err
+	}
+	var result struct {
+		Allowed bool `json:"dispatch_allowed"`
+	}
+	if json.Unmarshal(raw, &result) != nil || !result.Allowed {
+		return errors.New("frozen conflict dispatch refused")
+	}
+	return nil
+}
+
+func hasConflictOrder(batch *Batch) bool {
+	var frame struct {
+		Items []struct {
+			Order json.RawMessage `json:"order_ref"`
+		} `json:"items"`
+	}
+	if json.Unmarshal([]byte(batch.Payload), &frame) != nil {
+		return true
+	}
+	for _, item := range frame.Items {
+		if len(item.Order) != 0 && string(item.Order) != "null" {
+			return true
+		}
+	}
+	return false
 }
 
 func recoverAttempt(ctx context.Context, cfg Config, b Binding, a *API, j *Journal, r Report) (Report, error) {

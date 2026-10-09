@@ -4,7 +4,7 @@ This checklist is implementation work after proposal review. No runtime task is 
 
 ## 1. Durable contracts and migration
 
-- [ ] 1.1 Reconcile #170 shared eligibility and #156/#150 wake/custody envelopes; apply captain decision aca78ca8's existing Event/Delivery worker versus canonical Message inbox amendment with #122's sole selector, jointly agree typed currentness/capture interfaces and verify both consumers reference one portable version, without enabling host delivery.
+- [x] 1.1 Reconcile #170 shared eligibility and #156/#150 wake/custody envelopes; apply captain decision aca78ca8's existing Event/Delivery worker versus canonical Message inbox amendment with #122's sole selector. Per coordinator1837, implement against the shipped main #156/#122 contracts; both actual consumers share the globally sorted currentness prefix and unchanged portable closed reference. Verify worker frozen reserve/dispatch, canonical inbox adoption, exact prior bytes and the two-PR prefix race without activating host delivery. Native publication custody remains separately assigned and unsupported.
 - [x] 1.2 Recheck the schema reservation against current main and add schema32 migration `20261008003200` with binding, current-order/history and publication-grant Ash resources, constraints, AshEvents and mutable AshPaperTrail; verify remote migration from the actual preceding schema preserves old follow-ups and is idempotent.
 - [ ] 1.3 Implement order/binding/grant public serialization and auth policies; verify remote API tests reject cross-owner, expired-claim, ambiguous binding and wrong-repository writes and never serialize credentials; document response and permission contracts alongside this group.
 

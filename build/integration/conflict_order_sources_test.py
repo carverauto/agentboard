@@ -21,6 +21,7 @@ from liveview_client import RenderedView
 HEAD, BASE, DEFAULT, MOVED = (c * 40 for c in 'abcd')
 head, default_tip, target_tip = HEAD, DEFAULT, BASE
 mergeable = False
+second_target_tip = '3' * 40
 
 
 def sql(query):
@@ -67,6 +68,16 @@ def consume(kind, identity, version, recipient='codex-order-owner', pause=False)
     return json.loads(rpc(expr).strip().splitlines()[-1])
 
 
+def worker_api(path, data=None, token=None):
+    request=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/'+path,
+        data=json.dumps(data).encode() if data is not None else None,
+        headers={'Content-Type':'application/json','Authorization':'Bearer '+token,
+            'x-agentboard-worker-protocol':'1'})
+    with urllib.request.urlopen(request,timeout=15) as response:
+        assert response.status==200
+        return json.load(response)
+
+
 def provision():
     rpc('Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-32-characters")')
     request=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/workers/provision',
@@ -75,6 +86,7 @@ def provision():
         headers={'Content-Type':'application/json','Authorization':'Bearer fixture-captain-capability-32-characters','x-agentboard-captain-token':'fixture-captain-capability-32-characters','x-agentboard-worker-protocol':'1'})
     with urllib.request.urlopen(request,timeout=15) as response:
         assert response.status==200
+        return json.load(response)['host_token']
 
 
 def check_watch(ref):
@@ -115,11 +127,11 @@ def rendered_order(path):
 
 
 def source():
-    return json.loads(sql("SELECT to_jsonb(s) FROM delivery_conflict_sources s ORDER BY created_at DESC LIMIT 1"))
+    return json.loads(sql("SELECT to_jsonb(s) FROM delivery_conflict_sources s JOIN delivery_conflict_orders o ON o.id=s.order_id WHERE o.pull_request_id='"+pr+"' ORDER BY s.created_at DESC LIMIT 1"))
 
 
 def order():
-    return json.loads(sql("SELECT to_jsonb(o) FROM delivery_conflict_orders o WHERE state='open'"))
+    return json.loads(sql("SELECT to_jsonb(o) FROM delivery_conflict_orders o WHERE state='open' AND pull_request_id='"+pr+"'"))
 
 
 class Provider(http.server.BaseHTTPRequestHandler):
@@ -131,11 +143,14 @@ class Provider(http.server.BaseHTTPRequestHandler):
             body = dict(full_name='fixture/orders',default_branch='staging')
         elif '/branches/' in path:
             ref = path.rsplit('/',1)[1]
-            body = dict(name=ref,commit=dict(sha=default_tip if ref=='staging' else target_tip))
+            body = dict(name=ref,commit=dict(sha=default_tip if ref=='staging' else second_target_tip if ref=='release-other' else target_tip))
         elif '/pulls/' in path:
-            body = dict(number=101,state='open',merged=False,draft=False,
-                head=dict(sha=head,ref='feat/order',repo=dict(full_name='fixture/orders')),
-                base=dict(sha=target_tip,ref='release'),mergeable=mergeable,
+            number = int(path.rsplit('/',1)[1])
+            body = dict(number=number,state='open',merged=False,draft=False,
+                head=dict(sha=head if number==101 else '4'*40,
+                    ref='feat/order' if number==101 else 'feat/second',repo=dict(full_name='fixture/orders')),
+                base=dict(sha=target_tip if number==101 else second_target_tip,
+                    ref='release' if number==101 else 'release-other'),mergeable=mergeable,
                 mergeable_state='clean' if mergeable else 'dirty')
         elif path.endswith('/check-suites'): body = dict(total_count=0,check_suites=[])
         elif path.endswith('/statuses'): body = []
@@ -296,9 +311,38 @@ with tls_provider(Provider) as (url,ca,_):
     # Actual enrollment adopts the existing inbox effect. It does not recreate
     # a legacy rebase Event or turn that occurrence into a worker prompt.
     prior_events=sql("SELECT count(*) FROM cooperation_events WHERE kind='pr_conflict'")
-    provision()
+    host_token=provision()
+    worker_api('workers/codex-order-owner/bind', dict(idempotency_key='order-bind',
+        expected_epoch=0,host_id='fixture-order-host',session_id='order-session',
+        pane_id='order-pane',adapter='pi-native-v1',adapter_version='1',
+        capabilities={name:dict(supported=True,reason='Invented boundary')
+            for name in ('idle_wake','turn_start','tool_return','receipt','recovery')}),host_token)
     assert sql("SELECT count(*) FROM cooperation_events WHERE kind='pr_conflict'")==prior_events
     assert sql("SELECT count(*) FROM cooperation_deliveries WHERE event_id='"+latest['id']+"'")=='0'
+    # Declared adapter health tests server admission only; the Go host test owns
+    # protected native I/O. Adopt the canonical unread Message via #156, never
+    # route its original pr_conflict Event into an additional delivery.
+    worker_api('workers/codex-order-owner/state',dict(binding_epoch=1,
+        adapter_state='ready',connector_state='healthy'),host_token)
+    rpc('Application.put_env(:agentboard, :wake_delivery_enabled, true)')
+    wake_path='hosts/fixture-order-host/wake-intents/codex-order-owner'
+    preview=worker_api(wake_path,token=host_token)
+    intent=next(i for i in preview['intents'] if i['source']['id']==str(latest['message_id']))
+    assert intent['source_state']=='pending' and intent['source_ref']['order_ref']['order_id']==order()['id']
+    ready=preview['readiness']
+    adopted=worker_api(wake_path+'/reserve',dict(intent_id=intent['intent_id'],
+        intent_revision=intent['intent_revision'],reason_hash=intent['reason_hash'],
+        enrollment_revision=ready['enrollment_revision'],binding_epoch=1,
+        session_id='order-session',adapter_generation='order-pane',idempotency_key='canonical-inbox'),host_token)
+    reservation=adopted['reservation'];assert reservation is not None, adopted
+    inbox_ref=intent['source_ref']['order_ref']
+    assert reservation['source_refs'][0]['order_ref']==inbox_ref
+    assert json.loads(adopted['batch']['payload'])['items'][0]['order_ref']==inbox_ref
+    assert sql("SELECT count(*) FROM cooperation_deliveries WHERE event_id='"+latest['id']+"'")=='0'
+    assert sql("SELECT count(*) FROM cooperation_events WHERE kind='pr_conflict'")==prior_events
+    callback={k:reservation[k] for k in ('attempt_id','intent_id','reason_hash','payload_hash','recipient')}
+    worker_api(wake_path+'/result',dict(callback,status='not_submitted',
+        reason_codes=['fixture_no_native_call'],evidence_refs=['fixture:never-entered-native-input']),host_token)
     messages_before=sql('SELECT count(*) FROM messages')
     default_tip='1'*40;assert 'changed: true' in check_watch('staging')
     assert 'observed' in poll(pr)
@@ -306,6 +350,60 @@ with tls_provider(Provider) as (url,ca,_):
     assert worker_source['disposition']=='worker' and worker_source['message_id'] is None
     assert sql('SELECT count(*) FROM messages')==messages_before, 'Worker selection emitted an extra inbox effect'
     assert 'ref' in consume('event',worker_source['id'],worker_source['source_key'])
+    obsolete=next(i for i in worker_api(wake_path,token=host_token)['intents'] if i['intent_id']==intent['intent_id'])
+    assert obsolete['source_state']=='stale_order'
+    # Two canonical PRs target distinct watches. A frozen batch must collect
+    # the whole prefix before worker custody, not nest one-source resolvers.
+    rpc('Application.put_env(:agentboard, :queue_limit, 4)')
+    ab('task','create','--id','second-order-source','--title','Invented second conflict','--repo','fixture/orders')
+    ab('task','claim','second-order-source')
+    ab('task','link','second-order-source','--pr','https://github.com/fixture/orders/pull/102')
+    second_pr=sql("SELECT id FROM delivery_pull_requests WHERE number='102'")
+    assert 'observed' in poll(second_pr)
+    second_source=json.loads(sql("SELECT to_jsonb(s) FROM delivery_conflict_sources s JOIN delivery_conflict_orders o ON o.id=s.order_id WHERE o.pull_request_id='"+second_pr+"' ORDER BY s.created_at DESC LIMIT 1"))
+    assert second_source['disposition']=='worker'
+    batch=worker_api('workers/codex-order-owner/reserve',
+        dict(binding_epoch=1,idempotency_key='order-frame'),host_token)['batch']
+    item=next(i for i in json.loads(batch['payload'])['items'] if i['source_id']==worker_source['id'])
+    assert item.get('order_ref',{}).get('order_id')==order()['id'], 'Frozen worker frame lost closed conflict reference'
+    second_item=next(i for i in json.loads(batch['payload'])['items'] if i['source_id']==second_source['id'])
+    assert second_item['order_ref']['pull_request_id']==second_pr
+    fences={k:batch[k] for k in ('attempt_id','binding_epoch','dispatch_generation','payload_hash')}
+    dispatch_path='workers/codex-order-owner/attempts/'+batch['attempt_id']+'/dispatch'
+    assert worker_api(dispatch_path,fences,host_token)['dispatch_allowed'] is True
+    frozen_payload=batch['payload']
+    # Hold only real worker custody; the public dispatch request must already
+    # hold both target watch fences while waiting here. The second watch update
+    # then waits for dispatch to commit and invalidates the immutable batch.
+    holder=subprocess.Popen([os.environ['FIXTURE_PSQL'],'-At','-v','ON_ERROR_STOP=1'],
+        stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+    try:
+        holder.stdin.write("BEGIN; SELECT id FROM cooperation_subscriptions WHERE id='codex-order-owner' FOR UPDATE; SELECT 'worker-held';\n")
+        holder.stdin.flush()
+        while holder.stdout.readline().strip()!='worker-held':
+            assert holder.poll() is None, 'Worker lock fixture exited early'
+        with concurrent.futures.ThreadPoolExecutor(2) as pool:
+            blocked=pool.submit(worker_api,dispatch_path,fences,host_token)
+            deadline=time.monotonic()+10
+            while time.monotonic()<deadline and sql("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%cooperation_subscriptions%' AND pid<>pg_backend_pid()")=='0':
+                time.sleep(0.05)
+            assert not blocked.done(), 'Dispatch skipped worker custody'
+            assert sql("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%cooperation_subscriptions%' AND pid<>pg_backend_pid()")!='0'
+            second_target_tip='5'*40
+            moving=pool.submit(check_watch,'release-other')
+            deadline=time.monotonic()+10
+            while time.monotonic()<deadline and sql("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%delivery_base_watches%' AND pid<>pg_backend_pid()")=='0':
+                time.sleep(0.05)
+            assert not moving.done(), 'Second PR target advanced before the batch fence committed'
+            assert sql("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%delivery_base_watches%' AND pid<>pg_backend_pid()")!='0'
+            holder.stdin.write('COMMIT;\n');holder.stdin.flush()
+            assert blocked.result()['dispatch_allowed'] is True
+            assert 'changed: true' in moving.result()
+    finally:
+        holder.terminate();holder.communicate(timeout=5)
+    assert consume('event',worker_source['id'],worker_source['source_key'])['ref']['pull_request_id']==pr
+    obsolete_batch=worker_api(dispatch_path,fences,host_token)
+    assert obsolete_batch['dispatch_allowed'] is False and 'source_stale_order' in obsolete_batch['reason_codes']
     assert consume('board_message',latest['message_id'],latest['message_version'])==dict(error='stale_order')
 
     # Source/audit failure rolls back evidence, order supersession and the
@@ -313,6 +411,14 @@ with tls_provider(Provider) as (url,ca,_):
     before_atomic=sql("SELECT jsonb_build_array((SELECT count(*) FROM delivery_ci_snapshots),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM messages))")
     reject_audit('Elixir.Agentboard.Delivery.ConflictSource')
     default_tip='2'*40;assert 'changed: true' in check_watch('staging')
+    stale=worker_api(dispatch_path,fences,host_token)
+    assert stale['dispatch_allowed'] is False and 'source_stale_order' in stale['reason_codes']
+    retry=worker_api('workers/codex-order-owner/reserve',
+        dict(binding_epoch=1,idempotency_key='order-frame'),host_token)['batch']
+    assert retry['payload']==frozen_payload and retry['payload_hash']==batch['payload_hash'], 'Reevaluation rewrote immutable frozen bytes'
+    assert sql("SELECT status FROM cooperation_attempts WHERE id='"+batch['attempt_id']+"'")=='reserved', 'Stale source fabricated transport disposition'
+    worker_api('workers/codex-order-owner/attempts/'+batch['attempt_id']+'/result',
+        dict(fences,status='not_submitted',reason='Fixture made no native call'),host_token)
     refused=poll(pr)
     assert 'observed' not in refused, refused
     assert sql("SELECT jsonb_build_array((SELECT count(*) FROM delivery_ci_snapshots),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM messages))")==before_atomic
@@ -334,6 +440,7 @@ with tls_provider(Provider) as (url,ca,_):
     assert sql(effect_counts)==before_effects
     rpc('Application.put_env(:agentboard, :conflict_routing_mode, "apply")')
     assert 'observed' in poll(pr)
+    assert 'observed' in poll(second_pr)
     assert sql("SELECT count(*) FROM delivery_conflict_orders WHERE state='open'")=='0'
     assert sql("SELECT count(*) FROM delivery_conflict_orders WHERE rebaser_id IS NOT NULL")=='0', 'Unverified changed head invented rebaser credit'
     assert ab('task','show',repair)['task']['status']=='assigned', 'Clean evidence completed repair without attribution'
