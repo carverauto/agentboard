@@ -42,6 +42,8 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       when action in [:provision, :resolve_attempt, :responsibility, :revoke, :operate],
       do: :independent
 
+  def boundary(%{plug: AgentboardWeb.CoordinatorTriageController}), do: :captain
+
   def boundary(%{plug: AgentboardWeb.FleetLoadoutController}), do: :captain
 
   def boundary(%{plug: CaptainController, plug_opts: action})
@@ -94,6 +96,9 @@ defmodule Agentboard.Auth.APIAuthPolicy do
     case info do
       %{plug: APIController, plug_opts: action}
       when action in [:tasks, :task, :prs, :pr, :agents, :agent, :seat_scope] ->
+        true
+
+      %{plug: APIController, plug_opts: action} when action in [:message, :message_triage] ->
         true
 
       %{plug: DecisionController, plug_opts: action}

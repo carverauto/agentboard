@@ -516,3 +516,14 @@ sh_test(
     size = "medium",
     timeout = "long",
 )
+
+sh_test(
+    name = "coordinator_triage_api_test",
+    # UTC API cursors must remain correct with a non-UTC PostgreSQL session.
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "coordinator_triage_api_test.py", "TZ": "America/Chicago"},
+    srcs = ["board_api_test.sh"],
+    data = [":liveview_rendered", "@worker_node_linux_x64//:bin/node", "coordinator_triage_api_test.py", "liveview_client.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)", "$(rlocationpath :liveview_rendered)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
+    size = "medium",
+    timeout = "long",
+)

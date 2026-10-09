@@ -13,7 +13,7 @@ export PHX_SERVER=false
 
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 35 ]]
+[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 36 ]]
 [[ "$(fixture_psql 'SELECT count(*) FROM mattermost_agent_bots')" == 0 ]]
 
 fixture_psql "INSERT INTO agents (id, name, model, harness) VALUES ('worker','Worker','model-1','codex')" >/dev/null
@@ -56,7 +56,7 @@ INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html
 CREATE EXTENSION pg_textsearch VERSION '1.5.1';" >/dev/null
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 35 ]]
+[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 36 ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM task_events WHERE task_id='retained-task'")" == 1 ]]
 [[ "$(upgrade_psql "SELECT html FROM task_documents WHERE task_id='retained-task'")" == '<!doctype html><p>Retained</p>' ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM pg_indexes WHERE indexname='context_entries_bm25'")" == 1 ]]
@@ -99,7 +99,7 @@ before_snapshot="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_ci_snapshots
 before_projection="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_poll_states s')"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 35 ]]
+[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 36 ]]
 [[ "$(inventory_psql "$history_query")" == "$before_inventory" ]]
 [[ "$(inventory_psql "SELECT to_jsonb(s)-'base_ref'-'expected_base_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' FROM delivery_poll_states s")" == "$before_projection" ]]
 [[ "$(inventory_psql 'SELECT base_ref IS NULL AND expected_base_sha IS NULL FROM delivery_poll_states')" == t ]]
@@ -147,7 +147,7 @@ before_obligations="$(avail_psql 'SELECT jsonb_agg(to_jsonb(o) ORDER BY episode)
 before_avail="$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f) ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(avail_psql 'SELECT version FROM board_schema WHERE id=1')" == 35 ]]
+[[ "$(avail_psql 'SELECT version FROM board_schema WHERE id=1')" == 36 ]]
 [[ "$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t)-'assignment_authorized' ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f) ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")" == "$before_avail" ]]
 [[ "$(avail_psql 'SELECT count(*) FROM availability_policies')" == 0 ]]
 [[ "$(avail_psql 'SELECT count(*) FROM tasks WHERE assignment_authorized')" == 0 ]]
@@ -179,7 +179,7 @@ INSERT INTO decision_requests(id,task_id,requester_id,kind,gate_ref,question,fin
 VALUES ('11111111-1111-4111-8111-111111111129','legacy-decision-card','legacy-decision-owner','ask_user_gate','legacy-gate','  Retained question?  ','Retained findings','{}','open',clock_timestamp(),clock_timestamp());" >/dev/null
 legacy_decision="$(decision_psql "SELECT to_jsonb(d) FROM decision_requests d")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(decision_psql 'SELECT version FROM board_schema WHERE id=1')" == 35 ]]
+[[ "$(decision_psql 'SELECT version FROM board_schema WHERE id=1')" == 36 ]]
 [[ "$(decision_psql "SELECT to_jsonb(d)-'question_key'-'normalization_version'-'retry_key'-'expires_at'-'expires_in'-'bound_pr'-'source_type'-'source_id'-'promoted_by' FROM decision_requests d")" == "$legacy_decision" ]]
 
 # Older-timestamp 20261008001800 pending over a higher-marker database must not lower the marker.
@@ -246,7 +246,7 @@ INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES (
 INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES ('66666666-6666-4666-8666-666666666666',repeat('f',64),1,clock_timestamp(),repeat('a',40),repeat('b',40),'open','failing','{\"coverage\":\"complete_head\",\"policy\":\"unknown\",\"tested_ref\":\"head\",\"attempts\":[]}');" >/dev/null
 before_auth24="$(auth24_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'prs',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_pull_requests p),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(auth24_psql 'SELECT version FROM board_schema WHERE id=1')" == 35 ]]
+[[ "$(auth24_psql 'SELECT version FROM board_schema WHERE id=1')" == 36 ]]
 [[ "$(auth24_psql "SELECT to_regclass('delivery_workflow_runs')::text||','||to_regclass('delivery_workflow_health')::text")" == 'delivery_workflow_runs,delivery_workflow_health' ]]
 [[ "$(auth24_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'prs',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_pull_requests p),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))")" == "$before_auth24" ]]
 [[ "$(auth24_psql 'SELECT count(*) FROM agent_api_credentials')" == 0 ]]
@@ -356,7 +356,7 @@ for initial_marker in 34 99; do
   before_fleet_operational="$(fleet_operational_rows)"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-  expected_marker=35
+  expected_marker=36
   if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
   [[ "$(fleet_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
   [[ "$(fleet_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003500')" == 1 ]]
@@ -391,4 +391,32 @@ for initial_marker in 34 99; do
   [[ "$(fleet_psql "$fleet_history_query")" == "$before_fleet" ]]
   [[ "$(fleet_operational_rows)" == "$before_fleet_operational" ]]
   echo "Schema34 to dormant FleetLoadout migration preserves marker $expected_marker, operational state and immutable configuration evidence."
+done
+
+# Schema35 -> 36 adds only empty shadow-triage storage. Preserve canonical
+# messages/history, never invent a classification or reduce a higher marker.
+for initial_marker in 35 99; do
+  "$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard "agentboard_triage${initial_marker}_upgrade"
+  export DATABASE_NAME="agentboard_triage${initial_marker}_upgrade"
+  triage_psql() {
+    PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=$DATABASE_NAME user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -Atc "$1"
+  }
+  triage_psql "CREATE EXTENSION pg_textsearch VERSION '1.5.1'" >/dev/null
+  "$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261008003500) end)'
+  [[ "$(triage_psql 'SELECT version FROM board_schema WHERE id=1')" == 35 ]]
+  triage_psql "INSERT INTO agents(id,name,model,harness) VALUES ('triage-retained','Retained','fixture','codex');
+  INSERT INTO tasks(id,title,repo) VALUES ('triage-retained-task','Retained task','fixture/triage');
+  INSERT INTO messages(sender_id,model,harness,recipient_id,task_id,body) VALUES ('triage-retained','fixture','codex','triage-retained','triage-retained-task','Retained exact inbox body');
+  UPDATE board_schema SET version=$initial_marker WHERE id=1" >/dev/null
+  triage_history_query="SELECT jsonb_build_object('messages',(SELECT jsonb_agg(t ORDER BY id) FROM messages t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t),'tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'agents',(SELECT jsonb_agg(t ORDER BY id) FROM agents t))"
+  before_triage="$(triage_psql "$triage_history_query")"
+  "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+  "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+  expected_marker=36
+  if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
+  [[ "$(triage_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
+  [[ "$(triage_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003600')" == 1 ]]
+  [[ "$(triage_psql 'SELECT (SELECT count(*) FROM coordinator_triage_configuration)+(SELECT count(*) FROM coordinator_triage_configuration_versions)+(SELECT count(*) FROM coordinator_inbox_triage)+(SELECT count(*) FROM coordinator_triage_dispositions)')" == 0 ]]
+  [[ "$(triage_psql "$triage_history_query")" == "$before_triage" ]]
+  echo "Schema35 to triage migration preserves marker $expected_marker and canonical inbox/history without backfill."
 done

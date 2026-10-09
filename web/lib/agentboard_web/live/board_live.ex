@@ -52,8 +52,9 @@ defmodule AgentboardWeb.BoardLive do
     filters =
       Map.take(
         params,
-        ~w(id status owner repo label to task unread provider account cursor message_cursor decision_cursor waiting availability kind retired)
+        ~w(id status owner repo label to task unread triage_state provider account cursor message_cursor decision_cursor waiting availability kind retired)
       )
+      |> Map.reject(fn {key, value} -> key == "triage_state" and value == "" end)
 
     changed =
       socket.assigns.filters != filters or
@@ -561,7 +562,7 @@ defmodule AgentboardWeb.BoardLive do
     do:
       Board.page(
         "messages",
-        Map.take(filters, ~w(to task unread cursor)) |> Map.put("limit", "100")
+        Map.take(filters, ~w(to task unread triage_state cursor)) |> Map.put("limit", "100")
       )
 
   defp load(:quota, filters),
@@ -772,7 +773,7 @@ defmodule AgentboardWeb.BoardLive do
             <.scope_modal :if={@scope_form != nil and Agentboard.Captain.authorized?(@captain)} form={@scope_form} error={@scope_error} />
             <a :if={@data["next_cursor"]} href={page_link(:agents,@filters,@data["next_cursor"])}>Next agents</a>
           <% :messages -> %>
-            <form action="/messages" method="get" class="filters"><label>Recipient <input name="to" value={@filters["to"]} placeholder="All recipients" /></label><label>Task <input name="task" value={@filters["task"]} placeholder="All threads" /></label><label class="check"><input type="checkbox" name="unread" value="true" checked={@filters["unread"]=="true"} /> Unread only</label><button type="submit">Filter messages</button><a href="/messages">Clear filters</a></form>
+            <form action="/messages" method="get" class="filters"><label>Recipient <input name="to" value={@filters["to"]} placeholder="All recipients" /></label><label>Task <input name="task" value={@filters["task"]} placeholder="All threads" /></label><label class="check"><input type="checkbox" name="unread" value="true" checked={@filters["unread"]=="true"} /> Unread only</label><label>Triage <select name="triage_state"><option value="">All messages</option><option :for={state <- Agentboard.CoordinatorTriage.states()} value={state} selected={@filters["triage_state"] == state}>{label(state)}</option></select></label><button type="submit">Filter messages</button><a href="/messages">Clear filters</a></form>
             <p :if={@data["messages"]==[]} class="empty">No messages match these filters.</p>
             <section class="timeline"><.message :for={message <- @data["messages"]} message={message} /></section>
             <a :if={@data["next_cursor"]} href={page_link(:messages,@filters,@data["next_cursor"])}>Next messages</a>
@@ -975,7 +976,7 @@ defmodule AgentboardWeb.BoardLive do
 
   defp message(assigns) do
     ~H"""
-    <article class="message"><div class="event-heading"><strong>{@message["sender_id"]} to {@message["recipient_id"] || "task thread"}</strong><time>{@message["created_at"]}</time></div><p class="attribution">{@message["model"]} / {@message["harness"]}<span :if={@message["recipient_id"]}> / {if @message["read_at"],do: "Read",else: "Unread"}</span> <a :if={@message["task_id"]} href={"/tasks/"<>@message["task_id"]}>{@message["task_id"]}</a></p><p class="description">{@message["body"]}</p></article>
+    <article class="message"><div class="event-heading"><strong>{@message["sender_id"]} to {@message["recipient_id"] || "task thread"}</strong><time>{@message["created_at"]}</time></div><p class="attribution">{@message["model"]} / {@message["harness"]}<span :if={@message["recipient_id"]}> / {if @message["read_at"],do: "Read",else: "Unread"}</span> <a :if={@message["task_id"]} href={"/tasks/"<>@message["task_id"]}>{@message["task_id"]}</a></p><p :if={@message["triage"]} class="notice" data-triage-message={@message["id"]}>Shadow triage: {label(@message["triage"]["classification"])} / {label(@message["triage"]["state"])} ({label(@message["triage"]["reason_code"])}). No delivery or handling implied.</p><p class="description">{@message["body"]}</p></article>
     """
   end
 end

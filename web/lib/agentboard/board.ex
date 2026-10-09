@@ -6,6 +6,9 @@ defmodule Agentboard.Board do
   end
 
   resources do
+    resource(Agentboard.CoordinatorTriage.Configuration)
+    resource(Agentboard.CoordinatorTriage.Record)
+    resource(Agentboard.CoordinatorTriage.Disposition)
     resource(Agentboard.Board.AuditEvent)
     resource(Agentboard.Decisions.Request)
     resource(Agentboard.Decisions.Wake)
