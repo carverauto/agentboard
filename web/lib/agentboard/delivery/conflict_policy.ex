@@ -8,5 +8,12 @@ defmodule Agentboard.Delivery.ConflictPolicy do
     end
   end
 
+  def deadline_seconds do
+    case Application.get_env(:agentboard, :conflict_deadline_seconds, 2700) do
+      seconds when is_integer(seconds) and seconds in 60..86400 -> seconds
+      _ -> 2700
+    end
+  end
+
   def observe_defaults?, do: mode() != "disabled"
 end

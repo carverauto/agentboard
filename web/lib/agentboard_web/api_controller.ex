@@ -24,6 +24,13 @@ defmodule AgentboardWeb.APIController do
   def prs(conn, _),
     do: reply(conn, Agentboard.Delivery.Reads.list(fetch_query_params(conn).query_params))
 
+  def resolve_conflict_source(conn, _),
+    do:
+      reply(
+        conn,
+        Agentboard.Delivery.ConflictOrders.resolve_source(actor(conn), conn.body_params)
+      )
+
   def bind_publication(conn, _),
     do: reply(conn, Agentboard.Delivery.Publication.bind(actor(conn), conn.body_params))
 
@@ -180,7 +187,7 @@ defmodule AgentboardWeb.APIController do
       case code do
         c when c in ~w(invalid_input invalid_context) -> 422
         "not_found" -> 404
-        "conflict" -> 409
+        c when c in ~w(conflict stale_order) -> 409
         "forbidden" -> 403
         "unauthorized" -> 401
         _ -> 503

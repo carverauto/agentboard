@@ -1,0 +1,228 @@
+"""Canonical collector -> current orders -> selected source -> transactional consumer.
+
+Owns authoritative source resolution and supersession, distinct from the legacy
+per-head repairs and default-watch fanout tests. Fixtures only provide GitHub
+metadata; orders, pointers, messages and audit relations come from production.
+"""
+import concurrent.futures
+import http.server
+import json
+import os
+import subprocess
+import time
+import urllib.parse
+import urllib.request
+import urllib.error
+from provider_fixture import tls_provider
+
+HEAD, BASE, DEFAULT, MOVED = (c * 40 for c in 'abcd')
+head, default_tip, target_tip = HEAD, DEFAULT, BASE
+mergeable = False
+
+
+def sql(query):
+    return subprocess.check_output([os.environ['FIXTURE_PSQL'], '-At', '-v', 'ON_ERROR_STOP=1', '-c', query], text=True).strip()
+
+
+def rpc(expression):
+    p = subprocess.run([os.environ['AGENTBOARD_BIN'], 'rpc', expression], text=True, capture_output=True, timeout=45)
+    assert p.returncode == 0, (p.stdout, p.stderr)
+    return p.stdout
+
+
+def ab(*args, owner='codex-order-owner'):
+    env = {k:v for k,v in os.environ.items() if not k.startswith(('PG','DATABASE_'))}
+    env.update(AGENT_ID=owner, AGENTBOARD_HARNESS='codex', AGENTBOARD_MODEL='fixture-model')
+    p = subprocess.run([os.environ['AB_BINARY'],'--json',*args], env=env, text=True, capture_output=True, timeout=25)
+    assert p.returncode == 0, (p.stdout,p.stderr)
+    return json.loads(p.stdout)
+
+
+def poll(pr):
+    sql("UPDATE delivery_provider_budgets SET remaining=60,blocked_until=NULL,reset_at=clock_timestamp()+interval '60 seconds' WHERE id='github'")
+    sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 second' WHERE id='"+pr+"'")
+    return rpc('IO.puts(inspect(Agentboard.Delivery.Scheduling.poll('+json.dumps(pr)+')))')
+
+
+def consume(kind, identity, version, recipient='codex-order-owner', pause=False):
+    callback = ('Agentboard.Repo.statement!("SELECT pg_sleep(1)", []); ' if pause else '') + 'ref'
+    expr = ('r = Agentboard.Delivery.ConflictOrders.with_current_source('+','.join(
+        json.dumps(x) for x in (kind,identity,version,recipient))+', fn ref -> '+callback+' end); '
+        'IO.puts(Jason.encode!(case r do {:ok, ref} -> %{ref: ref}; {:error, code, _} -> %{error: code} end))')
+    return json.loads(rpc(expr).strip().splitlines()[-1])
+
+
+def provision():
+    rpc('Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-32-characters")')
+    request=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/workers/provision',
+        data=json.dumps(dict(worker_id='codex-order-owner',host_id='fixture-order-host',repos=['fixture/orders'],
+            model='fixture-model',harness='codex',idempotency_key='fixture-order-enrollment')).encode(),
+        headers={'Content-Type':'application/json','x-agentboard-captain-token':'fixture-captain-capability-32-characters','x-agentboard-worker-protocol':'1'})
+    with urllib.request.urlopen(request,timeout=15) as response:
+        assert response.status==200
+
+
+def check_watch(ref):
+    watch=sql("SELECT id FROM delivery_base_watches WHERE ref='"+ref+"'")
+    sql("UPDATE delivery_base_watches SET next_poll_at=clock_timestamp()-interval '1 second' WHERE id='"+watch+"'")
+    return rpc('IO.puts(inspect(Agentboard.Delivery.BaseMonitor.check('+json.dumps(watch)+')))')
+
+
+def resolve_api(src, owner='codex-order-owner', **extra):
+    data=dict(source_kind='board_message',source_id=src['message_id'],source_version=src['message_version'])
+    data.update(extra)
+    req=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/conflicts/resolve-source',data=json.dumps(data).encode(),
+        headers={'Content-Type':'application/json','X-Agentboard-Agent':owner,'X-Agentboard-Model':'fixture-model','X-Agentboard-Harness':'codex'})
+    try: response=urllib.request.urlopen(req,timeout=15)
+    except urllib.error.HTTPError as error: response=error
+    with response: return response.status,json.load(response)
+
+
+def source():
+    return json.loads(sql("SELECT to_jsonb(s) FROM delivery_conflict_sources s ORDER BY created_at DESC LIMIT 1"))
+
+
+def order():
+    return json.loads(sql("SELECT to_jsonb(o) FROM delivery_conflict_orders o WHERE state='open'"))
+
+
+class Provider(http.server.BaseHTTPRequestHandler):
+    def log_message(self,*_): pass
+    def do_GET(self):
+        assert self.headers['Authorization'] == 'Bearer invented-order-token'
+        path = urllib.parse.urlparse(self.path).path
+        if path == '/repos/fixture/orders':
+            body = dict(full_name='fixture/orders',default_branch='staging')
+        elif '/branches/' in path:
+            ref = path.rsplit('/',1)[1]
+            body = dict(name=ref,commit=dict(sha=default_tip if ref=='staging' else target_tip))
+        elif '/pulls/' in path:
+            body = dict(number=101,state='open',merged=False,draft=False,
+                head=dict(sha=head,ref='feat/order',repo=dict(full_name='fixture/orders')),
+                base=dict(sha=target_tip,ref='release'),mergeable=mergeable,
+                mergeable_state='clean' if mergeable else 'dirty')
+        elif path.endswith('/check-suites'): body = dict(total_count=0,check_suites=[])
+        elif path.endswith('/statuses'): body = []
+        else: raise AssertionError(path)
+        data=json.dumps(body).encode();self.send_response(200)
+        self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(data)))
+        self.end_headers();self.wfile.write(data)
+
+
+rpc(':ok = Oban.stop_queue(queue: :delivery_scheduler); :ok = Oban.stop_queue(queue: :delivery_polling); '
+    'Application.put_env(:agentboard, :cooperation_enabled, true); Application.put_env(:agentboard, :conflict_routing_mode, "apply")')
+for who in ('codex-order-owner','codex-order-peer'):
+    ab('agent','register',owner=who)
+ab('task','create','--id','order-source','--title','Invented conflict','--repo','fixture/orders')
+ab('task','claim','order-source')
+ab('task','link','order-source','--pr','https://github.com/fixture/orders/pull/101')
+pr=sql('SELECT id FROM delivery_pull_requests')
+source_before=ab('task','show','order-source')
+with tls_provider(Provider) as (url,ca,_):
+    rpc('Application.put_env(:agentboard, :github, [api_url: '+json.dumps(url)+', token: "invented-order-token", ca_file: '+json.dumps(ca)+'])')
+    assert 'observed' in poll(pr)
+    initial, initial_source = order(), source()
+    assert initial['default_tip_sha']==DEFAULT and initial['evaluation_base_sha']==BASE
+    assert initial_source['disposition']=='sent'
+    assert sql('SELECT count(*) FROM messages')=='1'
+    assert sql('SELECT count(*) FROM delivery_rebase_follow_ups')=='1'
+    assert ab('task','show','order-source')==source_before, 'Repair mutated source task/claim'
+    ref=consume('board_message',initial_source['message_id'],initial_source['message_version'])['ref']
+    assert ref == dict(kind='pr_conflict_order',order_id=initial['id'],order_revision=1,
+        repair_task_id=initial['repair_task_id'],pull_request_id=pr,default_ref='staging',default_tip_sha=DEFAULT,
+        evaluation_base_ref='release',evaluation_base_sha=BASE,recipient_id='codex-order-owner')
+    assert resolve_api(initial_source)==(200,dict(order_ref=ref,native_publication='unsupported'))
+    assert resolve_api(initial_source,owner='codex-order-peer')[0]==409
+    assert resolve_api(initial_source,order_ref=ref)[0]==422, 'Caller-provided reference was accepted as authority'
+    assert resolve_api(initial_source,source_id='not-an-id')[0]==422
+    assert consume('event',initial_source['id'],initial_source['source_key'])==dict(error='stale_order'), 'Inbox effect was also authorized as worker frame'
+    assert consume('board_message',initial_source['message_id'],'invented-version')==dict(error='stale_order')
+    assert consume('board_message',initial_source['message_id'],initial_source['message_version'],'codex-order-peer')==dict(error='stale_order')
+    assert consume('event','11111111-1111-4111-8111-111111111111','invented')==dict(error='unsupported')
+
+    assert 'observed' in poll(pr)
+    assert order()['id']==initial['id'] and sql('SELECT count(*) FROM messages')=='1'
+    head='e'*40;assert 'observed' in poll(pr)
+    assert order()['id']==initial['id'] and sql('SELECT count(*) FROM messages')=='1', 'Another dirty head stacked an order'
+
+    # A canonical watch advance is serialized behind an admitted consumer. The
+    # exact frozen identity is rejected on the next reservation, before callback.
+    default_tip=MOVED
+    watch=sql("SELECT id FROM delivery_base_watches WHERE ref='staging'")
+    with concurrent.futures.ThreadPoolExecutor(2) as pool:
+        held=pool.submit(consume,'board_message',initial_source['message_id'],initial_source['message_version'],'codex-order-owner',True)
+        deadline=time.monotonic()+10
+        while time.monotonic()<deadline and sql("SELECT count(*) FROM pg_stat_activity WHERE wait_event='PgSleep'")=='0':
+            time.sleep(0.05)
+        assert sql("SELECT count(*) FROM pg_stat_activity WHERE wait_event='PgSleep'")!='0', 'Consumer never entered its fenced transaction'
+        sql("UPDATE delivery_base_watches SET next_poll_at=clock_timestamp()-interval '1 second' WHERE id='"+watch+"'")
+        moving=pool.submit(rpc,'IO.puts(inspect(Agentboard.Delivery.BaseMonitor.check('+json.dumps(watch)+')))')
+        assert held.result()['ref']['order_id']==initial['id']
+        assert 'changed: true' in moving.result()
+    assert consume('board_message',initial_source['message_id'],initial_source['message_version'])==dict(error='stale_order')
+    assert 'observed' in poll(pr)
+    newer=order(); assert newer['id']!=initial['id'] and newer['revision']==2
+    assert newer['deadline_at']==initial['deadline_at'] and newer['episode_id']==initial['episode_id']
+    assert sql('SELECT count(*) FROM delivery_rebase_follow_ups')=='1'
+    assert sql('SELECT count(*) FROM messages')=='2'
+    assert sql("SELECT count(*) FROM delivery_conflict_orders WHERE state='open'")=='1'
+    assert sql("SELECT state FROM delivery_conflict_orders WHERE id='"+initial['id']+"'")=='superseded'
+    newest=source(); assert 'ref' in consume('board_message',newest['message_id'],newest['message_version'])
+
+    # Target moves while default remains unchanged; distinct identities and
+    # earliest deadline must survive a further same-default revision.
+    target_tip='f'*40
+    assert 'changed: true' in check_watch('release')
+    assert 'observed' in poll(pr)
+    assert order()['revision']==3 and order()['default_tip_sha']==MOVED and order()['evaluation_base_sha']==target_tip
+    assert order()['deadline_at']==initial['deadline_at']
+    latest=source()
+    assert consume('board_message',newest['message_id'],newest['message_version'])==dict(error='stale_order')
+
+    # Actual enrollment adopts the existing inbox effect. It does not recreate
+    # a legacy rebase Event or turn that occurrence into a worker prompt.
+    prior_events=sql("SELECT count(*) FROM cooperation_events WHERE kind='pr_conflict'")
+    provision()
+    assert sql("SELECT count(*) FROM cooperation_events WHERE kind='pr_conflict'")==prior_events
+    assert sql("SELECT count(*) FROM cooperation_deliveries WHERE event_id='"+latest['id']+"'")=='0'
+    messages_before=sql('SELECT count(*) FROM messages')
+    default_tip='1'*40;assert 'changed: true' in check_watch('staging')
+    assert 'observed' in poll(pr)
+    worker_source=source()
+    assert worker_source['disposition']=='worker' and worker_source['message_id'] is None
+    assert sql('SELECT count(*) FROM messages')==messages_before, 'Worker selection emitted an extra inbox effect'
+    assert 'ref' in consume('event',worker_source['id'],worker_source['source_key'])
+    assert consume('board_message',latest['message_id'],latest['message_version'])==dict(error='stale_order')
+
+    # Source/audit failure rolls back evidence, order supersession and the
+    # selected effect together, leaving no half-retained source identity.
+    before_atomic=sql("SELECT jsonb_build_array((SELECT count(*) FROM delivery_ci_snapshots),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM messages))")
+    sql("CREATE FUNCTION reject_source_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.resource='Elixir.Agentboard.Delivery.ConflictSource' THEN RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='conflict',DETAIL='Invented source audit failure'; END IF; RETURN NEW; END $$")
+    sql('CREATE TRIGGER fixture_source_audit BEFORE INSERT ON board_action_events FOR EACH ROW EXECUTE FUNCTION reject_source_audit()')
+    default_tip='2'*40;assert 'changed: true' in check_watch('staging')
+    refused=poll(pr)
+    assert 'observed' not in refused, refused
+    assert sql("SELECT jsonb_build_array((SELECT count(*) FROM delivery_ci_snapshots),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM messages))")==before_atomic
+    sql('DROP TRIGGER fixture_source_audit ON board_action_events')
+    # The reservation was committed before collection; a failed collector
+    # retains it until crash recovery expires the lease. Advance only time.
+    sql("UPDATE delivery_poll_states SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id='"+pr+"'")
+    assert 'observed' in poll(pr)
+    worker_source=source()
+
+    repair=order()['repair_task_id']
+    ab('task','claim',repair)
+    ab('task','handoff',repair,'--to','codex-order-peer','--body','Invented reassignment')
+    assert consume('event',worker_source['id'],worker_source['source_key'])==dict(error='stale_order')
+    assert ab('task','show','order-source')==source_before
+    assert sql('SELECT count(*) FROM delivery_publication_grants')=='0', 'Source resolution fabricated native custody'
+    mergeable=True
+    assert 'observed' in poll(pr)
+    assert sql("SELECT count(*) FROM delivery_conflict_orders WHERE state='open'")=='0'
+    assert sql("SELECT count(*) FROM delivery_conflict_orders WHERE rebaser_id IS NOT NULL")=='0', 'Unverified changed head invented rebaser credit'
+    assert ab('task','show',repair)['task']['status']=='assigned', 'Clean evidence completed repair without attribution'
+
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "disabled")')
+    assert consume('board_message',latest['message_id'],latest['message_version'])==dict(error='unsupported')
+
+print('Canonical source relation, one effect, superseding default/target fences, retained deadline, frozen-source rejection and repair-only assignment passed')

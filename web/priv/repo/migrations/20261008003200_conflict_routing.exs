@@ -93,7 +93,7 @@ defmodule Agentboard.Repo.Migrations.ConflictRouting do
     create(
       unique_index(
         :delivery_conflict_orders,
-        [:pull_request_id, :default_ref, :default_tip_sha, :episode_id],
+        [:pull_request_id, :default_ref, :default_tip_sha, :episode_id, :revision],
         name: :conflict_order_episode_tip
       )
     )
@@ -121,6 +121,45 @@ defmodule Agentboard.Repo.Migrations.ConflictRouting do
         references(:delivery_conflict_orders, type: :uuid, on_delete: :restrict)
       )
     end
+
+    # Exact source identity, never a reference inferred from an inbox body.
+    create table(:delivery_conflict_sources, primary_key: false) do
+      add(:id, references(:cooperation_events, type: :uuid, on_delete: :restrict),
+        primary_key: true
+      )
+
+      add(:order_id, references(:delivery_conflict_orders, type: :uuid, on_delete: :restrict),
+        null: false
+      )
+
+      add(:order_revision, :bigint, null: false)
+      add(:source_key, :text, null: false)
+      add(:message_id, references(:messages, type: :bigint, on_delete: :restrict))
+      add(:message_version, :text)
+      add(:disposition, :text, null: false)
+      add(:created_at, :timestamptz, null: false)
+    end
+
+    create(unique_index(:delivery_conflict_sources, [:order_id, :order_revision]))
+
+    create(
+      unique_index(:delivery_conflict_sources, [:message_id], where: "message_id IS NOT NULL")
+    )
+
+    create(
+      constraint(:delivery_conflict_sources, :conflict_source_identity,
+        check:
+          "order_revision>0 AND source_key='conflict-order:'||order_id::text||':'||order_revision::text AND ((message_id IS NULL)=(message_version IS NULL)) AND disposition IN ('worker','sent','adopted','disabled','undeliverable')"
+      )
+    )
+
+    execute(
+      "CREATE TRIGGER conflict_source_immutable BEFORE UPDATE OR DELETE ON delivery_conflict_sources FOR EACH ROW EXECUTE FUNCTION board_reject_history_change()"
+    )
+
+    execute(
+      "CREATE TRIGGER conflict_source_no_truncate BEFORE TRUNCATE ON delivery_conflict_sources FOR EACH STATEMENT EXECUTE FUNCTION board_reject_history_change()"
+    )
 
     create table(:delivery_publication_grants, primary_key: false) do
       add(:id, :uuid, primary_key: true, null: false)

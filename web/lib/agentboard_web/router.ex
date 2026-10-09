@@ -124,6 +124,7 @@ defmodule AgentboardWeb.Router do
     post("/decisions/:id/:action", DecisionController, :mutate)
     get("/prs", APIController, :prs)
     post("/publications/bind", APIController, :bind_publication)
+    post("/conflicts/resolve-source", APIController, :resolve_conflict_source)
     get("/prs/:id", APIController, :pr)
     post("/prs/:id/duplicate-decision", APIController, :duplicate_decision)
     get("/quota", APIController, :quota)

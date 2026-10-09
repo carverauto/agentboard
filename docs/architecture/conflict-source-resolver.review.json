@@ -1,0 +1,30 @@
+{
+  "diagram_type": "workflow",
+  "specification_sha256": "f4f92be0b00df00e24eda64bddb40d2ffcf823723d3ab2001c24b7cc21f5561a",
+  "artifact_sha256": "de9f7111a91352c0be2c9e2654d03e08ef4803ef8fd9fb653f85269c347573f2",
+  "contract_sha256": "f9ed7ee8270dac274ea1eabe7db9ac65f6c07915fe28f595b0a2b112e5c2dcab",
+  "contract_bytes": 986120,
+  "validation": "9/9 showcase, 0 errors, 0 warnings",
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "visual_review_scope": [
+    "1440x900 dark screenshot",
+    "2048x1320 light screenshot"
+  ],
+  "contract_browser_measurements": [
+    {
+      "width": 1440,
+      "height": 900,
+      "scrollWidth": 1440
+    },
+    {
+      "width": 500,
+      "height": 800,
+      "scrollWidth": 500
+    }
+  ],
+  "contract_visual_review": "desktop readable; narrow viewer uses pan and vertical scrolling",
+  "focused_test": "https://carverauto.buildbuddy.io/invocation/414b0bfd-268c-4006-a85e-28ea34ff0b4f",
+  "sibling_test_5_pass": "https://carverauto.buildbuddy.io/invocation/df10e875-4a6e-4670-8c83-cc6113b788c3",
+  "sibling_test_note": "Five sibling suites passed; new source suite failed its retry fixture there and was corrected and passed separately. No claim of a six-suite combined pass."
+}

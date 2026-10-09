@@ -711,6 +711,7 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Delivery.PullRequest,
              Agentboard.Delivery.PublicationBinding,
              Agentboard.Delivery.ConflictOrder,
+             Agentboard.Delivery.ConflictSource,
              Agentboard.Delivery.PublicationGrant,
              Agentboard.Delivery.DuplicateFinding,
              Agentboard.Delivery.TaskLink,
