@@ -6,6 +6,9 @@ defmodule Agentboard.Delivery.Accountability do
   alias Agentboard.Board.Resources.{Agent, Task}
   require Ash.Query
   @actor %{"agent" => "ci-accountability", "model" => "system", "harness" => "ash"}
+  # Keep source selection aligned with Github's aggregate failure conclusions.
+  @failures ~w(failure error timed_out cancelled action_required startup_failure)
+  @summary_limit 1024
 
   # The collector calls this inside its fenced snapshot/projection transaction.
   def observe(snapshot, result, stamp) do
@@ -517,8 +520,7 @@ defmodule Agentboard.Delivery.Accountability do
           kind: kind,
           repo: pr.owner <> "/" <> pr.repo,
           task_id: o.repair_task_id,
-          summary:
-            "#{pr.url} failed at #{o.head_sha}; repair #{o.repair_task_id}; episode #{o.episode}. Failed jobs: #{Enum.join(o.evidence_urls, ", ")}",
+          summary: summary(pr, o, recorded_evidence(o)),
           source_url: pr.url,
           priority: 1
         },
@@ -545,12 +547,52 @@ defmodule Agentboard.Delivery.Accountability do
 
   defp evidence(result) do
     (result.payload["attempts"] || [])
-    |> Enum.filter(&(Map.get(&1, :latest, &1["latest"]) == true))
-    |> Enum.map(&Map.get(&1, :source_url, &1["source_url"]))
+    |> Enum.filter(&(field(&1, :latest) == true and field(&1, :conclusion) in @failures))
+    |> Enum.map(&(field(&1, :source_url) || field(&1, :details_url)))
     |> Enum.filter(&is_binary/1)
     |> Enum.uniq()
     |> Enum.take(10)
   end
+
+  defp recorded_evidence(o) do
+    # Older obligations may retain URLs selected before conclusion filtering.
+    # Reproject their own immutable failure snapshot, never a newer head's state.
+    snapshot = if o.snapshot_id, do: Ash.get!(CISnapshot, o.snapshot_id, not_found_error?: false)
+
+    if snapshot && snapshot.pull_request_id == o.pull_request_id &&
+         snapshot.head_sha == o.head_sha && snapshot.ci_state == "failing",
+       do: evidence(snapshot),
+       else: []
+  end
+
+  defp summary(pr, o, sources) do
+    context =
+      " CI failure recorded at #{o.head_sha}; repair #{o.repair_task_id}; episode #{o.episode}. Recorded failing check/status sources: "
+
+    # Runtime.capture caps summaries at 1024 bytes. Keep every included URL
+    # whole, including unusually long canonical PR URLs, before reaching that cap.
+    label = if byte_size(pr.url <> context) <= 512, do: pr.url, else: "PR #{pr.id}"
+    prefix = label <> context
+    omitted = "; additional source links omitted"
+
+    {links, truncated?} =
+      Enum.reduce(sources, {"", false}, fn url, {links, truncated?} ->
+        candidate = if links == "", do: url, else: links <> ", " <> url
+
+        if byte_size(prefix <> candidate <> omitted) <= @summary_limit,
+          do: {candidate, truncated?},
+          else: {links, true}
+      end)
+
+    cond do
+      sources == [] -> prefix <> "unavailable"
+      links == "" -> prefix <> "omitted (source links exceed summary limit)"
+      truncated? -> prefix <> links <> omitted
+      true -> prefix <> links
+    end
+  end
+
+  defp field(map, key), do: Map.get(map, key, Map.get(map, Atom.to_string(key)))
 
   defp change(o, attrs), do: Ops.update(o, :change, attrs, @actor)
 

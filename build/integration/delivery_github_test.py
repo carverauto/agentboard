@@ -192,6 +192,8 @@ class Provider(http.server.BaseHTTPRequestHandler):
                 runs.append(run(1, 'duplicate', 'failure'))
             if mode == 'request-cap':
                 runs = []
+            if mode == 'external-fail':
+                runs = [run(i, f'green-{i}', 'success') for i in range(1, 17)]
             if mode == 'clean':
                 runs = [run(1, 'security-only', 'success')]
             if mode == 'partial' and page == 2:
@@ -205,10 +207,13 @@ class Provider(http.server.BaseHTTPRequestHandler):
                          target_url=f'https://github.com/fixture/repo/actions/runs/{i}') for i in range(1, 101)]
             body += [dict(id=101, context='status-rerun', state='failure', created_at=NOW),
                      dict(id=102, context='status-rerun', state='success', created_at=NOW)]
-            if mode == 'fail':
+            if mode in ('fail', 'external-fail'):
                 body[0]['context'] = 'paged-status'
                 body[0]['state'] = 'failure'
                 body[0]['target_url'] = 'https://github.com/fixture/repo/actions/runs/paged-status'
+                if mode == 'external-fail':
+                    body[0]['context'] = 'BazelCI'
+                    body[0]['target_url'] = 'https://carverauto.buildbuddy.io/invocation/fixture-bazel'
             body = sorted(body, key=lambda x: -x['id'])[(page-1)*100:page*100]
             if page == 1:
                 headers['Link'] = next_link(u.path, 2, False)
@@ -276,6 +281,18 @@ with tls_provider(Provider) as (api_url, ca, server):
     assert f'/repos/fixture/repo/check-suites/1/check-runs?per_page=100&page=2&filter=all' in seen
     assert f'/repos/fixture/repo/commits/{HEAD}/statuses?per_page=100&page=2' in seen
     assert not any('/repositories/' in url or f'/statuses/{HEAD}' in url for url in seen)
+    # Real HTTPS normalization delivers atom-keyed attempts into accountability.
+    assert json.loads(sql("SELECT to_json(evidence_urls) FROM delivery_obligations WHERE resolved_at IS NULL")) == [
+        failure['source_url'], paged['source_url']]
+    episode_before = sql("SELECT id||','||episode||','||coalesce(responsible_id,'') FROM delivery_obligations WHERE resolved_at IS NULL")
+    poll('external-fail', 'failing')
+    assert json.loads(sql("SELECT to_json(evidence_urls) FROM delivery_obligations WHERE resolved_at IS NULL")) == [
+        'https://carverauto.buildbuddy.io/invocation/fixture-bazel']
+    assert sql("SELECT id||','||episode||','||coalesce(responsible_id,'') FROM delivery_obligations WHERE resolved_at IS NULL") == episode_before
+    current = json.loads(sql("SELECT payload FROM delivery_ci_snapshots ORDER BY generation DESC LIMIT 1"))
+    checks = [a for a in current['attempts'] if a['kind'] == 'check_run']
+    assert len(checks) == 16 and all(a['conclusion'] == 'success' for a in checks), checks
+    print('MIXED_PROVIDER_FAILURE_EVIDENCE', flush=True)
     link_rejections = {'hostile-link', 'malformed-link', 'suffix-link', 'query-link', 'page-link', 'id-link', 'status-on-runs'}
     status_rejections = {'status-sha', 'status-suffix', 'status-origin', 'status-query', 'status-page'}
     for scenario, reason in [('old-head','incomplete'), ('changed-head','incomplete'),
