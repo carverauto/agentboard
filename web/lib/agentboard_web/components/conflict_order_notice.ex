@@ -20,10 +20,28 @@ defmodule AgentboardWeb.ConflictOrderNotice do
         <dt>Default tip</dt><dd class="min-w-0 break-all">{@projection.order["default_ref"]}@{@projection.order["default_tip_sha"]}</dd>
         <dt>Evaluated target</dt><dd class="min-w-0 break-all">{@projection.order["evaluation_base_ref"]}@{@projection.order["evaluation_base_sha"]}</dd>
         <dt>Rebaser</dt><dd class="min-w-0 break-all">{@projection.order["rebaser_id"] || "Not verified"}</dd>
+        <dt>Conflicting files</dt><dd>Unknown</dd>
         <dt>Disposition</dt><dd class="min-w-0 break-all">{@projection.order["selection_reason"] || "Not recorded"}</dd>
         <dt>Delivery</dt><dd>{@projection.source_mode}</dd>
+        <dt>Publication admission</dt><dd>Unavailable · native custody is not verified</dd>
       </dl>
-      <p :if={@projection.order["escalation_decision_id"]} class="flag warning">Captain escalation · {@projection.order["escalation_decision_id"]}</p>
+      <div :if={@projection.escalation} class="min-w-0">
+        <p class="flag warning">Captain escalation · {@projection.escalation["status"]}</p>
+        <p class="break-all">Decision {@projection.escalation["id"]} · {@projection.escalation["gate_ref"]}</p>
+        <p class="whitespace-pre-wrap break-all">{@projection.escalation["question"]}</p>
+        <p :if={@projection.escalation["close_reason"]} class="whitespace-pre-wrap break-all">{@projection.escalation["close_reason"]}</p>
+      </div>
+      <details id={"conflict-history-" <> @projection.order["pull_request_id"]} phx-hook="CompletedCard" class="min-w-0">
+        <summary>Order history · 20 most recent</summary>
+        <ol class="list-decimal pl-5 min-w-0">
+          <li :for={row <- @projection.history} class="my-3 min-w-0">
+            <p class="break-all">Revision {row["revision"]} · {row["state"]} · {row["id"]}</p>
+            <p class="break-all">Recipient {row["recipient_id"] || "Captain queue"} · {row["selection_reason"] || "Not recorded"}</p>
+            <p class="break-all">Default {row["default_ref"]}@{row["default_tip_sha"]}</p>
+            <p class="break-all">Target {row["evaluation_base_ref"]}@{row["evaluation_base_sha"]}</p>
+          </li>
+        </ol>
+      </details>
     </section>
     """
   end

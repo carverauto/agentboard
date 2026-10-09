@@ -58,18 +58,20 @@ class Provider(http.server.BaseHTTPRequestHandler):
         assert self.headers.get('Authorization') == 'Bearer invented-default-watch-token'
         path=urllib.parse.urlparse(self.path).path
         requests.append(path)
-        if path == '/repos/fixture/watch':
-            body=dict(full_name='fixture/watch',default_branch='staging')
+        other=path.startswith('/repos/fixture/other/') or path=='/repos/fixture/other'
+        repo='fixture/other' if other else 'fixture/watch'
+        if path in ('/repos/fixture/watch','/repos/fixture/other'):
+            body=dict(full_name=repo,default_branch='trunk' if other else 'staging')
         elif '/branches/' in path:
             ref=path.rsplit('/',1)[1]
-            body=dict(name=ref,commit=dict(sha=default_tip if ref=='staging' else BASE))
+            body=dict(name=ref,commit=dict(sha='7'*40 if other and ref=='trunk' else default_tip if ref=='staging' else BASE))
             branch_reads[ref]=branch_reads.get(ref,0)+1
             if slow and ref=='release' and branch_reads[ref]%2==0:
                 entered.set(); assert release.wait(15)
         elif '/pulls/' in path:
             number=int(path.rsplit('/',1)[1]);reads[number]=reads.get(number,0)+1
             body=dict(number=number,state='open',merged=False,draft=False,
-                head=dict(sha=HEAD,ref='feat/fixture-'+str(number),repo=dict(full_name='fixture/watch')),
+                head=dict(sha=HEAD,ref='feat/fixture-'+str(number),repo=dict(full_name=repo)),
                 base=dict(sha=BASE,ref='release'),mergeable=True,mergeable_state='clean')
         elif path.endswith('/check-suites'):
             body=dict(total_count=0,check_suites=[])
@@ -106,6 +108,15 @@ with tls_provider(Provider) as (api_url,ca,_):
     assert sql('SELECT count(*) FROM delivery_publication_grants') == '0'
     assert sql('SELECT count(*) FROM messages') == '0'
 
+    # A second registered repository shares the actual target name, but its
+    # independent default/watch generation must remain outside this fanout.
+    ab('task','create','--id','other-default-watch','--title','Invented other repository','--repo','fixture/other')
+    ab('task','claim','other-default-watch')
+    ab('task','link','other-default-watch','--pr','https://github.com/fixture/other/pull/103')
+    other_pr=sql("SELECT id FROM delivery_pull_requests WHERE owner='fixture' AND repo='other'")
+    assert 'observed' in poll(other_pr)
+    other_before=sql("SELECT to_jsonb(s) FROM delivery_poll_states s WHERE id='"+other_pr+"'")
+
     # Current target stays unchanged while actual default advances: all linked
     # open PR reservations must be invalidated, not only staging-target PRs.
     default_tip=MOVED;reset_budget()
@@ -114,6 +125,7 @@ with tls_provider(Provider) as (api_url,ca,_):
     assert 'changed: true' in rpc('IO.puts(inspect(Agentboard.Delivery.BaseMonitor.check('+json.dumps(watch)+')))')
     assert 'invalidated: 2' in rpc('IO.puts(inspect(Agentboard.Delivery.BaseMonitor.invalidate(%{id: '+json.dumps(watch)+', revision: 1, cursor: ""})))')
     assert sql("SELECT count(*) FROM delivery_poll_states WHERE last_error='default_changed' AND next_poll_at<=clock_timestamp() AND expected_base_sha='"+BASE+"'") == '2'
+    assert sql("SELECT to_jsonb(s) FROM delivery_poll_states s WHERE id='"+other_pr+"'")==other_before, 'Default fanout crossed the registered repository boundary'
 
     # Restart recovery can replay a committed page. The same default revision
     # must not replace reservations already invalidated for that tip.

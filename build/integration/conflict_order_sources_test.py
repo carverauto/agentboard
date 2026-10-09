@@ -78,11 +78,11 @@ def worker_api(path, data=None, token=None):
         return json.load(response)
 
 
-def provision():
+def provision(owner='codex-order-owner', key='fixture-order-enrollment'):
     rpc('Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-32-characters")')
     request=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/workers/provision',
-        data=json.dumps(dict(worker_id='codex-order-owner',host_id='fixture-order-host',repos=['fixture/orders'],
-            model='fixture-model',harness='codex',idempotency_key='fixture-order-enrollment')).encode(),
+        data=json.dumps(dict(worker_id=owner,host_id='fixture-order-host',repos=['fixture/orders'],
+            model='fixture-model',harness='codex',idempotency_key=key)).encode(),
         headers={'Content-Type':'application/json','Authorization':'Bearer fixture-captain-capability-32-characters','x-agentboard-captain-token':'fixture-captain-capability-32-characters','x-agentboard-worker-protocol':'1'})
     with urllib.request.urlopen(request,timeout=15) as response:
         assert response.status==200
@@ -147,8 +147,8 @@ class Provider(http.server.BaseHTTPRequestHandler):
         elif '/pulls/' in path:
             number = int(path.rsplit('/',1)[1])
             body = dict(number=number,state='open',merged=False,draft=False,
-                head=dict(sha=head if number==101 else '4'*40,
-                    ref='feat/order' if number==101 else 'feat/second',repo=dict(full_name='fixture/orders')),
+                head=dict(sha=head if number==101 else '6'*40 if number==103 else '4'*40,
+                    ref='feat/order' if number==101 else 'feat/late' if number==103 else 'feat/second',repo=dict(full_name='fixture/orders')),
                 base=dict(sha=target_tip if number==101 else second_target_tip,
                     ref='release' if number==101 else 'release-other'),mergeable=mergeable,
                 mergeable_state='clean' if mergeable else 'dirty')
@@ -244,11 +244,14 @@ with tls_provider(Provider) as (url,ca,_):
         projected=json.load(response)['prs'][0]['conflict_order']
     assert projected['order']['id']==initial['id'] and projected['repair_owner_id']=='codex-order-owner'
     assert projected['source_mode']=='sent' and projected['order']['rebaser_id'] is None
+    assert projected['native_publication']=='unsupported' and projected['escalation'] is None
+    assert [row['id'] for row in projected['history']]==[initial['id']]
     for path in ('/prs/'+pr, '/tasks/order-source', '/tasks/'+initial['repair_task_id']):
         text,links,times=rendered_order(path)
         assert '/tasks/'+initial['repair_task_id'] in links, (path,links)
         assert datetime.fromisoformat(initial['deadline_at']) in [datetime.fromisoformat(t) for t in times], (path,times)
         assert 'codex-order-owner' in text and 'Not verified' in text, (path,text)
+        assert 'native custody is not verified' in text and 'Order history' in text, (path,text)
     assert resolve_api(initial_source,owner='codex-order-peer')[0]==409
     assert resolve_api(initial_source,order_ref=ref)[0]==422, 'Caller-provided reference was accepted as authority'
     assert resolve_api(initial_source,source_id='not-an-id')[0]==422
@@ -480,5 +483,105 @@ with tls_provider(Provider) as (url,ca,_):
 
     rpc('Application.put_env(:agentboard, :conflict_routing_mode, "disabled")')
     assert consume('board_message',latest['message_id'],latest['message_version'])==dict(error='unsupported')
+
+    # A real legacy follow-up is upgraded while public enrollment is waiting
+    # on its row. Enrollment must recover the committed selected source, never
+    # capture an additional generic legacy delivery after that upgrade.
+    late_owner='codex-order-late'
+    ab('agent','register',owner=late_owner)
+    ab('agent','heartbeat','--status','idle',owner=late_owner)
+    request=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/agents/'+late_owner+'/scope',method='PUT',
+        data=json.dumps(dict(allowed_repos=['fixture/orders'],required_labels=[],allowed_labels=[],revision=0)).encode(),
+        headers={'Content-Type':'application/json','X-Agentboard-Agent':'codex-order-owner',
+            'X-Agentboard-Model':'fixture-model','X-Agentboard-Harness':'codex',
+            'Authorization':'Bearer fixture-captain-capability-32-characters','x-agentboard-captain-token':'fixture-captain-capability-32-characters'})
+    with urllib.request.urlopen(request,timeout=15) as response:assert response.status==200
+    ab('task','create','--id','late-order-source','--title','Invented upgrade race','--repo','fixture/orders',owner=late_owner)
+    ab('task','claim','late-order-source',owner=late_owner)
+    ab('task','link','late-order-source','--pr','https://github.com/fixture/orders/pull/103',owner=late_owner)
+    late_pr=sql("SELECT id FROM delivery_pull_requests WHERE number='103'")
+    late_before=ab('task','show','late-order-source',owner=late_owner)
+    assert 'observed' in poll(late_pr)
+    legacy=json.loads(sql("SELECT to_jsonb(f) FROM delivery_rebase_follow_ups f WHERE pull_request_id='"+late_pr+"'"))
+    assert legacy['current_order_id'] is None and legacy['responsible_id']==late_owner
+    legacy_event=sql("SELECT id FROM cooperation_events WHERE source_key='rebase:"+legacy['id']+"'")
+    assert legacy_event and sql("SELECT count(*) FROM cooperation_deliveries WHERE event_id='"+legacy_event+"'")=='0'
+    holder=subprocess.Popen([os.environ['FIXTURE_PSQL'],'-At','-v','ON_ERROR_STOP=1'],
+        stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+    waiters="SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%delivery_rebase_follow_ups%' AND pid<>pg_backend_pid()"
+    try:
+        holder.stdin.write("BEGIN; SELECT id FROM delivery_rebase_follow_ups WHERE id='"+legacy['id']+"' FOR UPDATE; SELECT 'follow-held';\n")
+        holder.stdin.flush()
+        while holder.stdout.readline().strip()!='follow-held':
+            assert holder.poll() is None, 'Follow-up lock fixture exited early'
+        rpc('Application.put_env(:agentboard, :conflict_routing_mode, "apply")')
+        with concurrent.futures.ThreadPoolExecutor(2) as pool:
+            upgrading=pool.submit(poll,late_pr)
+            deadline=time.monotonic()+10
+            while time.monotonic()<deadline and sql(waiters)=='0':time.sleep(0.05)
+            assert sql(waiters)=='1' and not upgrading.done(), 'Collector did not wait on the real legacy row'
+            enrolling=pool.submit(provision,late_owner)
+            deadline=time.monotonic()+10
+            while time.monotonic()<deadline and int(sql(waiters))<2:time.sleep(0.05)
+            assert int(sql(waiters))==2 and not enrolling.done(), 'Enrollment did not observe the legacy pointer before waiting'
+            holder.stdin.write('COMMIT;\n');holder.stdin.flush()
+            assert 'observed' in upgrading.result()
+            assert enrolling.result()
+    finally:
+        holder.terminate();holder.communicate(timeout=5)
+    upgraded=json.loads(sql("SELECT to_jsonb(s) FROM delivery_conflict_sources s JOIN delivery_conflict_orders o ON o.id=s.order_id WHERE o.pull_request_id='"+late_pr+"'"))
+    assert upgraded['disposition']=='sent' and upgraded['message_id'] is not None
+    assert sql("SELECT count(*) FROM cooperation_deliveries WHERE event_id IN ('"+legacy_event+"','"+upgraded['id']+"')")=='0', 'Late enrollment replayed a legacy signal after current source selection'
+    assert ab('task','show','late-order-source',owner=late_owner)==late_before
+
+    # Re-enrollment of the immutable author must not adopt a worker occurrence
+    # selected for the repair's newly assigned recipient.
+    late_repair=sql("SELECT repair_task_id FROM delivery_conflict_orders WHERE pull_request_id='"+late_pr+"' AND state='open'")
+    ab('task','claim',late_repair,owner=late_owner)
+    ab('task','handoff',late_repair,'--to','codex-order-peer','--body','Invented recipient change',owner=late_owner)
+    assert provision('codex-order-peer')
+    assert 'observed' in poll(late_pr)
+    selected=json.loads(sql("SELECT to_jsonb(s) FROM delivery_conflict_sources s JOIN delivery_conflict_orders o ON o.id=s.order_id WHERE o.pull_request_id='"+late_pr+"' AND o.state='open'"))
+    assert selected['disposition']=='worker'
+    assert sql("SELECT recipient_id FROM delivery_conflict_orders WHERE id='"+selected['order_id']+"'")=='codex-order-peer'
+    request=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/workers/'+late_owner+'/revoke',
+        data=b'{}',headers={'Content-Type':'application/json','x-agentboard-worker-protocol':'1',
+            'x-agentboard-captain-token':'fixture-captain-capability-32-characters'})
+    with urllib.request.urlopen(request,timeout=15) as response:assert response.status==200
+    assert provision(late_owner,'fixture-author-rotation')
+    assert sql("SELECT count(*) FROM cooperation_deliveries WHERE event_id='"+selected['id']+"' AND worker_id='"+late_owner+"'")=='0', 'Author enrollment adopted the selected repair recipient\'s worker occurrence'
+    assert ab('task','show','late-order-source',owner=late_owner)==late_before
+
+    # Retain an actual routing escalation, then reflect its public captain
+    # disposition in connected task/PR views without treating it as branch authority.
+    request=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/availability',
+        data=json.dumps(dict(agent_id='codex-order-peer',state='out_of_service',reason='Invented UI escalation')).encode(),
+        headers={'Content-Type':'application/json','Authorization':'Bearer fixture-captain-capability-32-characters',
+            'X-Agentboard-Agent':'codex-order-owner','X-Agentboard-Model':'fixture-model','X-Agentboard-Harness':'codex'})
+    with urllib.request.urlopen(request,timeout=15) as response:assert response.status==200
+    outcome=rpc('IO.inspect(Ash.run_action(Ash.ActionInput.for_action(Agentboard.Delivery.ConflictDisposition, :route, %{id: '+json.dumps(selected['order_id'])+'}, actor: %{role: :system})))')
+    assert '{:ok,' in outcome, outcome
+    with urllib.request.urlopen(os.environ['AGENTBOARD_URL']+'/api/v1/prs/'+late_pr,timeout=15) as response:
+        panel=json.load(response)['conflict_order']
+    escalation=panel['escalation']
+    assert escalation and escalation['status']=='open'
+    assert panel['native_publication']=='unsupported' and panel['order']['rebaser_id'] is None
+    assert panel['history'][0]['id']==panel['order']['id']
+    assert any(row['id']==upgraded['order_id'] and row['state']=='superseded' for row in panel['history'])
+    for path in ('/prs/'+late_pr,'/tasks/late-order-source','/tasks/'+late_repair):
+        text,_,_=rendered_order(path)
+        assert escalation['id'] in text and escalation['question'] in text and 'open' in text, (path,text)
+    ab('agent','register',owner='captain')
+    request=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/decisions/'+escalation['id']+'/supersede',
+        data=json.dumps(dict(reason='Invented captain disposition')).encode(),
+        headers={'Content-Type':'application/json','Authorization':'Bearer fixture-captain-capability-32-characters',
+            'X-Agentboard-Agent':'captain','X-Agentboard-Model':'fixture-model','X-Agentboard-Harness':'codex'})
+    with urllib.request.urlopen(request,timeout=15) as response:assert response.status==200
+    text,_,_=rendered_order('/tasks/'+late_repair)
+    assert 'superseded' in text and escalation['id'] in text
+    assert 'Invented captain disposition' in text and 'Conflicting files' in text and 'Unknown' in text
+    assert sql('SELECT count(*) FROM delivery_publication_grants')=='0'
+    assert ab('task','show','late-order-source',owner=late_owner)==late_before
+
 
 print('Canonical source relation, one effect, superseding default/target fences, retained deadline, frozen-source rejection and repair-only assignment passed')

@@ -267,25 +267,30 @@ defmodule Agentboard.Delivery.Rebase do
       |> Ash.Query.filter(responsible_id == ^subscription.id and is_nil(resolved_at))
       |> Ash.read!()
       |> Enum.each(fn f ->
-        if f.current_order_id do
-          Agentboard.Delivery.ConflictOrders.bootstrap(f, subscription)
-        else
+        unless f.current_order_id do
           Repo.statement!(
             "SELECT id FROM delivery_rebase_follow_ups WHERE id::text=$1 FOR UPDATE",
             [f.id]
           )
-
-          f = Ash.get!(RebaseFollowUp, f.id)
-          pr = Ash.get!(PullRequest, f.pull_request_id)
-
-          if is_nil(f.resolved_at) and
-               String.downcase(pr.owner <> "/" <> pr.repo) in subscription.repos do
-            e = capture_event(f, pr)
-
-            Runtime.ensure_delivery(e, subscription.id, @actor)
-          end
         end
+
+        # A collector can upgrade the legacy pointer while enrollment waits.
+        # Recover only the selection committed by that collector.
+        bootstrap_follow_up(Ash.get!(RebaseFollowUp, f.id), subscription)
       end)
+    end
+  end
+
+  defp bootstrap_follow_up(%{current_order_id: id} = follow, subscription)
+       when not is_nil(id),
+       do: Agentboard.Delivery.ConflictOrders.bootstrap(follow, subscription)
+
+  defp bootstrap_follow_up(follow, subscription) do
+    pr = Ash.get!(PullRequest, follow.pull_request_id)
+
+    if is_nil(follow.resolved_at) and
+         String.downcase(pr.owner <> "/" <> pr.repo) in subscription.repos do
+      Runtime.ensure_delivery(capture_event(follow, pr), subscription.id, @actor)
     end
   end
 

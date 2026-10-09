@@ -320,10 +320,13 @@ defmodule Agentboard.Delivery.ConflictOrders do
   # do not re-elect or acquire branch/order/source locks beneath the worker.
   # Inbox selection already owns the effect, so it never becomes a worker frame.
   def bootstrap(follow, subscription) do
+    order = Ash.get!(ConflictOrder, follow.current_order_id)
+
     source =
       ConflictSource |> Ash.Query.filter(order_id == ^follow.current_order_id) |> Ash.read_one!()
 
-    if source && source.disposition == "worker" do
+    if (source && source.disposition == "worker") and order.state == "open" and
+         order.recipient_id == subscription.id do
       event = Ash.get!(Event, source.id)
 
       if event.repo in subscription.repos do

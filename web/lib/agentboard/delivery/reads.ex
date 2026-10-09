@@ -435,14 +435,16 @@ defmodule Agentboard.Delivery.Reads do
     |> Map.merge(ci_projection(pr, s, batch))
   end
 
-  # Last retained order only. This dashboard projection authorizes no effect.
+  # Bounded retained history. This dashboard projection authorizes no effect.
   defp conflict_order(pr_id) do
-    order =
+    history =
       Agentboard.Delivery.ConflictOrder
       |> Ash.Query.filter(pull_request_id == ^pr_id)
       |> Ash.Query.sort(created_at: :desc, id: :desc)
-      |> Ash.Query.limit(1)
-      |> Ash.read_one!()
+      |> Ash.Query.limit(20)
+      |> Ash.read!()
+
+    order = List.first(history)
 
     if order do
       task = Ash.get!(Agentboard.Board.Resources.Task, order.repair_task_id)
@@ -452,10 +454,24 @@ defmodule Agentboard.Delivery.Reads do
         |> Ash.Query.filter(order_id == ^order.id and order_revision == ^order.revision)
         |> Ash.read_one!()
 
+      escalation =
+        if order.escalation_decision_id,
+          do: Ash.get!(Agentboard.Decisions.Request, order.escalation_decision_id)
+
       %{
         order: Ops.public(order),
+        history: Enum.map(history, &Ops.public/1),
         repair_owner_id: task.assignee_id,
-        source_mode: if(source, do: source.disposition, else: "unavailable")
+        source_mode: if(source, do: source.disposition, else: "unavailable"),
+        native_publication: "unsupported",
+        escalation:
+          if(escalation,
+            do:
+              Ops.public(escalation)
+              |> Map.take(
+                ~w(id status gate_ref question created_at answered_at close_reason closed_at)
+              )
+          )
       }
     end
   end
