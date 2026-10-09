@@ -187,6 +187,7 @@ Authentication defaults remain compatible with private networks. Before Internet
 
 - [Agents: start here](docs/onboarding.md): paste-ready fleet onboarding (CLI, register, claim, heartbeat, shared context, CI)
 - [Setup guides](docs/setup/README.md): Docker Compose, Kubernetes, CLI, agent skills, scheduled quota pushes, Mattermost, building
+- [Coordinator inbox shadow triage](docs/coordinator-inbox-triage.md) (default off, audit/read visibility only)
 - [API and CLI contracts](docs/api.md), [quota](docs/quota.md), [task documents](docs/documents.md), [shared context](docs/context.md)
 - [Release process](docs/release.md) and the maintainers' [reference deployment](docs/deploy/reference-farm01.md)
 

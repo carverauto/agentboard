@@ -41,6 +41,18 @@ defmodule Agentboard.Board.Reads do
     end
   end
 
+  def show("messages", id, filters) do
+    with {number, ""} when number in 1..9_007_199_254_740_991 <- Integer.parse(id),
+         true <- filters == %{},
+         {:ok, message} <- fetch(Message |> Ash.Query.filter(id == ^number)) do
+      [message] = decorate([message], "messages")
+      {:ok, %{"message" => message}}
+    else
+      {:error, _, _} = error -> error
+      _ -> invalid("Positive exact message ID and no query fields required")
+    end
+  end
+
   def count(resource, filters) do
     with {:ok, {module, _order, fields}} <- spec(resource),
          :ok <- validate(filters, fields, resource),
@@ -124,7 +136,7 @@ defmodule Agentboard.Board.Reads do
     allowed =
       Map.keys(fields) ++
         ~w(limit cursor stale_after) ++
-        if(resource == "messages", do: ["unread"], else: []) ++
+        if(resource == "messages", do: ["unread", "triage_state"], else: []) ++
         if(resource == "agents", do: ["retired"], else: [])
 
     cond do
@@ -141,6 +153,10 @@ defmodule Agentboard.Board.Reads do
 
       Map.has_key?(filters, "unread") and filters["unread"] not in ~w(true false) ->
         invalid("Unknown unread filter")
+
+      resource == "messages" and Map.has_key?(filters, "triage_state") and
+          filters["triage_state"] not in Agentboard.CoordinatorTriage.states() ->
+        invalid("Unknown triage state filter")
 
       resource == "agents" and Map.has_key?(filters, "waiting") and
           filters["waiting"] not in ~w(true false) ->
@@ -202,6 +218,31 @@ defmodule Agentboard.Board.Reads do
         else: query
 
     query =
+      case {resource, filters["triage_state"]} do
+        {"messages", "unresolved"} ->
+          Ash.Query.filter(
+            query,
+            fragment(
+              "EXISTS (SELECT 1 FROM coordinator_triage_dispositions d WHERE d.message_id=? AND d.sequence=(SELECT max(d2.sequence) FROM coordinator_triage_dispositions d2 WHERE d2.message_id=d.message_id) AND d.state<>'recorded')",
+              id
+            )
+          )
+
+        {"messages", state} when not is_nil(state) ->
+          Ash.Query.filter(
+            query,
+            fragment(
+              "EXISTS (SELECT 1 FROM coordinator_triage_dispositions d WHERE d.message_id=? AND d.sequence=(SELECT max(d2.sequence) FROM coordinator_triage_dispositions d2 WHERE d2.message_id=d.message_id) AND d.state=?)",
+              id,
+              ^state
+            )
+          )
+
+        _ ->
+          query
+      end
+
+    query =
       if resource == "agents" do
         scoped =
           if filters["kind"] == "all",
@@ -259,7 +300,26 @@ defmodule Agentboard.Board.Reads do
        when resource in ~w(events messages) and is_integer(id) and id > 0 and is_binary(stamp) do
     case DateTime.from_iso8601(stamp) do
       {:ok, time, _} ->
-        {:ok, Ash.Query.filter(query, created_at > ^time or (created_at == ^time and id > ^id))}
+        # Messages use timestamptz in the retained schema. An Ash DateTime
+        # parameter may be cast to timestamp (without zone); keep the explicit
+        # cursor offset so a non-UTC database session cannot skip the backlog.
+        if resource == "messages" do
+          {:ok,
+           Ash.Query.filter(
+             query,
+             fragment(
+               "(? > ?::text::timestamptz OR (? = ?::text::timestamptz AND ? > ?))",
+               created_at,
+               ^stamp,
+               created_at,
+               ^stamp,
+               id,
+               ^id
+             )
+           )}
+        else
+          {:ok, Ash.Query.filter(query, created_at > ^time or (created_at == ^time and id > ^id))}
+        end
 
       _ ->
         invalid("Cursor does not match this query")
@@ -326,6 +386,14 @@ defmodule Agentboard.Board.Reads do
         "routing_eligible",
         is_nil(row.retired_at) and row.availability_state == "active"
       )
+    end)
+  end
+
+  defp decorate(records, "messages") do
+    triage = Agentboard.CoordinatorTriage.for_messages(Enum.map(records, & &1.id))
+
+    Enum.map(records, fn record ->
+      Map.put(Operations.public(record), "triage", triage[record.id])
     end)
   end
 

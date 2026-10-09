@@ -204,6 +204,19 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasPrefix(path, "agents") && (query.Get("kind") != "" || query.Get("retired") != "") {
 		required = 30
 	}
+	// Exact non-consuming reads, metadata writes and triage filters must not
+	// silently degrade on older servers. Legacy message operations stay at 2
+	// (or 15 for task orders), and use their existing watch compatibility path.
+	if method == http.MethodGet && strings.HasPrefix(path, "messages/") || path == "messages" && query.Get("triage_state") != "" {
+		required = 36
+	}
+	if path == "messages" && method == http.MethodPost {
+		if fields, ok := payload.(map[string]any); ok {
+			if _, present := fields["triage"]; present {
+				required = 36
+			}
+		}
+	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
 	}
@@ -231,9 +244,13 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "scope", "loadout", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "decision", "decisions", "wake", "wakes"} {
+	for _, key := range []string{"agent", "agents", "scope", "loadout", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "decision", "decisions", "wake", "wakes"} {
 		value, ok := envelope[key]
 		if !ok {
+			continue
+		}
+		if key == "triage" && value == nil {
+			fmt.Fprintln(table, "triage\tnull")
 			continue
 		}
 		records, ok := value.([]any)

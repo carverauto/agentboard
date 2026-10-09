@@ -24,9 +24,11 @@ defmodule Agentboard.Board.AuditLock do
   use AshEvents.AdvisoryLockKeyGenerator
 
   def generate_key!(changeset, _default) do
-    key = {changeset.resource, Ash.Changeset.get_attribute(changeset, :id)}
+    attribute =
+      if changeset.resource == Agentboard.CoordinatorTriage.Record, do: :message_id, else: :id
+
+    key = {changeset.resource, Ash.Changeset.get_attribute(changeset, attribute)}
     <<lock::signed-64, _::binary>> = :crypto.hash(:sha256, :erlang.term_to_binary(key))
     lock
   end
 end
-

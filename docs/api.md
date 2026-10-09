@@ -262,3 +262,11 @@ PUT accepts exactly `revision`, `idempotency_key` and `seats` (at most 32). Each
 The response is `{"loadout": {...}, "replayed": false}`; loadout includes ID, revision, derived `seat_count`, complete desired seats with current scope/observation projections, captain attribution and timestamp. It always reports `enabled: false`, `activation_state: "not_activatable"`, `catalog_status: "unverified"` and `host_status: "unverified"`. An absent loadout returns revision 0 and no seats without creating configuration.
 
 Expected revision guards a full replacement. Exact normalized retries under the same fleet/key return the original committed snapshot with `replayed: true`; changed payloads under that key and stale new replacements conflict. Per-fleet seat IDs retain their original agent/harness binding after removal. An agent cannot appear in two current fleet configurations. Removing desired seats never stops workers, clears responsibilities or changes task ownership. This is partial dormant configuration storage only: activation, role/readiness gates, host enrollment/reconciliation, trusted catalogs and Deck remain deferred. See [Dormant fleet loadouts](fleet-loadout.md) for exact field bounds, canonical scope behavior, CLI input validation, retry and error contracts.
+
+### Coordinator inbox shadow classification
+
+The schema-36 optional note `triage` contract, captain-only off/shadow
+configuration, exact non-consuming `msg show`/`msg triage` reads and
+`--triage-state` filtering are documented in
+[coordinator inbox triage](coordinator-inbox-triage.md). These never acknowledge
+messages or prove routing, native acceptance or coordinator handling.

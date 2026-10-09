@@ -433,10 +433,21 @@ defmodule Agentboard.Board.Operations do
                 (Input.slug?(data["to"]) or Input.slug?(data["task"]))),
          true <-
            Enum.all?(data, fn
-             {"body", v} -> Input.text?(v)
-             {"kind", v} -> v in ~w(note task_order)
-             {key, v} when key in ~w(to task) -> Input.slug?(v)
-             _ -> false
+             {"body", v} ->
+               Input.text?(v)
+
+             {"kind", v} ->
+               v in ~w(note task_order)
+
+             {"triage", v} ->
+               is_nil(id) and Map.get(data, "kind", "note") == "note" and
+                 Agentboard.CoordinatorTriage.Metadata.valid?(v)
+
+             {key, v} when key in ~w(to task) ->
+               Input.slug?(v)
+
+             _ ->
+               false
            end) do
       transaction(fn ->
         identity!(actor)
@@ -471,6 +482,11 @@ defmodule Agentboard.Board.Operations do
   end
 
   def send_message(actor, data, stamp, capture_notice? \\ true) do
+    if Map.has_key?(data, "triage") and
+         (Map.get(data, "kind", "note") != "note" or
+            not Agentboard.CoordinatorTriage.Metadata.valid?(data["triage"])),
+       do: reject("invalid_input", "Invalid note triage metadata")
+
     if data["kind"] == "task_order" do
       Agentboard.Availability.lock_admission()
 
@@ -497,6 +513,8 @@ defmodule Agentboard.Board.Operations do
 
     if data["task"], do: fetch!(Task, data["task"], "Message task must exist", "invalid_input")
 
+    triage_configuration = Agentboard.CoordinatorTriage.prepare_capture()
+
     message =
       create(
         Message,
@@ -513,6 +531,13 @@ defmodule Agentboard.Board.Operations do
         },
         actor
       )
+
+    Agentboard.CoordinatorTriage.capture_new_message(
+      message,
+      actor,
+      data["triage"],
+      triage_configuration
+    )
 
     if capture_notice?, do: Agentboard.Mattermost.MessageNotice.capture(message, actor, stamp)
     if capture_notice?, do: Agentboard.WakeIntents.capture_message(message, actor)
@@ -665,6 +690,9 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Auth.Observation,
              Agentboard.Availability.Policy,
              Agentboard.SeatScope.Policy,
+             Agentboard.CoordinatorTriage.Configuration,
+             Agentboard.CoordinatorTriage.Record,
+             Agentboard.CoordinatorTriage.Disposition,
              Agentboard.FleetLoadout.Configuration,
              Agentboard.FleetLoadout.Binding,
              Agentboard.FleetLoadout.Receipt,

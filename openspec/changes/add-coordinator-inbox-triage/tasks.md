@@ -1,12 +1,16 @@
 # Tasks
 
-All tasks below remain unchecked. This proposal does not record implementation, transport, deployment or retirement approval.
+The captain approved the independent implementation slice on 2026-10-09.
+[The schema-36 checkpoint](../../../docs/verification/coordinator-inbox-triage.md)
+records implemented off/shadow metadata, immutable capture and read visibility.
+Unchecked items include broader routing/activation contracts and remote delivery
+requirements; transport, deployment and retirement approval are not implied.
 
 ## 1. Approval and dependency contract
 
-- [ ] 1.1 Obtain captain approval for the explicit metadata, routing matrix, independent read/routed disposition and implementation slices. Preserve proposal-only status until then.
+- [x] 1.1 Obtain captain approval for the explicit metadata, routing matrix, independent read/routed disposition and implementation slices. Preserve proposal-only status until then.
 - [ ] 1.2 Agree the exact producer association and lock order with #122/#156 owners; retain #169 currentness and #150 native admission as separate capability gates. Do not contact or assume agreement for an owner from this proposal alone.
-- [ ] 1.3 Before implementation requiring storage, obtain a fresh coordinated schema/migration reservation; verify current main and inventory. This proposal assigns no version or timestamp.
+- [ ] 1.3 Before implementation requiring storage, obtain a fresh coordinated schema/migration reservation; verify current main and inventory. Slice 1 proposes logical36 / 20261008003600 after read-only inventory; atomic board reservation remains unperformed. See the checkpoint for custody and higher-marker preservation.
 - [ ] 1.4 Verify #153's landed contract supplies atomic idempotent enqueue, stable board namespace, one designated coordinator subscription, signing/rotation, bounded attempts/age, dead letters and replay-safe consumer acceptance. Keep transport integration blocked until proven.
 
 ## 2. Independent metadata, capture and visibility slice

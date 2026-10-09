@@ -75,7 +75,55 @@ defmodule AgentboardWeb.APIController do
   def restore(conn, %{"id" => id}),
     do: reply(conn, Board.restore(id, privileged_actor(conn), conn.body_params))
 
-  def send_message(conn, _), do: reply(conn, Board.message(nil, actor(conn), conn.body_params))
+  def send_message(conn, _) do
+    authentication =
+      cond do
+        conn.assigns[:api_auth_kind] == :captain ->
+          "captain"
+
+        Agentboard.Auth.mode() == "enforce" and is_map(conn.assigns[:authenticated_agent]) ->
+          "authenticated_agent"
+
+        true ->
+          "unverified_attribution"
+      end
+
+    reply(
+      conn,
+      Board.message(
+        nil,
+        Map.put(actor(conn), :triage_authentication, authentication),
+        conn.body_params
+      )
+    )
+  end
+
+  def message(conn, %{"id" => id}), do: exact_message(conn, id, false)
+  def message_triage(conn, %{"id" => id}), do: exact_message(conn, id, true)
+
+  defp exact_message(conn, id, triage?) do
+    conn = fetch_query_params(conn) |> put_resp_header("cache-control", "no-store")
+
+    result =
+      with {:ok, %{"message" => message} = value} <- Board.show("messages", id, conn.query_params),
+           :ok <- authorize_message(conn, message) do
+        if triage?, do: Agentboard.CoordinatorTriage.show(message["id"]), else: {:ok, value}
+      end
+
+    reply(conn, result)
+  end
+
+  defp authorize_message(conn, message) do
+    case conn.assigns[:authenticated_agent] do
+      %{scope: "coordinator", agent_id: id} ->
+        if message["recipient_id"] == id,
+          do: :ok,
+          else: {:error, "not_found", "Message not found"}
+
+      _ ->
+        :ok
+    end
+  end
 
   def read_message(conn, %{"id" => id}) do
     case Integer.parse(id) do
