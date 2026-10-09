@@ -71,7 +71,7 @@ defmodule Agentboard.Delivery.Rebase do
 
   # The canonical conflict producer also uses this repair-only creation path.
   # Caller holds its base/poll fence; source task claims remain untouched.
-  def create_follow_up(snapshot, result, stamp) do
+  def create_follow_up(snapshot, result, stamp, options \\ []) do
     pr = Ash.get!(PullRequest, snapshot.pull_request_id)
 
     links =
@@ -95,6 +95,10 @@ defmodule Agentboard.Delivery.Rebase do
 
     follow_id = Ash.UUID.generate()
     Availability.lock_admission()
+    Agentboard.QueueAdmission.lock(owner)
+    routing? = Keyword.get(options, :routing, false)
+
+    recipient = recipient(owner, follow_id, pr, routing?)
 
     task =
       Ops.create(
@@ -118,10 +122,10 @@ defmodule Agentboard.Delivery.Rebase do
       )
 
     {task, responsible} =
-      if owner do
+      if recipient do
         grant =
           try do
-            Availability.admit(task, "assign", @actor, %{"to" => owner})
+            Availability.admit(task, "assign", @actor, %{"to" => recipient})
           rescue
             e in Agentboard.Board.OperationError ->
               if e.code == "conflict", do: nil, else: reraise(e, __STACKTRACE__)
@@ -135,7 +139,7 @@ defmodule Agentboard.Delivery.Rebase do
               Map.merge(
                 %{
                   status: "assigned",
-                  assignee_id: owner,
+                  assignee_id: recipient,
                   assigner_id: @actor["agent"],
                   revision: 2,
                   updated_at: stamp
@@ -145,7 +149,7 @@ defmodule Agentboard.Delivery.Rebase do
               @actor
             )
 
-          {assigned, owner}
+          {assigned, recipient}
         else
           {task, nil}
         end
@@ -164,7 +168,7 @@ defmodule Agentboard.Delivery.Rebase do
           base_sha: result.base_sha,
           snapshot_id: snapshot.id,
           repair_task_id: task.id,
-          responsible_id: responsible,
+          responsible_id: if(routing?, do: owner, else: responsible),
           created_at: stamp
         },
         @actor
@@ -188,6 +192,32 @@ defmodule Agentboard.Delivery.Rebase do
     )
 
     {f, pr, task}
+  end
+
+  def guard_pr_identity!(id, data) do
+    if Map.has_key?(data, "pr_url") do
+      %{rows: [[repair?]]} =
+        Repo.statement!(
+          "SELECT EXISTS(SELECT 1 FROM delivery_rebase_follow_ups WHERE repair_task_id=$1)",
+          [id]
+        )
+
+      if repair?, do: Ops.reject("conflict", "A rebase repair retains its original PR identity")
+    end
+  end
+
+  defp recipient(owner, _follow_id, _pr, false), do: owner
+  defp recipient(nil, _follow_id, _pr, true), do: nil
+
+  defp recipient(owner, follow_id, pr, true) do
+    evidence =
+      Agentboard.Eligibility.admit(owner, %{
+        id: "rebase-repair-" <> follow_id,
+        repo: pr.owner <> "/" <> pr.repo,
+        labels: ["rebase-repair"]
+      })
+
+    if evidence.eligible, do: owner
   end
 
   defp resolve(snapshot, stamp) do

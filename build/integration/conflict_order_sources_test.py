@@ -60,7 +60,7 @@ def provision():
     request=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/workers/provision',
         data=json.dumps(dict(worker_id='codex-order-owner',host_id='fixture-order-host',repos=['fixture/orders'],
             model='fixture-model',harness='codex',idempotency_key='fixture-order-enrollment')).encode(),
-        headers={'Content-Type':'application/json','x-agentboard-captain-token':'fixture-captain-capability-32-characters','x-agentboard-worker-protocol':'1'})
+        headers={'Content-Type':'application/json','Authorization':'Bearer fixture-captain-capability-32-characters','x-agentboard-captain-token':'fixture-captain-capability-32-characters','x-agentboard-worker-protocol':'1'})
     with urllib.request.urlopen(request,timeout=15) as response:
         assert response.status==200
 
@@ -137,6 +137,16 @@ rpc(':ok = Oban.stop_queue(queue: :delivery_scheduler); :ok = Oban.stop_queue(qu
     'Application.put_env(:agentboard, :cooperation_enabled, true); Application.put_env(:agentboard, :conflict_routing_mode, "apply")')
 for who in ('codex-order-owner','codex-order-peer'):
     ab('agent','register',owner=who)
+    ab('agent','heartbeat','--status','idle',owner=who)
+rpc('Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-32-characters")')
+# The scheduler uses captain-managed scope, never self-reported capabilities.
+for who in ('codex-order-owner','codex-order-peer'):
+    request=urllib.request.Request(os.environ['AGENTBOARD_URL']+'/api/v1/agents/'+who+'/scope',method='PUT',
+        data=json.dumps(dict(allowed_repos=['fixture/orders'],required_labels=[],allowed_labels=[],revision=0)).encode(),
+        headers={'Content-Type':'application/json','X-Agentboard-Agent':'codex-order-owner',
+            'X-Agentboard-Model':'fixture-model','X-Agentboard-Harness':'codex',
+            'Authorization':'Bearer fixture-captain-capability-32-characters','x-agentboard-captain-token':'fixture-captain-capability-32-characters'})
+    with urllib.request.urlopen(request,timeout=15) as response:assert response.status==200
 ab('task','create','--id','order-source','--title','Invented conflict','--repo','fixture/orders')
 ab('task','claim','order-source')
 ab('task','link','order-source','--pr','https://github.com/fixture/orders/pull/101')

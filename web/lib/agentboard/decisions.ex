@@ -18,6 +18,8 @@ defmodule Agentboard.Decisions do
     with {:ok, actor} <- Input.actor(actor), {:ok, data} <- prepare_request(data) do
       Ops.transaction(fn ->
         Ops.identity!(actor)
+        Agentboard.Availability.lock_admission()
+        Agentboard.QueueAdmission.lock(actor["agent"])
         request_locked(task!(data["task"]), actor, data)
       end)
     end
@@ -129,7 +131,8 @@ defmodule Agentboard.Decisions do
          {:ok, request} <- prepare_request(Map.take(data, ~w(task kind question options))) do
       Ops.transaction(fn ->
         Ops.identity!(actor)
-        task = task!(data["task"])
+        task = promotion_task!(data["task"])
+
         if task.assignee_id != actor["agent"], do: authority!(actor)
 
         prior =
@@ -180,6 +183,18 @@ defmodule Agentboard.Decisions do
       false -> {:error, "invalid_input", "Promotion requires source identity and task revision"}
       error -> error
     end
+  end
+
+  defp promotion_task!(id) do
+    Agentboard.Availability.lock_admission()
+    initial = Ops.fetch!(Task, id, "Task not found")
+    Agentboard.QueueAdmission.lock(initial.assignee_id)
+    task = task!(id)
+
+    if task.assignee_id != initial.assignee_id,
+      do: Ops.reject("conflict", "Decision owner changed; reload")
+
+    task
   end
 
   # Invoked by the existing scheduled observation action, independent of polling.
@@ -233,8 +248,12 @@ defmodule Agentboard.Decisions do
       end
     end)
     |> case do
-      {:ok, true} -> true
-      {:ok, false} -> false
+      {:ok, true} ->
+        true
+
+      {:ok, false} ->
+        false
+
       {:error, _} ->
         Logger.warning("decision cleanup candidate skipped: #{id}")
         false

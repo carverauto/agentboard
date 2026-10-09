@@ -49,6 +49,21 @@ if conflict_mode not in ~w(disabled dry_run apply),
 
 config :agentboard, :conflict_routing_mode, conflict_mode
 
+for {key, variable, default, range} <- [
+      {:queue_limit, "AGENTBOARD_QUEUE_LIMIT", "2", 1..100},
+      {:conflict_deadline_seconds, "AGENTBOARD_CONFLICT_DEADLINE_SECONDS", "2700", 60..86400}
+    ] do
+  case Integer.parse(System.get_env(variable, default)) do
+    {value, ""} ->
+      if value in range,
+        do: config(:agentboard, key, value),
+        else: raise("#{variable} is outside its supported range")
+
+    _ ->
+      raise("#{variable} must be an integer")
+  end
+end
+
 # GitHub hook secret is separate from agent/captain/worker capabilities. Intake
 # and recovery stay behind the existing PR observation flag.
 config :agentboard,

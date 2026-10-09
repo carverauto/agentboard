@@ -100,7 +100,7 @@ defmodule Agentboard.Delivery.ConflictOrders do
               author_id: follow.responsible_id,
               recipient_id: task.assignee_id,
               state: "open",
-              selection_reason: "author_first",
+              selection_reason: assignment_reason(task, follow),
               created_at: stamp,
               updated_at: stamp
             }),
@@ -109,8 +109,17 @@ defmodule Agentboard.Delivery.ConflictOrders do
 
         Ops.update(follow, :set_order, %{current_order_id: order.id}, @actor)
         capture(order, pr)
+        Agentboard.Delivery.ConflictDisposition.enqueue(order.id)
       end
     end
+  end
+
+  defp assignment_reason(%{assignee_id: nil}, _follow), do: "author_ineligible"
+
+  defp assignment_reason(task, follow) do
+    if task.assignee_id == follow.responsible_id,
+      do: "author_first",
+      else: "retained_repair_assignment"
   end
 
   defp episode(nil, id, head, stamp) do
@@ -149,7 +158,7 @@ defmodule Agentboard.Delivery.ConflictOrders do
 
       {follow, Ash.get!(PullRequest, snapshot.pull_request_id)}
     else
-      {follow, pr, _task} = Rebase.create_follow_up(snapshot, result, stamp)
+      {follow, pr, _task} = Rebase.create_follow_up(snapshot, result, stamp, routing: true)
       {follow, pr}
     end
   end
@@ -232,6 +241,8 @@ defmodule Agentboard.Delivery.ConflictOrders do
           )
     end
 
+    retire_authority(order, stamp)
+
     Ops.update(
       order,
       :change,
@@ -244,6 +255,32 @@ defmodule Agentboard.Delivery.ConflictOrders do
       },
       @actor
     )
+  end
+
+  defp retire_authority(order, stamp) do
+    Agentboard.Delivery.PublicationGrant
+    |> Ash.Query.filter(order_id == ^order.id and state in ["pending", "admitted"])
+    |> Ash.read!()
+    |> Enum.each(&Ops.update(&1, :change, %{state: "revoked", updated_at: stamp}, @actor))
+
+    if order.escalation_decision_id do
+      request = Ash.get!(Agentboard.Decisions.Request, order.escalation_decision_id)
+
+      if request.status in ~w(open answered),
+        do:
+          Ops.update(
+            request,
+            :change,
+            %{
+              status: "superseded",
+              closed_by: @actor["agent"],
+              close_reason: "conflict_order_retired",
+              closed_at: stamp,
+              updated_at: stamp
+            },
+            @actor
+          )
+    end
   end
 
   defp cancel(order, snapshot, stamp, reason),
@@ -307,9 +344,7 @@ defmodule Agentboard.Delivery.ConflictOrders do
       source = source!(kind, id)
       order = Ash.get!(ConflictOrder, source.order_id)
       pr = Ash.get!(PullRequest, order.pull_request_id)
-      watches = lock_bases(pr, order)
-      Repo.statement!("SELECT id FROM delivery_pull_requests WHERE id=$1 FOR SHARE", [pr.id])
-      Repo.statement!("SELECT id FROM delivery_poll_states WHERE id=$1 FOR SHARE", [pr.id])
+      watches = lock_evidence(order, pr)
       Availability.lock_admission()
       Repo.statement!("SELECT id FROM agents WHERE id=$1 FOR SHARE", [recipient])
       agent = Ash.get!(Agent, recipient, not_found_error?: false)
@@ -373,6 +408,105 @@ defmodule Agentboard.Delivery.ConflictOrders do
 
   defp source!(_, _),
     do: Ops.reject("invalid_input", "Canonical Event or Board.Message identity required")
+
+  # Shared prefix used by selected-source admission and the deadline consumer.
+  # Both acquire canonical default/target -> PR -> poll before policy/candidate/task.
+  def lock_evidence(order, pr) do
+    watches = lock_bases(pr, order)
+    Repo.statement!("SELECT id FROM delivery_pull_requests WHERE id=$1 FOR SHARE", [pr.id])
+    Repo.statement!("SELECT id FROM delivery_poll_states WHERE id=$1 FOR SHARE", [pr.id])
+    watches
+  end
+
+  # Called only by the base-fenced system routing transaction after candidate
+  # admission and repair/order revision recheck. This never impersonates an owner.
+  def reassign(order, task, pr, candidate, reason, stamp) do
+    grant = Availability.admit(task, "handoff", @actor, %{"to" => candidate.agent_id})
+
+    changed =
+      Ops.update(
+        task,
+        :handoff,
+        Map.merge(
+          %{
+            status: "assigned",
+            assignee_id: candidate.agent_id,
+            assigner_id: @actor["agent"],
+            claimed_at: nil,
+            claim_expires_at: nil,
+            revision: task.revision + 1,
+            updated_at: stamp
+          },
+          grant
+        ),
+        @actor,
+        task.revision
+      )
+
+    Ops.project_event(
+      task.id,
+      @actor,
+      "repair_routed",
+      reason,
+      task.revision,
+      changed.revision,
+      %{
+        before: Ops.public(task),
+        after: Ops.public(changed),
+        order_id: order.id,
+        order_revision: order.revision,
+        eligibility: candidate,
+        native_custody: "unsupported"
+      },
+      stamp
+    )
+
+    cancel(
+      order,
+      Ash.get!(Agentboard.Delivery.CISnapshot, order.snapshot_id),
+      stamp,
+      reason,
+      "superseded"
+    )
+
+    follow = RebaseFollowUp |> Ash.Query.filter(current_order_id == ^order.id) |> Ash.read_one!()
+
+    fields =
+      Map.take(order, [
+        :pull_request_id,
+        :default_ref,
+        :default_tip_sha,
+        :evaluation_base_ref,
+        :evaluation_base_sha,
+        :observed_head_sha,
+        :snapshot_id,
+        :repair_task_id,
+        :author_id
+      ])
+
+    id = Ash.UUID.generate()
+
+    replacement =
+      Ops.create(
+        ConflictOrder,
+        :record,
+        fields
+        |> Map.merge(episode(order, id, order.observed_head_sha, stamp))
+        |> Map.merge(%{
+          id: id,
+          recipient_id: candidate.agent_id,
+          state: "open",
+          selection_reason: reason,
+          created_at: stamp,
+          updated_at: stamp
+        }),
+        @actor
+      )
+
+    Ops.update(follow, :set_order, %{current_order_id: replacement.id}, @actor)
+    capture(replacement, pr)
+    replacement
+  end
 
   defp lock_bases(pr, order) do
     [order.default_ref, order.evaluation_base_ref]

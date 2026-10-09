@@ -613,3 +613,13 @@ sh_test(
     args = ["$(rlocationpath //web:test/branch_inspection_hook_test.mjs)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
     size = "small",
 )
+
+sh_test(
+    name = "conflict_routing_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "conflict_routing_test.py", "AGENTBOARD_PR_OBSERVATION_ENABLED": "true"},
+    srcs = ["board_api_test.sh"],
+    data = ["conflict_routing_test.py", "provider_fixture.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "large",
+    timeout = "long",
+)
