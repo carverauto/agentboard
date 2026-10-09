@@ -364,7 +364,7 @@ Roll back by retaining the schema-24 table and deploying a compatible prior
 digest. The down migration refuses a destructive downgrade; no down migration
 or finding deletion is permitted.
 
-## Schema 25: agent API credentials (observe)
+## Schema 25: agent API credentials
 
 Migrate and serve the same schema-25 image. Migration `20261008002500` adds
 the `agent_api_credentials` table (hash-only digests with an immutability
