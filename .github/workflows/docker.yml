@@ -120,5 +120,22 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # Trusted upstream runs require both secrets; a missing/invalid login
+      # fails before the build instead of silently using anonymous pulls.
+      # Fork and Dependabot PRs keep anonymous pulls without registry secrets.
+      - name: Log in to Docker Hub for base image pulls
+        if: >-
+          github.repository == 'carverauto/agentboard' &&
+          github.actor != 'dependabot[bot]' &&
+          (github.event_name == 'push' ||
+           github.event_name == 'workflow_dispatch' ||
+           (github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]'))
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          logout: true
       - name: Build images and run the Compose smoke test
         run: ./scripts/compose-smoke --chat
