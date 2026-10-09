@@ -583,5 +583,17 @@ with tls_provider(Provider) as (url,ca,_):
     assert sql('SELECT count(*) FROM delivery_publication_grants')=='0'
     assert ab('task','show','late-order-source',owner=late_owner)==late_before
 
+    # The page batch must preserve the actual retained order history and closed
+    # escalation, not merely absent-order parity in the branch-flow owner.
+    expected={}
+    for identity in (pr,second_pr,late_pr):
+        with urllib.request.urlopen(os.environ['AGENTBOARD_URL']+'/api/v1/prs/'+identity,timeout=15) as response:
+            expected[identity]=json.load(response)['conflict_order']
+    expression=('Agentboard.Board.Operations.transaction(fn -> require Ash.Query; ids='+json.dumps(list(expected))+
+        '; prs=Agentboard.Delivery.PullRequest |> Ash.Query.filter(id in ^ids) |> Ash.read!(); '+
+        'rows=Agentboard.Delivery.Reads.records(prs); IO.puts("PARITY:"<>Jason.encode!(Map.new(rows, &{&1.pr["id"],&1.conflict_order}))) end)')
+    actual=json.loads(rpc(expression).split('PARITY:',1)[1].splitlines()[0])
+    assert actual==expected, 'Batched conflict history or captain disposition differs from the public detail'
+
 
 print('Canonical source relation, one effect, superseding default/target fences, retained deadline, frozen-source rejection and repair-only assignment passed')

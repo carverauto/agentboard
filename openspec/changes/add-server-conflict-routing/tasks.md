@@ -1,6 +1,8 @@
 # Tasks
 
-This checklist is implementation work after proposal review. No runtime task is completed by drafting this change. Every Bazel command uses `./scripts/bazel` or explicit `--config=remote`; no workstation compilation.
+This checklist is implementation work after proposal review. No runtime task is completed by drafting this change. Current server checkpoint: nine of nineteen tasks complete. Native producer/custody, grants/credit and rollout remain separate incomplete obligations; connected dashboard evidence is implemented, deployed keyboard/narrow behavior is UNTESTED-live. Combined23 remote targets pass at https://carverauto.buildbuddy.io/invocation/8ed23df5-4d41-4ca4-839f-d11eca24836f.
+
+Every Bazel command uses `./scripts/bazel` or explicit `--config=remote`; no workstation compilation.
 
 ## 1. Durable contracts and migration
 
@@ -17,8 +19,8 @@ This checklist is implementation work after proposal review. No runtime task is 
 
 ## 3. Current-base conflict orders
 
-- [ ] 3.1 Extend current `BaseMonitor` enrollment/invalidation and PR open/link scheduling without a second poller; verify remote provider-fixture tests for N linked PRs, unlinked/default-branch advance, absent webhook, multiple repos, page restart and stale response fencing; preserve main-failure repair tests.
-- [ ] 3.2 Extend `Rebase` with current-tip order identity/version, retained earliest deadline and supersession, using existing repair cards and transactional selected Event/Delivery or Message capture; verify repeated poll/webhook produces one live order, a new tip supersedes, another dirty head does not stack repairs, both source paths fence frozen stale orders, and fallback/bootstrap interleavings retain exactly one effect; document exact ledger identities.
+- [x] 3.1 Extend current `BaseMonitor` enrollment/invalidation and PR open/link scheduling without a second poller; verify remote provider-fixture tests for N linked PRs, unlinked/default-branch advance, absent webhook, multiple repos, page restart and stale response fencing; preserve main-failure repair tests.
+- [x] 3.2 Extend `Rebase` with current-tip order identity/version, retained earliest deadline and supersession, using existing repair cards and transactional selected Event/Delivery or Message capture; verify repeated poll/webhook produces one live order, a new tip supersedes, another dirty head does not stack repairs, both source paths fence frozen stale orders, and fallback/bootstrap interleavings retain exactly one effect; document exact ledger identities.
 - [ ] 3.3 Implement changed-head/current-base resolution, unchanged-head conflict clearance and closure cancellation; verify remote races between newer base admission, clean old responses and owner completion, including preservation of rebaser credit and cancellation of obsolete grants/wakes.
 
 ## 4. Deadline routing and native custody
@@ -32,6 +34,6 @@ This checklist is implementation work after proposal review. No runtime task is 
 
 - [ ] 5.1 Implement disabled/dry-run/apply routing policy and ledger projections; verify remote dry-run changes only audit evidence, and disabling revokes pending grants without erasing history or stopping ordinary observation; document policy/rollback controls.
 - [ ] 5.2 Extend existing task/PR views with order deadline, repair owner, rebaser, admission and escalation evidence using Tailwind v4 tokens; verify remote LiveView contracts, then explicitly exercise keyboard/narrow-screen behavior in the deployed product or record it UNTESTED-live.
-- [ ] 5.3 Run the combined remote delivery/publication/availability/decision suite with no coordinator process and restart/concurrency/provider-limit fixtures; verify typed contracts and actual consumer behavior rather than source-string tests.
+- [x] 5.3 Run the combined remote delivery/publication/availability/decision suite with no coordinator process and restart/concurrency/provider-limit fixtures; verify typed contracts and actual consumer behavior rather than source-string tests.
 - [ ] 5.4 Refresh Archify and portable OpenSpec HTML, validate/browse them, upload both with `agentboard doc push`, and verify task viewer/download SHA receipts; publish through native No-mistakes without --yes, immediately link the PR and track current-head CI to green without merging.
 - [ ] 5.5 After captain deployment authorization, prove dry-run parity on retained farm01 cases and installed-adapter custody capability before staged enablement; record exact flag/ledger evidence and leave the coordinator stopgap in place until explicit cutover. Recheck schema32 before migration and preserve rollback data.

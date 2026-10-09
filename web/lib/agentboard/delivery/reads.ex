@@ -72,6 +72,7 @@ defmodule Agentboard.Delivery.Reads do
         end)
 
       ids = Enum.map(identities, &elem(&1, 1))
+      conflict_orders = conflict_orders_batch(ids)
 
       states =
         PullRequest
@@ -81,7 +82,7 @@ defmodule Agentboard.Delivery.Reads do
         |> Map.new(fn pr ->
           {pr.id,
            Map.put(
-             Map.put(ci_projection(pr), :conflict_order, conflict_order(pr.id)),
+             Map.put(ci_projection(pr), :conflict_order, conflict_orders[pr.id]),
              :duplicate_of,
              Agentboard.Delivery.Duplicates.projection(pr.id)
            )}
@@ -237,6 +238,7 @@ defmodule Agentboard.Delivery.Reads do
       snapshots: snapshots,
       duplicates: duplicates,
       decisions: waiting_decisions_batch(ids),
+      conflict_orders: conflict_orders_batch(ids),
       workers: workers,
       deliveries: deliveries,
       expected: expected,
@@ -424,7 +426,7 @@ defmodule Agentboard.Delivery.Reads do
         !!o and is_nil(o.resolved_at) and DateTime.compare(o.next_reminder_at, Ops.now()) != :gt,
       obligation: if(o, do: Ops.public(o)),
       rebase_follow_up: if(rebase, do: Ops.public(rebase)),
-      conflict_order: conflict_order(pr.id),
+      conflict_order: from_batch(batch, :conflict_orders, pr.id, fn -> conflict_order(pr.id) end),
       worker:
         if(responsible,
           do: from_batch(batch, :workers, responsible, fn -> health(responsible) end)
@@ -436,44 +438,67 @@ defmodule Agentboard.Delivery.Reads do
   end
 
   # Bounded retained history. This dashboard projection authorizes no effect.
-  defp conflict_order(pr_id) do
-    history =
-      Agentboard.Delivery.ConflictOrder
-      |> Ash.Query.filter(pull_request_id == ^pr_id)
-      |> Ash.Query.sort(created_at: :desc, id: :desc)
-      |> Ash.Query.limit(20)
-      |> Ash.read!()
+  defp conflict_order(pr_id), do: conflict_orders_batch([pr_id])[pr_id]
 
-    order = List.first(history)
+  defp conflict_orders_batch([]), do: %{}
 
-    if order do
-      task = Ash.get!(Agentboard.Board.Resources.Task, order.repair_task_id)
+  defp conflict_orders_batch(ids) do
+    %{rows: rows} =
+      Agentboard.Repo.statement!(
+        """
+        SELECT p.id,o.id::text,s.id::text
+        FROM unnest($1::text[]) p(id)
+        JOIN LATERAL (
+          SELECT id,revision,created_at FROM delivery_conflict_orders
+          WHERE pull_request_id=p.id ORDER BY created_at DESC,id DESC LIMIT 20
+        ) o ON true
+        LEFT JOIN delivery_conflict_sources s ON s.order_id=o.id AND s.order_revision=o.revision
+        ORDER BY p.id,o.created_at DESC,o.id DESC
+        """,
+        [Enum.uniq(ids)]
+      )
 
-      source =
-        Agentboard.Delivery.ConflictSource
-        |> Ash.Query.filter(order_id == ^order.id and order_revision == ^order.revision)
-        |> Ash.read_one!()
+    orders = read_by_ids(Agentboard.Delivery.ConflictOrder, Enum.map(rows, &Enum.at(&1, 1)))
+    histories = Enum.group_by(rows, &hd/1)
+    latest = Enum.map(histories, fn {_, [row | _]} -> row end)
+    current = Enum.map(latest, fn [_, id, _] -> orders[id] end)
+    tasks = read_by_ids(Agentboard.Board.Resources.Task, Enum.map(current, & &1.repair_task_id))
 
-      escalation =
-        if order.escalation_decision_id,
-          do: Ash.get!(Agentboard.Decisions.Request, order.escalation_decision_id)
+    sources =
+      read_by_ids(
+        Agentboard.Delivery.ConflictSource,
+        latest |> Enum.map(&Enum.at(&1, 2)) |> Enum.reject(&is_nil/1)
+      )
 
-      %{
-        order: Ops.public(order),
-        history: Enum.map(history, &Ops.public/1),
-        repair_owner_id: task.assignee_id,
-        source_mode: if(source, do: source.disposition, else: "unavailable"),
-        native_publication: "unsupported",
-        escalation:
-          if(escalation,
-            do:
-              Ops.public(escalation)
-              |> Map.take(
-                ~w(id status gate_ref question created_at answered_at close_reason closed_at)
-              )
-          )
-      }
-    end
+    escalations =
+      read_by_ids(
+        Agentboard.Decisions.Request,
+        current |> Enum.map(& &1.escalation_decision_id) |> Enum.reject(&is_nil/1)
+      )
+
+    Map.new(histories, fn {pr_id, [[_, id, source_id] | _] = history} ->
+      order = Map.fetch!(orders, id)
+      task = Map.fetch!(tasks, order.repair_task_id)
+      source = sources[source_id]
+      escalation = escalations[order.escalation_decision_id]
+
+      {pr_id,
+       %{
+         order: Ops.public(order),
+         history: Enum.map(history, fn [_, id, _] -> Ops.public(Map.fetch!(orders, id)) end),
+         repair_owner_id: task.assignee_id,
+         source_mode: if(source, do: source.disposition, else: "unavailable"),
+         native_publication: "unsupported",
+         escalation:
+           if(escalation,
+             do:
+               Ops.public(escalation)
+               |> Map.take(
+                 ~w(id status gate_ref question created_at answered_at close_reason closed_at)
+               )
+           )
+       }}
+    end)
   end
 
   # Derived per-event delivery mode for open repair tasks: worker when a

@@ -120,7 +120,8 @@ observe(pr4)
 repair4 = sql("SELECT repair_task_id FROM delivery_obligations WHERE pull_request_id='" + pr4 + "'")
 sql("UPDATE cooperation_subscriptions SET revoked=true, paused=true WHERE id='inbox-owner'")
 api('/agents/register', {'name': 'cooperation'}, agent='cooperation')
-rpc('Agentboard.Board.Operations.send_message(%{"agent" => "cooperation", "model" => "fixture-model", "harness" => "codex"}, %{"to" => "inbox-owner", "task" => ' + json.dumps(repair4) + ', "kind" => "note", "body" => "markerless decoy"}, Agentboard.Board.Operations.now())')
+api('/messages', {'to': 'inbox-owner', 'task': repair4, 'kind': 'note',
+    'body': 'markerless decoy'}, agent='cooperation')
 sql("UPDATE delivery_obligations SET next_reminder_at=clock_timestamp()-interval '1 second' WHERE repair_task_id='" + repair4 + "'")
 rpc('{:ok, %{checked: n}} = Agentboard.Delivery.Accountability.tick(); if n < 1, do: raise("tick checked nothing")')
 if sql("SELECT count(*) FROM messages WHERE task_id='" + repair4 + "'") != '2':
