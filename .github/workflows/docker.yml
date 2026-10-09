@@ -130,9 +130,17 @@ jobs:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${DOCKERHUB_USERNAME}" ] || [ -z "${DOCKERHUB_TOKEN}" ]; then
+          if [ -z "${DOCKERHUB_USERNAME}" ] && [ -z "${DOCKERHUB_TOKEN}" ]; then
             echo "Docker Hub credentials unavailable; pulling anonymously."
             exit 0
+          fi
+          if [ -z "${DOCKERHUB_USERNAME}" ]; then
+            echo "::error::DOCKERHUB_USERNAME secret is missing while DOCKERHUB_TOKEN is set; refusing anonymous pull." >&2
+            exit 1
+          fi
+          if [ -z "${DOCKERHUB_TOKEN}" ]; then
+            echo "::error::DOCKERHUB_TOKEN secret is missing while DOCKERHUB_USERNAME is set; refusing anonymous pull." >&2
+            exit 1
           fi
           printf '%s' "${DOCKERHUB_TOKEN}" | docker login docker.io --username "${DOCKERHUB_USERNAME}" --password-stdin
       - name: Build images and run the Compose smoke test
