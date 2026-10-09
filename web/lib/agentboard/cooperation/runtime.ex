@@ -407,7 +407,7 @@ defmodule Agentboard.Cooperation.Runtime do
 
   defp execute("reconcile", data, s, b, credential) do
     {a, batch} = fenced_attempt!(data, s, b, credential.scope == "host")
-    historical = a.epoch != b.epoch or a.generation != b.generation
+    historical = historical_attempt?(a, b)
     unless historical, do: expire_attempt(a, batch)
     deliveries = Enum.map(batch.delivery_ids, &public(Delivery, &1))
 
@@ -432,7 +432,7 @@ defmodule Agentboard.Cooperation.Runtime do
       batch: batch_record(batch, get(Attempt, a.id)),
       deliveries: deliveries,
       receipts: receipts,
-      replay_allowed: a.status == "not_submitted",
+      replay_allowed: not historical and a.status == "not_submitted",
       source_state: Enum.map(batch.delivery_ids, &delivery_record/1)
     }
   end
@@ -579,6 +579,7 @@ defmodule Agentboard.Cooperation.Runtime do
 
   defp receipt(data, s, b) do
     {a, batch} = fenced_attempt!(data, s, b)
+    historical = historical_attempt?(a, b)
     ids = data["delivery_ids"]
 
     unless data["kind"] in ~w(received handled) and key?(data["idempotency_key"]) and
@@ -603,11 +604,16 @@ defmodule Agentboard.Cooperation.Runtime do
 
     if prior do
       if prior.digest != hash, do: Ops.reject("conflict", "Receipt key content differs")
-      %{receipt: Ops.public(prior), idempotent: true}
+      %{receipt: Ops.public(prior), idempotent: true, historical: historical}
     else
       stamp = Ops.now()
 
-      Enum.each(ids, &apply_delivery_receipt(&1, data["kind"], s, stamp))
+      # A terminal attempt can still receive exact evidence after a newer
+      # generation starts. Validate its scope, but do not apply that evidence to
+      # deliveries or canonical sources now owned by the newer attempt.
+      if historical,
+        do: Enum.each(ids, &receipt_delivery!(&1, s)),
+        else: Enum.each(ids, &apply_delivery_receipt(&1, data["kind"], s, stamp))
 
       r =
         create(Receipt, %{
@@ -623,22 +629,31 @@ defmodule Agentboard.Cooperation.Runtime do
           created_at: stamp
         })
 
-      if Enum.all?(batch.delivery_ids, &(get(Delivery, &1).state in ~w(handled suppressed))) do
+      if not historical and
+           Enum.all?(batch.delivery_ids, &(get(Delivery, &1).state in ~w(handled suppressed))) do
         change(a, %{status: "handled", updated_at: stamp})
-        Ops.update(b, :dispatch, %{active_attempt_id: nil, updated_at: stamp}, @system)
+
+        if b.active_attempt_id == a.id,
+          do: Ops.update(b, :dispatch, %{active_attempt_id: nil, updated_at: stamp}, @system)
       end
 
-      %{receipt: Ops.public(r), idempotent: false}
+      %{receipt: Ops.public(r), idempotent: false, historical: historical}
     end
   end
 
-  defp apply_delivery_receipt(id, kind, s, stamp) do
+  defp receipt_delivery!(id, s) do
     d = Ops.fetch!(Delivery, id, "Delivery not found")
     if d.worker_id != s.id, do: Ops.reject("forbidden", "Foreign recipient")
     event = get(Event, d.event_id)
 
     if canonical_repo(event.repo) not in s.repos,
       do: Ops.reject("forbidden", "Source outside authorized scope")
+
+    {d, event}
+  end
+
+  defp apply_delivery_receipt(id, kind, s, stamp) do
+    {d, event} = receipt_delivery!(id, s)
 
     if kind == "handled" and event.context_id do
       context_receipt(event.context_id, s, stamp)
@@ -686,6 +701,8 @@ defmodule Agentboard.Cooperation.Runtime do
 
     {a, batch}
   end
+
+  defp historical_attempt?(a, b), do: a.epoch != b.epoch or a.generation != b.generation
 
   defp expire_attempt(a, batch) do
     if a.status == "reserved" and DateTime.compare(batch.lease_expires_at, Ops.now()) != :gt,

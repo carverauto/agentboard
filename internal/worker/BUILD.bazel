@@ -10,7 +10,7 @@ go_library(
 )
 go_test(
     name = "worker_test",
-    srcs = ["api_access_test.go", "mattermost_test.go"],
+    srcs = ["api_access_test.go", "mattermost_test.go", "runtime_history_test.go"],
     deps = [":worker"],
     size = "small",
 )

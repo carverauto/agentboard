@@ -239,12 +239,12 @@ func recoverAttempt(ctx context.Context, cfg Config, b Binding, a *API, j *Journ
 	if err != nil {
 		return r, err
 	}
-	var e struct {
-		Resolved bool `json:"resolved"`
-		Replay   bool `json:"replay_allowed"`
-	}
+	var e reconciliation
 	if json.Unmarshal(raw, &e) != nil {
 		return r, errors.New("invalid reconciliation")
+	}
+	if e.Historical {
+		return finishHistoricalReconciliation(cfg, b, j, r, e)
 	}
 	if e.Resolved || e.Replay {
 		j.Phase = "complete"
@@ -265,6 +265,13 @@ func recoverAttempt(ctx context.Context, cfg Config, b Binding, a *API, j *Journ
 	return commitResult(ctx, cfg, b, a, j, r)
 }
 
+type reconciliation struct {
+	Resolved   bool   `json:"resolved"`
+	Replay     bool   `json:"replay_allowed"`
+	Historical bool   `json:"historical"`
+	Batch      *Batch `json:"batch"`
+}
+
 func reconcileHistorical(ctx context.Context, cfg Config, b Binding, a *API, j *Journal, r Report) (Report, error) {
 	if j.Batch == nil {
 		return r, errors.New("old binding crash journal retained; historical reconcile requires a frozen attempt")
@@ -276,14 +283,14 @@ func reconcileHistorical(ctx context.Context, cfg Config, b Binding, a *API, j *
 	if err != nil {
 		return r, err
 	}
-	var e struct {
-		Resolved bool   `json:"resolved"`
-		Replay   bool   `json:"replay_allowed"`
-		Batch    *Batch `json:"batch"`
-	}
+	var e reconciliation
 	if json.Unmarshal(raw, &e) != nil {
 		return r, errors.New("invalid historical reconciliation")
 	}
+	return finishHistoricalReconciliation(cfg, b, j, r, e)
+}
+
+func finishHistoricalReconciliation(cfg Config, b Binding, j *Journal, r Report, e reconciliation) (Report, error) {
 	if e.Batch == nil {
 		return r, errors.New("historical reconcile omitted frozen batch; journal retained")
 	}
@@ -293,7 +300,9 @@ func reconcileHistorical(ctx context.Context, cfg Config, b Binding, a *API, j *
 	if e.Batch.Attempt != j.Batch.Attempt || e.Batch.ID != j.Batch.ID || e.Batch.Hash != j.Batch.Hash || e.Batch.Generation != j.Batch.Generation || e.Batch.Payload != j.Batch.Payload || !slices.Equal(e.Batch.IDs, j.Batch.IDs) {
 		return r, errors.New("historical reconcile immutable batch mismatch; journal retained")
 	}
-	if e.Resolved || e.Replay {
+	// Historical non-submission retires this journal, never replays its payload.
+	// Older servers reported that same positive evidence through replay_allowed.
+	if e.Resolved || e.Batch.Status == "not_submitted" || e.Replay {
 		j.Phase = "complete"
 		r.State = "reconciled"
 		r.Attempt = j.Batch.Attempt

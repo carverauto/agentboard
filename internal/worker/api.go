@@ -16,6 +16,7 @@ import (
 )
 
 type Batch struct {
+	Status     string   `json:"status,omitempty"`
 	ID         string   `json:"batch_id"`
 	Attempt    string   `json:"attempt_id"`
 	Agent      string   `json:"worker_id"`

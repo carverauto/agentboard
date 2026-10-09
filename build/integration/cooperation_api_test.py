@@ -11,6 +11,7 @@ import os
 import subprocess
 import urllib.error
 import urllib.request
+import unittest
 import uuid
 
 URL = os.environ['AGENTBOARD_URL']
@@ -303,5 +304,100 @@ api('/workers/bootstrap-agent/receipts', dict(bootstrap_ack, idempotency_key='bo
     kind='handled', delivery_ids=bootstrap_batch['delivery_ids']), token=bootstrap_bound['receipt_token'])
 assert sql("SELECT count(*) FROM context_receipts WHERE source_agent_id='bootstrap-agent' AND entry_id=" + str(pre_entry['id'])) == '1'
 assert sql("SELECT count(*) FROM context_receipts WHERE source_agent_id='bootstrap-agent' AND entry_id=" + str(other_entry['id'])) == '0'
+
+class HistoricalReceiptIsolation(unittest.TestCase):
+    def check_history(self, status):
+        worker = 'history-' + status.replace('_', '-')
+        root = '/workers/' + worker
+        repo = worker + '/repo'
+        actor = dict(ACTOR, **{'x-agentboard-agent': worker})
+        api('/agents/register', {'name': 'Historical receipt fixture'}, actor=actor)
+        host_token = api('/workers/provision', dict(provision, worker_id=worker,
+            host_id=worker, repos=[repo], idempotency_key=worker), captain=True)['host_token']
+        session_token = api(root + '/bind', dict(bind, host_id=worker,
+            session_id=worker, pane_id=worker, idempotency_key=worker), token=host_token)['receipt_token']
+        entry = api('/context', dict(context, repo=repo, entry_key=worker), actor=foreign_actor)['entry']
+        old = api(root + '/reserve', {'binding_epoch': 1, 'idempotency_key': 'old'}, token=host_token)['batch']
+        old_path = root + '/attempts/' + old['attempt_id']
+        fences = {key: old[key] for key in ('binding_epoch', 'dispatch_generation', 'payload_hash')}
+        receipt = dict(fences, attempt_id=old['attempt_id'], idempotency_key='original',
+            kind='handled' if status == 'handled' else 'received', delivery_ids=old['delivery_ids'])
+        original = None
+        if status == 'not_submitted':
+            api(old_path + '/result', dict(fences, status=status,
+                reason='Fixture journal proves adapter was never called'), token=host_token)
+            assert api(old_path + '/reconcile', fences, token=host_token)['replay_allowed']
+        else:
+            original = api(root + '/receipts', receipt, token=session_token)['receipt']
+            api('/context', dict(context, repo=repo, entry_key=worker + '-next'), actor=foreign_actor)
+        current = api(root + '/reserve', {'binding_epoch': 1, 'idempotency_key': 'current'}, token=host_token)['batch']
+        assert current['dispatch_generation'] == old['dispatch_generation'] + 1
+        assert current['binding_epoch'] == old['binding_epoch']
+        if status == 'not_submitted':
+            assert current['delivery_ids'] == old['delivery_ids']
+        before = api(root + '/state', token=host_token)
+        pending = api(root + '/pending', token=host_token)
+        old_attempt = sql("SELECT row_to_json(a) FROM cooperation_attempts a WHERE id='" + old['attempt_id'] + "'")
+        context_count = sql("SELECT count(*) FROM context_receipts WHERE source_agent_id='" + worker + "' AND entry_id=" + str(entry['id']))
+
+        # Exact retries retain the first immutable receipt and have no new effects.
+        if original:
+            retry = api(root + '/receipts', receipt, token=session_token)
+            assert retry['idempotent'] and retry['historical'] and retry['receipt'] == original
+            assert api(root + '/state', token=host_token) == before
+            api(root + '/receipts', dict(receipt, kind='received'), token=session_token, status=409)
+        api(root + '/receipts', dict(receipt, payload_hash='bad', idempotency_key='bad-hash'),
+            token=session_token, status=409)
+
+        proof = api(old_path + '/reconcile', fences, token=host_token)
+        with self.subTest(status=status, operation='historical replay'):
+            assert proof['historical'] and not proof['replay_allowed'], proof
+        assert proof['batch']['status'] == status
+        if original:
+            assert original in proof['receipts']
+        result = api(old_path + '/result', dict(fences, status='submitted' if status == 'handled' else status), token=host_token)
+        assert result['idempotent'] and result['attempt']['status'] == status
+        if status == 'not_submitted':
+            api(old_path + '/result', dict(fences, status='submitted'), token=host_token, status=409)
+        assert api(root + '/state', token=host_token) == before
+
+        # Late evidence from A must not consume shared deliveries, acknowledge a
+        # Context source, alter A's committed outcome, or release B's custody.
+        for kind in ('received', 'handled'):
+            late = dict(receipt, kind=kind, idempotency_key='late-' + kind)
+            response = api(root + '/receipts', late, token=session_token)
+            retained = response['receipt']
+            assert not response['idempotent'] and response['historical']
+            assert retained['attempt_id'] == old['attempt_id']
+            assert retained['kind'] == kind and retained['delivery_ids'] == old['delivery_ids']
+            assert api(root + '/receipts', late, token=session_token)['receipt'] == retained
+            with self.subTest(status=status, operation=kind + ' custody'):
+                assert api(root + '/state', token=host_token) == before, 'Historical receipt changed current custody'
+            with self.subTest(status=status, operation=kind + ' delivery'):
+                assert api(root + '/pending', token=host_token) == pending, 'Historical receipt consumed current work'
+            with self.subTest(status=status, operation=kind + ' source'):
+                assert sql("SELECT count(*) FROM context_receipts WHERE source_agent_id='" + worker + "' AND entry_id=" + str(entry['id'])) == context_count, 'Historical receipt acknowledged Context'
+            with self.subTest(status=status, operation=kind + ' outcome'):
+                assert sql("SELECT row_to_json(a) FROM cooperation_attempts a WHERE id='" + old['attempt_id'] + "'") == old_attempt, 'Historical receipt changed committed outcome'
+            proof = api(old_path + '/reconcile', fences, token=host_token)
+            assert retained in proof['receipts']
+
+        # Only B's own exact receipt can resolve its work and release its slot.
+        current_receipt = {key: current[key] for key in ('attempt_id', 'binding_epoch', 'dispatch_generation', 'payload_hash')}
+        current_result = api(root + '/receipts', dict(current_receipt, idempotency_key='current-handled',
+            kind='handled', delivery_ids=current['delivery_ids']), token=session_token)
+        assert not current_result['historical']
+        assert api(root + '/state', token=host_token)['active_attempt'] is None
+        assert api(root + '/pending', token=host_token)['deliveries'] == []
+
+    def test_old_handled_attempt(self):
+        self.check_history('handled')
+
+    def test_old_not_submitted_shared_delivery(self):
+        self.check_history('not_submitted')
+
+
+history_tests = unittest.defaultTestLoader.loadTestsFromTestCase(HistoricalReceiptIsolation)
+assert unittest.TextTestRunner(verbosity=2).run(history_tests).wasSuccessful()
 
 print('Packaged runtime scoped delivery/capture/receipt/uncertainty contracts passed')
