@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agentboard:proposed:message-triage:v1",
+  "title": "Proposed explicit note triage metadata, not an implemented API",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "category",
+    "attention",
+    "source"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "category": {
+      "enum": [
+        "status",
+        "ci",
+        "conflict",
+        "next_work",
+        "needs_judgment"
+      ]
+    },
+    "attention": {
+      "enum": [
+        "routine",
+        "captain"
+      ]
+    },
+    "source": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/taskStatus"
+        },
+        {
+          "$ref": "#/$defs/cooperationEvent"
+        },
+        {
+          "$ref": "#/$defs/taskAssignment"
+        },
+        {
+          "$ref": "#/$defs/decisionRequest"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "status"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/taskStatus"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "enum": [
+              "ci",
+              "conflict"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "$ref": "#/$defs/cooperationEvent"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "next_work"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/taskAssignment"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "needs_judgment"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/decisionRequest"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "taskId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "positiveId": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "taskStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "task_id",
+        "task_event_id",
+        "task_revision"
+      ],
+      "properties": {
+        "kind": {
+          "const": "task_status"
+        },
+        "task_id": {
+          "$ref": "#/$defs/taskId"
+        },
+        "task_event_id": {
+          "$ref": "#/$defs/positiveId"
+        },
+        "task_revision": {
+          "$ref": "#/$defs/positiveId"
+        }
+      }
+    },
+    "cooperationEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "event_id",
+        "source_key"
+      ],
+      "properties": {
+        "kind": {
+          "const": "cooperation_event"
+        },
+        "event_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "source_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        }
+      }
+    },
+    "taskAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "task_id",
+        "assignment_revision"
+      ],
+      "properties": {
+        "kind": {
+          "const": "task_assignment"
+        },
+        "task_id": {
+          "$ref": "#/$defs/taskId"
+        },
+        "assignment_revision": {
+          "$ref": "#/$defs/positiveId"
+        }
+      }
+    },
+    "decisionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "request_id"
+      ],
+      "properties": {
+        "kind": {
+          "const": "decision_request"
+        },
+        "request_id": {
+          "$ref": "#/$defs/uuid"
+        }
+      }
+    }
+  }
+}
