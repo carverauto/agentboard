@@ -740,6 +740,7 @@ defmodule AgentboardWeb.BoardLive do
               <div class="links"><a :if={@data["task"]["issue_url"]} href={@data["task"]["issue_url"]} target="_blank" rel="noopener noreferrer">GitHub issue</a><a :if={@data["task"]["pr_url"]} href={@data["task"]["pr_url"]} target="_blank" rel="noopener noreferrer">GitHub pull request</a></div>
             </article>
             <AgentboardWeb.DuplicateNotice.notice finding={get_in(@review_ci, [@data["task"]["pr_url"], :duplicate_of])} />
+            <AgentboardWeb.ConflictOrderNotice.notice projection={get_in(@review_ci, [@data["task"]["pr_url"], :conflict_order])} unavailable={@ci_unavailable || @unavailable} />
             <AgentboardWeb.DecisionPanel.waiting records={@decisions["decisions"]} answered={@decisions["answered"]} total={@decisions["total"]} answered_total={@decisions["answered_total"]} captain={@captain} unavailable={@decision_unavailable} />
             <a :if={@decisions["next_cursor"]} href={page_link(:task,@filters,@decisions["next_cursor"],"decision_cursor")}>Next waiting decisions</a>
             <section class="timeline"><h2>Task history</h2>

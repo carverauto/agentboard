@@ -36,6 +36,14 @@ Captain decision `fd4961ff-f367-42ad-9c72-153161c73d23` assigns the upstream PR-
 `conflict_order_sources_test` owns collector-produced source relations, independent closed-reference/API assertions, current-tip idempotency, changed-dirty-head reuse, default/target supersession, earliest-deadline preservation, wrong version/recipient refusal, selected worker versus inbox effects, late-enrollment reuse, atomic audit rollback, and a concurrent base advance serialized behind the consumer transaction. It uses invented provider metadata; production creates every order, pointer and selected source. Existing `pr_conflicts_test` owns legacy per-head delivery; `conflict_default_watch_test` owns default-watch fanout/replay; `release_schema_test` owns migration preservation/idempotency.
 
 Ripwire review identified cross-domain Ash query/controller boilerplate as clone candidates and the moved existing repair creator as a clone of the pre-existing CI episode creator. The latter is an unchanged extraction reused by both conflict paths, not a second copied repair implementation. The new producer&#x27;s branch complexity was reduced by making retained episode/deadline semantics explicit. The report is not clean; these boilerplate/extraction tradeoffs require review rather than a blanket suppression or unrelated refactor.
+
+## Read-only dashboard checkpoint
+
+The existing PR index/detail and source/repair task detail views now show the latest retained order, deadline, issued recipient, current repair owner, author, default/actual-target identities, selected source disposition and verified rebaser (or Not verified). They share one read-only component and do not change the Kanban, source task or claim. Order evidence is labeled last observed; it authorizes no effect. Unknown rebaser credit remains unknown.
+
+The public PR projection and connected task/PR renders passed through the actual Phoenix WebSocket transport and pinned Rendered consumer: https://carverauto.buildbuddy.io/invocation/577a3414-1698-42dc-a55f-5219c52ae3db. The legacy conflict suite passed against the same production tree in https://carverauto.buildbuddy.io/invocation/217dffc8-f991-4f0e-8f5d-b95ba43a9e63; the new suite failed its initial fixture there, then passed separately after comparing UTC instants and exercising connected task loading. Keyboard/narrow behavior in the deployed product: UNTESTED-live. The complete admission/escalation ledger and full task5.2 remain pending.
+
+#122 owner agreement is retained in board message1810 for Context324/document187. Full concurrent fallback/bootstrap proof remains scheduled after #156/#164 land. Message1811 asks the coordinator to identify the canonical #170 evaluator/policy contract or confirm #169 defines it first; no private substitute or guessed repository capability has been implemented.
 </pre></details><details><summary>Implementation checkpoint — local, remotely tested; not deployed</summary><h2>web/lib/agentboard/delivery/conflict_orders.ex</h2><pre>defmodule Agentboard.Delivery.ConflictOrders do
   @moduledoc &quot;Base-fenced current orders and authoritative selected-source currentness. No native custody grants.&quot;
   alias Agentboard.Board.Operations, as: Ops
@@ -490,7 +498,9 @@ per-head repairs and default-watch fanout tests. Fixtures only provide GitHub
 metadata; orders, pointers, messages and audit relations come from production.
 &quot;&quot;&quot;
 import concurrent.futures
+from datetime import datetime
 import http.server
+from html.parser import HTMLParser
 import json
 import os
 import subprocess
@@ -499,6 +509,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 from provider_fixture import tls_provider
+from liveview_client import RenderedView
 
 HEAD, BASE, DEFAULT, MOVED = (c * 40 for c in &#x27;abcd&#x27;)
 head, default_tip, target_tip = HEAD, DEFAULT, BASE
@@ -563,6 +574,27 @@ def resolve_api(src, owner=&#x27;codex-order-owner&#x27;, **extra):
     with response: return response.status,json.load(response)
 
 
+def rendered_order(path):
+    class OrderPanel(HTMLParser):
+        def __init__(self):
+            super().__init__();self.depth=0;self.text=[];self.links=[];self.times=[]
+        def handle_starttag(self,tag,attrs):
+            attrs=dict(attrs)
+            if tag==&#x27;section&#x27; and (self.depth or attrs.get(&#x27;aria-label&#x27;)==&#x27;Conflict repair order&#x27;):
+                self.depth+=1
+            if self.depth and tag==&#x27;a&#x27;:self.links.append(attrs.get(&#x27;href&#x27;))
+            if self.depth and tag==&#x27;time&#x27;:self.times.append(attrs.get(&#x27;datetime&#x27;))
+        def handle_endtag(self,tag):
+            if tag==&#x27;section&#x27; and self.depth:self.depth-=1
+        def handle_data(self,data):
+            if self.depth:self.text.append(data)
+    panel=OrderPanel()
+    view=RenderedView(os.environ[&#x27;AGENTBOARD_URL&#x27;],path)
+    try:panel.feed(view.document)
+    finally:view.close()
+    return &#x27; &#x27;.join(panel.text),panel.links,panel.times
+
+
 def source():
     return json.loads(sql(&quot;SELECT to_jsonb(s) FROM delivery_conflict_sources s ORDER BY created_at DESC LIMIT 1&quot;))
 
@@ -617,6 +649,17 @@ with tls_provider(Provider) as (url,ca,_):
         repair_task_id=initial[&#x27;repair_task_id&#x27;],pull_request_id=pr,default_ref=&#x27;staging&#x27;,default_tip_sha=DEFAULT,
         evaluation_base_ref=&#x27;release&#x27;,evaluation_base_sha=BASE,recipient_id=&#x27;codex-order-owner&#x27;)
     assert resolve_api(initial_source)==(200,dict(order_ref=ref,native_publication=&#x27;unsupported&#x27;))
+    # Public projection and real connected task/PR renders share retained order
+    # evidence; no private component or fabricated ledger drives these pages.
+    with urllib.request.urlopen(os.environ[&#x27;AGENTBOARD_URL&#x27;]+&#x27;/api/v1/prs&#x27;,timeout=15) as response:
+        projected=json.load(response)[&#x27;prs&#x27;][0][&#x27;conflict_order&#x27;]
+    assert projected[&#x27;order&#x27;][&#x27;id&#x27;]==initial[&#x27;id&#x27;] and projected[&#x27;repair_owner_id&#x27;]==&#x27;codex-order-owner&#x27;
+    assert projected[&#x27;source_mode&#x27;]==&#x27;sent&#x27; and projected[&#x27;order&#x27;][&#x27;rebaser_id&#x27;] is None
+    for path in (&#x27;/prs/&#x27;+pr, &#x27;/tasks/order-source&#x27;, &#x27;/tasks/&#x27;+initial[&#x27;repair_task_id&#x27;]):
+        text,links,times=rendered_order(path)
+        assert &#x27;/tasks/&#x27;+initial[&#x27;repair_task_id&#x27;] in links, (path,links)
+        assert datetime.fromisoformat(initial[&#x27;deadline_at&#x27;]) in [datetime.fromisoformat(t) for t in times], (path,times)
+        assert &#x27;codex-order-owner&#x27; in text and &#x27;Not verified&#x27; in text, (path,text)
     assert resolve_api(initial_source,owner=&#x27;codex-order-peer&#x27;)[0]==409
     assert resolve_api(initial_source,order_ref=ref)[0]==422, &#x27;Caller-provided reference was accepted as authority&#x27;
     assert resolve_api(initial_source,source_id=&#x27;not-an-id&#x27;)[0]==422
@@ -711,4 +754,419 @@ with tls_provider(Provider) as (url,ca,_):
     assert consume(&#x27;board_message&#x27;,latest[&#x27;message_id&#x27;],latest[&#x27;message_version&#x27;])==dict(error=&#x27;unsupported&#x27;)
 
 print(&#x27;Canonical source relation, one effect, superseding default/target fences, retained deadline, frozen-source rejection and repair-only assignment passed&#x27;)
+</pre><h2>web/lib/agentboard/delivery/reads.ex</h2><pre>defmodule Agentboard.Delivery.Reads do
+  @moduledoc &quot;Bounded dashboard reads; a last-known projection is never fresh verified green.&quot;
+  alias Agentboard.Delivery.{PullRequest, PollState, Obligation, CISnapshot}
+  alias Agentboard.Board.Operations, as: Ops
+  require Ash.Query
+
+  def list(params \\ %{}) do
+    Ops.transaction(fn -&gt;
+      cursor = params[&quot;cursor&quot;] || &quot;&quot;
+
+      if not is_binary(cursor) or byte_size(cursor) &gt; 200,
+        do: Ops.reject(&quot;invalid_input&quot;, &quot;Invalid PR cursor&quot;)
+
+      query = PullRequest |&gt; Ash.Query.filter(id &gt; ^cursor)
+
+      query =
+        if params[&quot;show_terminal&quot;] == &quot;true&quot;,
+          do: query,
+          else: Ash.Query.filter(query, not exists(poll_state, lifecycle in [&quot;merged&quot;, &quot;closed&quot;]))
+
+      rows =
+        query
+        |&gt; Ash.Query.sort(id: :asc)
+        |&gt; Ash.Query.limit(21)
+        |&gt; Ash.read!()
+
+      selected = Enum.take(rows, 20)
+
+      %{
+        prs: Enum.map(selected, &amp;record/1),
+        github_budget: budget(),
+        default_branch_health: Agentboard.Delivery.WorkflowMonitor.health(),
+        next_cursor: if(length(rows) &gt; 20, do: List.last(selected).id, else: nil)
+      }
+    end)
+  end
+
+  defp budget do
+    b = Ash.get!(Agentboard.Delivery.ProviderBudget, &quot;github&quot;)
+    stamp = Ops.now()
+    capacity = min(b.capacity, 60)
+
+    %{rows: [[carried]]} =
+      Agentboard.Repo.statement!(
+        &quot;SELECT COALESCE(sum(remaining),0)::bigint FROM delivery_poll_credits WHERE expires_at&gt;clock_timestamp()&quot;,
+        []
+      )
+
+    %{
+      capacity: capacity,
+      remaining:
+        if(DateTime.compare(b.reset_at, stamp) != :gt,
+          do: max(0, capacity - carried),
+          else: min(b.remaining, capacity)
+        ),
+      reset_at: b.reset_at,
+      blocked_until: b.blocked_until,
+      provider_blocked: !!b.blocked_until and DateTime.compare(b.blocked_until, stamp) == :gt
+    }
+  end
+
+  def review(urls) when is_list(urls) and length(urls) &lt;= 20 do
+    Ops.transaction(fn -&gt;
+      identities =
+        Enum.flat_map(urls, fn url -&gt;
+          case Agentboard.Delivery.Inventory.canonical(url) do
+            {:ok, pr} -&gt; [{url, pr.id}]
+            _ -&gt; []
+          end
+        end)
+
+      ids = Enum.map(identities, &amp;elem(&amp;1, 1))
+
+      states =
+        PullRequest
+        |&gt; Ash.Query.filter(id in ^ids)
+        |&gt; Ash.Query.limit(20)
+        |&gt; Ash.read!()
+        |&gt; Map.new(fn pr -&gt;
+          {pr.id,
+           Map.put(
+             Map.put(ci_projection(pr), :conflict_order, conflict_order(pr.id)),
+             :duplicate_of,
+             Agentboard.Delivery.Duplicates.projection(pr.id)
+           )}
+        end)
+
+      Map.new(identities, fn {url, id} -&gt; {url, states[id]} end)
+    end)
+  end
+
+  def detail(id) do
+    Ops.transaction(fn -&gt;
+      pr = Ops.fetch!(PullRequest, id, &quot;PR not found&quot;)
+      base = record(pr)
+
+      sources =
+        Agentboard.Delivery.TaskLink
+        |&gt; Ash.Query.filter(pull_request_id == ^id)
+        |&gt; Ash.read!()
+        |&gt; Enum.map(&amp;Ops.public/1)
+
+      %{rows: tables} =
+        Agentboard.Repo.statement!(&quot;SELECT to_regclass(&#x27;delivery_ci_snapshots&#x27;) IS NOT NULL&quot;, [])
+
+      history =
+        if tables == [[true]] do
+          %{rows: rows} =
+            Agentboard.Repo.statement!(
+              &quot;SELECT payload,head_sha,base_sha,ci_state,observed_at FROM delivery_ci_snapshots WHERE pull_request_id=$1 ORDER BY observed_at DESC LIMIT 20&quot;,
+              [id]
+            )
+
+          Enum.map(rows, fn [payload, head, base, state, observed] -&gt;
+            %{
+              payload: payload,
+              head_sha: head,
+              base_sha: base,
+              ci_state: state,
+              observed_at: observed
+            }
+          end)
+        else
+          []
+        end
+
+      Map.merge(base, %{sources: sources, observations: history, github_budget: budget()})
+    end)
+  end
+
+  def health(id) do
+    binding = Ash.get!(Agentboard.Cooperation.Binding, id, not_found_error?: false)
+    subscription = Ash.get!(Agentboard.Cooperation.Subscription, id, not_found_error?: false)
+
+    if binding &amp;&amp; subscription do
+      %{rows: [[pending, received, handled, oldest]]} =
+        Agentboard.Repo.statement!(
+          &quot;SELECT count(*) FILTER (WHERE state=&#x27;pending&#x27;),count(*) FILTER (WHERE state=&#x27;received&#x27;),count(*) FILTER (WHERE state=&#x27;handled&#x27;),min(created_at) FILTER (WHERE state IN (&#x27;pending&#x27;,&#x27;received&#x27;)) FROM cooperation_deliveries WHERE worker_id=$1&quot;,
+          [id]
+        )
+
+      attempt =
+        if binding.active_attempt_id,
+          do: Ash.get!(Agentboard.Cooperation.Attempt, binding.active_attempt_id)
+
+      expired =
+        if attempt &amp;&amp; attempt.status == &quot;reserved&quot; do
+          batch = Ash.get!(Agentboard.Cooperation.Batch, attempt.batch_id)
+          DateTime.compare(batch.lease_expires_at, Ops.now()) != :gt
+        else
+          false
+        end
+
+      %{
+        binding: Ops.public(binding),
+        paused: subscription.paused,
+        revoked: subscription.revoked,
+        enabled: Agentboard.Cooperation.Runtime.enabled?(subscription),
+        pending: pending,
+        received: received,
+        handled: handled,
+        oldest_pending_at: oldest,
+        connector_fresh:
+          not is_nil(binding.reported_at) and DateTime.diff(Ops.now(), binding.reported_at) &lt;= 90,
+        uncertainty: !!attempt and (attempt.status == &quot;uncertain&quot; or expired)
+      }
+    end
+  end
+
+  defp waiting_decisions(pr_id) do
+    %{rows: [[records]]} =
+      Agentboard.Repo.statement!(
+        &quot;&quot;&quot;
+        SELECT coalesce(jsonb_agg(record ORDER BY created_at,id),&#x27;[]&#x27;::jsonb) FROM (
+          SELECT d.created_at,d.id,jsonb_build_object(&#x27;id&#x27;,d.id,&#x27;task_id&#x27;,d.task_id,
+            &#x27;requester_id&#x27;,d.requester_id,&#x27;status&#x27;,d.status,
+            &#x27;requester_stale&#x27;,(a.last_heartbeat IS NULL OR a.last_heartbeat&lt;=clock_timestamp()-interval &#x27;10 minutes&#x27;)) AS record
+          FROM decision_requests d JOIN agents a ON a.id=d.requester_id
+          WHERE d.status IN (&#x27;open&#x27;,&#x27;answered&#x27;) AND EXISTS(
+            SELECT 1 FROM delivery_task_links l WHERE l.task_id=d.task_id AND l.pull_request_id=$1)
+          ORDER BY d.created_at,d.id LIMIT 20
+        ) waiting
+        &quot;&quot;&quot;,
+        [pr_id]
+      )
+
+    records
+  end
+
+  defp record(pr) do
+    s = Ash.get!(PollState, pr.id, not_found_error?: false)
+
+    o =
+      Obligation
+      |&gt; Ash.Query.filter(pull_request_id == ^pr.id)
+      |&gt; Ash.Query.sort(episode: :desc)
+      |&gt; Ash.Query.limit(1)
+      |&gt; Ash.read_one!()
+
+    rebase =
+      Agentboard.Delivery.RebaseFollowUp
+      |&gt; Ash.Query.filter(pull_request_id == ^pr.id)
+      |&gt; Ash.Query.sort(created_at: :desc)
+      |&gt; Ash.Query.limit(1)
+      |&gt; Ash.read_one!()
+
+    responsible = (o &amp;&amp; o.responsible_id) || (rebase &amp;&amp; rebase.responsible_id)
+
+    repair_tasks =
+      [o &amp;&amp; o.repair_task_id, rebase &amp;&amp; rebase.repair_task_id]
+      |&gt; Enum.reject(&amp;is_nil/1)
+      |&gt; Enum.uniq()
+
+    %{
+      duplicate_of: Agentboard.Delivery.Duplicates.projection(pr.id),
+      decisions: waiting_decisions(pr.id),
+      pr: Ops.public(pr),
+      poll: if(s, do: Agentboard.Delivery.Polling.public_state(s)),
+      poll_deferral_age:
+        if(s &amp;&amp; s.budget_deferred_at,
+          do: max(0, DateTime.diff(Ops.now(), s.budget_deferred_at)),
+          else: 0
+        ),
+      overdue:
+        !!o and is_nil(o.resolved_at) and DateTime.compare(o.next_reminder_at, Ops.now()) != :gt,
+      obligation: if(o, do: Ops.public(o)),
+      rebase_follow_up: if(rebase, do: Ops.public(rebase)),
+      conflict_order: conflict_order(pr.id),
+      worker: if(responsible, do: health(responsible)),
+      follow_up_delivery: follow_up_delivery(repair_tasks)
+    }
+    |&gt; Map.merge(ci_projection(pr, s))
+  end
+
+  # Last retained order only. This dashboard projection authorizes no effect.
+  defp conflict_order(pr_id) do
+    order =
+      Agentboard.Delivery.ConflictOrder
+      |&gt; Ash.Query.filter(pull_request_id == ^pr_id)
+      |&gt; Ash.Query.sort(created_at: :desc, id: :desc)
+      |&gt; Ash.Query.limit(1)
+      |&gt; Ash.read_one!()
+
+    if order do
+      task = Ash.get!(Agentboard.Board.Resources.Task, order.repair_task_id)
+
+      source =
+        Agentboard.Delivery.ConflictSource
+        |&gt; Ash.Query.filter(order_id == ^order.id and order_revision == ^order.revision)
+        |&gt; Ash.read_one!()
+
+      %{
+        order: Ops.public(order),
+        repair_owner_id: task.assignee_id,
+        source_mode: if(source, do: source.disposition, else: &quot;unavailable&quot;)
+      }
+    end
+  end
+
+  # Derived per-event delivery mode for open repair tasks: worker when a
+  # cooperation delivery exists, inbox_fallback when the single-source
+  # canonical message was retained (exact source marker only; markerless
+  # notes never count), undeliverable otherwise. Read-only derivation; the
+  # marker shape must match Runtime.fallback_marker/1.
+  defp follow_up_delivery([]), do: []
+
+  defp follow_up_delivery(repair_tasks) do
+    %{rows: rows} =
+      Agentboard.Repo.statement!(
+        &quot;&quot;&quot;
+        SELECT e.kind, e.source_key, e.task_id, e.created_at,
+          (SELECT coalesce(jsonb_agg(jsonb_build_object(&#x27;worker&#x27;, d.worker_id, &#x27;state&#x27;, d.state) ORDER BY d.id), &#x27;[]&#x27;::jsonb)
+             FROM cooperation_deliveries d WHERE d.event_id = e.id) AS deliveries,
+          (SELECT m.id FROM messages m WHERE m.task_id = e.task_id AND
+             position(&#x27;[coop-fallback source=&#x27; || e.source_key || &#x27;]&#x27; in m.body) &gt; 0
+             ORDER BY m.id LIMIT 1) AS fallback_message_id,
+          (SELECT m.recipient_id FROM messages m WHERE m.task_id = e.task_id AND
+             position(&#x27;[coop-fallback source=&#x27; || e.source_key || &#x27;]&#x27; in m.body) &gt; 0
+             ORDER BY m.id LIMIT 1) AS fallback_recipient
+        FROM cooperation_events e
+        WHERE e.task_id = ANY($1) AND e.kind IN (&#x27;ci_failure&#x27;, &#x27;ci_reminder&#x27;, &#x27;ci_digest&#x27;, &#x27;pr_conflict&#x27;)
+        ORDER BY e.created_at DESC, e.id DESC LIMIT 20
+        &quot;&quot;&quot;,
+        [repair_tasks]
+      )
+
+    Enum.map(rows, fn [kind, source_key, task_id, created_at, deliveries, message_id, recipient] -&gt;
+      mode =
+        cond do
+          deliveries != [] -&gt; &quot;worker&quot;
+          not is_nil(message_id) -&gt; &quot;inbox_fallback&quot;
+          true -&gt; &quot;undeliverable&quot;
+        end
+
+      %{
+        kind: kind,
+        source_key: source_key,
+        task_id: task_id,
+        event_created_at: created_at,
+        mode: mode,
+        deliveries: deliveries,
+        fallback_message_id: message_id,
+        fallback_recipient_id: recipient
+      }
+    end)
+  end
+
+  defp ci_projection(pr),
+    do: ci_projection(pr, Ash.get!(PollState, pr.id, not_found_error?: false))
+
+  defp ci_projection(pr, s) do
+    snapshot = if s &amp;&amp; s.snapshot_id, do: Ash.get!(CISnapshot, s.snapshot_id)
+    payload = snapshot_payload(s, snapshot)
+
+    expected =
+      Agentboard.Delivery.BaseMonitor.expected_sha(pr, s &amp;&amp; s.base_ref, s &amp;&amp; s.expected_base_sha)
+
+    # New snapshots bind the branch watch sampled before collection. Keep the
+    # original provider base_sha intact; older snapshots retain their old rule.
+    observed_base = payload[&quot;base_watch_sha&quot;] || (s &amp;&amp; s.base_sha)
+    fresh = fresh?(s, expected, observed_base)
+
+    %{
+      ci_state: ci_state(s, fresh),
+      fresh: fresh,
+      observed_at: if(s, do: s.observed_at),
+      draft: if(is_boolean(payload[&quot;draft&quot;]), do: payload[&quot;draft&quot;]),
+      mergeable: payload[&quot;mergeable&quot;],
+      mergeable_state: payload[&quot;mergeable_state&quot;],
+      merge_state: merge_state(s, payload, fresh),
+      base_ref: payload[&quot;base_ref&quot;],
+      expected_base_sha: expected
+    }
+  end
+
+  defp snapshot_payload(s, snapshot) when not is_nil(s) and not is_nil(snapshot) do
+    if snapshot.head_sha == s.head_sha and snapshot.base_sha == s.base_sha and
+         snapshot.observed_at == s.observed_at, do: snapshot.payload, else: %{}
+  end
+
+  defp snapshot_payload(_, _), do: %{}
+
+  defp fresh?(
+         %{lifecycle: lifecycle, observed_at: %DateTime{} = observed, last_error: error},
+         _expected,
+         _observed_base
+       )
+       when lifecycle in [&quot;merged&quot;, &quot;closed&quot;],
+       do: DateTime.diff(Ops.now(), observed) &lt;= 180 and error in [nil, &quot;policy_unknown&quot;]
+
+  defp fresh?(
+         %{observed_at: %DateTime{} = observed, last_error: error},
+         expected,
+         observed_base
+       ),
+       do:
+         DateTime.diff(Ops.now(), observed) &lt;= 180 and error in [nil, &quot;policy_unknown&quot;] and
+           (is_nil(expected) or expected == observed_base)
+
+  defp fresh?(_, _, _), do: false
+
+  defp ci_state(nil, _), do: &quot;unknown&quot;
+  defp ci_state(%{observed_at: nil}, _), do: &quot;unknown&quot;
+
+  defp ci_state(%{lifecycle: lifecycle, ci_state: state}, _)
+       when lifecycle in [&quot;merged&quot;, &quot;closed&quot;],
+       do: state
+
+  defp ci_state(_, false), do: &quot;stale&quot;
+  defp ci_state(%{ci_state: &quot;passing&quot;, last_error: &quot;policy_unknown&quot;}, _), do: &quot;unknown&quot;
+  defp ci_state(s, _), do: s.ci_state
+
+  defp merge_state(%{lifecycle: lifecycle}, _, _) when lifecycle in [&quot;merged&quot;, &quot;closed&quot;],
+    do: &quot;not_applicable&quot;
+
+  defp merge_state(%{observed_at: %DateTime{}}, _, false), do: &quot;stale&quot;
+  defp merge_state(_, %{&quot;mergeable&quot; =&gt; nil}, _), do: &quot;unknown&quot;
+  defp merge_state(_, %{&quot;mergeable&quot; =&gt; false, &quot;mergeable_state&quot; =&gt; &quot;dirty&quot;}, _), do: &quot;conflicting&quot;
+
+  defp merge_state(_, %{&quot;mergeable_state&quot; =&gt; state}, _)
+       when state in ~w(behind blocked unstable draft), do: state
+
+  defp merge_state(_, %{&quot;mergeable&quot; =&gt; true}, _), do: &quot;mergeable&quot;
+  defp merge_state(_, _, _), do: &quot;unknown&quot;
+end
+</pre><h2>web/lib/agentboard_web/components/conflict_order_notice.ex</h2><pre>defmodule AgentboardWeb.ConflictOrderNotice do
+  @moduledoc &quot;Retained conflict evidence shared by task and PR views.&quot;
+  use Phoenix.Component
+
+  attr(:projection, :map, default: nil)
+  attr(:unavailable, :boolean, default: false)
+
+  def notice(assigns) do
+    ~H&quot;&quot;&quot;
+    &lt;section :if={@projection} class=&quot;task-detail min-w-0&quot; aria-label=&quot;Conflict repair order&quot;&gt;
+      &lt;h3&gt;Conflict repair&lt;/h3&gt;
+      &lt;p :if={@unavailable} class=&quot;flag warning&quot;&gt;Order evidence is unavailable; retained values are last known.&lt;/p&gt;
+      &lt;p&gt;Last observed: {@projection.order[&quot;state&quot;]} · revision {@projection.order[&quot;revision&quot;]}&lt;/p&gt;
+      &lt;dl class=&quot;min-w-0&quot;&gt;
+        &lt;dt&gt;Repair&lt;/dt&gt;&lt;dd class=&quot;min-w-0 break-all&quot;&gt;&lt;a href={&quot;/tasks/&quot; &lt;&gt; @projection.order[&quot;repair_task_id&quot;]}&gt;{@projection.order[&quot;repair_task_id&quot;]}&lt;/a&gt;&lt;/dd&gt;
+        &lt;dt&gt;Repair owner&lt;/dt&gt;&lt;dd class=&quot;min-w-0 break-all&quot;&gt;{@projection.repair_owner_id || &quot;Captain queue&quot;}&lt;/dd&gt;
+        &lt;dt&gt;Author&lt;/dt&gt;&lt;dd class=&quot;min-w-0 break-all&quot;&gt;{@projection.order[&quot;author_id&quot;] || &quot;Unknown author&quot;}&lt;/dd&gt;
+        &lt;dt&gt;Deadline&lt;/dt&gt;&lt;dd class=&quot;min-w-0 break-all&quot;&gt;&lt;time datetime={@projection.order[&quot;deadline_at&quot;]}&gt;{@projection.order[&quot;deadline_at&quot;]}&lt;/time&gt;&lt;/dd&gt;
+        &lt;dt&gt;Selected recipient&lt;/dt&gt;&lt;dd class=&quot;min-w-0 break-all&quot;&gt;{@projection.order[&quot;recipient_id&quot;] || &quot;Captain queue&quot;}&lt;/dd&gt;
+        &lt;dt&gt;Default tip&lt;/dt&gt;&lt;dd class=&quot;min-w-0 break-all&quot;&gt;{@projection.order[&quot;default_ref&quot;]}@{@projection.order[&quot;default_tip_sha&quot;]}&lt;/dd&gt;
+        &lt;dt&gt;Evaluated target&lt;/dt&gt;&lt;dd class=&quot;min-w-0 break-all&quot;&gt;{@projection.order[&quot;evaluation_base_ref&quot;]}@{@projection.order[&quot;evaluation_base_sha&quot;]}&lt;/dd&gt;
+        &lt;dt&gt;Rebaser&lt;/dt&gt;&lt;dd class=&quot;min-w-0 break-all&quot;&gt;{@projection.order[&quot;rebaser_id&quot;] || &quot;Not verified&quot;}&lt;/dd&gt;
+        &lt;dt&gt;Disposition&lt;/dt&gt;&lt;dd class=&quot;min-w-0 break-all&quot;&gt;{@projection.order[&quot;selection_reason&quot;] || &quot;Not recorded&quot;}&lt;/dd&gt;
+        &lt;dt&gt;Delivery&lt;/dt&gt;&lt;dd&gt;{@projection.source_mode}&lt;/dd&gt;
+      &lt;/dl&gt;
+      &lt;p :if={@projection.order[&quot;escalation_decision_id&quot;]} class=&quot;flag warning&quot;&gt;Captain escalation · {@projection.order[&quot;escalation_decision_id&quot;]}&lt;/p&gt;
+    &lt;/section&gt;
+    &quot;&quot;&quot;
+  end
+end
 </pre></details></main></body></html>

@@ -572,8 +572,8 @@ sh_test(
     name = "conflict_order_sources_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "conflict_order_sources_test.py", "AGENTBOARD_PR_OBSERVATION_ENABLED": "true"},
     srcs = ["board_api_test.sh"],
-    data = ["conflict_order_sources_test.py", "provider_fixture.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
-    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    data = [":liveview_rendered", "@worker_node_linux_x64//:bin/node", "conflict_order_sources_test.py", "liveview_client.py", "provider_fixture.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)", "$(rlocationpath :liveview_rendered)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
     size = "large",
     timeout = "long",
 )

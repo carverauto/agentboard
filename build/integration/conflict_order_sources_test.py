@@ -5,7 +5,9 @@ per-head repairs and default-watch fanout tests. Fixtures only provide GitHub
 metadata; orders, pointers, messages and audit relations come from production.
 """
 import concurrent.futures
+from datetime import datetime
 import http.server
+from html.parser import HTMLParser
 import json
 import os
 import subprocess
@@ -14,6 +16,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 from provider_fixture import tls_provider
+from liveview_client import RenderedView
 
 HEAD, BASE, DEFAULT, MOVED = (c * 40 for c in 'abcd')
 head, default_tip, target_tip = HEAD, DEFAULT, BASE
@@ -78,6 +81,27 @@ def resolve_api(src, owner='codex-order-owner', **extra):
     with response: return response.status,json.load(response)
 
 
+def rendered_order(path):
+    class OrderPanel(HTMLParser):
+        def __init__(self):
+            super().__init__();self.depth=0;self.text=[];self.links=[];self.times=[]
+        def handle_starttag(self,tag,attrs):
+            attrs=dict(attrs)
+            if tag=='section' and (self.depth or attrs.get('aria-label')=='Conflict repair order'):
+                self.depth+=1
+            if self.depth and tag=='a':self.links.append(attrs.get('href'))
+            if self.depth and tag=='time':self.times.append(attrs.get('datetime'))
+        def handle_endtag(self,tag):
+            if tag=='section' and self.depth:self.depth-=1
+        def handle_data(self,data):
+            if self.depth:self.text.append(data)
+    panel=OrderPanel()
+    view=RenderedView(os.environ['AGENTBOARD_URL'],path)
+    try:panel.feed(view.document)
+    finally:view.close()
+    return ' '.join(panel.text),panel.links,panel.times
+
+
 def source():
     return json.loads(sql("SELECT to_jsonb(s) FROM delivery_conflict_sources s ORDER BY created_at DESC LIMIT 1"))
 
@@ -132,6 +156,17 @@ with tls_provider(Provider) as (url,ca,_):
         repair_task_id=initial['repair_task_id'],pull_request_id=pr,default_ref='staging',default_tip_sha=DEFAULT,
         evaluation_base_ref='release',evaluation_base_sha=BASE,recipient_id='codex-order-owner')
     assert resolve_api(initial_source)==(200,dict(order_ref=ref,native_publication='unsupported'))
+    # Public projection and real connected task/PR renders share retained order
+    # evidence; no private component or fabricated ledger drives these pages.
+    with urllib.request.urlopen(os.environ['AGENTBOARD_URL']+'/api/v1/prs',timeout=15) as response:
+        projected=json.load(response)['prs'][0]['conflict_order']
+    assert projected['order']['id']==initial['id'] and projected['repair_owner_id']=='codex-order-owner'
+    assert projected['source_mode']=='sent' and projected['order']['rebaser_id'] is None
+    for path in ('/prs/'+pr, '/tasks/order-source', '/tasks/'+initial['repair_task_id']):
+        text,links,times=rendered_order(path)
+        assert '/tasks/'+initial['repair_task_id'] in links, (path,links)
+        assert datetime.fromisoformat(initial['deadline_at']) in [datetime.fromisoformat(t) for t in times], (path,times)
+        assert 'codex-order-owner' in text and 'Not verified' in text, (path,text)
     assert resolve_api(initial_source,owner='codex-order-peer')[0]==409
     assert resolve_api(initial_source,order_ref=ref)[0]==422, 'Caller-provided reference was accepted as authority'
     assert resolve_api(initial_source,source_id='not-an-id')[0]==422

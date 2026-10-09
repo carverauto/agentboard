@@ -81,7 +81,7 @@ defmodule Agentboard.Delivery.Reads do
         |> Map.new(fn pr ->
           {pr.id,
            Map.put(
-             ci_projection(pr),
+             Map.put(ci_projection(pr), :conflict_order, conflict_order(pr.id)),
              :duplicate_of,
              Agentboard.Delivery.Duplicates.projection(pr.id)
            )}
@@ -424,6 +424,7 @@ defmodule Agentboard.Delivery.Reads do
         !!o and is_nil(o.resolved_at) and DateTime.compare(o.next_reminder_at, Ops.now()) != :gt,
       obligation: if(o, do: Ops.public(o)),
       rebase_follow_up: if(rebase, do: Ops.public(rebase)),
+      conflict_order: conflict_order(pr.id),
       worker:
         if(responsible,
           do: from_batch(batch, :workers, responsible, fn -> health(responsible) end)
@@ -432,6 +433,31 @@ defmodule Agentboard.Delivery.Reads do
         from_batch(batch, :deliveries, repair_tasks, fn -> follow_up_delivery(repair_tasks) end)
     }
     |> Map.merge(ci_projection(pr, s, batch))
+  end
+
+  # Last retained order only. This dashboard projection authorizes no effect.
+  defp conflict_order(pr_id) do
+    order =
+      Agentboard.Delivery.ConflictOrder
+      |> Ash.Query.filter(pull_request_id == ^pr_id)
+      |> Ash.Query.sort(created_at: :desc, id: :desc)
+      |> Ash.Query.limit(1)
+      |> Ash.read_one!()
+
+    if order do
+      task = Ash.get!(Agentboard.Board.Resources.Task, order.repair_task_id)
+
+      source =
+        Agentboard.Delivery.ConflictSource
+        |> Ash.Query.filter(order_id == ^order.id and order_revision == ^order.revision)
+        |> Ash.read_one!()
+
+      %{
+        order: Ops.public(order),
+        repair_owner_id: task.assignee_id,
+        source_mode: if(source, do: source.disposition, else: "unavailable")
+      }
+    end
   end
 
   # Derived per-event delivery mode for open repair tasks: worker when a
