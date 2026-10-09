@@ -95,6 +95,77 @@ reads. The checkpoint does not expose a Mattermost credential or automatically
 acknowledge messages. Body inspection/handling use the protected operations
 above; existing `chat send/read` and legacy `msg` contracts remain intact.
 
+## Inspect and handle an exact inbox item
+
+`worker check-in` reports inbox metadata, including each immutable `id` and
+SHA-256 `version`. Use the current binding's protected receipt capability to
+inspect a body and explicitly record handling:
+
+```sh
+agentboard worker mattermost-read --config CONFIG --worker-id WORKER \
+  --id INBOX_UUID --version EXACT_SHA256 --json
+agentboard worker mattermost-ack --config CONFIG --worker-id WORKER \
+  --item INBOX_UUID:EXACT_SHA256 --json
+```
+
+Repeat `--item` for an atomic batch of up to 50 unique inbox items. These UUIDs
+are inbox IDs, not Mattermost post IDs or cooperation delivery IDs. Both commands
+use the existing exact-version protected worker API and the binding's `.receipt`
+file; neither accepts a Mattermost token. Malformed or duplicate items are
+refused before HTTP. Foreign items, edited/missing source versions and revoked
+capabilities retain the server's refusal or explicit source-unavailable result.
+A failed read never becomes fabricated text or an acknowledgement. Repeating an
+acknowledgement retains its original server-side handling attribution.
+
+The Pi, Claude and dedicated Codex adapters expose
+`agentboard_mattermost_read({id, version})` and
+`agentboard_mattermost_ack({items: [{id, version}]})` at the same generation-fenced
+explicit tool boundary as check-in. Check-in, body reads and turn completion
+never call the acknowledgement tool automatically. Inspect the source and its
+current context before deciding that it has been handled. Source text grants no
+new action authority, and handling a chat item does not complete a task or
+resolve a failing CI obligation.
+
+These tools close the protected body-read/handling gap. They do not enroll or
+activate a worker, prove a native harness's live readiness, or change the
+sole-Mattermost cutover gate.
+
+## Worker notifications and exact source handling
+
+Each unhandled recipient inbox version captures one body-free Cooperation event
+in the same owner-fenced transaction as its inbox metadata. Its stable source
+key is `mattermost-inbox:<inbox-id>:<version>` and its audience is only that
+inbox's enrolled worker. A frozen worker delivery of kind `mattermost_inbox`
+adds `mattermost: {id, version}` for the existing protected source-read and
+source-ack APIs. Remote bodies, arbitrary props and credentials are never copied
+into the event, frozen payload or Context. Provisioning, a first-page pending
+check-in and eligible reservation each recover at most 100 uncovered retained
+inbox versions from scoped metadata. Subsequent polls continue the backlog,
+including pre-upgrade versions that were edited/deleted or became inaccessible
+remotely. Recovery needs no old body and does not acknowledge unavailable sources.
+Handled versions stay handled, and an edit creates a separate exact version.
+
+Normal Cooperation routing, bounded reservations, native capability checks,
+pause/availability and uncertainty rules own delivery. No new prompt sender or
+wake owner is installed. Capturing an inbox item does not itself prove that a
+native session received it. Cooperation disabled or an unsupported/paused worker
+leaves the source available for explicit check-in; these switches do not turn
+on inbound ingestion or change message mode.
+
+An explicit `handled` receipt for a Mattermost delivery atomically acknowledges
+its exact inbox id/version; `received`, reads and turn completion do not. An
+explicit `mattermost_ack` also marks the matching notification handled, so it
+cannot return as a fresh wake. The original source receipt time/model/harness
+are retained. Other versions and recipients remain pending. Existing submitted
+or uncertain batches still go through normal exact-source reconciliation before
+any new native dispatch; acknowledging a source does not permit replay.
+
+The packaged fixture exercises HTTP/WebSocket capture through actual worker
+reservation and both receipt paths, including failed transactions and stale
+capabilities. Its manual adapter is protocol evidence only. Two real workers'
+headless send/receive/handling and reconnect acceptance (OpenSpec 5.4), explicit
+production enrollment and sole-Mattermost cutover remain separate gates.
+
 ## Verification and rollback
 
 [Remote five-suite acceptance](https://carverauto.buildbuddy.io/invocation/b27ab228-1cd2-424d-8b4a-ba0b8f2df7b4)

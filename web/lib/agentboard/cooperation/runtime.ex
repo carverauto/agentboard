@@ -2,6 +2,7 @@ defmodule Agentboard.Cooperation.Runtime do
   @moduledoc "Short per-worker transactions, immutable frames, exact receipts and retained uncertainty."
   alias Agentboard.{Input, Repo}
   alias Agentboard.Board.Operations, as: Ops
+  alias Agentboard.Mattermost.InboundStore
 
   alias Agentboard.Cooperation.{
     Subscription,
@@ -294,8 +295,11 @@ defmodule Agentboard.Cooperation.Runtime do
   defp execute("mattermost_inbox", data, s, _b, _c),
     do: Agentboard.Mattermost.InboundStore.page(s, data)
 
-  defp execute("mattermost_ack", data, s, _b, _c),
-    do: Agentboard.Mattermost.InboundStore.acknowledge(s, data)
+  defp execute("mattermost_ack", data, s, _b, _c) do
+    result = InboundStore.acknowledge(s, data)
+    suppress_mattermost(s.id)
+    result
+  end
 
   defp execute("mattermost_read", data, s, _b, _c),
     do: Agentboard.Mattermost.InboundStore.read(s, data)
@@ -419,8 +423,10 @@ defmodule Agentboard.Cooperation.Runtime do
         }
 
       true ->
+        recover_mattermost(s)
         route()
         suppress_context(s.id)
+        suppress_mattermost(s.id)
         rows = pending_rows(s.id, 100)
         # Give the oldest ordinary item the first slot; urgent arrivals cannot starve it.
         ordinary = oldest_ordinary(s.id)
@@ -574,6 +580,13 @@ defmodule Agentboard.Cooperation.Runtime do
       context_receipt(event.context_id, s, stamp)
     end
 
+    if kind == "handled" do
+      case InboundStore.notification_reference(event) do
+        nil -> :ok
+        ref -> InboundStore.acknowledge(s, %{"items" => [%{"id" => ref.id, "version" => ref.version}]})
+      end
+    end
+
     attrs = %{
       received_at: d.received_at || stamp,
       state:
@@ -670,11 +683,21 @@ defmodule Agentboard.Cooperation.Runtime do
       source_url: e.source_url,
       priority: e.priority
     })
+    |> maybe_mattermost_reference(e)
+  end
+
+  defp maybe_mattermost_reference(record, event) do
+    case InboundStore.notification_reference(event) do
+      nil -> record
+      ref -> Map.put(record, :mattermost, ref)
+    end
   end
 
   defp pending_page(s, data) do
+    if data["cursor"] in [nil, ""], do: recover_mattermost(s)
     route()
     suppress_context(s.id)
+    suppress_mattermost(s.id)
     {cursor, limit} = page_params(data)
 
     query =
@@ -1027,6 +1050,42 @@ defmodule Agentboard.Cooperation.Runtime do
 
     Agentboard.Delivery.Accountability.bootstrap(s)
     Agentboard.Delivery.Rebase.bootstrap(s)
+    recover_mattermost(s)
+  end
+
+  # Retained exact inbox versions survive code upgrades, remote edits/deletions,
+  # lost membership and credential rotation. A worker-scoped transaction recovers
+  # at most 100 uncovered references; subsequent polls continue the same backlog.
+  # This also repairs a capture whose pinned audience was empty during revocation.
+  defp recover_mattermost(s) do
+    Enum.each(InboundStore.missing_notifications(s), fn item ->
+      event = capture(InboundStore.notification_attrs(item), recipient: s.id)
+      # Normal unrouted events have one writer: route(), which locks the event.
+      # Only a previously routed empty audience needs explicit scoped recovery.
+      # Recheck here too in case a live capture committed after the source scan.
+      if event.routed, do: ensure_delivery(event, s.id, @system)
+    end)
+  end
+
+  # A source handled through its own exact API must not later return as a new
+  # wake. Caller holds the worker lock; use the same delivery-row lock order as
+  # receipts. The source receipt remains authoritative (including its first time).
+  # Existing submitted/uncertain attempts are reconciled, never replayed here.
+  defp suppress_mattermost(id) do
+    %{rows: rows} = Repo.statement!("""
+    SELECT d.id,i.handled_at FROM cooperation_deliveries d
+    JOIN cooperation_events e ON e.id=d.event_id
+    JOIN mattermost_inbox i ON i.worker_id=d.worker_id
+      AND e.source_key='mattermost-inbox:' || i.id::text || ':' || i.version
+      AND e.repo=i.repo
+    WHERE d.worker_id=$1 AND e.kind='mattermost_inbox'
+      AND d.state IN ('pending','received') AND i.handled_at IS NOT NULL
+    ORDER BY d.id FOR UPDATE OF d
+    """, [id])
+    Enum.each(rows, fn [key, stamp] ->
+      d = get(Delivery, key)
+      change(d, %{state: "handled", received_at: d.received_at || stamp, handled_at: stamp})
+    end)
   end
 
   defp suppress_context(id) do

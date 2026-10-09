@@ -1,3 +1,13 @@
+const inboxItemSchema = { type: 'object', properties: { id: { type: 'string', pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' }, version: { type: 'string', pattern: '^[0-9a-f]{64}$' } }, required: ['id', 'version'], additionalProperties: false };
+const inboxAckSchema = { type: 'object', properties: { items: { type: 'array', minItems: 1, maxItems: 50, items: inboxItemSchema } }, required: ['items'], additionalProperties: false };
+function validInboxItem(item) {
+  return item && typeof item === 'object' && !Array.isArray(item) && Object.keys(item).sort().join(',') === 'id,version' && typeof item.id === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(item.id) && typeof item.version === 'string' && /^[0-9a-f]{64}$/.test(item.version);
+}
+function inboxArgs(action, args) {
+  if (action === 'mattermost-read' && validInboxItem(args)) return ['--id', args.id, '--version', args.version];
+  if (action === 'mattermost-ack' && args && typeof args === 'object' && Object.keys(args).join(',') === 'items' && Array.isArray(args.items) && args.items.length >= 1 && args.items.length <= 50 && args.items.every(validInboxItem) && new Set(args.items.map(item => item.id.toLowerCase())).size === args.items.length) return args.items.flatMap(item => ['--item', item.id + ':' + item.version]);
+  throw new Error('Exact bounded Mattermost inbox id/version pairs required');
+}
 // Agentboard Pi 0.99.2 native boundary adapter v1. Explicit -e loading only.
 import net from 'node:net';
 import fs from 'node:fs';
@@ -175,5 +185,7 @@ export default function agentboard(pi) {
     return { content: [{ type: 'text', text: result.stdout }], details: { exitCode: result.code }, isError: result.code !== 0 };
   };
   pi.registerTool({ name: 'agentboard_check_in', label: 'Agentboard check-in', description: 'Read durable responsibilities, pending alerts and current source state. Reads do not acknowledge.', parameters: { type: 'object', properties: {}, additionalProperties: false }, execute: () => execute('check-in') });
+  pi.registerTool({ name: 'agentboard_mattermost_read', label: 'Mattermost inbox read', description: 'Read one exact Mattermost inbox version from check-in using the scoped receipt capability. Reading never acknowledges; unavailable source text is not invented.', parameters: inboxItemSchema, execute: (_id, args) => execute('mattermost-read', inboxArgs('mattermost-read', args)) });
+  pi.registerTool({ name: 'agentboard_mattermost_ack', label: 'Mattermost inbox handling', description: 'Explicitly mark exact Mattermost inbox versions handled after inspection. Does not resolve CI or complete tasks. Never call automatically after a read.', parameters: inboxAckSchema, execute: (_id, args) => execute('mattermost-ack', inboxArgs('mattermost-ack', args)) });
   pi.registerTool({ name: 'agentboard_ack', label: 'Agentboard receipt', description: 'Explicitly receive or handle exact delivery IDs. Notification handling does not resolve CI repair.', parameters: { type: 'object', properties: { kind: { type: 'string', enum: ['received', 'handled'] }, ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 20 }, key: { type: 'string', minLength: 1 } }, required: ['kind', 'ids', 'key'], additionalProperties: false }, execute: (_id, args) => execute('ack', ['--kind', args.kind, '--ids', args.ids.join(','), '--key', args.key]) });
 }

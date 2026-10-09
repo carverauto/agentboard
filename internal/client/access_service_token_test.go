@@ -358,3 +358,74 @@ func TestAccessOnlyWatchRedactsCredentialsAcrossChunks(t *testing.T) {
 		t.Fatal("watch redaction damaged a record")
 	}
 }
+
+func TestWorkerCaptainHeadersAreRequestScopedAndRedacted(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		if r.Header.Get("Cf-Access-Client-Id") != accessIDFixture || r.Header.Get("Cf-Access-Client-Secret") != accessSecretFixture {
+			t.Error("worker control lost edge headers")
+		}
+		if strings.Contains(r.URL.Path, "/workers/") {
+			if r.Method != http.MethodPost || r.Header.Get("X-Agentboard-Captain-Token") != captainTokenFixture || r.Header.Get("X-Agentboard-Worker-Protocol") != "1" || r.Header.Get("Authorization") != "" {
+				t.Error("wrong worker captain transport")
+			}
+		} else if r.Header.Get("Authorization") != "Bearer "+captainTokenFixture || r.Header.Get("X-Agentboard-Captain-Token") != "" || r.Header.Get("X-Agentboard-Worker-Protocol") != "" {
+			t.Error("worker captain headers escaped into ordinary route")
+		}
+		if strings.HasSuffix(r.URL.Path, "/revoke") {
+			w.WriteHeader(403)
+			json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": "forbidden", "message": captainTokenFixture + accessSecretFixture}})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"reflection": captainTokenFixture + accessSecretFixture})
+	}))
+	defer server.Close()
+	cfg := accessTLSConfig(t, server)
+	cfg.URL += "/board"
+	c, err := client.NewCaptain(cfg, captainTokenFixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	for _, operation := range []string{"provision", "revoke", "ordinary"} {
+		var raw []byte
+		var err error
+		if operation == "ordinary" {
+			raw, err = c.JSON(context.Background(), http.MethodGet, "meta", nil, nil)
+		} else {
+			id := ""
+			if operation == "revoke" {
+				id = "fixture-worker"
+			}
+			raw, err = c.WorkerControl(context.Background(), operation, id, map[string]any{})
+		}
+		if (operation == "revoke") != (err != nil) {
+			t.Fatalf("unexpected operation result: %s %v", operation, err)
+		}
+		output := string(raw)
+		if err != nil {
+			output += err.Error()
+		}
+		if strings.Contains(output, captainTokenFixture) || strings.Contains(output, accessSecretFixture) {
+			t.Fatal("reflected capability leaked")
+		}
+	}
+	before := requests.Load()
+	for _, attempt := range [][2]string{{"meta", ""}, {"provision", "fixture"}, {"revoke", "../meta"}} {
+		if _, err := c.WorkerControl(context.Background(), attempt[0], attempt[1], nil); err == nil {
+			t.Fatal("unsupported worker captain route admitted")
+		}
+	}
+	runtime, err := client.NewRuntime(cfg, runtimeTokenFixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.Close()
+	if _, err := runtime.WorkerControl(context.Background(), "provision", "", nil); err == nil {
+		t.Fatal("runtime client promoted to captain")
+	}
+	if requests.Load() != before {
+		t.Fatal("invalid worker control reached the server")
+	}
+}

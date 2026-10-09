@@ -11,7 +11,10 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/carverauto/agentboard/internal/client"
 	"github.com/carverauto/agentboard/internal/worker"
@@ -32,70 +35,103 @@ type createParams struct {
 	rotate    bool
 }
 
+// verifyHostCapability performs a scoped read before reusing any existing file.
+// It never provisions, binds, rotates, acknowledges or updates host health.
+func verifyHostCapability(ctx context.Context, cfg worker.Config, b worker.Binding, repos []string) error {
+	api, err := worker.OpenAPI(cfg, b, false)
+	if err != nil {
+		return errors.New("host capability unavailable; inspect the protected file before using --rotate")
+	}
+	defer api.Close()
+	raw, err := api.Call(ctx, http.MethodGet, "doctor", nil, nil)
+	if err != nil {
+		return errors.New("cannot verify existing host capability; inspect enrollment before using --rotate")
+	}
+	var state struct {
+		Scope  string `json:"scope"`
+		Worker struct {
+			ID      string   `json:"id"`
+			Host    string   `json:"host_id"`
+			Model   string   `json:"model"`
+			Harness string   `json:"harness"`
+			Repos   []string `json:"repos"`
+			Revoked bool     `json:"revoked"`
+		} `json:"worker"`
+	}
+	if json.Unmarshal(raw, &state) != nil {
+		return errors.New("invalid worker state; existing capability not verified")
+	}
+	wanted := slices.Clone(repos)
+	slices.Sort(wanted)
+	wanted = slices.Compact(wanted)
+	slices.Sort(state.Worker.Repos)
+	w := state.Worker
+	if state.Scope != "host" || w.ID != b.Agent || w.Host != b.Host || w.Model != b.Model || w.Harness != b.Harness || w.Revoked || !slices.Equal(w.Repos, wanted) {
+		return errors.New("existing host capability does not match requested worker scope; inspect enrollment before retrying")
+	}
+	return nil
+}
+
 func (c *commands) convergeWorkerCreate(ctx context.Context, p createParams, dryRun bool) ([]adminDiff, map[string]any, error) {
-	diff := []adminDiff{{Scope: "worker", Field: "identity:" + p.id, Current: "unknown", Desired: "provisioned"}}
-	_, statErr := os.Lstat(p.tokenFile)
-	fileExists := statErr == nil
+	fileExists, err := preflightToken(p.tokenFile, p.rotate)
+	if err != nil {
+		return nil, nil, err
+	}
+	diff := []adminDiff{{Scope: "worker", Field: "identity:" + p.id, Current: "unverified", Desired: "provisioned with verified capability"}}
 	if dryRun {
-		// Plan mode is local-only: provision is a write on first call,
-		// so an existing file counts as converged without a server read.
-		if fileExists && !p.rotate {
-			return nil, map[string]any{"worker_id": p.id, "converged": true}, nil
-		}
-		return diff, map[string]any{"worker_id": p.id}, nil
+		// Local-only plans cannot establish server convergence from a file.
+		return diff, map[string]any{"worker_id": p.id, "converged": false, "capability_verified": false}, nil
 	}
 	api, err := c.openCaptain(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer api.Close()
-	if p.rotate {
-		// Rotation needs a revoked enrollment first: provision_new
-		// rejects an active prior subscription.
-		if _, _, rerr := c.convergeWorkerRevoke(ctx, p.id, false); rerr != nil {
-			return nil, nil, rerr
-		}
-		res, err := c.provisionEnsure(ctx, api, p.id, p.host, p.repos, p.model, p.harness, p.key)
+	if fileExists && !p.rotate {
+		err := verifyHostCapability(ctx, worker.Config{URL: c.cfg.URL, CAFile: c.cfg.CAFile, AccessServiceTokenFile: c.cfg.AccessServiceTokenFile},
+			worker.Binding{Agent: p.id, Host: p.host, Model: p.model, Harness: p.harness, TokenFile: p.tokenFile}, p.repos)
 		if err != nil {
 			return nil, nil, err
 		}
-		if res.Idempotent {
-			if fileExists {
-				return nil, map[string]any{"worker_id": p.id, "converged": true}, nil
-			}
-			return nil, nil, errors.New("identity exists but the token file is missing; rerun with --rotate")
+		return nil, map[string]any{"worker_id": p.id, "converged": true, "capability_verified": true}, nil
+	}
+	if p.rotate {
+		scopeVerified := false
+		if fileExists {
+			// Prove retained scope before revoke; the server rejects scope changes
+			// only at provision time, which is too late to protect a live worker.
+			scopeVerified = verifyHostCapability(ctx, worker.Config{URL: c.cfg.URL, CAFile: c.cfg.CAFile, AccessServiceTokenFile: c.cfg.AccessServiceTokenFile},
+				worker.Binding{Agent: p.id, Host: p.host, Model: p.model, Harness: p.harness, TokenFile: p.tokenFile}, p.repos) == nil
 		}
-		if err := writeProtectedToken(p.tokenFile, res.HostToken, true); err != nil {
+		if !scopeVerified {
+			// Missing-token recovery can replay only the original stable admin
+			// key. A conflicting/unknown live enrollment fails without revoking.
+			prior, err := c.provisionEnsure(ctx, api, p.id, p.host, p.repos, p.model, p.harness, "admin/"+p.id+"/"+p.host)
+			if err != nil {
+				return nil, nil, errors.New("rotation refused before revocation: original enrollment scope could not be verified")
+			}
+			if !prior.Idempotent {
+				if err := writeProtectedToken(p.tokenFile, prior.HostToken, p.rotate); err != nil {
+					return nil, nil, err
+				}
+				return diff, map[string]any{"worker_id": p.id, "token_file": p.tokenFile, "rotated": false}, nil
+			}
+		}
+		if _, _, err := c.convergeWorkerRevoke(ctx, p.id, false); err != nil {
 			return nil, nil, err
 		}
-		return diff, map[string]any{"worker_id": p.id, "token_file": p.tokenFile, "rotated": true}, nil
 	}
 	res, err := c.provisionEnsure(ctx, api, p.id, p.host, p.repos, p.model, p.harness, p.key)
 	if err != nil {
-		var cerr *client.Error
-		if fileExists && errors.As(err, &cerr) && cerr.Code == "conflict" {
-			return nil, nil, errors.New("credential file exists and the server holds a conflicting identity; rerun with --rotate")
-		}
 		return nil, nil, err
 	}
 	if res.Idempotent {
-		// The server holds the identity but issues no token: only a
-		// matching file counts as converged.
-		if fileExists {
-			return nil, map[string]any{"worker_id": p.id, "converged": true}, nil
-		}
-		return nil, nil, errors.New("identity exists but the token file is missing; rerun with --rotate")
+		return nil, nil, errors.New("identity exists but its current host capability is unavailable; inspect enrollment and rerun with --rotate")
 	}
-	if fileExists {
-		// The server issued a fresh identity, so the existing file does
-		// not match it. Refuse to overwrite; the operator removes the
-		// file or reruns with --rotate (which revokes first).
-		return nil, nil, errors.New("credential file " + p.tokenFile + " does not match the server identity; remove it and rerun, or rerun with --rotate")
-	}
-	if err := writeProtectedToken(p.tokenFile, res.HostToken, false); err != nil {
+	if err := writeProtectedToken(p.tokenFile, res.HostToken, p.rotate); err != nil {
 		return nil, nil, err
 	}
-	return diff, map[string]any{"worker_id": p.id, "token_file": p.tokenFile, "rotated": false}, nil
+	return diff, map[string]any{"worker_id": p.id, "token_file": p.tokenFile, "rotated": p.rotate}, nil
 }
 
 func (c *commands) convergeWorkerRevoke(ctx context.Context, id string, dryRun bool) ([]adminDiff, map[string]any, error) {
@@ -108,7 +144,7 @@ func (c *commands) convergeWorkerRevoke(ctx context.Context, id string, dryRun b
 		return nil, nil, err
 	}
 	defer api.Close()
-	_, err = api.JSON(ctx, http.MethodPost, "workers/"+id+"/revoke", nil, map[string]any{})
+	_, err = api.WorkerControl(ctx, "revoke", id, map[string]any{})
 	if err != nil {
 		var cerr *client.Error
 		if errors.As(err, &cerr) && (cerr.Code == "not_found" || strings.Contains(cerr.Message, "not enrolled")) {
@@ -136,6 +172,28 @@ func supervisionDiff(home, configPath, platform string) ([]adminDiff, worker.Ins
 	if err != nil {
 		return nil, plan, err
 	}
+	// Preview checks file ownership, but Install's writes also require safe
+	// output directories. Check existing ancestors before issuing a host token.
+	for _, f := range plan.Files {
+		for dir := filepath.Dir(f.Path); ; dir = filepath.Dir(dir) {
+			info, err := os.Lstat(dir)
+			if err == nil {
+				owner, ok := info.Sys().(*syscall.Stat_t)
+				manifestDir := filepath.Join(home, ".config", "agentboard", "worker")
+				if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0022 != 0 || info.Mode().Perm()&0300 != 0300 || (dir == manifestDir && info.Mode().Perm()&0077 != 0) || !ok || int(owner.Uid) != os.Getuid() {
+					return nil, plan, errors.New("unsafe supervision output directory; inspect ownership and permissions before enrollment")
+				}
+				if dir == filepath.Clean(home) || !strings.HasPrefix(dir, filepath.Clean(home)+string(os.PathSeparator)) {
+					break
+				}
+			} else if !os.IsNotExist(err) {
+				return nil, plan, errors.New("cannot inspect supervision output directory")
+			}
+			if dir == filepath.Dir(dir) {
+				break
+			}
+		}
+	}
 	diff := []adminDiff{}
 	for _, f := range plan.Files {
 		existing, err := os.ReadFile(f.Path)
@@ -152,50 +210,58 @@ func supervisionDiff(home, configPath, platform string) ([]adminDiff, worker.Ins
 }
 
 func (c *commands) convergeWorkerEnroll(ctx context.Context, p enrollParams, dryRun bool) ([]adminDiff, map[string]any, error) {
-	if dryRun {
-		// Plan mode never touches the server: provision is a write on
-		// first call, so the ensure step is always listed and only the
-		// supervision files are diffed concretely.
-		diff := []adminDiff{{Scope: "worker", Field: "identity:" + p.id, Current: "unknown", Desired: "ensured"}}
-		sdiff, _, err := supervisionDiff(p.home, p.configPath, p.platform)
-		if err != nil {
-			return nil, nil, err
-		}
-		return append(diff, sdiff...), map[string]any{"worker_id": p.id}, nil
+	// Validate all local prerequisites before a one-shot host token is issued.
+	cfg, err := worker.Load(p.configPath)
+	if err != nil {
+		return nil, nil, errors.New("enrollment requires an existing valid protected worker config: " + err.Error())
 	}
-	diff := []adminDiff{}
-	api, err := c.openCaptain(ctx)
+	var binding *worker.Binding
+	for i := range cfg.Bindings {
+		if cfg.Bindings[i].Agent == p.id {
+			binding = &cfg.Bindings[i]
+			break
+		}
+	}
+	if binding == nil || binding.Host != p.host || binding.Model != p.model || binding.Harness != p.harness || strings.TrimRight(cfg.URL, "/") != strings.TrimRight(c.cfg.URL, "/") {
+		return nil, nil, errors.New("worker config must match the requested worker, host, model, harness and board URL")
+	}
+	if p.tokenFile == "" {
+		p.tokenFile = binding.TokenFile
+	}
+	tokenPath, err := filepath.Abs(p.tokenFile)
+	if err != nil || filepath.Clean(tokenPath) != filepath.Clean(binding.TokenFile) {
+		return nil, nil, errors.New("--token-file must match the protected worker config token_file")
+	}
+	if _, err := preflightToken(p.tokenFile, false); err != nil {
+		return nil, nil, err
+	}
+	sdiff, plan, err := supervisionDiff(p.home, p.configPath, p.platform)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer api.Close()
-	res, err := c.provisionEnsure(ctx, api, p.id, p.host, p.repos, p.model, p.harness, "admin/"+p.id+"/"+p.host)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !res.Idempotent {
-		diff = append(diff, adminDiff{Scope: "worker", Field: "identity:" + p.id, Current: "absent", Desired: "provisioned"})
-		if res.HostToken == "" {
-			return nil, nil, errors.New("invalid provision response")
-		}
-		if p.tokenFile == "" {
-			return nil, nil, errors.New("new identity requires --token-file; credentials are never printed")
-		}
-		if err := writeProtectedToken(p.tokenFile, res.HostToken, false); err != nil {
-			return nil, nil, err
-		}
-	}
-	sdiff, _, err := supervisionDiff(p.home, p.configPath, p.platform)
+	diff, _, err := c.convergeWorkerCreate(ctx, createParams{
+		id: p.id, host: p.host, repos: p.repos, model: p.model, harness: p.harness,
+		tokenFile: p.tokenFile, key: "admin/" + p.id + "/" + p.host,
+	}, dryRun)
 	if err != nil {
 		return nil, nil, err
 	}
 	diff = append(diff, sdiff...)
-	if len(sdiff) > 0 {
+	if !dryRun && len(sdiff) > 0 {
 		if _, err := worker.Install(p.home, p.configPath, p.platform, true); err != nil {
-			return nil, nil, &adminExit{code: 1, msg: "admin worker enroll: supervision install failed: " + err.Error()}
+			return nil, nil, &adminExit{code: 1, msg: "admin worker enroll: identity prepared, supervision install failed: " + err.Error()}
 		}
 	}
-	return diff, map[string]any{"worker_id": p.id, "converged": len(diff) == 0}, nil
+	// Native binding needs an explicit stable key and live identity proof. This
+	// setup command never guesses a key, rebinds, probes a session or starts a
+	// service. Keep its incomplete readiness visible, including on reruns.
+	pending := []string{
+		"Verify the intended native session and explicitly run worker bind with a stable --key if not already bound",
+		"Run worker doctor against the protected config and selected worker",
+		"Review the install reload requirements and explicitly activate supervision if needed",
+	}
+	return diff, map[string]any{"worker_id": p.id, "converged": false, "runtime_verified": false,
+		"setup_converged": !dryRun, "pending_steps": pending, "reload_requirements": plan.Reload}, nil
 }
 
 func (c *commands) convergeAgentRegister(ctx context.Context, id, harness, model string, dryRun bool) ([]adminDiff, map[string]any, error) {

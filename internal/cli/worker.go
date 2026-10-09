@@ -45,6 +45,7 @@ func (c *commands) workerCommands() *cobra.Command {
 		return cfg, worker.Binding{}, errors.New("select a configured --worker-id")
 	}
 	output := func(cmd *cobra.Command, value any) error { return json.NewEncoder(cmd.OutOrStdout()).Encode(value) }
+	group.AddCommand(workerMattermostCommands(load, output)...)
 	group.AddCommand(&cobra.Command{Use: "serve", Short: "Serve independent bindings; stdout is bounded JSON health", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		cfg, err := worker.Load(configPath)
 		if err != nil {

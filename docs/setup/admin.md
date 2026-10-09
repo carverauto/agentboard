@@ -6,33 +6,68 @@ safe digest-pinned rollouts. There is no new binary; the #127 installer ships
 this CLI unchanged, so `agentboard admin --help` works after a one-line
 install.
 
-All subcommands converge: they read current state, diff, apply only the diff,
-and do nothing when state already matches. Every mutating subcommand takes
-`--dry-run` (alias `--plan`): no writes, full diff, exit `0` (no changes),
-`2` (changes pending), `1` (error). Applies exit `0` (converged), `1`
-(error, with nothing changed or a partial change reported), `3` (rolled
-back). `--json` emits `{command, dry_run, diff, result}`.
+Subcommands read current state and apply only the known diff. Every mutating
+subcommand takes `--dry-run` (alias `--plan`): no writes, exit `0` (no known
+changes), `2` (changes or verification pending), `1` (error). Worker plans are
+local-only: an existing token file cannot establish server convergence, so
+`worker create --dry-run` still reports verification pending. Applies exit `0`
+(converged), `1` (error, possibly after a partial change), `2` (enrollment setup
+prepared, explicit runtime steps still unverified), or `3` (rolled back).
+Once an admin operation starts, validation, API and filesystem failures use
+exit `1`; they cannot be mistaken for pending setup. CLI flag/argument parsing
+errors before the operation starts retain the ordinary CLI's exit `2` and emit
+an error without a diff/result. Read the structured result to distinguish an
+intentional pending status from a syntax error. `--json` emits
+`{command, dry_run, diff, result}` for completed plans/setup.
 
 Secrets never appear on stdout, stderr, logs, JSON output, or board records.
-Tokens are written only to operator-named files created `0600` (parents must
-not be group/world-writable; existing files require `--rotate`). Board-side
+Tokens are written only to operator-named files created `0600`. Parent
+directories must already exist, be owned and writable by the current user,
+and not be symlinks or group/world-writable. Existing capabilities are verified
+before reuse; replacement requires `--rotate`. Board-side
 mutations require the captain capability (`AGENTBOARD_CAPTAIN_TOKEN_FILE`);
 agents' per-agent tokens cannot run `admin`.
 
 ## Worker lifecycle
 
 ```bash
-agentboard admin worker create <worker-id> --token-file ./w.token \
+agentboard admin worker create <worker-id> --token-file /secure/worker/host.token \
   --host h --repo owner/repo --model m --harness hh
 agentboard admin worker enroll <worker-id> --repo owner/repo \
-  --token-file ./w.token            # ensure identity + supervision files
+  --host h --model m --harness hh --config /secure/worker/config.json
 agentboard admin worker revoke <worker-id>   # repeat-safe
 ```
 
-`create` reuses an existing identity (verified against the server with the
-stable idempotency key); a missing token file for a live identity fails
-naming `--rotate`. `enroll` provisions the identity when absent (needs
-`--token-file` for the fresh token), then converges supervision files.
+The stable agent must be registered before provisioning. `create` validates
+credential-file custody before requesting a one-time host token. Reuse requires
+a scoped `worker doctor` API read proving host capability and matching worker,
+host, repository, model and harness scope. Receipt-only, wrong, malformed or
+revoked capabilities cannot count as converged. A missing file for an existing
+identity fails with recovery guidance; it does not silently rotate. Inspect the
+current enrollment before explicitly using `--rotate`. Rotation proves the
+requested scope before revocation. With a missing local token, recovery must
+match the original stable admin provisioning key; unknown or changed existing
+scope stops without revoking it.
+
+`enroll` requires an existing protected worker config naming the exact intended
+native session and generation; see [explicit worker setup](../worker-runtime.md).
+Its worker, host, model, harness and board URL must match the command. The host
+token output defaults to that binding's `token_file`; an explicit `--token-file`
+must match it. Config, credential destination and supervision ownership are
+checked before provisioning. Missing config is an error, not permission to
+invent a native identity.
+
+This command currently prepares the scoped identity and supervision files only.
+It does not implement the complete native-bind/doctor sequence in the #138
+OpenSpec requirement. It never starts services, replaces a session or claims
+healthy enrollment from file installation. Applied setup reports
+`setup_converged: true`, `converged: false`, `runtime_verified: false`, explicit
+`pending_steps` and service `reload_requirements`, then exits `2`. Repeat runs
+retain this unverified-runtime status even if no files change. Follow the
+reported steps using the intended session: explicit `worker bind` with a stable
+key if not already bound, `worker doctor`, then reviewed service activation if
+needed. Rerunning `admin worker enroll` does not complete those runtime steps.
+
 `revoke` treats an already-revoked or unknown worker as converged.
 
 ## Agent registration and config
@@ -93,8 +128,13 @@ needs overlay or compose; `pins.images` needs exactly one of
 `pins.overlay`/`pins.compose`, and setting both errors, mirroring `apply`).
 `apply -f` converges an `AdminConfig` file
 (`apiVersion: agentboard.carverauto.dev/v1`) through the same code paths as
-the subcommands — workers (create/enroll/revoke; `rotate` is CLI-only),
-agents, config sets, and file pins. It never runs kubectl/docker; cluster
+the subcommands: declared agents first, then workers (create/enroll/revoke;
+`rotate` is CLI-only), config sets, and file pins. Registration still enforces
+the configured caller identity; the file cannot impersonate arbitrary agents.
+If enrollment setup remains unverified, other valid declarations are still
+applied and the combined result retains worker-qualified `pending_steps`,
+`converged: false` and exit `2`. A later error returns exit `1`; the apply is not
+transactional and earlier changes may already have completed. It never runs kubectl/docker; cluster
 rolls stay in `admin rollout`. Inline secrets are rejected: only `*_file`
 references are allowed. See `k8s/overlays/example/agentboard-admin.yaml`
 for a starting file.

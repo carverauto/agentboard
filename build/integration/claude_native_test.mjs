@@ -122,6 +122,19 @@ try {
   const ack = await rpc('tools/call', {name:'agentboard_ack',arguments:{kind:'received',ids:['delivery-tool'],key:'exact-receipt-key'}});
   assert.deepEqual(ack.result.content.map(c=>JSON.parse(c.text))[0].receipt, {kind:'received',ids:'delivery-tool',key:'exact-receipt-key'});
   assert.ok((await rpc('tools/call',{name:'agentboard_ack',arguments:{kind:'handled',ids:['one','one'],key:'key'}})).error);
+  const inboxItem = { id: '00000000-0000-4000-8000-000000000001', version: 'a'.repeat(64) };
+  const toolNames = (await rpc('tools/list')).result.tools.map(t => t.name);
+  assert.ok(toolNames.includes('agentboard_mattermost_read') && toolNames.includes('agentboard_mattermost_ack'));
+  assert.equal((await rpc('tools/call', { name: 'agentboard_mattermost_read', arguments: inboxItem })).result.isError, false);
+  let mmCalls = fs.readFileSync(callsFile, 'utf8').trim().split('\n').map(JSON.parse).filter(args => args[1].startsWith('mattermost-'));
+  assert.equal(mmCalls.length, 1); assert.equal(mmCalls[0][1], 'mattermost-read');
+  assert.equal(mmCalls[0].at(-1), inboxItem.version);
+  assert.equal((await rpc('tools/call', { name: 'agentboard_mattermost_ack', arguments: { items: [inboxItem] } })).result.isError, false);
+  assert.ok((await rpc('tools/call', { name: 'agentboard_mattermost_ack', arguments: { items: [inboxItem, inboxItem] } })).error);
+  assert.ok((await rpc('tools/call', { name: 'agentboard_mattermost_read', arguments: { ...inboxItem, version: 'bad' } })).error);
+  mmCalls = fs.readFileSync(callsFile, 'utf8').trim().split('\n').map(JSON.parse).filter(args => args[1].startsWith('mattermost-'));
+  assert.equal(mmCalls.length, 2); assert.equal(mmCalls[1][1], 'mattermost-ack');
+  assert.equal(mmCalls[1].at(-1), inboxItem.id + ':' + inboxItem.version);
   for (const reason of ['resume','resume','clear']) {
     const old = id;
     await event('session.end', {reason});

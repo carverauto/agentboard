@@ -1,0 +1,67 @@
+name: Native bridge fixtures
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - internal/worker/**
+      - build/integration/*native*
+      - build/integration/BUILD.bazel
+      - MODULE.bazel
+      - .github/workflows/native-fixtures.yml
+  push:
+    branches: [main]
+    paths:
+      - internal/worker/**
+      - build/integration/*native*
+      - build/integration/BUILD.bazel
+      - MODULE.bazel
+      - .github/workflows/native-fixtures.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-fixtures-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native-fixtures:
+    # These existing contract fixtures need Unix sockets and child processes,
+    # but no installed coding agents, API credentials, or compiled artifacts.
+    # Full packaged acceptance remains on BuildBuddy via --config=ci.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Match the worker_node_linux_x64 archive in MODULE.bazel.
+      NODE_VERSION: 22.23.2
+      NODE_SHA256: d60acfe00a2932254bb0ad20e01b0d74397a0875595de719654b214f4b03f307
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install checksum-pinned Node
+        run: |
+          set -euo pipefail
+          archive="node-v${NODE_VERSION}-linux-x64.tar.xz"
+          curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/${archive}" -o "${RUNNER_TEMP}/${archive}"
+          echo "${NODE_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum -c -
+          tar -xJf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}"
+          echo "${RUNNER_TEMP}/node-v${NODE_VERSION}-linux-x64/bin" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/node-v${NODE_VERSION}-linux-x64/bin/node" --version
+      - name: Test Pi native bridge fixture
+        run: |
+          set -euo pipefail
+          node build/integration/pi_native_test.mjs \
+            "${GITHUB_WORKSPACE}/internal/worker/pi-native.mjs"
+      - name: Test Claude native bridge fixture
+        run: |
+          set -euo pipefail
+          node build/integration/claude_native_test.mjs \
+            "${GITHUB_WORKSPACE}/internal/worker/claude-native"
+      - name: Test Codex native bridge fixture
+        run: |
+          set -euo pipefail
+          node build/integration/codex_native_test.mjs \
+            "${GITHUB_WORKSPACE}/internal/worker/codex-native.mjs" \
+            "${GITHUB_WORKSPACE}/build/integration/codex_native_fixture.mjs"
