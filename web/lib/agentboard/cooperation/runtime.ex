@@ -957,7 +957,7 @@ defmodule Agentboard.Cooperation.Runtime do
       ids = [Keyword.get(opts, :recipient) | recipient_ids]
 
       case fallback_message(event) do
-        nil -> send_fallback(event, ids, actor)
+        nil -> send_fallback(event, ids, actor, opts)
         message -> {:adopted, message}
       end
     else
@@ -994,7 +994,7 @@ defmodule Agentboard.Cooperation.Runtime do
     |> Ash.read_one!()
   end
 
-  defp send_fallback(event, recipient_ids, actor) do
+  defp send_fallback(event, recipient_ids, actor, opts) do
     chain =
       recipient_ids
       |> Enum.reject(&(&1 in [nil, @captain_sentinel]))
@@ -1019,7 +1019,8 @@ defmodule Agentboard.Cooperation.Runtime do
             "kind" => "note",
             "body" => event.summary <> "\n" <> fallback_marker(event.source_key)
           },
-          Ops.now()
+          Ops.now(),
+          Keyword.get(opts, :capture_notice?, true)
         )
 
       {:sent, message}

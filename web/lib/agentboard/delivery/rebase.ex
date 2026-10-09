@@ -11,31 +11,32 @@ defmodule Agentboard.Delivery.Rebase do
   def observe(snapshot, result, stamp) do
     case Agentboard.Delivery.ConflictPolicy.mode() do
       "apply" -> Agentboard.Delivery.ConflictOrders.observe(snapshot, result, stamp)
-      "dry_run" -> :ok
+      "dry_run" -> Agentboard.Delivery.ConflictDryRun.observe(snapshot, result, stamp)
       "disabled" -> observe_legacy(snapshot, result, stamp)
     end
   end
 
   defp observe_legacy(snapshot, result, stamp) do
-    cond do
-      result.lifecycle != "open" ->
+    case Agentboard.Delivery.ConflictPolicy.observation_state(result) do
+      :closed ->
         :ok
 
-      result.payload["mergeable"] == true and result.payload["mergeable_state"] != "dirty" ->
+      :clean ->
         resolve(snapshot, stamp)
 
-      result.payload["mergeable"] == false and result.payload["mergeable_state"] == "dirty" and
-          enabled?() ->
-        prior =
-          RebaseFollowUp
-          |> Ash.Query.filter(
-            pull_request_id == ^snapshot.pull_request_id and head_sha == ^result.head_sha
-          )
-          |> Ash.read_one!()
+      :dirty ->
+        if enabled?() do
+          prior =
+            RebaseFollowUp
+            |> Ash.Query.filter(
+              pull_request_id == ^snapshot.pull_request_id and head_sha == ^result.head_sha
+            )
+            |> Ash.read_one!()
 
-        if is_nil(prior), do: publish(snapshot, result, stamp)
+          if is_nil(prior), do: publish(snapshot, result, stamp)
+        end
 
-      true ->
+      :unknown ->
         :ok
     end
   end
@@ -74,24 +75,7 @@ defmodule Agentboard.Delivery.Rebase do
   def create_follow_up(snapshot, result, stamp, options \\ []) do
     pr = Ash.get!(PullRequest, snapshot.pull_request_id)
 
-    links =
-      TaskLink
-      |> Ash.Query.filter(
-        pull_request_id == ^pr.id and
-          fragment(
-            "NOT EXISTS (SELECT 1 FROM delivery_obligations WHERE repair_task_id=?) AND NOT EXISTS (SELECT 1 FROM delivery_rebase_follow_ups WHERE repair_task_id=?)",
-            task_id,
-            task_id
-          )
-      )
-      |> Ash.read!()
-
-    owners = links |> Enum.map(& &1.submitted_by_id) |> Enum.uniq()
-
-    owner =
-      if length(owners) == 1 and not is_nil(hd(owners)) and
-           Ash.get!(Agent, hd(owners), not_found_error?: false),
-         do: hd(owners)
+    %{links: links, owner: owner} = source_attribution(pr)
 
     follow_id = Ash.UUID.generate()
     Availability.lock_admission()
@@ -192,6 +176,31 @@ defmodule Agentboard.Delivery.Rebase do
     )
 
     {f, pr, task}
+  end
+
+  # Submission attribution is immutable and excludes system repair cards.
+  # Both apply and audit-only evaluation consume this exact source relation.
+  def source_attribution(pr) do
+    links =
+      TaskLink
+      |> Ash.Query.filter(
+        pull_request_id == ^pr.id and
+          fragment(
+            "NOT EXISTS (SELECT 1 FROM delivery_obligations WHERE repair_task_id=?) AND NOT EXISTS (SELECT 1 FROM delivery_rebase_follow_ups WHERE repair_task_id=?)",
+            task_id,
+            task_id
+          )
+      )
+      |> Ash.read!()
+
+    owners = links |> Enum.map(& &1.submitted_by_id) |> Enum.uniq()
+
+    owner =
+      if length(owners) == 1 and not is_nil(hd(owners)) and
+           Ash.get!(Agent, hd(owners), not_found_error?: false),
+         do: hd(owners)
+
+    %{links: links, owner: owner}
   end
 
   def guard_pr_identity!(id, data) do

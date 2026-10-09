@@ -101,3 +101,10 @@ Expose ledger dispositions and deadline/rebaser on existing task/PR views, with 
 5. Rollback disables new policy and revokes outstanding grants while retaining ledger/bindings; old observation and default-branch CI accountability continue. Do not drop tables or rewrite old events.
 
 No externally unresolved product decisions are silently deferred to implementation. The 45-minute deadline and eligibility threshold are configurable policy defaults; the reviewed proposal fixes the custody and tracking semantics. Adapter implementation details must satisfy these contracts rather than weakening them.
+
+
+### Executable server checkpoint: typed capture and snapshot audit
+
+Inbox owner1828 confirms that #122 retains the sole Runtime.fallback/4 election and legacy behavior. #169 requests deferred generic notice capture, persists ConflictSource, then captures MessageNotice and typed WakeIntents in the same transaction. Failure aborts the canonical source and snapshot; normal collection retries without a generic orphan. Unassigned captain triage carries no assigned-order authority. Frozen worker/wake and batch consumers remain pending joint proof.
+
+Dry-run snapshot evaluations now use an audit-only Ash Simple resource whose create action appends AshEvents evidence to the existing log, with no new mutable projection or migration. Shared observation classification and immutable submission attribution feed create/retain/supersede/clear/cancel/unsupported plans plus shared author eligibility. Ordinary provider evidence continues; repair, claim, message, wake, grant and escalation effects remain absent. Full deadline-selection audit and disable-time grant cleanup are still pending, so task5.1 remains open.

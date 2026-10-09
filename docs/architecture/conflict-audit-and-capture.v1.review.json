@@ -1,0 +1,40 @@
+{
+  "boundary": "typed producer capture and snapshot dry-run",
+  "remote": {
+    "url": "https://carverauto.buildbuddy.io/invocation/7b315629-ee23-445d-b9b0-5ec189ddb5cf",
+    "passed": 11,
+    "executed": 10,
+    "cached": 1
+  },
+  "browser": {
+    "surface": "portable contract wrapper only",
+    "widths": [
+      1440,
+      500
+    ],
+    "height": 900,
+    "horizontal_overflow": false,
+    "all_navigation_targets_exist": true,
+    "source_files": 10
+  },
+  "diagram": {
+    "unchanged": true,
+    "source_sha256": "1e7ba70385867c35f9b7a92d89fd71dd2da09b7488216b73f2c7bacf0fa92a4d",
+    "html_sha256": "1a513ca833f625c9bc3d681d63ae1c440c1ccec8014fa49db56c3199dba23677",
+    "prior_review": "shared-eligibility.v1.review.json"
+  },
+  "quality": {
+    "baseline": "10e108aa470efacee9c742573c3d73f58d675e93",
+    "new_gating": 0,
+    "minor_growth": 3,
+    "new_module_size": 1,
+    "earlier_findings_retained": true
+  },
+  "limits": [
+    "Snapshot phase only; complete deadline audit and disable-time grant cleanup pending",
+    "Frozen/batch consumer currentness pending",
+    "Native custody/publication unsupported",
+    "No deployed-product keyboard/narrow-screen proof",
+    "No PR, No-mistakes run, deployment, activation or merge"
+  ]
+}

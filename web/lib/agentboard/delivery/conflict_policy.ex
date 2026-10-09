@@ -15,5 +15,22 @@ defmodule Agentboard.Delivery.ConflictPolicy do
     end
   end
 
+  # One classification for legacy repair, current orders and dry-run evidence.
+  def observation_state(result) do
+    cond do
+      result.lifecycle != "open" ->
+        :closed
+
+      result.payload["mergeable"] == true and result.payload["mergeable_state"] != "dirty" ->
+        :clean
+
+      result.payload["mergeable"] == false and result.payload["mergeable_state"] == "dirty" ->
+        :dirty
+
+      true ->
+        :unknown
+    end
+  end
+
   def observe_defaults?, do: mode() != "disabled"
 end

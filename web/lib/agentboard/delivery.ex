@@ -10,6 +10,7 @@ defmodule Agentboard.Delivery do
     resource(Agentboard.Delivery.PullRequest)
     resource(Agentboard.Delivery.PublicationBinding)
     resource(Agentboard.Delivery.ConflictDisposition)
+    resource(Agentboard.Delivery.ConflictEvaluation)
     resource(Agentboard.Delivery.ConflictOrder)
     resource(Agentboard.Delivery.ConflictSource)
     resource(Agentboard.Delivery.PublicationGrant)

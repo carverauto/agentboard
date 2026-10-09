@@ -41,6 +41,18 @@ def ab(*args, owner='codex-order-owner'):
     return json.loads(p.stdout)
 
 
+def reject_audit(resource, typed=False):
+    condition=" AND NEW.data->'source_ref' ? 'order_ref'" if typed else ''
+    sql("CREATE OR REPLACE FUNCTION reject_fixture_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.resource='"+resource+"'"+condition+" THEN RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='conflict',DETAIL='Invented audit failure'; END IF; RETURN NEW; END $$")
+    sql('CREATE TRIGGER fixture_atomic_audit BEFORE INSERT ON board_action_events FOR EACH ROW EXECUTE FUNCTION reject_fixture_audit()')
+
+
+def release_failed_poll(pr):
+    sql('DROP TRIGGER fixture_atomic_audit ON board_action_events')
+    # Only advance the retained reservation clock after a failed observation.
+    sql("UPDATE delivery_poll_states SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id='"+pr+"'")
+
+
 def poll(pr):
     sql("UPDATE delivery_provider_budgets SET remaining=60,blocked_until=NULL,reset_at=clock_timestamp()+interval '60 seconds' WHERE id='github'")
     sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval '1 second' WHERE id='"+pr+"'")
@@ -154,6 +166,47 @@ pr=sql('SELECT id FROM delivery_pull_requests')
 source_before=ab('task','show','order-source')
 with tls_provider(Provider) as (url,ca,_):
     rpc('Application.put_env(:agentboard, :github, [api_url: '+json.dumps(url)+', token: "invented-order-token", ca_file: '+json.dumps(ca)+'])')
+    # Dry-run still commits ordinary provider observations, but emits only
+    # attributable evaluation evidence: no repair, selected source or wake.
+    effect_counts="SELECT jsonb_build_array((SELECT count(*) FROM tasks),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_rebase_follow_ups),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM delivery_publication_grants),(SELECT count(*) FROM messages),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM wake_intents),(SELECT count(*) FROM decision_requests))"
+    before_dry=sql(effect_counts)
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "dry_run")')
+    assert 'observed' in poll(pr)
+    evaluations=json.loads(sql("SELECT coalesce(jsonb_agg(data),'[]') FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation'"))
+    assert len(evaluations)==1, 'Dry-run omitted its attributable evaluation ledger'
+    evaluation=evaluations[0]
+    assert evaluation['pull_request_id']==pr
+    facts=evaluation['facts']
+    assert facts['phase']=='snapshot' and facts['plan']=='create_order'
+    assert facts['author_id']=='codex-order-owner' and facts['source_tasks']==['order-source']
+    assert facts['default_ref']=='staging' and facts['default_tip_sha']==DEFAULT
+    assert facts['evaluation_base_ref']=='release' and facts['evaluation_base_sha']==BASE
+    assert facts['head_sha']==HEAD and facts['queue_limit']==2
+    assert facts['eligibility']['eligible'] is True and facts['eligibility']['queue_count']==1
+    assert facts['eligibility']['scope_revision']==1
+    assert facts['native_custody']=='unsupported'
+    assert sql(effect_counts)==before_dry and ab('task','show','order-source')==source_before
+    assert 'observed' in poll(pr)
+    assert sql("SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation'")=='2'
+    assert sql(effect_counts)==before_dry
+
+    # Audit failure cannot commit a provider snapshot without its plan.
+    snapshots_before=sql('SELECT count(*) FROM delivery_ci_snapshots')
+    reject_audit('Elixir.Agentboard.Delivery.ConflictEvaluation')
+    assert 'observed' not in poll(pr)
+    assert sql('SELECT count(*) FROM delivery_ci_snapshots')==snapshots_before
+    assert sql(effect_counts)==before_dry
+    assert sql("SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation'")=='2'
+    release_failed_poll(pr)
+
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "apply")')
+    # The typed wake commits with the Message, immutable source and snapshot.
+    # A failure here must not leave a generic orphan or lose the retry signal.
+    reject_audit('Elixir.Agentboard.Wake.Intent',typed=True)
+    assert 'observed' not in poll(pr)
+    assert sql('SELECT count(*) FROM delivery_ci_snapshots')==snapshots_before
+    assert sql(effect_counts)==before_dry
+    release_failed_poll(pr)
     assert 'observed' in poll(pr)
     initial, initial_source = order(), source()
     assert initial['default_tip_sha']==DEFAULT and initial['evaluation_base_sha']==BASE
@@ -166,6 +219,10 @@ with tls_provider(Provider) as (url,ca,_):
         repair_task_id=initial['repair_task_id'],pull_request_id=pr,default_ref='staging',default_tip_sha=DEFAULT,
         evaluation_base_ref='release',evaluation_base_sha=BASE,recipient_id='codex-order-owner')
     assert resolve_api(initial_source)==(200,dict(order_ref=ref,native_publication='unsupported'))
+    wake=json.loads(sql("SELECT to_jsonb(w) FROM wake_intents w WHERE source_kind='board_message' AND source_id='"+str(initial_source['message_id'])+"'"))
+    assert wake['source_ref']==dict(order_ref=ref), 'Selected inbox wake lost its typed currentness reference'
+    assert wake['source_version']==initial_source['message_version']
+    assert sql("SELECT count(*) FROM wake_intents WHERE source_kind='board_message' AND source_id='"+str(initial_source['message_id'])+"'")=='1'
     # Public projection and real connected task/PR renders share retained order
     # evidence; no private component or fabricated ledger drives these pages.
     with urllib.request.urlopen(os.environ['AGENTBOARD_URL']+'/api/v1/prs',timeout=15) as response:
@@ -185,6 +242,12 @@ with tls_provider(Provider) as (url,ca,_):
     assert consume('board_message',initial_source['message_id'],initial_source['message_version'],'codex-order-peer')==dict(error='stale_order')
     assert consume('event','11111111-1111-4111-8111-111111111111','invented')==dict(error='unsupported')
 
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "dry_run")')
+    before_effects=sql(effect_counts)
+    assert 'observed' in poll(pr)
+    assert json.loads(sql("SELECT data->'facts' FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation' ORDER BY id DESC LIMIT 1"))['plan']=='retain_order'
+    assert sql(effect_counts)==before_effects
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "apply")')
     assert 'observed' in poll(pr)
     assert order()['id']==initial['id'] and sql('SELECT count(*) FROM messages')=='1'
     head='e'*40;assert 'observed' in poll(pr)
@@ -205,6 +268,12 @@ with tls_provider(Provider) as (url,ca,_):
         assert held.result()['ref']['order_id']==initial['id']
         assert 'changed: true' in moving.result()
     assert consume('board_message',initial_source['message_id'],initial_source['message_version'])==dict(error='stale_order')
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "dry_run")')
+    before_effects=sql(effect_counts)
+    assert 'observed' in poll(pr)
+    assert json.loads(sql("SELECT data->'facts' FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation' ORDER BY id DESC LIMIT 1"))['plan']=='supersede_order'
+    assert sql(effect_counts)==before_effects and order()['id']==initial['id']
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "apply")')
     assert 'observed' in poll(pr)
     newer=order(); assert newer['id']!=initial['id'] and newer['revision']==2
     assert newer['deadline_at']==initial['deadline_at'] and newer['episode_id']==initial['episode_id']
@@ -242,16 +311,12 @@ with tls_provider(Provider) as (url,ca,_):
     # Source/audit failure rolls back evidence, order supersession and the
     # selected effect together, leaving no half-retained source identity.
     before_atomic=sql("SELECT jsonb_build_array((SELECT count(*) FROM delivery_ci_snapshots),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM messages))")
-    sql("CREATE FUNCTION reject_source_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.resource='Elixir.Agentboard.Delivery.ConflictSource' THEN RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='conflict',DETAIL='Invented source audit failure'; END IF; RETURN NEW; END $$")
-    sql('CREATE TRIGGER fixture_source_audit BEFORE INSERT ON board_action_events FOR EACH ROW EXECUTE FUNCTION reject_source_audit()')
+    reject_audit('Elixir.Agentboard.Delivery.ConflictSource')
     default_tip='2'*40;assert 'changed: true' in check_watch('staging')
     refused=poll(pr)
     assert 'observed' not in refused, refused
     assert sql("SELECT jsonb_build_array((SELECT count(*) FROM delivery_ci_snapshots),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM messages))")==before_atomic
-    sql('DROP TRIGGER fixture_source_audit ON board_action_events')
-    # The reservation was committed before collection; a failed collector
-    # retains it until crash recovery expires the lease. Advance only time.
-    sql("UPDATE delivery_poll_states SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id='"+pr+"'")
+    release_failed_poll(pr)
     assert 'observed' in poll(pr)
     worker_source=source()
 
@@ -262,6 +327,12 @@ with tls_provider(Provider) as (url,ca,_):
     assert ab('task','show','order-source')==source_before
     assert sql('SELECT count(*) FROM delivery_publication_grants')=='0', 'Source resolution fabricated native custody'
     mergeable=True
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "dry_run")')
+    before_effects=sql(effect_counts)
+    assert 'observed' in poll(pr)
+    assert json.loads(sql("SELECT data->'facts' FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation' ORDER BY id DESC LIMIT 1"))['plan']=='clear_order_without_rebaser_credit'
+    assert sql(effect_counts)==before_effects
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "apply")')
     assert 'observed' in poll(pr)
     assert sql("SELECT count(*) FROM delivery_conflict_orders WHERE state='open'")=='0'
     assert sql("SELECT count(*) FROM delivery_conflict_orders WHERE rebaser_id IS NOT NULL")=='0', 'Unverified changed head invented rebaser credit'

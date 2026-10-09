@@ -25,18 +25,18 @@ defmodule Agentboard.Delivery.ConflictOrders do
     if Application.get_env(:agentboard, :cooperation_enabled, false) do
       prior = current(snapshot.pull_request_id)
 
-      cond do
-        result.lifecycle != "open" ->
+      case ConflictPolicy.observation_state(result) do
+        :closed ->
           cancel(prior, snapshot, stamp, "closed_or_merged")
 
-        result.payload["mergeable"] == true and result.payload["mergeable_state"] != "dirty" ->
+        :clean ->
           # Cancels obsolete instructions, without inventing actual-rebaser evidence.
           clear(prior, snapshot, stamp)
 
-        result.payload["mergeable"] == false and result.payload["mergeable_state"] == "dirty" ->
+        :dirty ->
           publish(prior, snapshot, result, stamp)
 
-        true ->
+        :unknown ->
           :ok
       end
     end
@@ -190,7 +190,8 @@ defmodule Agentboard.Delivery.ConflictOrders do
 
     {mode, selected} =
       Runtime.fallback(event, [order.recipient_id], @actor,
-        recipient: order.recipient_id || "captain"
+        recipient: order.recipient_id || "captain",
+        capture_notice?: false
       )
 
     message = if mode in [:sent, :adopted], do: selected
@@ -210,6 +211,23 @@ defmodule Agentboard.Delivery.ConflictOrders do
       },
       @actor
     )
+
+    if message do
+      # The sole election and immutable relation must commit with the typed
+      # occurrence. Failure rolls back every source effect; collection retries.
+      Agentboard.Mattermost.MessageNotice.capture(message, @actor, message.created_at)
+
+      if order.recipient_id == message.recipient_id do
+        Agentboard.WakeIntents.capture_message(message, @actor, %{
+          "repo" => pr.owner <> "/" <> pr.repo,
+          "order_ref" => reference(order)
+        })
+      else
+        # Unassigned repairs notify the captain for triage. This occurrence
+        # conveys no assigned-order or branch-write authority.
+        Agentboard.WakeIntents.capture_message(message, @actor)
+      end
+    end
   end
 
   defp clear(nil, _snapshot, _stamp), do: :ok
