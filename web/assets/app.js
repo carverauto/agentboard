@@ -38,5 +38,13 @@ const CaptainWaitingCount = {
     if (badge) badge.textContent = "?"
   }
 }
-const liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}, hooks: {QuotaDialog, CompletedCard, CaptainWaitingCount}})
+const BranchFlowView = {
+  mounted() {
+    this.handleEvent("branch-flow-focus", ({id}) => {
+      const target = document.getElementById(id)
+      if (target && this.el.contains(target)) target.focus()
+    })
+  }
+}
+const liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}, hooks: {QuotaDialog, CompletedCard, CaptainWaitingCount, BranchFlowView}})
 liveSocket.connect()

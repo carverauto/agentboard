@@ -287,3 +287,8 @@ config :agentboard, :mattermost_inbound_history_start_ms, history_start
 config :agentboard,
        :decision_cleanup_enabled,
        System.get_env("AGENTBOARD_DECISION_CLEANUP_ENABLED") == "true"
+
+# Presentation-only opt-in. This never activates provider collection or cooperation.
+config :agentboard,
+       :branch_flow_enabled,
+       System.get_env("AGENTBOARD_BRANCH_FLOW_ENABLED") == "true"
