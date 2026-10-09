@@ -132,6 +132,8 @@ defmodule AgentboardWeb.Router do
     get("/context/:id", APIController, :context_show)
     post("/context", APIController, :context_publish)
     post("/context/:id/ack", APIController, :context_ack)
+    get("/agents/:id/scope", APIController, :seat_scope)
+    put("/agents/:id/scope", APIController, :set_seat_scope)
     get("/availability", APIController, :availability)
     post("/availability", APIController, :set_availability)
     post("/messages/task-orders", APIController, :broadcast_orders)

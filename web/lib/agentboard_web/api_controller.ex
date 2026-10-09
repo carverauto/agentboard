@@ -38,6 +38,11 @@ defmodule AgentboardWeb.APIController do
   def agents(conn, _), do: list(conn, "agents")
   def availability(conn, _), do: reply(conn, Agentboard.Availability.list())
 
+  def seat_scope(conn, %{"id" => id}), do: reply(conn, Agentboard.SeatScope.show(id))
+
+  def set_seat_scope(conn, %{"id" => id}),
+    do: reply(conn, Agentboard.SeatScope.set(id, privileged_actor(conn), conn.body_params))
+
   def set_availability(conn, _),
     do: reply(conn, Agentboard.Availability.set(privileged_actor(conn), conn.body_params))
 

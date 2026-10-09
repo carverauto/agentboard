@@ -112,9 +112,20 @@ batches = [r['batch'] for r in outcomes if r['batch']]
 assert len(batches) == 1, outcomes
 batch = batches[0]
 handled_batch = batch
+reservation_key = 'reserve-' + str(next(i for i, outcome in enumerate(outcomes) if outcome['batch']))
 assert hashlib.sha256(batch['payload'].encode()).hexdigest() == batch['payload_hash']
 assert len(batch['payload'].encode()) <= 16384
 assert api('/workers/fixture-agent/state', token=host)['active_batch'] == batch
+# Retiring an identity fences both new work and replay of an existing reserve key.
+# Its original host/receipt credentials still support exact recovery and disposition.
+api('/agents/fixture-agent/retire', {'reason': 'Fixture retirement'}, token=CAPTAIN)
+for key in [reservation_key, 'retired-new-reserve']:
+    retired = api('/workers/fixture-agent/reserve', {'binding_epoch': 1, 'idempotency_key': key}, token=host)
+    assert retired['batch'] is None and retired['degraded_reasons'] == ['retired'], retired
+assert api('/workers/fixture-agent/state', token=host)['active_batch'] == batch
+retired_fences = {key: batch[key] for key in ('binding_epoch', 'dispatch_generation', 'payload_hash')}
+retired_path = '/workers/fixture-agent/attempts/' + batch['attempt_id']
+assert api(retired_path + '/reconcile', retired_fences, token=host)['batch'] == batch
 api('/availability', {'agent_id': 'fixture-agent', 'state': 'out_of_service', 'reason': 'Fixture maintenance'}, token=CAPTAIN)
 assert api('/workers/fixture-agent/reserve', {'binding_epoch': 1, 'idempotency_key': 'reserve-0'}, token=host)['batch'] is None
 assert api('/workers/fixture-agent/state', token=host)['active_batch'] == batch
@@ -136,10 +147,13 @@ r = api('/workers/fixture-agent/receipts', receipt, token=receipt_token)['receip
 assert r == api('/workers/fixture-agent/receipts', receipt, token=receipt_token)['receipt']
 api('/workers/fixture-agent/receipts', dict(receipt, kind='handled'), token=receipt_token, status=409)
 api('/workers/fixture-agent/receipts', dict(receipt, kind='handled', idempotency_key='handled-1'), token=receipt_token)
+assert api(retired_path + '/reconcile', retired_fences, token=host)['resolved']
+api('/agents/fixture-agent/restore', {}, token=CAPTAIN)
 assert len(api('/workers/fixture-agent/pending', token=host)['deliveries']) == 1
 unavailable = api('/workers/fixture-agent/reserve', {'binding_epoch': 1, 'idempotency_key': 'unavailable-reserve'}, token=host)
 assert unavailable['batch'] is None and unavailable['degraded_reasons'] == ['agent_unavailable'], unavailable
 api('/availability', {'agent_id': 'fixture-agent', 'state': 'active', 'reason': 'Fixture restored'}, token=CAPTAIN)
+assert api('/workers/fixture-agent/reserve', {'binding_epoch': 1, 'idempotency_key': reservation_key}, token=host)['batch']['batch_id'] == batch['batch_id']
 
 # Ambiguous transport parks uncertainty; positive crash-before-call evidence permits retry.
 batch = api('/workers/fixture-agent/reserve', {'binding_epoch': 1, 'idempotency_key': 'crash-before'}, token=host)['batch']

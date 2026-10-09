@@ -172,6 +172,15 @@ defmodule Agentboard.APIAuthTest do
     end
   end
 
+  test "seat scope permits coordinator inspection but keeps captain-only writes" do
+    assert Policy.captain_operation?(route(APIController, :seat_scope), %{})
+    assert Policy.captain_operation?(route(APIController, :set_seat_scope), %{})
+    refute Policy.allowed?(observer(), route(APIController, :set_seat_scope), "PUT", %{})
+    assert Policy.allowed?(observer(), route(APIController, :seat_scope), "GET", %{})
+    assert Policy.allowed?(observer(), route(APIController, :agent), "GET", %{})
+    assert Policy.boundary(route(APIController, :set_seat_scope)) == :agent
+  end
+
   test "captain does not become an ordinary agent or a worker principal" do
     denied =
       Plug.Test.conn(:post, "/api/v1/tasks")

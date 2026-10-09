@@ -310,12 +310,18 @@ defmodule Agentboard.Board.Reads do
   end
 
   defp decorate(records, "agents") do
+    scopes = Agentboard.SeatScope.for_agents(Enum.map(records, & &1.id))
+
     Enum.map(records, fn row ->
       row
       |> Operations.public()
       |> Map.put("waiting_on_captain", row.waiting_on_captain)
       |> Map.put("stale", row.stale)
       |> Map.put("availability", row.availability)
+      |> Map.put(
+        "scope",
+        Map.get_lazy(scopes, row.id, fn -> Agentboard.SeatScope.public(nil, row.id) end)
+      )
       |> Map.put(
         "routing_eligible",
         is_nil(row.retired_at) and row.availability_state == "active"

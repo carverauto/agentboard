@@ -16,7 +16,7 @@ defmodule Agentboard.Availability do
   # Shared readers do not serialize unrelated tasks. Policy writes take the
   # exclusive lock before writing; admission holds its shared lock to commit.
   def lock_admission, do: Repo.statement!("SELECT pg_advisory_xact_lock_shared($1)", [@lock])
-  defp lock_policy, do: Repo.statement!("SELECT pg_advisory_xact_lock($1)", [@lock])
+  def lock_policy, do: Repo.statement!("SELECT pg_advisory_xact_lock($1)", [@lock])
 
   def effective(agent) do
     %{rows: [[value]]} =
@@ -45,6 +45,7 @@ defmodule Agentboard.Availability do
     if agent.retired_at != nil,
       do: Ops.reject("conflict", "Retired identity cannot receive new work")
 
+    Agentboard.SeatScope.admit!(task, target)
     state = effective(agent)["state"]
 
     named? =
@@ -203,7 +204,8 @@ defmodule Agentboard.Availability do
       Ops.transaction(fn ->
         lock_admission()
         Ops.identity!(actor)
-        Ops.fetch!(Task, data["task"], "Task must exist")
+        Ops.lock_task(data["task"])
+        task = Ops.fetch!(Task, data["task"], "Task must exist")
 
         query =
           Agent
@@ -225,6 +227,12 @@ defmodule Agentboard.Availability do
               "invalid_input",
               "Limit broadcast to a harness with at most 1000 eligible agents"
             )
+
+        agents =
+          Enum.filter(
+            agents,
+            &Agentboard.SeatScope.matches?(Agentboard.SeatScope.get(&1.id), task)
+          )
 
         ids =
           Enum.map(agents, fn agent ->

@@ -123,7 +123,7 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 			files["skills/"+name+"/"+fragment] = fragmentBody
 		}
 		if name == "agentboard" || name == "agentboard-captain" {
-			for _, doc := range []string{"api.md", "quota.md", "participation.md", "context.md"} {
+			for _, doc := range []string{"api.md", "quota.md", "participation.md", "context.md", "seat-scope.md"} {
 				body, err := fs.ReadFile(payload.Skills, "docs/"+doc)
 				if err != nil {
 					return result, err

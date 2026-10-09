@@ -52,16 +52,25 @@ def ab(*args, owner='conflict-owner'):
     return json.loads(p.stdout)
 
 
-def api(path, body=None, token=None, captain=False):
+def api(path, body=None, token=None, captain=False, method=None, status=200, actor=None):
     headers = {'Content-Type': 'application/json', 'x-agentboard-worker-protocol': '1'}
+    if actor:
+        headers.update({'x-agentboard-agent': actor, 'x-agentboard-model': 'fixture-model',
+                        'x-agentboard-harness': 'codex'})
     if token:
         headers['Authorization'] = 'Bearer ' + token
     if captain:
         headers['x-agentboard-captain-token'] = 'fixture-captain-capability-32-characters'
     request = urllib.request.Request(URL + '/api/v1' + path, headers=headers,
-                                    data=json.dumps(body).encode() if body is not None else None)
-    with urllib.request.urlopen(request, timeout=10) as response:
-        return json.load(response)
+                                    data=json.dumps(body).encode() if body is not None else None,
+                                    method=method)
+    try:
+        response = urllib.request.urlopen(request, timeout=10)
+    except urllib.error.HTTPError as error:
+        response = error
+    data = json.load(response)
+    assert response.status == status, (response.status, path, data)
+    return data
 
 
 def _strip_scripts(html):
@@ -504,6 +513,53 @@ with tls_provider(Provider) as (api_url, ca, server):
         denied = subprocess.run([os.environ['AB_BINARY'], '--json', 'task', 'claim', repair], env=env, capture_output=True, text=True, timeout=25)
         assert denied.returncode != 0, (restricted, repair, denied.stdout, denied.stderr)
         assert sql("SELECT status FROM tasks WHERE id='" + repair + "'") == 'open'
+    # Managed scope gates the internal rebase assignment even with immutable ownership.
+    # Required labels come from the generated repair; source labels cannot satisfy them.
+    ab('agent', 'register', owner='conflict-scope-captain')
+    rpc('Application.put_env(:agentboard, :coordinator_id, "conflict-scope-captain")')
+    for number, owner, repos, required, allowed in (
+            (305, 'conflict-scope-repo', ['fixture/elsewhere'], ['rebase-repair'], ['rebase-repair']),
+            (306, 'conflict-scope-label', ['fixture/repo'], ['rebase-repair', 'scope-extra'], ['rebase-repair']),
+            (307, 'conflict-scope-match', ['fixture/repo'], ['rebase-repair'], ['unmatched', 'rebase-repair'])):
+        ab('agent', 'register', owner=owner)
+        policy = api('/agents/' + owner + '/scope', {
+            'allowed_repos': repos, 'required_labels': required, 'allowed_labels': allowed,
+            'revision': 0}, captain=True, token=CAPABILITY, method='PUT', actor='conflict-scope-captain')['scope']
+        assert policy['state'] == 'managed' and policy['revision'] == 1, policy
+        api('/tasks', {'id': 'scope-source-' + str(number), 'title': 'Managed conflict source',
+            'repo': 'fixture/repo', 'labels': ['rebase-repair', 'scope-extra'],
+            'pr_url': f'https://github.com/fixture/repo/pull/{number}'}, actor=owner)
+        pid = sql("SELECT id FROM delivery_pull_requests WHERE number='" + str(number) + "'")
+        sql("UPDATE delivery_poll_states SET head_sha='" + HEAD + "',base_sha='" + branch_sha + "',base_ref='main',expected_base_sha='" + branch_sha + "' WHERE id='" + pid + "'")
+        prs[number] = dict(head='4' * 40, base=branch_sha, mergeable=False, mergeable_state='dirty')
+        sql("UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()+interval '1 hour' WHERE id<>'" + pid + "'")
+        reset_budget()
+        assert 'observed' in poll(pid)
+        follow = detail(pid)['rebase_follow_up']
+        scope_repair = follow['repair_task_id']
+        repair_task = ab('task', 'show', scope_repair)['task']
+        assert repair_task['labels'] == ['rebase-repair'], repair_task
+        assert sql("SELECT count(*) FROM cooperation_events WHERE kind='pr_conflict' AND task_id='" + scope_repair + "'") == '1'
+        assert sql("SELECT count(*) FROM delivery_ci_snapshots WHERE pull_request_id='" + pid + "'") == '1'
+        if owner == 'conflict-scope-match':
+            assert follow['responsible_id'] == owner, follow
+            assert repair_task['status'] == 'assigned' and repair_task['assignee_id'] == owner, repair_task
+            assert repair_task['assignment_authorized'] is False, repair_task
+            assert sql("SELECT count(*) FROM messages WHERE task_id='" + scope_repair + "' AND recipient_id='" + owner + "'") == '1'
+        else:
+            assert follow['responsible_id'] is None, follow
+            assert repair_task['status'] == 'open' and repair_task['assignee_id'] is None, repair_task
+            assert repair_task['assignment_authorized'] is False, repair_task
+            assert sql("SELECT count(*) FROM messages WHERE task_id='" + scope_repair + "' AND recipient_id='conflict-scope-captain'") == '1'
+            assert sql("SELECT count(*) FROM messages WHERE task_id='" + scope_repair + "' AND recipient_id='" + owner + "'") == '0'
+            denied = api('/tasks/' + scope_repair + '/assign', {'to': owner}, captain=True, token=CAPABILITY,
+                         actor='conflict-scope-captain', status=409)
+            assert 'scope' in denied['error']['message'].lower(), denied
+            assert ab('task', 'show', scope_repair)['task'] == repair_task
+            assert detail(pid)['rebase_follow_up'] == follow
+            assert sql("SELECT count(*) FROM cooperation_events WHERE task_id='" + scope_repair + "'") == '1'
+            assert sql("SELECT count(*) FROM messages WHERE task_id='" + scope_repair + "'") == '1'
+    print('Managed merge-conflict scope preserves observations, escalates mismatches and admits matching repairs.')
     # Nil-baseline fence: a watch enrolled between two same-branch reservations
     # must not defer the second committer when its head matches provider base;
     # a minimal reservation must resolve scope without KeyError, and a genuine

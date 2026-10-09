@@ -174,3 +174,21 @@ ex_unit_test(
     elixir_opts = ["-r", "test/test_helper.exs"],
     deps = [":erlang_app"],
 )
+
+ex_unit_test(
+    name = "seat_scope_test",
+    size = "small",
+    srcs = ["test/seat_scope_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
+    deps = [":erlang_app"],
+)
+
+ex_unit_test(
+    name = "seat_scope_live_test",
+    size = "small",
+    srcs = ["test/seat_scope_live_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
+    deps = [":erlang_app"],
+)
