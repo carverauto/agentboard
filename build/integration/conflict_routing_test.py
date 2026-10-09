@@ -335,6 +335,15 @@ with tls_provider(Provider) as (url,ca,_):
     route(retained_second['id'])
     assert current(retained_first['pull_request_id'])['id']==retained_third['id']
     assert sql('SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM decision_requests))')==superseded_effects
+    repeat_effects = sql("SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM task_events WHERE kind='repair_routed'),(SELECT count(*) FROM decision_requests))")
+    repeat_audits=int(sql("SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation'"))
+    route(retained_third['id'])
+    route(retained_third['id'])
+    assert current(retained_first['pull_request_id'])['id']==retained_third['id']
+    assert current(retained_first['pull_request_id'])['selection_reason']=='retained_deadline'
+    assert sql("SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM task_events WHERE kind='repair_routed'),(SELECT count(*) FROM decision_requests))")==repeat_effects
+    assert int(sql("SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation'"))==repeat_audits
+    assert api('tasks/routing-source-109')==retained_source
     assert sql('SELECT count(*) FROM delivery_publication_grants')=='0'
 
 print('Shared eligibility profiles, queue/assignment/ID ties, repair-only lease transfer, duplicate timers, concurrent last-slot admission and owner-resolution fencing passed')

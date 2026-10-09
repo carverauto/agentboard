@@ -50,10 +50,11 @@ defmodule Agentboard.Delivery.ConflictRouting do
     recipient = if order.recipient_id, do: Eligibility.admit(order.recipient_id, task)
     author_turn? = not is_nil(order.author_id) and order.recipient_id == order.author_id
     deadline_passed? = DateTime.compare(stamp, order.deadline_at) != :lt
+    deadline_fired? = order.selection_reason in ["author_deadline", "retained_deadline"]
 
     cond do
-      deadline_passed? and author_turn? -> "author_deadline"
-      deadline_passed? -> "retained_deadline"
+      deadline_passed? and author_turn? and not deadline_fired? -> "author_deadline"
+      deadline_passed? and not deadline_fired? -> "retained_deadline"
       is_nil(recipient) -> "recipient_ineligible"
       not recipient.eligible -> "recipient_ineligible"
       true -> nil
