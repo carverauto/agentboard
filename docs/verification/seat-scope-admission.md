@@ -76,3 +76,23 @@ synthetic observation path. These settings are test-local, not rollout actions.
 These passes do not establish operational completion or acceptance of the full
 issue #60 design or deferred role/enrollment/readiness/host gates. Scope-only
 matching is not automatic fleet eligibility.
+
+## Docker CLI packaging follow-up
+
+The first PR container run found that `docs/seat-scope.md` was present in the Go
+embed list but missing from `Dockerfile.cli` and the `.dockerignore` exceptions.
+The correction adds it to both manifests and to the Docker/release workflow
+embedded-document path filters.
+
+The offline regression can be run on an authorized disposable build host with
+Go 1.24.2+ and already cached modules:
+
+```sh
+python3 build/integration/cli_docker_inputs_test.py
+```
+
+It stages the actual build-stage source COPY inputs with the supported ignore
+rules, then executes the declared Go build with network dependency lookup
+turned off. Unsupported manifest syntax fails closed. This checks the packaging
+boundary without a Docker daemon; it does not claim a container build or Compose
+runtime pass. The actual container check must pass in the PR workflow.

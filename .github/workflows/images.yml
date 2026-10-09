@@ -38,6 +38,7 @@ on:
       - docs/quota.md
       - docs/participation.md
       - docs/context.md
+      - docs/seat-scope.md
   pull_request:
     branches: [main]
     paths:
