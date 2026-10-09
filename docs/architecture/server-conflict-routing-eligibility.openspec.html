@@ -41,7 +41,1146 @@ All ten remote targets pass after the final runtime changes: https://carverauto.
 ## Quality review
 
 The targeted review extracted task-admission/identity guards and routing evidence checks, eliminating new complexity regressions in existing mutation/repair creation functions. Ripwire still reports 12 gating candidates: advisory-lock/result/config boilerplate, the existing CI/rebase producer similarity, the established AshOban reconciliation pattern and growth in the conflict-order module. Four new-symbol findings include module/function size and a six-argument assignment helper. These are retained review findings; no blanket suppression or clean-quality claim is made.
-</pre></section><section id="proposal"><h2>Approved OpenSpec and current checklist</h2><details><summary>proposal.md</summary><pre># Proposal
+</pre></section><section id="sources"><h2>Executable source checkpoint</h2><details><summary>web/lib/agentboard/eligibility.ex</summary><pre>defmodule Agentboard.Eligibility do
+  @moduledoc &quot;Shared automatic seat eligibility v1; selection is not a claim or native custody grant.&quot;
+  alias Agentboard.{Availability, QueueAdmission, Repo, SeatScope}
+  alias Agentboard.Board.{Operations, Reads}
+  alias Agentboard.Board.Resources.Agent
+  require Ash.Query
+
+  def queue_limit do
+    case Application.get_env(:agentboard, :queue_limit, 2) do
+      value when is_integer(value) and value in 1..100 -&gt; value
+      _ -&gt; 2
+    end
+  end
+
+  # The caller owns a transaction and must acquire this prefix before repair
+  # task/order locks. The per-seat lock also fences manual assignment and new
+  # decision creation, while policy and agent locks fence scope/model/liveness.
+  def admit(id, task) do
+    Availability.lock_admission()
+    QueueAdmission.lock(id)
+    evaluate(id, task)
+  end
+
+  # Rank a bounded snapshot, then recheck each candidate after admission. A
+  # contended candidate is deferred rather than waiting while holding another
+  # candidate&#x27;s gate. Consumers retry on canonical state changes/deadline ticks.
+  def select(task, excluded \\ []) do
+    Availability.lock_admission()
+
+    agents =
+      Agent
+      |&gt; Ash.Query.filter(kind == &quot;seat&quot; and is_nil(retired_at))
+      |&gt; Ash.Query.sort(id: :asc)
+      |&gt; Ash.Query.limit(1001)
+      |&gt; Ash.read!()
+
+    if length(agents) &gt; 1000,
+      do: Operations.reject(&quot;unsupported&quot;, &quot;Automatic selection requires a bounded fleet&quot;)
+
+    agents
+    |&gt; Enum.reject(&amp;(&amp;1.id in excluded))
+    |&gt; Enum.map(fn agent -&gt; {agent.id, queue(agent.id, task.id)} end)
+    |&gt; Enum.sort_by(fn {id, load} -&gt; {load.count, load.last_assignment, id} end)
+    |&gt; Enum.find_value(fn {id, _} -&gt;
+      if QueueAdmission.try_lock(id) do
+        case evaluate(id, task) do
+          %{eligible: true} = evidence -&gt; evidence
+          _ -&gt; nil
+        end
+      end
+    end)
+  end
+
+  defp evaluate(id, task) do
+    Repo.statement!(&quot;SELECT id FROM agents WHERE id=$1 FOR SHARE&quot;, [id])
+    agent = Ash.get!(Agent, id, not_found_error?: false)
+    load = queue(id, task.id)
+    scope = SeatScope.get(id)
+
+    %{rows: [[waiting]]} =
+      Repo.statement!(
+        &quot;SELECT EXISTS(SELECT 1 FROM decision_requests WHERE requester_id=$1 AND status IN (&#x27;open&#x27;,&#x27;answered&#x27;))&quot;,
+        [id]
+      )
+
+    {:ok, stale_after} = Reads.roster_threshold()
+
+    %{rows: [[live]]} =
+      Repo.statement!(
+        &quot;SELECT coalesce((SELECT last_heartbeat &gt;= clock_timestamp()-($2::float8*interval &#x27;1 second&#x27;) FROM agents WHERE id=$1),false)&quot;,
+        [id, stale_after]
+      )
+
+    reason =
+      cond do
+        is_nil(agent) -&gt; &quot;unregistered&quot;
+        agent.kind != &quot;seat&quot; -&gt; &quot;not_seat&quot;
+        not is_nil(agent.retired_at) -&gt; &quot;retired&quot;
+        not live -&gt; &quot;stale&quot;
+        not Availability.active?(agent) -&gt; &quot;unavailable&quot;
+        waiting -&gt; &quot;waiting_on_captain&quot;
+        not SeatScope.managed_matches?(scope, task) -&gt; &quot;outside_managed_scope&quot;
+        load.count &gt;= queue_limit() -&gt; &quot;queue_full&quot;
+        true -&gt; &quot;eligible&quot;
+      end
+
+    %{
+      agent_id: id,
+      eligible: reason == &quot;eligible&quot;,
+      reason: reason,
+      queue_count: load.count,
+      queue_limit: queue_limit(),
+      last_assignment: load.last_assignment,
+      scope_revision: if(scope, do: scope.revision, else: 0)
+    }
+  end
+
+  defp queue(id, repair_id) do
+    %{rows: [[count, last]]} =
+      Repo.statement!(
+        &quot;&quot;&quot;
+        SELECT
+          (SELECT count(*) FROM tasks t WHERE t.assignee_id=$1 AND t.id&lt;&gt;$2
+            AND t.status IN (&#x27;assigned&#x27;,&#x27;in_progress&#x27;,&#x27;blocked&#x27;,&#x27;review&#x27;)
+            AND NOT EXISTS(SELECT 1 FROM task_archives x WHERE x.id=t.id AND x.archived_at IS NOT NULL)),
+          coalesce((SELECT extract(epoch FROM max(e.created_at))::float8 FROM task_events e
+            WHERE e.kind IN (&#x27;assign&#x27;,&#x27;handoff&#x27;,&#x27;claim&#x27;,&#x27;reclaim&#x27;,&#x27;repair_routed&#x27;)
+              AND e.data-&gt;&#x27;after&#x27;-&gt;&gt;&#x27;assignee_id&#x27;=$1), 0::float8)
+        &quot;&quot;&quot;,
+        [id, repair_id]
+      )
+
+    %{count: count, last_assignment: last}
+  end
+end
+</pre></details><details><summary>web/lib/agentboard/queue_admission.ex</summary><pre>defmodule Agentboard.QueueAdmission do
+  @moduledoc &quot;Per-seat queue admission prefix. Acquire before task locks, never beneath them.&quot;
+  alias Agentboard.Repo
+
+  def lock(nil), do: :ok
+
+  def lock(id) when is_binary(id),
+    do: Repo.statement!(&quot;SELECT pg_advisory_xact_lock($1)&quot;, [key(id)])
+
+  def lock(_),
+    do: Agentboard.Board.Operations.reject(&quot;invalid_input&quot;, &quot;Valid admission recipient required&quot;)
+
+  def lock_action(action, actor, data) do
+    target =
+      cond do
+        action in ~w(assign handoff) -&gt; data[&quot;to&quot;]
+        action in ~w(claim reclaim) -&gt; actor[&quot;agent&quot;]
+        true -&gt; nil
+      end
+
+    lock(target)
+  end
+
+  def try_lock(id) do
+    %{rows: [[locked]]} = Repo.statement!(&quot;SELECT pg_try_advisory_xact_lock($1)&quot;, [key(id)])
+    locked
+  end
+
+  defp key(id) do
+    &lt;&lt;key::signed-64, _::binary&gt;&gt; = :crypto.hash(:sha256, &quot;agentboard-queue-admission:&quot; &lt;&gt; id)
+    key
+  end
+end
+</pre></details><details><summary>web/lib/agentboard/delivery/conflict_routing.ex</summary><pre>defmodule Agentboard.Delivery.ConflictRouting do
+  @moduledoc &quot;Audited repair-only system routing; selected sources and leases never confer native publication authority.&quot;
+  alias Agentboard.{Availability, Eligibility, Repo}
+  alias Agentboard.Board.Operations, as: Ops
+  alias Agentboard.Board.Resources.Task
+  alias Agentboard.Decisions.Request
+
+  alias Agentboard.Delivery.{
+    ConflictOrder,
+    ConflictOrders,
+    ConflictPolicy,
+    PollState,
+    PullRequest,
+    RebaseFollowUp
+  }
+
+  require Ash.Query
+  @actor %{&quot;agent&quot; =&gt; &quot;ci-accountability&quot;, &quot;model&quot; =&gt; &quot;system&quot;, &quot;harness&quot; =&gt; &quot;ash&quot;}
+
+  def route(id), do: Ops.transaction(fn -&gt; route_locked(id) end)
+
+  # Each AshOban page opens an independent transaction through Reconciliation.
+  def route_locked(id) do
+    order = Ash.get!(ConflictOrder, id, not_found_error?: false)
+
+    if enabled?() and not is_nil(order) and order.state == &quot;open&quot; do
+      evidence = fence(order)
+      reason = route_reason(order, evidence.task, evidence.stamp)
+      if reason, do: select_and_route(order, evidence, reason), else: false
+    else
+      false
+    end
+  end
+
+  defp fence(order) do
+    pr = Ash.get!(PullRequest, order.pull_request_id)
+    watches = ConflictOrders.lock_evidence(order, pr)
+    Availability.lock_admission()
+
+    %{
+      pr: pr,
+      watches: watches,
+      poll: Ash.get!(PollState, pr.id),
+      task: Ash.get!(Task, order.repair_task_id),
+      stamp: Ops.now()
+    }
+  end
+
+  defp route_reason(order, task, stamp) do
+    recipient = if order.recipient_id, do: Eligibility.admit(order.recipient_id, task)
+    author_turn? = not is_nil(order.author_id) and order.recipient_id == order.author_id
+
+    cond do
+      author_turn? and DateTime.compare(stamp, order.deadline_at) != :lt -&gt; &quot;author_deadline&quot;
+      is_nil(recipient) -&gt; &quot;recipient_ineligible&quot;
+      not recipient.eligible -&gt; &quot;recipient_ineligible&quot;
+      true -&gt; nil
+    end
+  end
+
+  defp select_and_route(initial, evidence, reason) do
+    excluded = [initial.recipient_id, initial.author_id] |&gt; Enum.reject(&amp;is_nil/1)
+    candidate = Eligibility.select(evidence.task, excluded)
+    Ops.lock_task(initial.repair_task_id)
+
+    Repo.statement!(&quot;SELECT id FROM delivery_conflict_orders WHERE id::text=$1 FOR UPDATE&quot;, [
+      initial.id
+    ])
+
+    order = Ash.get!(ConflictOrder, initial.id)
+    task = Ash.get!(Task, initial.repair_task_id)
+
+    if current?(initial, order, task, evidence) do
+      if candidate do
+        replacement =
+          ConflictOrders.reassign(order, task, evidence.pr, candidate, reason, evidence.stamp)
+
+        escalate(replacement, &quot;native_custody_unsupported&quot;, evidence.stamp)
+        true
+      else
+        escalate(order, &quot;no_eligible_seat&quot;, evidence.stamp)
+      end
+    else
+      false
+    end
+  end
+
+  defp current?(initial, order, task, evidence) do
+    follow =
+      RebaseFollowUp
+      |&gt; Ash.Query.filter(current_order_id == ^order.id and is_nil(resolved_at))
+      |&gt; Ash.read_one!()
+
+    poll = evidence.poll
+
+    order.state == &quot;open&quot; and order.revision == initial.revision and not is_nil(follow) and
+      task.status not in ~w(done cancelled) and task.assignee_id == initial.recipient_id and
+      poll.lifecycle == &quot;open&quot; and poll.head_sha == order.observed_head_sha and
+      poll.default_ref == order.default_ref and poll.expected_default_sha == order.default_tip_sha and
+      poll.base_ref == order.evaluation_base_ref and
+      poll.expected_base_sha == order.evaluation_base_sha and
+      evidence.watches[order.default_ref] == order.default_tip_sha and
+      evidence.watches[order.evaluation_base_ref] == order.evaluation_base_sha
+  end
+
+  defp enabled?,
+    do:
+      ConflictPolicy.mode() == &quot;apply&quot; and
+        Application.get_env(:agentboard, :cooperation_enabled, false)
+
+  defp escalate(%{escalation_decision_id: id}, _reason, _stamp) when not is_nil(id), do: false
+
+  defp escalate(order, reason, stamp) do
+    request =
+      Ops.create(
+        Request,
+        :create,
+        %{
+          id: Ash.UUID.generate(),
+          task_id: order.repair_task_id,
+          requester_id: @actor[&quot;agent&quot;],
+          kind: &quot;blocked_decision&quot;,
+          gate_ref: &quot;conflict-order:#{order.id}:#{order.revision}:#{reason}&quot;,
+          question:
+            &quot;Conflict repair #{order.repair_task_id}: #{reason}. Captain action required.&quot;,
+          findings:
+            &quot;Order #{order.id}/#{order.revision}. The source claim is unchanged. &quot; &lt;&gt;
+              &quot;Native custody and publication are unsupported; no branch-write grant was issued.&quot;,
+          options: [],
+          status: &quot;open&quot;,
+          created_at: stamp,
+          updated_at: stamp
+        },
+        @actor
+      )
+
+    Ops.update(order, :change, %{escalation_decision_id: request.id, updated_at: stamp}, @actor)
+    task = Ash.get!(Task, order.repair_task_id)
+
+    Ops.project_event(
+      task.id,
+      @actor,
+      &quot;conflict_escalated&quot;,
+      reason,
+      task.revision,
+      task.revision,
+      %{decision_id: request.id, order_id: order.id, order_revision: order.revision},
+      stamp
+    )
+
+    true
+  end
+end
+</pre></details><details><summary>web/lib/agentboard/delivery/conflict_disposition.ex</summary><pre>defmodule Agentboard.Delivery.ConflictDisposition do
+  @moduledoc &quot;Persisted conflict deadline and state-change reevaluation through existing AshOban infrastructure.&quot;
+  use Ash.Resource,
+    domain: Agentboard.Delivery,
+    authorizers: [Ash.Policy.Authorizer],
+    extensions: [AshOban]
+
+  alias Agentboard.Delivery.{ConflictOrder, ConflictPolicy, ConflictRouting, Reconciliation}
+  require Ash.Query
+
+  oban do
+    scheduled_actions do
+      schedule :route_conflicts, &quot;* * * * *&quot; do
+        action(:route)
+        queue(:delivery_scheduler)
+        max_attempts(5)
+        worker_module_name(Agentboard.Delivery.RouteConflicts)
+        default_actor(%{role: :system, id: &quot;ci-accountability&quot;})
+      end
+    end
+  end
+
+  policies do
+    policy always() do
+      authorize_if(actor_attribute_equals(:role, :system))
+    end
+  end
+
+  actions do
+    action :route, :map do
+      argument(:after_id, :uuid)
+      argument(:id, :uuid)
+
+      run(fn input, _context -&gt;
+        if input.arguments[:id] do
+          with {:ok, changed} &lt;- ConflictRouting.route(input.arguments.id),
+               do: {:ok, %{changed: changed}}
+        else
+          reconcile(input.arguments[:after_id])
+        end
+      end)
+    end
+  end
+
+  def enqueue(id), do: AshOban.schedule(__MODULE__, :route_conflicts, action_arguments: %{id: id})
+
+  defp reconcile(cursor) do
+    if ConflictPolicy.mode() == &quot;apply&quot; do
+      Reconciliation.page(
+        Ash.Query.filter(ConflictOrder, state == &quot;open&quot;),
+        cursor,
+        fn next -&gt;
+          AshOban.schedule(__MODULE__, :route_conflicts, action_arguments: %{after_id: next})
+        end,
+        &amp;ConflictRouting.route_locked/1
+      )
+    else
+      {:error, AshOban.Errors.SnoozeJob.exception(snooze_for: 60)}
+    end
+  end
+end
+</pre></details><details><summary>web/lib/agentboard/delivery/conflict_orders.ex</summary><pre>defmodule Agentboard.Delivery.ConflictOrders do
+  @moduledoc &quot;Base-fenced current orders and authoritative selected-source currentness. No native custody grants.&quot;
+  alias Agentboard.Board.Operations, as: Ops
+  alias Agentboard.Board.Resources.{Agent, Task, Message}
+  alias Agentboard.Cooperation.{Event, Runtime}
+
+  alias Agentboard.Delivery.{
+    BaseMonitor,
+    BaseWatch,
+    ConflictOrder,
+    ConflictPolicy,
+    ConflictSource,
+    PollState,
+    PullRequest,
+    Rebase,
+    RebaseFollowUp
+  }
+
+  alias Agentboard.{Availability, Input, Repo}
+  require Ash.Query
+  @actor %{&quot;agent&quot; =&gt; &quot;ci-accountability&quot;, &quot;model&quot; =&gt; &quot;system&quot;, &quot;harness&quot; =&gt; &quot;ash&quot;}
+
+  # Runs in Polling&#x27;s existing base-before-poll snapshot transaction.
+  def observe(snapshot, result, stamp) do
+    if Application.get_env(:agentboard, :cooperation_enabled, false) do
+      prior = current(snapshot.pull_request_id)
+
+      cond do
+        result.lifecycle != &quot;open&quot; -&gt;
+          cancel(prior, snapshot, stamp, &quot;closed_or_merged&quot;)
+
+        result.payload[&quot;mergeable&quot;] == true and result.payload[&quot;mergeable_state&quot;] != &quot;dirty&quot; -&gt;
+          # Cancels obsolete instructions, without inventing actual-rebaser evidence.
+          clear(prior, snapshot, stamp)
+
+        result.payload[&quot;mergeable&quot;] == false and result.payload[&quot;mergeable_state&quot;] == &quot;dirty&quot; -&gt;
+          publish(prior, snapshot, result, stamp)
+
+        true -&gt;
+          :ok
+      end
+    end
+  end
+
+  defp current(pr) do
+    ConflictOrder
+    |&gt; Ash.Query.filter(pull_request_id == ^pr and state == &quot;open&quot;)
+    |&gt; Ash.read_one!()
+  end
+
+  defp publish(prior, snapshot, result, stamp) do
+    payload = result.payload
+
+    refs = [
+      payload[&quot;default_ref&quot;],
+      payload[&quot;default_tip_sha&quot;],
+      payload[&quot;base_ref&quot;],
+      payload[&quot;evaluation_base_sha&quot;]
+    ]
+
+    if Enum.all?(refs, &amp;is_binary/1) do
+      {follow, pr} = follow_up(prior, snapshot, result, stamp)
+      # Lock the repair, never the original source task. Admission precedes repair/order.
+      Availability.lock_admission()
+      Ops.lock_task(follow.repair_task_id)
+      task = Ash.get!(Task, follow.repair_task_id)
+
+      same? =
+        not is_nil(prior) and prior.default_ref == payload[&quot;default_ref&quot;] and
+          prior.default_tip_sha == payload[&quot;default_tip_sha&quot;] and
+          prior.evaluation_base_ref == payload[&quot;base_ref&quot;] and
+          prior.evaluation_base_sha == payload[&quot;evaluation_base_sha&quot;] and
+          prior.recipient_id == task.assignee_id
+
+      if same? do
+        Ops.update(
+          prior,
+          :change,
+          %{observed_head_sha: result.head_sha, snapshot_id: snapshot.id, updated_at: stamp},
+          @actor
+        )
+      else
+        if prior, do: cancel(prior, snapshot, stamp, &quot;new_evidence&quot;, &quot;superseded&quot;)
+        id = Ash.UUID.generate()
+
+        order =
+          Ops.create(
+            ConflictOrder,
+            :record,
+            Map.merge(episode(prior, id, result.head_sha, stamp), %{
+              id: id,
+              pull_request_id: pr.id,
+              default_ref: payload[&quot;default_ref&quot;],
+              default_tip_sha: payload[&quot;default_tip_sha&quot;],
+              evaluation_base_ref: payload[&quot;base_ref&quot;],
+              evaluation_base_sha: payload[&quot;evaluation_base_sha&quot;],
+              observed_head_sha: result.head_sha,
+              snapshot_id: snapshot.id,
+              repair_task_id: task.id,
+              author_id: follow.responsible_id,
+              recipient_id: task.assignee_id,
+              state: &quot;open&quot;,
+              selection_reason: assignment_reason(task, follow),
+              created_at: stamp,
+              updated_at: stamp
+            }),
+            @actor
+          )
+
+        Ops.update(follow, :set_order, %{current_order_id: order.id}, @actor)
+        capture(order, pr)
+        Agentboard.Delivery.ConflictDisposition.enqueue(order.id)
+      end
+    end
+  end
+
+  defp assignment_reason(%{assignee_id: nil}, _follow), do: &quot;author_ineligible&quot;
+
+  defp assignment_reason(task, follow) do
+    if task.assignee_id == follow.responsible_id,
+      do: &quot;author_first&quot;,
+      else: &quot;retained_repair_assignment&quot;
+  end
+
+  defp episode(nil, id, head, stamp) do
+    %{
+      episode_id: id,
+      trigger_head_sha: head,
+      revision: 1,
+      episode_started_at: stamp,
+      deadline_at: DateTime.add(stamp, ConflictPolicy.deadline_seconds())
+    }
+  end
+
+  defp episode(prior, _id, _head, _stamp) do
+    prior
+    |&gt; Map.take([:episode_id, :trigger_head_sha, :episode_started_at, :deadline_at])
+    |&gt; Map.put(:revision, prior.revision + 1)
+  end
+
+  defp follow_up(nil, snapshot, result, stamp) do
+    prior =
+      RebaseFollowUp
+      |&gt; Ash.Query.filter(
+        pull_request_id == ^snapshot.pull_request_id and
+          head_sha == ^result.head_sha
+      )
+      |&gt; Ash.read_one!()
+
+    if prior do
+      task = Ash.get!(Task, prior.repair_task_id)
+
+      if task.status in ~w(done cancelled),
+        do: Ops.reject(&quot;unsupported&quot;, &quot;Terminal same-head repair requires episode reconciliation&quot;)
+
+      follow =
+        Ops.update(prior, :resolve, %{resolved_at: nil, resolution_snapshot_id: nil}, @actor)
+
+      {follow, Ash.get!(PullRequest, snapshot.pull_request_id)}
+    else
+      {follow, pr, _task} = Rebase.create_follow_up(snapshot, result, stamp, routing: true)
+      {follow, pr}
+    end
+  end
+
+  defp follow_up(order, _snapshot, _result, _stamp) do
+    follow = RebaseFollowUp |&gt; Ash.Query.filter(current_order_id == ^order.id) |&gt; Ash.read_one!()
+    {follow, Ash.get!(PullRequest, order.pull_request_id)}
+  end
+
+  defp capture(order, pr) do
+    key = &quot;conflict-order:#{order.id}:#{order.revision}&quot;
+
+    event =
+      Runtime.capture(
+        %{
+          source_key: key,
+          kind: &quot;pr_conflict&quot;,
+          repo: pr.owner &lt;&gt; &quot;/&quot; &lt;&gt; pr.repo,
+          task_id: order.repair_task_id,
+          summary:
+            &quot;#{pr.url} conflicts at head #{order.observed_head_sha}, &quot; &lt;&gt;
+              &quot;default #{order.default_ref}@#{order.default_tip_sha}, target #{order.evaluation_base_ref}@#{order.evaluation_base_sha}; &quot; &lt;&gt;
+              &quot;repair #{order.repair_task_id} by #{DateTime.to_iso8601(order.deadline_at)}. Conflicting files: unknown.&quot;,
+          source_url: pr.url,
+          priority: 1
+        },
+        recipient: order.recipient_id || &quot;captain&quot;
+      )
+
+    {mode, selected} =
+      Runtime.fallback(event, [order.recipient_id], @actor,
+        recipient: order.recipient_id || &quot;captain&quot;
+      )
+
+    message = if mode in [:sent, :adopted], do: selected
+
+    Ops.create(
+      ConflictSource,
+      :record,
+      %{
+        id: event.id,
+        order_id: order.id,
+        order_revision: order.revision,
+        source_key: key,
+        message_id: if(message, do: message.id),
+        message_version: if(message, do: DateTime.to_iso8601(message.created_at)),
+        disposition: Atom.to_string(mode),
+        created_at: Ops.now()
+      },
+      @actor
+    )
+  end
+
+  defp clear(nil, _snapshot, _stamp), do: :ok
+
+  defp clear(order, snapshot, stamp) do
+    if snapshot.head_sha == order.trigger_head_sha do
+      cancel(order, snapshot, stamp, &quot;unchanged_head_clean&quot;, &quot;cleared_without_repair&quot;)
+    else
+      cancel(order, snapshot, stamp, &quot;mergeable_head_rebaser_unverified&quot;)
+    end
+  end
+
+  defp cancel(nil, _snapshot, _stamp, _reason, _state), do: :ok
+
+  defp cancel(order, snapshot, stamp, reason, state) do
+    Ops.lock_task(order.repair_task_id)
+
+    if state != &quot;superseded&quot; do
+      follow =
+        RebaseFollowUp |&gt; Ash.Query.filter(current_order_id == ^order.id) |&gt; Ash.read_one!()
+
+      if follow,
+        do:
+          Ops.update(
+            follow,
+            :resolve,
+            %{resolved_at: stamp, resolution_snapshot_id: snapshot.id},
+            @actor
+          )
+    end
+
+    retire_authority(order, stamp)
+
+    Ops.update(
+      order,
+      :change,
+      %{
+        state: state,
+        resolved_at: stamp,
+        resolution_snapshot_id: snapshot.id,
+        selection_reason: reason,
+        updated_at: stamp
+      },
+      @actor
+    )
+  end
+
+  defp retire_authority(order, stamp) do
+    Agentboard.Delivery.PublicationGrant
+    |&gt; Ash.Query.filter(order_id == ^order.id and state in [&quot;pending&quot;, &quot;admitted&quot;])
+    |&gt; Ash.read!()
+    |&gt; Enum.each(&amp;Ops.update(&amp;1, :change, %{state: &quot;revoked&quot;, updated_at: stamp}, @actor))
+
+    if order.escalation_decision_id do
+      request = Ash.get!(Agentboard.Decisions.Request, order.escalation_decision_id)
+
+      if request.status in ~w(open answered),
+        do:
+          Ops.update(
+            request,
+            :change,
+            %{
+              status: &quot;superseded&quot;,
+              closed_by: @actor[&quot;agent&quot;],
+              close_reason: &quot;conflict_order_retired&quot;,
+              closed_at: stamp,
+              updated_at: stamp
+            },
+            @actor
+          )
+    end
+  end
+
+  defp cancel(order, snapshot, stamp, reason),
+    do: cancel(order, snapshot, stamp, reason, &quot;cancelled&quot;)
+
+  # Enrollment holds a worker lock. Read the immutable selected source only;
+  # do not re-elect or acquire branch/order/source locks beneath the worker.
+  # Inbox selection already owns the effect, so it never becomes a worker frame.
+  def bootstrap(follow, subscription) do
+    source =
+      ConflictSource |&gt; Ash.Query.filter(order_id == ^follow.current_order_id) |&gt; Ash.read_one!()
+
+    if source &amp;&amp; source.disposition == &quot;worker&quot; do
+      event = Ash.get!(Event, source.id)
+
+      if event.repo in subscription.repos do
+        Runtime.ensure_delivery(event, subscription.id, @actor)
+      end
+    end
+  end
+
+  # Read-only API projection. This response is not a grant and cannot fence a
+  # later dispatch. In-process consumers use with_current_source/5 at effect admission.
+  def resolve_source(actor, data) do
+    with {:ok, actor} &lt;- Input.actor(actor),
+         true &lt;-
+           is_map(data) and Enum.sort(Map.keys(data)) == ~w(source_id source_kind source_version),
+         true &lt;- valid_identity?(data[&quot;source_kind&quot;], data[&quot;source_id&quot;]),
+         true &lt;- is_binary(data[&quot;source_version&quot;]) and byte_size(data[&quot;source_version&quot;]) in 1..255,
+         {:ok, _agent} &lt;- Ops.registered_agent(actor[&quot;agent&quot;], actor[&quot;harness&quot;]) do
+      with_current_source(
+        data[&quot;source_kind&quot;],
+        data[&quot;source_id&quot;],
+        data[&quot;source_version&quot;],
+        actor[&quot;agent&quot;],
+        fn ref -&gt; %{&quot;order_ref&quot; =&gt; ref, &quot;native_publication&quot; =&gt; &quot;unsupported&quot;} end
+      )
+    else
+      false -&gt; {:error, &quot;invalid_input&quot;, &quot;Exact selected-source kind, ID and version required&quot;}
+      error -&gt; error
+    end
+  end
+
+  defp valid_identity?(&quot;event&quot;, id), do: match?({:ok, _}, Ecto.UUID.cast(id))
+  defp valid_identity?(&quot;board_message&quot;, id), do: is_integer(id) and id &gt; 0
+  defp valid_identity?(_, _), do: false
+
+  # A consumer must call this BEFORE taking any worker/source/intent lock.
+  # The callback executes inside the SAME transaction as the base/order fence;
+  # returning a boolean for a later unrelated transaction would reopen the race.
+  # Event version is source_key; inbox version is exact Message.created_at RFC3339.
+  def with_current_source(kind, id, version, recipient, consumer) when is_function(consumer, 1) do
+    Ops.transaction(fn -&gt;
+      unless Input.slug?(recipient),
+        do: Ops.reject(&quot;invalid_input&quot;, &quot;Registered recipient ID required&quot;)
+
+      unless ConflictPolicy.mode() == &quot;apply&quot; and
+               Application.get_env(:agentboard, :cooperation_enabled, false),
+             do: Ops.reject(&quot;unsupported&quot;, &quot;Conflict routing is disabled&quot;)
+
+      source = source!(kind, id)
+      order = Ash.get!(ConflictOrder, source.order_id)
+      pr = Ash.get!(PullRequest, order.pull_request_id)
+      watches = lock_evidence(order, pr)
+      Availability.lock_admission()
+      Repo.statement!(&quot;SELECT id FROM agents WHERE id=$1 FOR SHARE&quot;, [recipient])
+      agent = Ash.get!(Agent, recipient, not_found_error?: false)
+      Ops.lock_task(order.repair_task_id)
+
+      Repo.statement!(&quot;SELECT id FROM delivery_conflict_orders WHERE id::text=$1 FOR SHARE&quot;, [
+        order.id
+      ])
+
+      order = Ash.get!(ConflictOrder, order.id)
+      task = Ash.get!(Task, order.repair_task_id)
+      poll = Ash.get!(PollState, pr.id)
+
+      follow =
+        RebaseFollowUp
+        |&gt; Ash.Query.filter(current_order_id == ^order.id and is_nil(resolved_at))
+        |&gt; Ash.read_one!()
+
+      event = Ash.get!(Event, source.id)
+      expected_version = if kind == &quot;event&quot;, do: source.source_key, else: source.message_version
+      message = if kind == &quot;board_message&quot;, do: Ash.get!(Message, source.message_id)
+
+      selected? =
+        (kind == &quot;event&quot; and source.disposition == &quot;worker&quot;) or
+          (kind == &quot;board_message&quot; and source.disposition in ~w(sent adopted))
+
+      current? =
+        selected? and not is_nil(agent) and is_nil(agent.retired_at) and is_binary(recipient) and
+          order.state == &quot;open&quot; and is_nil(order.resolved_at) and
+          order.revision == source.order_revision and not is_nil(follow) and
+          order.recipient_id == recipient and task.assignee_id == recipient and
+          task.status not in ~w(done cancelled) and task.pr_url == pr.url and
+          event.source_key == source.source_key and event.task_id == task.id and
+          event.repo == pr.owner &lt;&gt; &quot;/&quot; &lt;&gt; pr.repo and expected_version == version and
+          (is_nil(message) or
+             (message.recipient_id == recipient and
+                DateTime.to_iso8601(message.created_at) == source.message_version)) and
+          poll.lifecycle == &quot;open&quot; and poll.head_sha == order.observed_head_sha and
+          poll.default_ref == order.default_ref and
+          poll.expected_default_sha == order.default_tip_sha and
+          poll.base_ref == order.evaluation_base_ref and
+          poll.expected_base_sha == order.evaluation_base_sha and
+          watches[order.default_ref] == order.default_tip_sha and
+          watches[order.evaluation_base_ref] == order.evaluation_base_sha
+
+      unless current?,
+        do: Ops.reject(&quot;stale_order&quot;, &quot;Conflict source is no longer the current assigned order&quot;)
+
+      consumer.(reference(order))
+    end)
+  end
+
+  defp source!(&quot;event&quot;, id) do
+    Ops.fetch!(ConflictSource, id, &quot;Conflict source relation is unavailable&quot;, &quot;unsupported&quot;)
+  end
+
+  defp source!(&quot;board_message&quot;, id) do
+    source = ConflictSource |&gt; Ash.Query.filter(message_id == ^id) |&gt; Ash.read_one!()
+    source || Ops.reject(&quot;unsupported&quot;, &quot;Conflict source relation is unavailable&quot;)
+  end
+
+  defp source!(_, _),
+    do: Ops.reject(&quot;invalid_input&quot;, &quot;Canonical Event or Board.Message identity required&quot;)
+
+  # Shared prefix used by selected-source admission and the deadline consumer.
+  # Both acquire canonical default/target -&gt; PR -&gt; poll before policy/candidate/task.
+  def lock_evidence(order, pr) do
+    watches = lock_bases(pr, order)
+    Repo.statement!(&quot;SELECT id FROM delivery_pull_requests WHERE id=$1 FOR SHARE&quot;, [pr.id])
+    Repo.statement!(&quot;SELECT id FROM delivery_poll_states WHERE id=$1 FOR SHARE&quot;, [pr.id])
+    watches
+  end
+
+  # Called only by the base-fenced system routing transaction after candidate
+  # admission and repair/order revision recheck. This never impersonates an owner.
+  def reassign(order, task, pr, candidate, reason, stamp) do
+    grant = Availability.admit(task, &quot;handoff&quot;, @actor, %{&quot;to&quot; =&gt; candidate.agent_id})
+
+    changed =
+      Ops.update(
+        task,
+        :handoff,
+        Map.merge(
+          %{
+            status: &quot;assigned&quot;,
+            assignee_id: candidate.agent_id,
+            assigner_id: @actor[&quot;agent&quot;],
+            claimed_at: nil,
+            claim_expires_at: nil,
+            revision: task.revision + 1,
+            updated_at: stamp
+          },
+          grant
+        ),
+        @actor,
+        task.revision
+      )
+
+    Ops.project_event(
+      task.id,
+      @actor,
+      &quot;repair_routed&quot;,
+      reason,
+      task.revision,
+      changed.revision,
+      %{
+        before: Ops.public(task),
+        after: Ops.public(changed),
+        order_id: order.id,
+        order_revision: order.revision,
+        eligibility: candidate,
+        native_custody: &quot;unsupported&quot;
+      },
+      stamp
+    )
+
+    cancel(
+      order,
+      Ash.get!(Agentboard.Delivery.CISnapshot, order.snapshot_id),
+      stamp,
+      reason,
+      &quot;superseded&quot;
+    )
+
+    follow = RebaseFollowUp |&gt; Ash.Query.filter(current_order_id == ^order.id) |&gt; Ash.read_one!()
+
+    fields =
+      Map.take(order, [
+        :pull_request_id,
+        :default_ref,
+        :default_tip_sha,
+        :evaluation_base_ref,
+        :evaluation_base_sha,
+        :observed_head_sha,
+        :snapshot_id,
+        :repair_task_id,
+        :author_id
+      ])
+
+    id = Ash.UUID.generate()
+
+    replacement =
+      Ops.create(
+        ConflictOrder,
+        :record,
+        fields
+        |&gt; Map.merge(episode(order, id, order.observed_head_sha, stamp))
+        |&gt; Map.merge(%{
+          id: id,
+          recipient_id: candidate.agent_id,
+          state: &quot;open&quot;,
+          selection_reason: reason,
+          created_at: stamp,
+          updated_at: stamp
+        }),
+        @actor
+      )
+
+    Ops.update(follow, :set_order, %{current_order_id: replacement.id}, @actor)
+    capture(replacement, pr)
+    replacement
+  end
+
+  defp lock_bases(pr, order) do
+    [order.default_ref, order.evaluation_base_ref]
+    |&gt; Enum.uniq()
+    |&gt; Enum.sort()
+    |&gt; Map.new(fn ref -&gt;
+      key = BaseMonitor.id(pr.owner, pr.repo, ref)
+      Repo.statement!(&quot;SELECT id FROM delivery_base_watches WHERE id=$1 FOR SHARE&quot;, [key])
+      watch = Ash.get!(BaseWatch, key, not_found_error?: false)
+      {ref, if(watch, do: watch.head_sha)}
+    end)
+  end
+
+  defp reference(order) do
+    %{
+      &quot;kind&quot; =&gt; &quot;pr_conflict_order&quot;,
+      &quot;order_id&quot; =&gt; order.id,
+      &quot;order_revision&quot; =&gt; order.revision,
+      &quot;repair_task_id&quot; =&gt; order.repair_task_id,
+      &quot;pull_request_id&quot; =&gt; order.pull_request_id,
+      &quot;default_ref&quot; =&gt; order.default_ref,
+      &quot;default_tip_sha&quot; =&gt; order.default_tip_sha,
+      &quot;evaluation_base_ref&quot; =&gt; order.evaluation_base_ref,
+      &quot;evaluation_base_sha&quot; =&gt; order.evaluation_base_sha,
+      &quot;recipient_id&quot; =&gt; order.recipient_id
+    }
+  end
+end
+</pre></details><details><summary>build/integration/conflict_routing_test.py</summary><pre>&quot;&quot;&quot;Collector-created repair routing at real API/PG/AshOban boundaries.
+
+Owns eligibility, deterministic admission, repair-only lease transfer and retained
+captain escalation. Sources/repair/orders/decisions are produced normally; SQL
+only resets provider budget/due time or advances retained timestamps.
+&quot;&quot;&quot;
+import concurrent.futures
+import http.server
+import json
+import os
+import subprocess
+import urllib.error
+import urllib.parse
+import urllib.request
+from provider_fixture import tls_provider
+
+URL = os.environ[&#x27;AGENTBOARD_URL&#x27;]
+CAPTAIN = &#x27;fixture-conflict-routing-captain-0123456789&#x27;
+clean = set()
+
+
+def sql(query):
+    return subprocess.check_output([os.environ[&#x27;FIXTURE_PSQL&#x27;], &#x27;-At&#x27;, &#x27;-v&#x27;, &#x27;ON_ERROR_STOP=1&#x27;, &#x27;-c&#x27;, query], text=True).strip()
+
+
+def rpc(expr):
+    result = subprocess.run([os.environ[&#x27;AGENTBOARD_BIN&#x27;], &#x27;rpc&#x27;, expr], capture_output=True, text=True, timeout=45)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    return result.stdout
+
+
+def api(path, data=None, actor=&#x27;routing-captain&#x27;, captain=False, method=None, status=200):
+    headers = {&#x27;Content-Type&#x27;: &#x27;application/json&#x27;, &#x27;X-Agentboard-Agent&#x27;: actor,
+        &#x27;X-Agentboard-Model&#x27;: &#x27;fixture-model&#x27;, &#x27;X-Agentboard-Harness&#x27;: &#x27;codex&#x27;}
+    if captain: headers[&#x27;Authorization&#x27;] = &#x27;Bearer &#x27; + CAPTAIN
+    request = urllib.request.Request(URL+&#x27;/api/v1/&#x27;+path, headers=headers,
+        data=None if data is None else json.dumps(data).encode(), method=method)
+    try: response = urllib.request.urlopen(request, timeout=20)
+    except urllib.error.HTTPError as error: response = error
+    with response:
+        body = json.load(response)
+        assert response.status == status, (path, response.status, body)
+        return body
+
+
+def register(agent, kind=&#x27;seat&#x27;, scope=True):
+    api(&#x27;agents/register&#x27;, dict(name=agent,kind=kind,capabilities=[&#x27;fixture/repair&#x27;]), actor=agent)
+    api(&#x27;agents/&#x27;+agent+&#x27;/heartbeat&#x27;, dict(status=&#x27;idle&#x27;), actor=agent)
+    if scope: set_scope(agent)
+
+
+def set_scope(agent, repos=None, required=None):
+    previous = api(&#x27;agents/&#x27;+agent+&#x27;/scope&#x27;)[&#x27;scope&#x27;][&#x27;revision&#x27;]
+    api(&#x27;agents/&#x27;+agent+&#x27;/scope&#x27;, dict(allowed_repos=repos or [&#x27;fixture/repair&#x27;],
+        required_labels=required or [],allowed_labels=[],revision=previous), captain=True, method=&#x27;PUT&#x27;)
+
+
+def policy(agent, state):
+    api(&#x27;availability&#x27;, dict(agent_id=agent,state=state,reason=&#x27;Invented routing policy&#x27;), captain=True)
+
+
+def task(identity, owner=None, repo=&#x27;fixture/repair&#x27;):
+    api(&#x27;tasks&#x27;, dict(id=identity,title=&#x27;Invented routing task&#x27;,repo=repo))
+    if owner: api(&#x27;tasks/&#x27;+identity+&#x27;/claim&#x27;, {}, actor=owner)
+
+
+def poll(pr):
+    sql(&quot;UPDATE delivery_provider_budgets SET remaining=60,blocked_until=NULL,reset_at=clock_timestamp()+interval &#x27;60 seconds&#x27; WHERE id=&#x27;github&#x27;&quot;)
+    sql(&quot;UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval &#x27;1 second&#x27; WHERE id=&#x27;&quot;+pr+&quot;&#x27;&quot;)
+    assert &#x27;observed&#x27; in rpc(&#x27;IO.inspect(Agentboard.Delivery.Scheduling.poll(&#x27;+json.dumps(pr)+&#x27;))&#x27;)
+
+
+def create_order(number, owner):
+    identity = &#x27;routing-source-&#x27;+str(number)
+    task(identity, owner)
+    api(&#x27;tasks/&#x27;+identity+&#x27;/link&#x27;, dict(pr_url=&#x27;https://github.com/fixture/repair/pull/&#x27;+str(number)), actor=owner)
+    pr = sql(&quot;SELECT pull_request_id FROM delivery_task_links WHERE task_id=&#x27;&quot;+identity+&quot;&#x27;&quot;)
+    before = api(&#x27;tasks/&#x27;+identity)
+    poll(pr)
+    return current(pr), before
+
+
+def current(pr):
+    return json.loads(sql(&quot;SELECT to_jsonb(o) FROM delivery_conflict_orders o WHERE pull_request_id=&#x27;&quot;+pr+&quot;&#x27; AND state=&#x27;open&#x27;&quot;))
+
+
+def route(identity):
+    # Invoke the production Ash action with its actual system authorization,
+    # exactly as the persisted scheduled action does, not a test-only wrapper.
+    output = rpc(&#x27;result = Ash.run_action(Ash.ActionInput.for_action(Agentboard.Delivery.ConflictDisposition, :route, &#x27;
+        &#x27;%{id: &#x27;+json.dumps(identity)+&#x27;}, actor: %{role: :system})); IO.inspect(result)&#x27;)
+    assert &#x27;{:ok,&#x27; in output, output
+    return output
+
+
+def elapsed(order):
+    # Advance only retained episode/deadline timestamps, modeling elapsed time.
+    sql(&quot;UPDATE delivery_conflict_orders SET episode_started_at=episode_started_at-interval &#x27;1 hour&#x27;,deadline_at=deadline_at-interval &#x27;1 hour&#x27; WHERE id=&#x27;&quot;+order[&#x27;id&#x27;]+&quot;&#x27;&quot;)
+
+
+class Provider(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *_): pass
+    def do_GET(self):
+        assert self.headers[&#x27;Authorization&#x27;] == &#x27;Bearer invented-routing-token&#x27;
+        path = urllib.parse.urlparse(self.path).path
+        if path == &#x27;/repos/fixture/repair&#x27;: body = dict(full_name=&#x27;fixture/repair&#x27;,default_branch=&#x27;main&#x27;)
+        elif &#x27;/branches/&#x27; in path: body = dict(name=&#x27;main&#x27;,commit=dict(sha=&#x27;b&#x27;*40))
+        elif &#x27;/pulls/&#x27; in path:
+            number = int(path.rsplit(&#x27;/&#x27;,1)[1]); mergeable = number in clean
+            body = dict(number=number,state=&#x27;open&#x27;,merged=False,draft=False,
+                head=dict(sha=f&#x27;{number:040x}&#x27;,ref=&#x27;feat/&#x27;+str(number),repo=dict(full_name=&#x27;fixture/repair&#x27;)),
+                base=dict(sha=&#x27;b&#x27;*40,ref=&#x27;main&#x27;),mergeable=mergeable,
+                mergeable_state=&#x27;clean&#x27; if mergeable else &#x27;dirty&#x27;)
+        elif path.endswith(&#x27;/check-suites&#x27;): body = dict(total_count=0,check_suites=[])
+        elif path.endswith(&#x27;/statuses&#x27;): body = []
+        else: raise AssertionError(path)
+        data=json.dumps(body).encode();self.send_response(200)
+        self.send_header(&#x27;Content-Type&#x27;,&#x27;application/json&#x27;);self.send_header(&#x27;Content-Length&#x27;,str(len(data)))
+        self.end_headers();self.wfile.write(data)
+
+
+rpc(&#x27;:ok = Oban.stop_queue(queue: :delivery_scheduler); :ok = Oban.stop_queue(queue: :delivery_polling); &#x27;
+    &#x27;Application.put_env(:agentboard, :cooperation_enabled, true); &#x27;
+    &#x27;Application.put_env(:agentboard, :conflict_routing_mode, &quot;apply&quot;); &#x27;
+    &#x27;Application.put_env(:agentboard, :captain_token, &#x27;+json.dumps(CAPTAIN)+&#x27;)&#x27;)
+api(&#x27;agents/register&#x27;, dict(name=&#x27;Fixture captain&#x27;,kind=&#x27;human&#x27;), actor=&#x27;routing-captain&#x27;)
+for agent in [&#x27;author-1&#x27;,&#x27;author-2&#x27;,&#x27;author-3&#x27;,&#x27;author-4&#x27;,&#x27;author-5&#x27;,&#x27;author-6&#x27;,&#x27;author-7&#x27;,&#x27;author-8&#x27;,&#x27;good-a&#x27;,&#x27;good-b&#x27;,&#x27;good-c&#x27;,&#x27;good-d&#x27;,
+              &#x27;a-reject-stale&#x27;,&#x27;a-reject-reserved&#x27;,&#x27;a-reject-offline&#x27;,&#x27;a-reject-retired&#x27;,&#x27;a-reject-waiting&#x27;,&#x27;a-reject-repo&#x27;,&#x27;a-reject-label&#x27;,&#x27;a-reject-full&#x27;]:
+    register(agent)
+register(&#x27;a-reject-unmanaged&#x27;, scope=False)
+register(&#x27;a-reject-system&#x27;, kind=&#x27;system&#x27;)
+sql(&quot;UPDATE agents SET last_heartbeat=clock_timestamp()-interval &#x27;21 minutes&#x27; WHERE id=&#x27;a-reject-stale&#x27;&quot;)
+policy(&#x27;a-reject-reserved&#x27;,&#x27;reserved&#x27;);policy(&#x27;a-reject-offline&#x27;,&#x27;out_of_service&#x27;)
+api(&#x27;agents/a-reject-retired/retire&#x27;, dict(reason=&#x27;Invented retirement&#x27;), captain=True)
+set_scope(&#x27;a-reject-repo&#x27;, repos=[&#x27;fixture/other&#x27;]);set_scope(&#x27;a-reject-label&#x27;, required=[&#x27;security&#x27;])
+for n in range(2): task(&#x27;full-&#x27;+str(n), &#x27;a-reject-full&#x27;)
+task(&#x27;unrelated-hold&#x27;,&#x27;a-reject-waiting&#x27;)
+api(&#x27;decisions&#x27;, dict(task=&#x27;unrelated-hold&#x27;,question=&#x27;Invented unrelated approval?&#x27;,kind=&#x27;approval&#x27;), actor=&#x27;a-reject-waiting&#x27;)
+for who in [&#x27;good-c&#x27;,&#x27;good-d&#x27;,&#x27;author-2&#x27;,&#x27;author-3&#x27;,&#x27;author-4&#x27;,&#x27;author-5&#x27;,&#x27;author-6&#x27;,&#x27;author-7&#x27;,&#x27;author-8&#x27;]: policy(who,&#x27;reserved&#x27;)
+# Source authors may retain their named source claims through a captain&#x27;s
+# explicit assignment, but reserved availability excludes automatic repair.
+for who in [&#x27;author-2&#x27;,&#x27;author-3&#x27;,&#x27;author-4&#x27;,&#x27;author-5&#x27;,&#x27;author-6&#x27;,&#x27;author-7&#x27;,&#x27;author-8&#x27;]: policy(who,&#x27;active&#x27;)
+task(&#x27;older-assignment&#x27;,&#x27;good-a&#x27;)
+
+with tls_provider(Provider) as (url,ca,_):
+    rpc(&#x27;Application.put_env(:agentboard, :github, [api_url: &#x27;+json.dumps(url)+&#x27;, token: &quot;invented-routing-token&quot;, ca_file: &#x27;+json.dumps(ca)+&#x27;])&#x27;)
+    first, source1 = create_order(101,&#x27;author-1&#x27;)
+    assert first[&#x27;recipient_id&#x27;]==&#x27;author-1&#x27;
+    repair = first[&#x27;repair_task_id&#x27;]
+    api(&#x27;tasks/&#x27;+repair+&#x27;/claim&#x27;, {}, actor=&#x27;author-1&#x27;)
+    old_lease = api(&#x27;tasks/&#x27;+repair)[&#x27;task&#x27;][&#x27;claim_expires_at&#x27;]
+    assert old_lease
+    # Out of service routes before the future deadline. All rejected candidate
+    # profiles are otherwise registered and have captain-authorized repo scope.
+    policy(&#x27;author-1&#x27;,&#x27;out_of_service&#x27;)
+    for who in [&#x27;author-2&#x27;,&#x27;author-3&#x27;,&#x27;author-4&#x27;,&#x27;author-5&#x27;,&#x27;author-6&#x27;,&#x27;author-7&#x27;,&#x27;author-8&#x27;]: policy(who,&#x27;reserved&#x27;)
+    route(first[&#x27;id&#x27;])
+    replacement = current(first[&#x27;pull_request_id&#x27;])
+    assert replacement[&#x27;recipient_id&#x27;]==&#x27;good-b&#x27;, replacement  # shortest queue
+    assert replacement[&#x27;author_id&#x27;]==&#x27;author-1&#x27; and replacement[&#x27;revision&#x27;]==2
+    assert replacement[&#x27;deadline_at&#x27;]==first[&#x27;deadline_at&#x27;] and replacement[&#x27;episode_id&#x27;]==first[&#x27;episode_id&#x27;]
+    assert replacement[&#x27;selection_reason&#x27;]==&#x27;recipient_ineligible&#x27;
+    repaired = api(&#x27;tasks/&#x27;+repair)[&#x27;task&#x27;]
+    assert repaired[&#x27;assignee_id&#x27;]==&#x27;good-b&#x27; and repaired[&#x27;claim_expires_at&#x27;] is None and repaired[&#x27;claimed_at&#x27;] is None
+    assert api(&#x27;tasks/routing-source-101&#x27;)==source1
+    api(&#x27;tasks/&#x27;+repair+&#x27;/link&#x27;, dict(pr_url=&#x27;https://github.com/fixture/repair/pull/999&#x27;), actor=&#x27;good-b&#x27;,status=409)
+    assert replacement[&#x27;escalation_decision_id&#x27;]
+    assert &#x27;native_custody_unsupported&#x27; in api(&#x27;decisions/&#x27;+replacement[&#x27;escalation_decision_id&#x27;])[&#x27;decision&#x27;][&#x27;gate_ref&#x27;]
+    effects = sql(&#x27;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM decision_requests))&#x27;)
+    route(first[&#x27;id&#x27;]);route(replacement[&#x27;id&#x27;]);route(replacement[&#x27;id&#x27;])
+    assert current(first[&#x27;pull_request_id&#x27;])[&#x27;id&#x27;]==replacement[&#x27;id&#x27;]
+    assert sql(&#x27;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM decision_requests))&#x27;)==effects
+    assert sql(&quot;SELECT count(*) FROM task_events WHERE task_id=&#x27;&quot;+repair+&quot;&#x27; AND kind=&#x27;repair_routed&#x27;&quot;)==&#x27;1&#x27;
+
+    # Deadline case: current active author, then equal queue counts on the two
+    # eligible replacements. Older assignment wins independently of list order.
+    policy(&#x27;author-2&#x27;,&#x27;active&#x27;)
+    second, source2 = create_order(102,&#x27;author-2&#x27;)
+    assert second[&#x27;recipient_id&#x27;]==&#x27;author-2&#x27;
+    elapsed(second); route(second[&#x27;id&#x27;])
+    selected = current(second[&#x27;pull_request_id&#x27;])
+    assert selected[&#x27;recipient_id&#x27;]==&#x27;good-a&#x27; and selected[&#x27;selection_reason&#x27;]==&#x27;author_deadline&#x27;, selected
+    assert api(&#x27;tasks/routing-source-102&#x27;)==source2
+    policy(&#x27;author-2&#x27;,&#x27;reserved&#x27;)
+
+    task(&#x27;fill-good-b&#x27;,&#x27;good-b&#x27;)
+
+    # With no prior assignments, the stable full ID breaks the tie.
+    policy(&#x27;good-c&#x27;,&#x27;active&#x27;);policy(&#x27;good-d&#x27;,&#x27;active&#x27;);policy(&#x27;author-3&#x27;,&#x27;active&#x27;)
+    third, source3 = create_order(103,&#x27;author-3&#x27;);elapsed(third);route(third[&#x27;id&#x27;])
+    assert current(third[&#x27;pull_request_id&#x27;])[&#x27;recipient_id&#x27;]==&#x27;good-c&#x27;
+    assert api(&#x27;tasks/routing-source-103&#x27;)==source3
+    policy(&#x27;author-3&#x27;,&#x27;reserved&#x27;);policy(&#x27;good-d&#x27;,&#x27;reserved&#x27;)
+
+    # Competing real orders, one remaining slot on good-c. Other healthy seats
+    # are already full. At most one transaction may admit the last slot.
+    policy(&#x27;author-4&#x27;,&#x27;active&#x27;);fourth, source4 = create_order(104,&#x27;author-4&#x27;);elapsed(fourth)
+    policy(&#x27;author-5&#x27;,&#x27;active&#x27;);fifth, source5 = create_order(105,&#x27;author-5&#x27;);elapsed(fifth)
+    policy(&#x27;author-4&#x27;,&#x27;reserved&#x27;);policy(&#x27;author-5&#x27;,&#x27;reserved&#x27;)
+    with concurrent.futures.ThreadPoolExecutor(2) as pool:
+        list(pool.map(route,[fourth[&#x27;id&#x27;],fifth[&#x27;id&#x27;]]))
+    current4,current5 = current(fourth[&#x27;pull_request_id&#x27;]),current(fifth[&#x27;pull_request_id&#x27;])
+    assert [current4[&#x27;recipient_id&#x27;],current5[&#x27;recipient_id&#x27;]].count(&#x27;good-c&#x27;)==1, (current4,current5)
+    assert sql(&quot;SELECT count(*) FROM tasks WHERE assignee_id=&#x27;good-c&#x27; AND status IN (&#x27;assigned&#x27;,&#x27;in_progress&#x27;,&#x27;blocked&#x27;,&#x27;review&#x27;)&quot;)==&#x27;2&#x27;
+    loser = current4 if current4[&#x27;recipient_id&#x27;]!=&#x27;good-c&#x27; else current5
+    assert loser[&#x27;escalation_decision_id&#x27;]
+    retained = api(&#x27;decisions/&#x27;+loser[&#x27;escalation_decision_id&#x27;])[&#x27;decision&#x27;]
+    assert &#x27;no_eligible_seat&#x27; in retained[&#x27;gate_ref&#x27;]
+    decisions = sql(&#x27;SELECT count(*) FROM decision_requests&#x27;)
+    route(loser[&#x27;id&#x27;]);route(loser[&#x27;id&#x27;])
+    assert sql(&#x27;SELECT count(*) FROM decision_requests&#x27;)==decisions
+    assert api(&#x27;tasks/routing-source-104&#x27;)==source4 and api(&#x27;tasks/routing-source-105&#x27;)==source5
+
+    # Canonical resolution wins before a queued deadline: no new assignment,
+    # source or grant may be issued by a frozen old timer after the clean poll.
+    policy(&#x27;author-6&#x27;,&#x27;active&#x27;);sixth, source6 = create_order(106,&#x27;author-6&#x27;)
+    elapsed(sixth);clean.add(106);poll(sixth[&#x27;pull_request_id&#x27;])
+    counts = sql(&quot;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM task_events WHERE kind=&#x27;repair_routed&#x27;))&quot;)
+    route(sixth[&#x27;id&#x27;])
+    assert sql(&quot;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM task_events WHERE kind=&#x27;repair_routed&#x27;))&quot;)==counts
+    assert api(&#x27;tasks/routing-source-106&#x27;)==source6
+    # Relevant captain hold and stale liveness both trigger early evaluation,
+    # before the future deadline, while retaining the exact source lease.
+    policy(&#x27;author-7&#x27;,&#x27;active&#x27;);seventh, _ = create_order(107,&#x27;author-7&#x27;)
+    api(&#x27;decisions&#x27;, dict(task=&#x27;routing-source-107&#x27;,question=&#x27;Invented source approval?&#x27;,kind=&#x27;approval&#x27;), actor=&#x27;author-7&#x27;)
+    held_source = api(&#x27;tasks/routing-source-107&#x27;)
+    route(seventh[&#x27;id&#x27;])
+    held_order = current(seventh[&#x27;pull_request_id&#x27;])
+    assert held_order[&#x27;escalation_decision_id&#x27;] and held_order[&#x27;id&#x27;]==seventh[&#x27;id&#x27;]
+    assert api(&#x27;tasks/routing-source-107&#x27;)==held_source
+    policy(&#x27;author-8&#x27;,&#x27;active&#x27;);eighth, source8 = create_order(108,&#x27;author-8&#x27;)
+    sql(&quot;UPDATE agents SET last_heartbeat=clock_timestamp()-interval &#x27;21 minutes&#x27; WHERE id=&#x27;author-8&#x27;&quot;)
+    stale_source = api(&#x27;tasks/routing-source-108&#x27;)
+    route(eighth[&#x27;id&#x27;])
+    assert current(eighth[&#x27;pull_request_id&#x27;])[&#x27;escalation_decision_id&#x27;]
+    assert api(&#x27;tasks/routing-source-108&#x27;)==stale_source
+    assert stale_source[&#x27;task&#x27;][&#x27;claim_expires_at&#x27;]==source8[&#x27;task&#x27;][&#x27;claim_expires_at&#x27;]
+    assert sql(&#x27;SELECT count(*) FROM delivery_publication_grants&#x27;)==&#x27;0&#x27;
+
+print(&#x27;Shared eligibility profiles, queue/assignment/ID ties, repair-only lease transfer, duplicate timers, concurrent last-slot admission and owner-resolution fencing passed&#x27;)
+</pre></details></section><section id="proposal"><h2>Approved OpenSpec and current checklist</h2><details><summary>proposal.md</summary><pre># Proposal
 
 ## Why
 
