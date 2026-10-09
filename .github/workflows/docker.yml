@@ -120,5 +120,20 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # Anonymous Docker Hub pulls share a rate limit across GitHub-hosted
+      # runners and fail the base-image fetch with 429 Too Many Requests.
+      # Fork pull requests get no secrets, so they skip the login and pull
+      # anonymously.
+      - name: Log in to Docker Hub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKERHUB_USERNAME}" ] || [ -z "${DOCKERHUB_TOKEN}" ]; then
+            echo "Docker Hub credentials unavailable; pulling anonymously."
+            exit 0
+          fi
+          printf '%s' "${DOCKERHUB_TOKEN}" | docker login docker.io --username "${DOCKERHUB_USERNAME}" --password-stdin
       - name: Build images and run the Compose smoke test
         run: ./scripts/compose-smoke --chat
