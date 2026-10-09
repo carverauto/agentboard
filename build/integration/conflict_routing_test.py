@@ -302,6 +302,8 @@ with tls_provider(Provider) as (url,ca,_):
     assert retained_second['selection_reason']=='recipient_ineligible'
     assert api('tasks/routing-source-109')==retained_source
     elapsed(retained_second)
+    elapsed_second = current(retained_first['pull_request_id'])
+    assert elapsed_second['deadline_at'] != retained_first['deadline_at']
     effects="SELECT jsonb_build_array((SELECT count(*) FROM tasks),(SELECT count(*) FROM task_events),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM cooperation_deliveries),(SELECT count(*) FROM wake_intents),(SELECT count(*) FROM decision_requests),(SELECT count(*) FROM delivery_publication_grants))"
     before_effects=sql(effects)
     before_repair=api('tasks/'+retained_second['repair_task_id'])
@@ -326,7 +328,7 @@ with tls_provider(Provider) as (url,ca,_):
     retained_third = current(retained_first['pull_request_id'])
     assert retained_third['recipient_id']=='retain-b', retained_third
     assert retained_third['author_id']=='retain-author' and retained_third['revision']==3
-    assert retained_third['deadline_at']==retained_first['deadline_at']
+    assert retained_third['deadline_at']==elapsed_second['deadline_at']
     assert retained_third['episode_id']==retained_first['episode_id']
     assert retained_third['selection_reason']=='retained_deadline'
     assert api('tasks/routing-source-109')==retained_source

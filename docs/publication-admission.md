@@ -100,8 +100,11 @@ cross-seat custody or host activation.
 The proposed conflict policy defaults to `disabled`. In `dry_run` or `apply`,
 the collector additionally reads the repository's actual default identity
 and the current PR target branch through its existing bounded, admitted
-HTTPS transport. Those rollout modes do not yet implement the complete
-order, reassignment or grant policy; keep them disabled in production.
+HTTPS transport. Those rollout modes now include the order, deadline-reassignment
+and audit foundations documented in [shared-eligibility.v1](architecture/shared-eligibility.v1.md)
+and the [v2 delivery-source contract](architecture/conflict-routing-contract.v2.md);
+native custody/grants, activation and the remaining OpenSpec runtime tasks are still
+pending, so keep them disabled in production.
 
 Default ref/tip and evaluation ref/tip remain separate in immutable
 snapshots. The existing BaseMonitor enrolls both, with no second poller.

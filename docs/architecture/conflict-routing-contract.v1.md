@@ -2,6 +2,8 @@
 
 This contract supplements the approved `add-server-conflict-routing` proposal. It is a typed integration contract, **not a declaration of shipped runtime or native adapter support**. Coordinator ruling: board messages 1645/1646. Schema32 remains reserved for #169.
 
+> Superseded in part: the "One canonical message and one delivery selector" section below required one canonical Message in both delivery modes. Captain decision `aca78ca8-4587-438c-babd-f33065d0bb37` (board msg1725, 2026-10-09) amends that boundary; the current delivery-source contract is [conflict-routing-contract.v2.md](conflict-routing-contract.v2.md) (healthy worker keeps Event/Delivery, inbox fallback keeps one canonical Message). The order, lock-order, eligibility and native-boundary sections below remain as stated.
+
 ## Owners
 
 | Boundary | Owner | Consumer |
