@@ -21,6 +21,7 @@ on:
       - docs/quota.md
       - docs/context.md
       - docs/seat-scope.md
+      - docs/fleet-loadout.md
       - docs/participation.md
       - go.mod
       - go.sum
@@ -53,6 +54,7 @@ on:
       - docs/quota.md
       - docs/context.md
       - docs/seat-scope.md
+      - docs/fleet-loadout.md
       - docs/participation.md
       - go.mod
       - go.sum

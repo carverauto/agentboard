@@ -73,6 +73,11 @@ func TestSkillsInstallOfflineAndRepeat(t *testing.T) {
 				if err != nil || !bytes.Contains(scope, []byte("Captain-managed seat scopes")) {
 					t.Fatalf("missing installed scope API reference: %v", err)
 				}
+				loadout, err := os.ReadFile(filepath.Join(dir, name, "references", "fleet-loadout.md"))
+				if err != nil || !bytes.Contains(loadout, []byte("Dormant fleet loadouts")) || !bytes.Contains(loadout, []byte("not_activatable")) {
+					t.Fatalf("missing installed dormant loadout reference: %v", err)
+				}
+				checkInstalledMarkdownLinks(t, dir, name, filepath.Join("references", "fleet-loadout.md"))
 			}
 			if _, err := os.Stat(filepath.Join(dir, name, "references", "GROK_BOT.md")); err == nil {
 				checkInstalledMarkdownLinks(t, dir, name, filepath.Join("references", "GROK_BOT.md"))
