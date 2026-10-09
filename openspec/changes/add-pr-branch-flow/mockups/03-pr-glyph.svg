@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1150" viewBox="0 0 1400 1150" role="img" aria-labelledby="title desc"><title id="title">Phase 3: per-PR glyph and expanded mini-tree</title><desc id="desc">Original static review layout. A four-column PR table retains delivery and repair facts. One expanded row shows actual base to head plus configured role context, exact source pair, unavailable counts and disclosure focus behavior.</desc>
+<rect width="1400" height="1150" fill="#edf2f8"/>
+<style>text{font-family:Arial,Helvetica,sans-serif} .s{font-size:14px} .m{font-size:16px} .h{font-size:21px;font-weight:700} .b{font-size:16px;font-weight:700} .tiny{font-size:12px}</style>
+<rect x="0" y="0" width="1400" height="74" rx="0" fill="#fff" stroke="#fff"/>
+<text x="32" y="34" class="h" fill="#172f48">agentboard</text>
+<text x="240" y="34" class="m" fill="#172f48">Board    Agents    PRs    Context    Settings</text>
+<text x="1060" y="34" class="s" fill="#5a6572">Read-only work view</text>
+<text x="32" y="106" class="h" fill="#172f48">03 / Per-PR glyph and mini-tree</text>
+<text x="32" y="134" class="s" fill="#5a6572">ORIGINAL STATIC PROPOSAL • Invented fixtures, not live observations • Implementation awaits approval</text>
+<rect x="32" y="160" width="1336" height="151" rx="7" fill="#fce6e5" stroke="#edc0bf"/>
+<text x="50" y="188" class="h" fill="#b32f2f">! Branch attention · 3 retained red runs</text>
+<text x="50" y="212" class="m" fill="#b32f2f">Oldest: outside/tools · main · Test suite · red since 2026-10-09 17:40 UTC (2h 20m)</text>
+<text x="50" y="236" class="s" fill="#172f48">Routed to codex-tools-a · run 410 / attempt 2 · SHA 7ea21f0 · observed 19:57 UTC (3m ago)</text>
+<text x="50" y="259" class="s" fill="#175bb8">Outside strip · View workflow / failed job / source task · View all retained failures</text>
+<text x="50" y="285" class="s" fill="#b32f2f">Observation enabled · A webhook feed is required; absence of failures does not verify green.</text>
+<text x="905" y="259" class="tiny" fill="#5a6572">Oldest summary shown; detailed run list omitted.</text>
+<text x="32" y="347" class="h" fill="#172f48">Tracked PRs · demo/api · base staging</text>
+<rect x="1079" y="325" width="135" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="1091" y="349" class="s" fill="#175bb8">Clear base</text>
+<rect x="1226" y="325" width="142" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="1238" y="349" class="s" fill="#175bb8">Clear repo</text>
+<text x="32" y="381" class="s" fill="#5a6572">Search tracked PR number or branch</text>
+<rect x="32" y="394" width="471" height="38" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="45" y="419" class="s" fill="#172f48">feature/</text>
+<rect x="522" y="394" width="183" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="534" y="418" class="s" fill="#175bb8">Show merged/closed</text>
+<rect x="719" y="394" width="165" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="731" y="418" class="s" fill="#175bb8">Hide topology</text>
+<rect x="898" y="394" width="142" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="910" y="418" class="s" fill="#175bb8">Hide glyphs</text>
+<text x="1070" y="419" class="s" fill="#5a6572">20 rows / page</text>
+<rect x="32" y="453" width="1336" height="445" rx="7" fill="#fff" stroke="#cfdae6"/>
+<rect x="32" y="453" width="421" height="46" rx="0" fill="#e6edf6" stroke="#cfdae6"/>
+<text x="46" y="482" class="b" fill="#172f48">Pull request / head</text>
+<path d="M32 499 L32 654" fill="none" stroke="#cfdae6" stroke-width="2"/>
+<rect x="453" y="453" width="258" height="46" rx="0" fill="#e6edf6" stroke="#cfdae6"/>
+<text x="467" y="482" class="b" fill="#172f48">CI / mergeability</text>
+<path d="M453 499 L453 654" fill="none" stroke="#cfdae6" stroke-width="2"/>
+<rect x="711" y="453" width="290" height="46" rx="0" fill="#e6edf6" stroke="#cfdae6"/>
+<text x="725" y="482" class="b" fill="#172f48">Responsible / repair</text>
+<path d="M711 499 L711 654" fill="none" stroke="#cfdae6" stroke-width="2"/>
+<rect x="1001" y="453" width="367" height="46" rx="0" fill="#e6edf6" stroke="#cfdae6"/>
+<text x="1015" y="482" class="b" fill="#172f48">Delivery / progress</text>
+<path d="M1001 499 L1001 654" fill="none" stroke="#cfdae6" stroke-width="2"/>
+<text x="48" y="529" class="b" fill="#175bb8">⌄  demo/api #41 · open</text>
+<text x="48" y="558" class="b" fill="#172f48">staging → feature/auth</text>
+<text x="48" y="585" class="s" fill="#5a6572">Ahead / behind unavailable</text>
+<text x="48" y="612" class="s" fill="#5a6572">Head f12a345 · base 0a9b876</text>
+<text x="48" y="638" class="tiny" fill="#175bb8">Expanded: PR #41 mini-tree</text>
+<text x="468" y="529" class="b" fill="#172f48">? CI unknown</text>
+<text x="468" y="557" class="b" fill="#b32f2f">× Merge conflicting</text>
+<text x="468" y="585" class="s" fill="#172f48">Fresh observation · 3m ago</text>
+<text x="468" y="612" class="s" fill="#5a6572">Policy unknown ≠ passing</text>
+<text x="468" y="638" class="tiny" fill="#5a6572">Observed 19:57 UTC</text>
+<text x="726" y="529" class="s" fill="#172f48">CI: no failure episode</text>
+<text x="726" y="557" class="b" fill="#172f48">Rebase: codex-api-b</text>
+<text x="726" y="585" class="s" fill="#175bb8">Repair task #73</text>
+<text x="726" y="612" class="s" fill="#172f48">Conflict follow-up pending</text>
+<text x="726" y="638" class="tiny" fill="#5a6572">Submitter: codex-api-a</text>
+<text x="1016" y="529" class="s" fill="#172f48">Worker enabled · connector fresh</text>
+<text x="1016" y="557" class="s" fill="#172f48">Pending 1 · received 0 · handled 0</text>
+<text x="1016" y="585" class="s" fill="#172f48">Progress 2026-10-09 19:58 UTC</text>
+<text x="1016" y="612" class="s" fill="#172f48">No captain decision waiting</text>
+<text x="1016" y="638" class="tiny" fill="#5a6572">Poll deferral: none</text>
+<path d="M32 656 L1368 656" fill="none" stroke="#cfdae6" stroke-width="2"/>
+<rect x="33" y="657" width="1334" height="240" rx="0" fill="#f7f9fc" stroke="#cfdae6"/>
+<text x="50" y="684" class="h" fill="#172f48">PR #41 · mini-tree and evidence</text>
+<rect x="1203" y="666" width="146" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="1215" y="690" class="s" fill="#175bb8">Close mini-tree</text>
+<path d="M80 733 L360 733" fill="none" stroke="#5a6572" stroke-width="2" stroke-dasharray="5 5"/>
+<circle cx="80" cy="733" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="99" y="724" class="s" fill="#172f48">main · default / unknown</text>
+<circle cx="360" cy="733" r="7" fill="#fce6e5" stroke="#b32f2f" stroke-width="2"/>
+<text x="379" y="724" class="s" fill="#b32f2f">staging · integration / red</text>
+<path d="M360 749 L645 795" fill="none" stroke="#175bb8" stroke-width="2"/>
+<circle cx="645" cy="795" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="663" y="790" class="b" fill="#172f48">feature/auth · PR #41</text>
+<text x="99" y="759" class="tiny" fill="#5a6572">Configured role only</text>
+<text x="388" y="786" class="tiny" fill="#175bb8">Observed base → head</text>
+<text x="50" y="835" class="s" fill="#172f48">Text: PR #41 targets demo/api:staging at 0a9b876 from demo/api:feature/auth at f12a345.</text>
+<text x="50" y="860" class="s" fill="#5a6572">Snapshot s-41 · 19:57 UTC (3m ago). CI unknown; merge conflicting. Counts unavailable.</text>
+<text x="50" y="883" class="tiny" fill="#5a6572">One expanded row · up to four distinct endpoints · no recursive ancestry lookup</text>
+<rect x="32" y="920" width="1336" height="90" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="49" y="951" class="b" fill="#175bb8">›  demo/api #42 · staging → feature/cache</text>
+<text x="49" y="979" class="s" fill="#7a4a00">Last known +4 / −2 · STALE · observed old head 8bb1234 at 19:40 UTC (20m ago)</text>
+<text x="729" y="951" class="s" fill="#172f48">Rebase signal resolved</text>
+<text x="729" y="979" class="s" fill="#5a6572">Repair completion remains explicit</text>
+<text x="1017" y="951" class="s" fill="#172f48">Progress 19:45 UTC</text>
+<text x="1017" y="979" class="s" fill="#7a4a00">Provider cooldown / deferred</text>
+<rect x="32" y="1026" width="110" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="44" y="1050" class="s" fill="#175bb8">Previous</text>
+<rect x="154" y="1026" width="88" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="166" y="1050" class="s" fill="#175bb8">Next</text>
+<text x="274" y="1051" class="s" fill="#5a6572">Rows 1–2 illustrated. Pages preserve repo/base/search/terminal filters.</text>
+<text x="32" y="1100" class="s" fill="#5a6572">Disclosure has aria-expanded / aria-controls. Escape closes and restores focus. Head changes invalidate old counts.</text>
+</svg>
