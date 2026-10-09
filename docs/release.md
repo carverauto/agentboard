@@ -14,7 +14,7 @@ The dashboard image uses a pinned Ubuntu Noble base, UID/GID 10001, release stat
 ## Automation
 
 - **BuildBuddy workflow** (`buildbuddy.yaml`): on pushes and pull requests to `main`, runs `//:acceptance` and builds the release artifacts and `//k8s:manifests`. It needs a `BUILDBUDDY_API_KEY` secret; `scripts/ci-bazelrc` writes it to the gitignored `.bazelrc.remote` without logging it.
-- **Docker images workflow** (`.github/workflows/docker.yml`): builds both Dockerfiles and runs the Compose smoke test on pull requests and on pushes to `main` that touch a build path. Merges touching only docs, `openspec/`, `k8s/` pins, or other repo metadata skip it (same allowlist on both triggers).
+- **Docker images workflow** (`.github/workflows/docker.yml`): builds both Dockerfiles and runs the Compose smoke test on pull requests and on pushes to `main` that touch a build path. Merges touching only docs, `openspec/`, `k8s/` pins, or other repo metadata skip it (same allowlist on both triggers). The Compose smoke job logs in to Docker Hub with the `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` repository secrets (a Docker Hub access token, not a password) to avoid anonymous-pull rate limits; fork pull requests with no secrets pull anonymously.
 - **Container images workflow** (`.github/workflows/images.yml`): after a push to `main` or a `v*` tag, runs `//:acceptance` and builds both images on BuildBuddy, then pushes them to `registry.carverauto.dev/agentboard/{dashboard,cli}`:
 
   | Trigger | Tags |

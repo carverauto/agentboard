@@ -123,7 +123,8 @@ jobs:
       # Anonymous Docker Hub pulls share a rate limit across GitHub-hosted
       # runners and fail the base-image fetch with 429 Too Many Requests.
       # Fork pull requests get no secrets, so they skip the login and pull
-      # anonymously.
+      # anonymously. Exactly one of the two secrets set is a
+      # misconfiguration and fails the step instead of pulling anonymously.
       - name: Log in to Docker Hub
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
