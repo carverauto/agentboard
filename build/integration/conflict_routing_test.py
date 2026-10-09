@@ -93,6 +93,41 @@ def route(identity):
     return output
 
 
+def perform_persisted(order):
+    # Production enqueues this job in the canonical order transaction. Exercise
+    # its generated worker and default system actor with the actual stored args.
+    ids=json.loads(sql("SELECT coalesce(jsonb_agg(id),'[]') FROM oban_jobs WHERE worker='Agentboard.Delivery.RouteConflicts' AND args->'action_arguments'->>'id'='"+order['id']+"'"))
+    assert len(ids)==1, 'Current order did not retain its unique deadline job'
+    output=rpc('result = Agentboard.Delivery.RouteConflicts.perform(Agentboard.Repo.get!(Oban.Job, '+str(ids[0])+')); IO.puts("JOB_OK=" <> to_string(result == :ok))')
+    assert 'JOB_OK=true' in output, output
+
+
+def preview(order, plan, reason, candidate, source_id):
+    effects="SELECT jsonb_build_array((SELECT count(*) FROM tasks),(SELECT count(*) FROM task_events),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM cooperation_deliveries),(SELECT count(*) FROM wake_intents),(SELECT count(*) FROM decision_requests),(SELECT count(*) FROM delivery_publication_grants))"
+    before_effects=sql(effects)
+    before_repair=api('tasks/'+order['repair_task_id'])
+    before_source=api('tasks/'+source_id)
+    before_order=current(order['pull_request_id'])
+    before_audits=int(sql("SELECT count(*) FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation'"))
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "dry_run")')
+    perform_persisted(order)
+    rows=json.loads(sql("SELECT coalesce(jsonb_agg(data ORDER BY occurred_at,id),'[]') FROM board_action_events WHERE resource='Elixir.Agentboard.Delivery.ConflictEvaluation'"))
+    assert len(rows)==before_audits+1, 'Dry-run deadline omitted its canonical selection evidence'
+    evaluation=rows[-1]
+    assert evaluation['pull_request_id']==order['pull_request_id']
+    facts=evaluation['facts']
+    assert facts['phase']=='deadline' and facts['plan']==plan and facts['reason']==reason
+    assert facts['current_order_id']==order['id'] and facts['current_order_revision']==order['revision']
+    assert facts['repair_task_id']==order['repair_task_id'] and facts['native_custody']=='unsupported'
+    if candidate:
+        assert facts['candidate']['agent_id']==candidate and facts['candidate']['eligible'] is True
+    else: assert facts['candidate'] is None
+    assert sql(effects)==before_effects
+    assert api('tasks/'+order['repair_task_id'])==before_repair and api('tasks/'+source_id)==before_source
+    assert current(order['pull_request_id'])==before_order
+    rpc('Application.put_env(:agentboard, :conflict_routing_mode, "apply")')
+
+
 def elapsed(order):
     # Advance only retained episode/deadline timestamps, modeling elapsed time.
     sql("UPDATE delivery_conflict_orders SET episode_started_at=episode_started_at-interval '1 hour',deadline_at=deadline_at-interval '1 hour' WHERE id='"+order['id']+"'")
@@ -154,7 +189,9 @@ with tls_provider(Provider) as (url,ca,_):
     # profiles are otherwise registered and have captain-authorized repo scope.
     policy('author-1','out_of_service')
     for who in ['author-2','author-3','author-4','author-5','author-6','author-7','author-8']: policy(who,'reserved')
-    route(first['id'])
+    preview(first,'reassign_repair','recipient_ineligible','good-b','routing-source-101')
+    preview(first,'reassign_repair','recipient_ineligible','good-b','routing-source-101')
+    perform_persisted(first)
     replacement = current(first['pull_request_id'])
     assert replacement['recipient_id']=='good-b', replacement  # shortest queue
     assert replacement['author_id']=='author-1' and replacement['revision']==2
@@ -166,6 +203,12 @@ with tls_provider(Provider) as (url,ca,_):
     api('tasks/'+repair+'/link', dict(pr_url='https://github.com/fixture/repair/pull/999'), actor='good-b',status=409)
     assert replacement['escalation_decision_id']
     assert 'native_custody_unsupported' in api('decisions/'+replacement['escalation_decision_id'])['decision']['gate_ref']
+    # Assignment does not manufacture a claim. The selected seat explicitly
+    # claims only the existing repair through the normal ownership API.
+    api('tasks/'+repair+'/claim', {}, actor='good-b')
+    claimed_repair=api('tasks/'+repair)['task']
+    assert claimed_repair['assignee_id']=='good-b' and claimed_repair['claim_expires_at']
+    assert api('tasks/routing-source-101')==source1
     effects = sql('SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM decision_requests))')
     route(first['id']);route(replacement['id']);route(replacement['id'])
     assert current(first['pull_request_id'])['id']==replacement['id']
@@ -177,7 +220,10 @@ with tls_provider(Provider) as (url,ca,_):
     policy('author-2','active')
     second, source2 = create_order(102,'author-2')
     assert second['recipient_id']=='author-2'
-    elapsed(second); route(second['id'])
+    api('agents/author-2/heartbeat', dict(status='busy',task='routing-source-102'), actor='author-2')
+    elapsed(second)
+    preview(second,'reassign_repair','author_deadline','good-a','routing-source-102')
+    route(second['id'])
     selected = current(second['pull_request_id'])
     assert selected['recipient_id']=='good-a' and selected['selection_reason']=='author_deadline', selected
     assert api('tasks/routing-source-102')==source2
@@ -206,6 +252,8 @@ with tls_provider(Provider) as (url,ca,_):
     assert loser['escalation_decision_id']
     retained = api('decisions/'+loser['escalation_decision_id'])['decision']
     assert 'no_eligible_seat' in retained['gate_ref']
+    preview(loser,'escalate_no_eligible_seat','author_deadline',None,
+        'routing-source-104' if loser['id']==fourth['id'] else 'routing-source-105')
     decisions = sql('SELECT count(*) FROM decision_requests')
     route(loser['id']);route(loser['id'])
     assert sql('SELECT count(*) FROM decision_requests')==decisions

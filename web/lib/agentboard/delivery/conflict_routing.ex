@@ -71,17 +71,32 @@ defmodule Agentboard.Delivery.ConflictRouting do
     task = Ash.get!(Task, initial.repair_task_id)
 
     if current?(initial, order, task, evidence) do
+      execute_plan(order, Map.put(evidence, :task, task), candidate, reason)
+    else
+      false
+    end
+  end
+
+  defp execute_plan(order, evidence, candidate, reason) do
+    if ConflictPolicy.mode() == "dry_run" do
+      Agentboard.Delivery.ConflictDeadlineAudit.record(order, evidence, candidate, reason)
+    else
       if candidate do
         replacement =
-          ConflictOrders.reassign(order, task, evidence.pr, candidate, reason, evidence.stamp)
+          ConflictOrders.reassign(
+            order,
+            evidence.task,
+            evidence.pr,
+            candidate,
+            reason,
+            evidence.stamp
+          )
 
         escalate(replacement, "native_custody_unsupported", evidence.stamp)
         true
       else
         escalate(order, "no_eligible_seat", evidence.stamp)
       end
-    else
-      false
     end
   end
 
@@ -105,7 +120,7 @@ defmodule Agentboard.Delivery.ConflictRouting do
 
   defp enabled?,
     do:
-      ConflictPolicy.mode() == "apply" and
+      ConflictPolicy.mode() in ~w(apply dry_run) and
         Application.get_env(:agentboard, :cooperation_enabled, false)
 
   defp escalate(%{escalation_decision_id: id}, _reason, _stamp) when not is_nil(id), do: false

@@ -45,7 +45,7 @@ defmodule Agentboard.Delivery.ConflictDisposition do
   def enqueue(id), do: AshOban.schedule(__MODULE__, :route_conflicts, action_arguments: %{id: id})
 
   defp reconcile(cursor) do
-    if ConflictPolicy.mode() == "apply" do
+    if ConflictPolicy.mode() in ~w(apply dry_run) do
       Reconciliation.page(
         Ash.Query.filter(ConflictOrder, state == "open"),
         cursor,
