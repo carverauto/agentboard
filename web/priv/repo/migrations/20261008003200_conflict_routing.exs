@@ -116,11 +116,30 @@ defmodule Agentboard.Repo.Migrations.ConflictRouting do
     )
 
     alter table(:delivery_rebase_follow_ups) do
+      add(:current_base, :boolean, null: false, default: false)
+
       add(
         :current_order_id,
         references(:delivery_conflict_orders, type: :uuid, on_delete: :restrict)
       )
     end
+
+    # Preserve legacy once-per-head evidence while allowing distinct current-base
+    # repair records after a terminal task. Historical rows remain unchanged.
+    drop(unique_index(:delivery_rebase_follow_ups, [:pull_request_id, :head_sha]))
+
+    create(
+      unique_index(:delivery_rebase_follow_ups, [:pull_request_id, :head_sha],
+        where: "NOT current_base"
+      )
+    )
+
+    create(
+      unique_index(:delivery_rebase_follow_ups, [:pull_request_id],
+        where: "current_base AND resolved_at IS NULL",
+        name: :rebase_one_live_current_base
+      )
+    )
 
     # Exact source identity, never a reference inferred from an inbox body.
     create table(:delivery_conflict_sources, primary_key: false) do

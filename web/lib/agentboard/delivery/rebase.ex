@@ -26,12 +26,7 @@ defmodule Agentboard.Delivery.Rebase do
 
       :dirty ->
         if enabled?() do
-          prior =
-            RebaseFollowUp
-            |> Ash.Query.filter(
-              pull_request_id == ^snapshot.pull_request_id and head_sha == ^result.head_sha
-            )
-            |> Ash.read_one!()
+          prior = latest_follow_up(snapshot.pull_request_id, result.head_sha)
 
           if is_nil(prior), do: publish(snapshot, result, stamp)
         end
@@ -153,6 +148,7 @@ defmodule Agentboard.Delivery.Rebase do
           snapshot_id: snapshot.id,
           repair_task_id: task.id,
           responsible_id: if(routing?, do: owner, else: responsible),
+          current_base: routing?,
           created_at: stamp
         },
         @actor
@@ -176,6 +172,16 @@ defmodule Agentboard.Delivery.Rebase do
     )
 
     {f, pr, task}
+  end
+
+  # Current-base episodes can retain multiple historical repairs at one head.
+  # Legacy observation still treats any retained head as already signaled.
+  def latest_follow_up(pr, head) do
+    RebaseFollowUp
+    |> Ash.Query.filter(pull_request_id == ^pr and head_sha == ^head)
+    |> Ash.Query.sort(created_at: :desc, id: :desc)
+    |> Ash.Query.limit(1)
+    |> Ash.read_one!()
   end
 
   # Submission attribution is immutable and excludes system repair cards.

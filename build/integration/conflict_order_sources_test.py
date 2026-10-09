@@ -445,6 +445,39 @@ with tls_provider(Provider) as (url,ca,_):
     assert sql("SELECT count(*) FROM delivery_conflict_orders WHERE rebaser_id IS NOT NULL")=='0', 'Unverified changed head invented rebaser credit'
     assert ab('task','show',repair)['task']['status']=='assigned', 'Clean evidence completed repair without attribution'
 
+    # A terminal historical repair at this exact head cannot strand a later
+    # conflict. Production must retain its history and create a fresh episode.
+    ab('task','claim',repair,owner='codex-order-peer')
+    ab('task','update',repair,'--status','cancelled','--body','Invented terminal repair',owner='codex-order-peer')
+    terminal=ab('task','show',repair)
+    head=HEAD
+    mergeable=False
+    assert 'observed' in poll(pr), 'Terminal same-head history prevented a fresh conflict episode'
+    reopened=order()
+    assert reopened['repair_task_id']!=repair and reopened['revision']==1
+    assert reopened['episode_id']!=initial['episode_id']
+    assert datetime.fromisoformat(reopened['deadline_at'])>datetime.fromisoformat(initial['deadline_at'])
+    assert reopened['author_id']=='codex-order-owner'
+    assert ab('task','show',repair)==terminal, 'Fresh episode rewrote the terminal repair'
+    assert ab('task','show','order-source')==source_before
+    assert 'observed' in poll(pr) and order()['id']==reopened['id']
+    active_repair=reopened['repair_task_id']
+    ab('task','claim',active_repair)
+    ab('task','update',active_repair,'--status','cancelled','--body','Invented terminal active repair')
+    terminal_active=ab('task','show',active_repair)
+    prior_source=source()
+    assert 'observed' in poll(pr), 'Terminal active repair stranded the unresolved order'
+    replacement=order()
+    assert replacement['repair_task_id']!=active_repair and replacement['id']!=reopened['id']
+    assert replacement['episode_id']==reopened['episode_id'] and replacement['revision']==2
+    assert replacement['deadline_at']==reopened['deadline_at'], 'Manual terminal status renewed the unresolved deadline'
+    assert replacement['author_id']=='codex-order-owner'
+    assert ab('task','show',active_repair)==terminal_active
+    assert ab('task','show','order-source')==source_before
+    assert sql("SELECT count(*) FROM delivery_conflict_orders WHERE state='open' AND pull_request_id='"+pr+"'")=='1'
+    assert consume('event',prior_source['id'],prior_source['source_key'])==dict(error='stale_order')
+    assert 'observed' in poll(pr) and order()['id']==replacement['id']
+
     rpc('Application.put_env(:agentboard, :conflict_routing_mode, "disabled")')
     assert consume('board_message',latest['message_id'],latest['message_version'])==dict(error='unsupported')
 

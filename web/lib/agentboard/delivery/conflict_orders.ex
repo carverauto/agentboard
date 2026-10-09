@@ -69,7 +69,7 @@ defmodule Agentboard.Delivery.ConflictOrders do
           prior.default_tip_sha == payload["default_tip_sha"] and
           prior.evaluation_base_ref == payload["base_ref"] and
           prior.evaluation_base_sha == payload["evaluation_base_sha"] and
-          prior.recipient_id == task.assignee_id
+          prior.recipient_id == task.assignee_id and prior.repair_task_id == task.id
 
       if same? do
         Ops.update(
@@ -106,7 +106,7 @@ defmodule Agentboard.Delivery.ConflictOrders do
             @actor
           )
 
-        Ops.update(follow, :set_order, %{current_order_id: order.id}, @actor)
+        Ops.update(follow, :set_order, %{current_order_id: order.id, current_base: true}, @actor)
         capture(order, pr)
         Agentboard.Delivery.ConflictDisposition.enqueue(order.id)
       end
@@ -138,20 +138,10 @@ defmodule Agentboard.Delivery.ConflictOrders do
   end
 
   defp follow_up(nil, snapshot, result, stamp) do
-    prior =
-      RebaseFollowUp
-      |> Ash.Query.filter(
-        pull_request_id == ^snapshot.pull_request_id and
-          head_sha == ^result.head_sha
-      )
-      |> Ash.read_one!()
+    prior = Rebase.latest_follow_up(snapshot.pull_request_id, result.head_sha)
+    task = if prior, do: Ash.get!(Task, prior.repair_task_id)
 
-    if prior do
-      task = Ash.get!(Task, prior.repair_task_id)
-
-      if task.status in ~w(done cancelled),
-        do: Ops.reject("unsupported", "Terminal same-head repair requires episode reconciliation")
-
+    if task && task.status not in ~w(done cancelled) do
       follow =
         Ops.update(prior, :resolve, %{resolved_at: nil, resolution_snapshot_id: nil}, @actor)
 
@@ -162,9 +152,32 @@ defmodule Agentboard.Delivery.ConflictOrders do
     end
   end
 
-  defp follow_up(order, _snapshot, _result, _stamp) do
+  defp follow_up(order, snapshot, result, stamp) do
     follow = RebaseFollowUp |> Ash.Query.filter(current_order_id == ^order.id) |> Ash.read_one!()
-    {follow, Ash.get!(PullRequest, order.pull_request_id)}
+    pr = Ash.get!(PullRequest, order.pull_request_id)
+    task = Ash.get!(Task, follow.repair_task_id)
+
+    if task.status in ~w(done cancelled) do
+      # A terminal status cannot resolve a dirty PR or renew its deadline. Take
+      # the same author admission prefix before retiring the old repair relation;
+      # create_follow_up then reuses these gates before creating its replacement.
+      %{owner: owner} = Rebase.source_attribution(pr)
+      Availability.lock_admission()
+      Agentboard.QueueAdmission.lock(owner)
+      Ops.lock_task(task.id)
+
+      Ops.update(
+        follow,
+        :resolve,
+        %{resolved_at: stamp, resolution_snapshot_id: snapshot.id},
+        @actor
+      )
+
+      {replacement, pr, _task} = Rebase.create_follow_up(snapshot, result, stamp, routing: true)
+      {replacement, pr}
+    else
+      {follow, pr}
+    end
   end
 
   defp capture(order, pr) do

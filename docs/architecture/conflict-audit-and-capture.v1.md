@@ -28,7 +28,7 @@ Dry-run commits ordinary provider snapshots and polling/watch evidence. It never
 
 Retained current orders also support deadline dry-run through the existing scheduled action. It acquires the same sorted base/PR/poll, policy/seat/agent, repair and order prefix as apply mode; selects with the shared eligibility evaluator; and rechecks currentness before recording phase deadline. Evidence includes the selected candidate or no-seat plan, routing reason, retained deadline/episode, repair revision and both branch identities. No handoff, claim, selected source, grant or captain decision occurs. A dry-run evaluation reports no change.
 
-Deadline planning evaluates actual retained orders; snapshot dry-run does not invent virtual repair/order identities for future deadlines. Terminal same-head repair reconciliation and disable-time grant cleanup remain pending. No installed-adapter custody or live farm01 parity is inferred; OpenSpec task5.1 remains unchecked.
+Deadline planning evaluates actual retained orders; snapshot dry-run does not invent virtual repair/order identities for future deadlines. Terminal same-head reconciliation is implemented in the source-resolver companion; disable-time grant cleanup remains pending. No installed-adapter custody or live farm01 parity is inferred; OpenSpec task5.1 remains unchecked.
 
 ## Verification ownership and limits
 

@@ -1,5 +1,5 @@
 defmodule Agentboard.Delivery.RebaseFollowUp do
-  @moduledoc "One retained conflict follow-up per canonical PR and head, separate from CI episodes."
+  @moduledoc "Retained legacy head follow-ups and current-base repair history, separate from CI episodes."
   use Ash.Resource,
     domain: Agentboard.Delivery,
     data_layer: AshPostgres.DataLayer,
@@ -26,6 +26,7 @@ defmodule Agentboard.Delivery.RebaseFollowUp do
         :snapshot_id,
         :repair_task_id,
         :responsible_id,
+        :current_base,
         :created_at
       ])
     end
@@ -35,7 +36,7 @@ defmodule Agentboard.Delivery.RebaseFollowUp do
     end
 
     update :set_order do
-      accept([:current_order_id])
+      accept([:current_order_id, :current_base])
     end
   end
 
@@ -50,6 +51,7 @@ defmodule Agentboard.Delivery.RebaseFollowUp do
     attribute(:created_at, :utc_datetime_usec, allow_nil?: false)
     attribute(:resolved_at, :utc_datetime_usec)
     attribute(:resolution_snapshot_id, :uuid)
+    attribute(:current_base, :boolean, allow_nil?: false, default: false)
     attribute(:current_order_id, :uuid)
   end
 end
