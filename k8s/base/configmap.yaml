@@ -20,6 +20,8 @@ data:
   POOL_SIZE: "10"
   # Inventory catch-up only; enable explicitly after deploying schema 7.
   AGENTBOARD_PR_DISCOVERY_ENABLED: "false"
+  AGENTBOARD_PR_OBSERVATION_ENABLED: "false"
+  AGENTBOARD_PUBLICATION_RECOVERY_ENABLED: "false"
   DATABASE_CA_FILE: /etc/agentboard/db-ca/ca.crt
   RELEASE_TMP: /tmp/agentboard
   RELEASE_DISTRIBUTION: none

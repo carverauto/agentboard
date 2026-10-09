@@ -13,7 +13,7 @@ This checklist is implementation work after proposal review. No runtime task is 
 - [ ] 2.1 Add durable bind/admit/complete API actions and Go API client commands, preserving task-link metadata semantics; verify remote public API tests for live binding, publication nonce replay, conflicting tracked PR admission refusal and same-card immutable submission attribution.
 - [x] 2.2 Extend the exact-ref native pre-push path with fresh actual-default fetch, ancestry and merge-tree evidence, behind warning and conflict/unknown refusal; verify executable remote hook tests using disposable Git repositories for current, behind-clean, conflicting, shallow, failed-fetch, unrelated ref and multi-ref cases; update publication docs with the observed commands.
 - [ ] 2.3 Integrate a supported native PR-open/update adapter that verifies admission and records the returned URL; verify remote end-to-end controlled publication refuses an unbound PR before open and repairs a crash after open before acknowledgment. Do not claim pre-push alone gates PR creation.
-- [ ] 2.4 Add budgeted, paginated registered-branch/open-PR reconciliation and unlinked findings; verify remote API/provider-fixture tests for unique auto-link, shared-login ambiguity, multiple cards, existing different URL and retry idempotency; document attribution limits.
+- [x] 2.4 Add budgeted, paginated registered-branch/open-PR reconciliation and unlinked findings; verify remote API/provider-fixture tests for unique auto-link, shared-login ambiguity, multiple cards, existing different URL and retry idempotency; document attribution limits.
 
 ## 3. Current-base conflict orders
 

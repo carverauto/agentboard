@@ -85,6 +85,12 @@ config :agentboard,
        :pr_discovery_enabled,
        System.get_env("AGENTBOARD_PR_DISCOVERY_ENABLED", "false") in ["true", "1"]
 
+# Registered-branch recovery uses the existing discovery queue and provider
+# budget. Keep disabled until its separate rollout is authorized.
+config :agentboard,
+       :publication_recovery_enabled,
+       System.get_env("AGENTBOARD_PUBLICATION_RECOVERY_ENABLED", "false") in ["true", "1"]
+
 # Independent scheduler/poll queues; keep off until provider/delivery acceptance.
 config :agentboard,
        :pr_observation_enabled,
