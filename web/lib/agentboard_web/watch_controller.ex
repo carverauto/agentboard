@@ -99,9 +99,13 @@ defmodule AgentboardWeb.WatchController do
         {:error, _} -> conn
       end
     else
-      case Board.snapshot(resource, filters) do
-        {:ok, snapshot} -> emit(conn, topic, snapshot, reason, resource, filters)
-        {:error, _, _} -> conn
+      if AgentboardWeb.Plugs.AgentAuth.stream_authorized?(conn) do
+        case Board.snapshot(resource, filters) do
+          {:ok, snapshot} -> emit(conn, topic, snapshot, reason, resource, filters)
+          {:error, _, _} -> conn
+        end
+      else
+        conn
       end
     end
   end
@@ -115,4 +119,3 @@ defmodule AgentboardWeb.WatchController do
     end
   end
 end
-

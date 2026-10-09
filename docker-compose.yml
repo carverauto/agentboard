@@ -7,9 +7,9 @@
 #
 # Full guide: docs/setup/docker-compose.md
 #
-# agentboard has no built-in authentication yet. The published ports bind to
-# 127.0.0.1 by default; only expose them on a trusted network or behind your
-# own auth proxy.
+# Authentication defaults remain private-network compatible. Before public
+# exposure enable API enforcement and frontend authentication, restrict origin
+# access, and see docs/setup/frontend-auth.md.
 
 name: agentboard
 
@@ -22,6 +22,15 @@ x-db-env: &db-env
   DATABASE_CA_FILE: /certs/ca.crt
   SECRET_KEY_BASE: ${SECRET_KEY_BASE:?}
   AGENTBOARD_CAPTAIN_TOKEN: ${AGENTBOARD_CAPTAIN_TOKEN:-}
+  AGENTBOARD_AUTH_MODE: ${AGENTBOARD_AUTH_MODE:-off}
+  AGENTBOARD_COORDINATOR_ID: ${AGENTBOARD_COORDINATOR_ID:-}
+  AGENTBOARD_FRONTEND_AUTH_MODE: ${AGENTBOARD_FRONTEND_AUTH_MODE:-off}
+  AGENTBOARD_ACCESS_ISSUER: ${AGENTBOARD_ACCESS_ISSUER:-}
+  AGENTBOARD_ACCESS_AUDIENCE: ${AGENTBOARD_ACCESS_AUDIENCE:-}
+  AGENTBOARD_ACCESS_JWKS_FILE: ${AGENTBOARD_ACCESS_JWKS_FILE:-}
+  AGENTBOARD_FRONTEND_ALLOWED_EMAILS: ${AGENTBOARD_FRONTEND_ALLOWED_EMAILS:-}
+  AGENTBOARD_FRONTEND_ALLOWED_SUBJECTS: ${AGENTBOARD_FRONTEND_ALLOWED_SUBJECTS:-}
+  AGENTBOARD_FRONTEND_SESSION_TTL_SECONDS: ${AGENTBOARD_FRONTEND_SESSION_TTL_SECONDS:-300}
   PHX_HOST: ${PHX_HOST:-localhost}
   POOL_SIZE: ${POOL_SIZE:-10}
   AGENTBOARD_PR_DISCOVERY_ENABLED: ${AGENTBOARD_PR_DISCOVERY_ENABLED:-false}

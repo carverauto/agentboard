@@ -9,8 +9,11 @@ metadata:
 data:
   PHX_SERVER: "true"
   PORT: "4000"
-  # Trusted internal network: no auth in v1 (see PRD #1).
-  AGENTBOARD_AUTH: "none"
+  # Trusted internal network default: auth modes stay off (private network).
+  # Opt in to Internet exposure via agent API enforcement and Cloudflare Access
+  # frontend authentication (see docs/setup/agent-api-tokens.md and
+  # docs/setup/frontend-auth.md).
+  AGENTBOARD_AUTH_MODE: "off"
   DATABASE_HOST: agentboard-db-rw
   DATABASE_NAME: agentboard
   DATABASE_PORT: "5432"

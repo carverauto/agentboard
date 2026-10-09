@@ -37,6 +37,7 @@ mix_app(
         "@hexpm//:castore",
         "@hexpm//:ecto_sql",
         "@hexpm//:jason",
+        "@hexpm//:jose",
         "@hexpm//:mint",
         "@hexpm//:mint_web_socket",
         "@hexpm//:hpax",
@@ -151,6 +152,24 @@ ex_unit_test(
     name = "recovery_machine_test",
     size = "small",
     srcs = ["test/recovery_machine_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
+    deps = [":erlang_app"],
+)
+
+ex_unit_test(
+    name = "api_auth_test",
+    size = "small",
+    srcs = ["test/api_auth_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
+    deps = [":erlang_app"],
+)
+
+ex_unit_test(
+    name = "frontend_auth_test",
+    size = "small",
+    srcs = ["test/frontend_auth_test.exs"],
     data = ["test/test_helper.exs"],
     elixir_opts = ["-r", "test/test_helper.exs"],
     deps = [":erlang_app"],

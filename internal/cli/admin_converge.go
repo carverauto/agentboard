@@ -208,7 +208,9 @@ func (c *commands) convergeAgentRegister(ctx context.Context, id, harness, model
 	if model != "" && c.cfg.Actor.Model != "" && model != c.cfg.Actor.Model {
 		return nil, nil, errors.New("--model does not match the configured model; refusing to register the wrong identity")
 	}
-	api, err := client.New(c.cfg)
+	// Enrollment bootstraps an identity before it can receive an agent token.
+	// Use the operator capability, including for authenticated dry-run reads.
+	api, err := c.openCaptain(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -226,6 +228,12 @@ func (c *commands) convergeAgentRegister(ctx context.Context, id, harness, model
 	}
 	raw, err = api.JSON(ctx, http.MethodGet, "agents/"+id, nil, nil)
 	known := err == nil
+	if err != nil {
+		var apiErr *client.Error
+		if !errors.As(err, &apiErr) || apiErr.Code != "not_found" {
+			return nil, nil, err
+		}
+	}
 	var agent json.RawMessage
 	if known {
 		var env struct {

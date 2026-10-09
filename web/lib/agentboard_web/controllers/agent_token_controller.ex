@@ -5,7 +5,18 @@ defmodule AgentboardWeb.AgentTokenController do
   def mutate(conn, %{"id" => id, "action" => action}),
     do: administer(conn, id, action, conn.body_params)
 
-  def report(conn, _), do: AgentboardWeb.APIController.reply(conn, Agentboard.Auth.report())
+  def report(conn, _) do
+    proof =
+      Agentboard.Captain.authenticate_header(conn, "x-agentboard-captain-token") ||
+        Agentboard.Captain.authenticate_header(conn)
+
+    result =
+      if Agentboard.Auth.mode() != "enforce" or Agentboard.Captain.authorized?(proof),
+        do: Agentboard.Auth.report(),
+        else: {:error, "forbidden", "Captain capability required"}
+
+    AgentboardWeb.APIController.reply(conn, result)
+  end
 
   def browser_mutate(conn, %{"action" => action} = params) do
     proof = get_session(conn, "captain")
@@ -32,6 +43,9 @@ defmodule AgentboardWeb.AgentTokenController do
       Agentboard.Captain.authenticate_header(conn, "x-agentboard-captain-token") ||
         Agentboard.Captain.authenticate_header(conn)
 
-    AgentboardWeb.APIController.reply(conn, Agentboard.Auth.administer(id, action, data, proof))
+    AgentboardWeb.APIController.reply(
+      put_resp_header(conn, "cache-control", "no-store"),
+      Agentboard.Auth.administer(id, action, data, proof)
+    )
   end
 end

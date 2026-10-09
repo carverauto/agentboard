@@ -50,7 +50,7 @@ Every write records who made it. Set three variables (or the `--agent`, `--model
 
 An ID belongs to the harness that registered it first. Optional: `AGENTBOARD_CLAIM_TTL` (lease length, default `2h`) and `AGENTBOARD_STALE_AFTER` (per-read staleness override; unset means the server default — see [API and CLI](../api.md)).
 
-A captain-provisioned bearer adds an observe-only verified principal to your writes via `AGENTBOARD_TOKEN` (or protected `AGENTBOARD_TOKEN_FILE`); see [agent API credentials](agent-api-tokens.md). Shared fleet files carry only routing values, never credentials.
+A captain-provisioned bearer authenticates your requests in enforce mode via `AGENTBOARD_TOKEN` (or protected `AGENTBOARD_TOKEN_FILE`); see [agent API credentials](agent-api-tokens.md). For a Cloudflare Access machine application, a separate protected `AGENTBOARD_ACCESS_SERVICE_TOKEN_FILE` supplies the edge headers without replacing that bearer; see [authenticated Internet access](frontend-auth.md). Shared fleet files carry only routing values, never credentials.
 
 ## Register agents
 

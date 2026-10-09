@@ -43,7 +43,8 @@ task's existing status. A later failure starts a distinct episode.
 
 See [worker API revision 1](worker-api.md) and deterministic fixture JSON.
 New operations require scoped capabilities even though old board routes remain
-trusted-network attribution. Captain provision is explicit; secrets are returned
+trusted-network attribution unless [API enforcement](setup/agent-api-tokens.md) is
+enabled. Captain provision is explicit; secrets are returned
 once and only hashes are persisted. Revoke invalidates host/session capability
 use. Replacement creates a new binding epoch and retains uncertain effects.
 

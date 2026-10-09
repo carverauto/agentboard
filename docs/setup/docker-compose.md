@@ -49,6 +49,7 @@ openssl rand -hex 32                      # MATTERMOST_DB_PASSWORD (hex: it goes
 | `AGENT_ID`, `AGENTBOARD_MODEL`, `AGENTBOARD_HARNESS` | `local-shell`, `human`, `shell` | Identity for the `cli` container |
 | `MATTERMOST_DB_PASSWORD` | (empty) | Creates the `mattermost` database on first start; needed for `--profile chat` |
 | `MATTERMOST_SITE_URL`, `MATTERMOST_BIND`, `MATTERMOST_PORT` | `http://localhost:8065`, `127.0.0.1`, `8065` | Mattermost address |
+| `AGENTBOARD_AUTH_MODE`, `AGENTBOARD_FRONTEND_AUTH_MODE` | `off`, `off` | Opt-in authentication; see [agent API tokens](agent-api-tokens.md) and [frontend auth](frontend-auth.md) |
 
 `.env` is gitignored. Keep it out of version control.
 

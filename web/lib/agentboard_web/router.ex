@@ -6,6 +6,7 @@ defmodule AgentboardWeb.Router do
     plug(:accepts, ["html"])
     plug(Plug.Parsers, parsers: [:urlencoded], pass: ["*/*"], length: 16_384)
     plug(:fetch_session)
+    plug(AgentboardWeb.Plugs.FrontendAuth)
     plug(:put_root_layout, html: {AgentboardWeb.Layouts, :root})
     plug(:protect_from_forgery)
     plug(:put_secure_browser_headers)
@@ -13,21 +14,30 @@ defmodule AgentboardWeb.Router do
 
   scope "/", AgentboardWeb do
     pipe_through(:browser)
-    live("/", BoardLive, :board)
-    live("/tasks/:id", BoardLive, :task)
-    live("/prs", PRLive, :index)
-    live("/prs/:id", PRLive, :detail)
-    live("/agents", BoardLive, :agents)
-    live("/messages", BoardLive, :messages)
-    live("/quota", BoardLive, :quota)
-    live("/context", ContextLive, :index)
-    live("/context/:id", ContextLive, :entry)
-    live("/archive", BoardLive, :archive)
-    live("/settings", SettingsLive)
+
+    live_session :authenticated, on_mount: [{AgentboardWeb.FrontendAuthLive, :default}] do
+      live("/", BoardLive, :board)
+      live("/tasks/:id", BoardLive, :task)
+      live("/prs", PRLive, :index)
+      live("/prs/:id", PRLive, :detail)
+      live("/agents", BoardLive, :agents)
+      live("/messages", BoardLive, :messages)
+      live("/quota", BoardLive, :quota)
+      live("/context", ContextLive, :index)
+      live("/context/:id", ContextLive, :entry)
+      live("/archive", BoardLive, :archive)
+      live("/settings", SettingsLive)
+    end
   end
 
   pipeline :captain_control do
     plug(AgentboardWeb.Plugs.RateLimit)
+  end
+
+  scope "/auth", AgentboardWeb do
+    pipe_through(:browser)
+    post("/logout", FrontendAuthController, :logout)
+    get("/reauthenticate", FrontendAuthController, :reauthenticate)
   end
 
   scope "/settings", AgentboardWeb do
@@ -50,6 +60,8 @@ defmodule AgentboardWeb.Router do
 
   pipeline :documents do
     plug(AgentboardWeb.Plugs.RateLimit)
+    plug(:fetch_session)
+    plug(AgentboardWeb.Plugs.FrontendAuth)
   end
 
   scope "/documents", AgentboardWeb do

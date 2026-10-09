@@ -317,3 +317,192 @@ for statement in ["UPDATE agent_auth_observations SET outcome='matched'", "DELET
     result=subprocess.run([os.environ['FIXTURE_PSQL'],'-At','-v','ON_ERROR_STOP=1','-c',statement],capture_output=True,text=True)
     assert result.returncode != 0
 print('Hash-only lifecycle, captain guards, off/observe attribution/audit, concurrent rotation, CLI secret custody and immutable evidence passed')
+
+# Enforce mode authenticates every ordinary read/write and binds effective actor
+# attribution to the current registered credential principal. No live credentials
+# or external account is used by this fixture.
+import http.client
+import time
+
+def enforce_api(path, body=None, bearer=None, actor='token-owner', model='fixture', harness='codex', status=200):
+    headers = {'content-type': 'application/json'}
+    if actor is not None:
+        headers.update({'x-agentboard-agent': actor, 'x-agentboard-model': model,
+                        'x-agentboard-harness': harness})
+    if bearer is not None:
+        headers['authorization'] = 'Bearer ' + bearer
+    request = urllib.request.Request(URL + '/api/v1/' + path, headers=headers,
+              data=None if body is None else json.dumps(body).encode())
+    try:
+        response = urllib.request.urlopen(request, timeout=15)
+    except urllib.error.HTTPError as error:
+        response = error
+    payload = json.load(response)
+    if path != 'meta':
+        assert response.headers.get('Cache-Control') == 'no-store', path
+    assert response.status == status, (path, response.status, status, payload.get('error'))
+    assert all(secret not in json.dumps(payload) for secret in [CAPTAIN, cli_token, fresh])
+    return payload
+
+coordinator_token = api('agents/token-coordinator/tokens/issue', {}, captain=True)['token']
+api('agents/register', {'name': 'Enforce lifecycle'}, actor='auth-lifecycle')
+lifecycle_token = api('agents/auth-lifecycle/tokens/issue', {}, captain=True)['token']
+rpc('Application.put_env(:agentboard,:agent_auth_mode,"enforce")')
+try:
+    enforce_api('meta', actor=None)
+    enforce_api('tasks', status=401)
+    enforce_api('tasks', bearer=INVALID_A, status=401)
+    enforce_api('tasks', bearer=new, status=401)
+    enforce_api('tasks', bearer=cli_token)
+    enforce_api('tasks', {'id':'auth-enforce-bound','title':'Trusted attribution'}, bearer=cli_token, actor=None)
+    events = enforce_api('tasks/auth-enforce-bound', bearer=cli_token)['events']
+    assert events[0]['actor_id'] == 'token-owner'
+    assert events[0]['harness'] == 'codex' and events[0]['model'] == 'fixture'
+    for path, body in [('tasks', None), ('tasks', {'title':'Must not be created'}),
+                       ('conversations/reads?channel_id=fixture', None),
+                       ('conversations/send', {'message':'Must not be sent'}),
+                       ('conversations/coverage/token-other/fixture', {'last_post_id':'fixture'})]:
+        enforce_api(path, body, bearer=cli_token, actor='token-other', status=403)
+    enforce_api('tasks', bearer=cli_token, model='forged-model', status=403)
+    enforce_api('tasks', bearer=cli_token, harness='forged-harness', status=403)
+    assert sql("SELECT count(*) FROM tasks WHERE title='Must not be created'") == '0'
+
+    # Duplicate raw headers must be rejected rather than trusting the first one.
+    origin = urllib.parse.urlsplit(URL)
+    for headers in [
+        [('authorization','Bearer '+cli_token), ('authorization','Bearer '+cli_token)],
+        [('authorization','Bearer '+cli_token), ('x-agentboard-agent','token-owner'), ('x-agentboard-agent','token-other')],
+        [('authorization','Bearer '+cli_token+', Bearer '+fresh)],
+    ]:
+        connection = http.client.HTTPConnection(origin.hostname, origin.port, timeout=10)
+        connection.putrequest('GET', '/api/v1/tasks')
+        for key, value in headers:
+            connection.putheader(key, value)
+        connection.endheaders()
+        response = connection.getresponse()
+        assert response.status == 401, (response.status, response.read())
+        response.read(); connection.close()
+
+    # Coordinator is a deliberately read-only capability in enforcement mode.
+    for path in ['tasks', 'prs', 'decisions', 'decisions/waiting', 'decisions/wakes',
+                 'agents', 'messages', 'messages?to=token-coordinator']:
+        enforce_api(path, bearer=coordinator_token, actor='token-coordinator')
+    for path in ['messages?to=token-owner', 'messages?task=auth-enforce-bound',
+                 'messages?to=token-coordinator&task=auth-enforce-bound',
+                 'conversations/reads?channel_id=fixture', 'conversations/diagnostics',
+                 'conversations/coverage/token-coordinator/fixture', 'quota', 'context/feed']:
+        enforce_api(path, bearer=coordinator_token, actor='token-coordinator', status=403)
+    for path, body in [('tasks', {'title':'Observer cannot write'}),
+                       ('agents/register', {}), ('messages', {'to':'token-owner','body':'No send'}),
+                       ('agents/token-coordinator/heartbeat', {'status':'idle'})]:
+        enforce_api(path, body, bearer=coordinator_token, actor='token-coordinator', status=403)
+    rpc('Application.put_env(:agentboard,:coordinator_id,"another-coordinator")')
+    enforce_api('tasks', bearer=coordinator_token, actor='token-coordinator', status=401)
+    rpc('Application.put_env(:agentboard,:coordinator_id,"token-coordinator")')
+
+    # Dedicated captain reads and administration preserve their independent proof.
+    for path in ['auth/observations', 'settings/archive', 'agents/token-owner/tokens']:
+        enforce_api(path, status=403)
+        enforce_api(path, bearer=cli_token, status=403)
+        enforce_api(path, bearer=CAPTAIN)
+    enforce_api('tasks', {'title':'Captain cannot impersonate'}, bearer=CAPTAIN, status=403)
+    enforce_api('conversations/send', {'message':'Captain cannot impersonate'}, bearer=CAPTAIN, status=403)
+    enforce_api('agents/auth-new-bootstrap', bearer=CAPTAIN, status=404)
+    created = enforce_api('agents/register', {'name':'Captain provisioned'}, bearer=CAPTAIN, actor='auth-new-bootstrap')
+    assert created['agent']['id'] == 'auth-new-bootstrap'
+    enforce_api('agents/register', {}, bearer=CAPTAIN, actor='system-spoof', status=403)
+    enforce_api('agents/auth-new-bootstrap', bearer=CAPTAIN)
+    enforce_api('availability', bearer=CAPTAIN)
+    cli_bootstrap = cli('admin','agent','register','auth-cli-bootstrap',
+        env=dict(base, AGENT_ID='auth-cli-bootstrap', AGENTBOARD_TOKEN='', AGENTBOARD_TOKEN_FILE=''))
+    assert 'auth-cli-bootstrap' in cli_bootstrap.stdout
+    cli('admin','agent','register','auth-cli-bootstrap','--dry-run',
+        env=dict(base, AGENT_ID='auth-cli-bootstrap', AGENTBOARD_TOKEN='', AGENTBOARD_TOKEN_FILE=''))
+    bootstrap_token = api('agents/auth-new-bootstrap/tokens/issue', {}, captain=True)['token']
+    enforce_api('tasks', bearer=bootstrap_token, actor='auth-new-bootstrap')
+    enforce_api('availability', {'agent_id':'auth-new-bootstrap', 'state':'reserved',
+        'reason':'Enforce captain fixture'}, bearer=CAPTAIN, actor='token-other')
+    assert sql("SELECT changed_by FROM availability_policies WHERE agent_id='auth-new-bootstrap'") == 'captain'
+    enforce_api('tasks', {'id':'auth-captain-assign','title':'Captain assignment'}, bearer=cli_token)
+    assigned = enforce_api('tasks/auth-captain-assign/assign', {'to':'auth-new-bootstrap'},
+        bearer=CAPTAIN, actor='token-other')
+    assert assigned['task']['assignee_id'] == 'auth-new-bootstrap'
+    assert enforce_api('tasks/auth-captain-assign', bearer=cli_token)['events'][-1]['actor_id'] == 'captain'
+    enforce_api('tasks', {'id':'auth-captain-decision','title':'Captain decision'}, bearer=cli_token)
+    enforce_api('tasks/auth-captain-decision/claim', {}, bearer=cli_token)
+    decision = enforce_api('decisions', {'task':'auth-captain-decision','kind':'scope',
+        'gate':'auth/enforce','question':'Proceed with local fixture?', 'findings':'Fixture only'}, bearer=cli_token)['decision']
+    answered = enforce_api('decisions/'+decision['id']+'/answer', {'answer':'Approved fixture'},
+        bearer=CAPTAIN, actor='token-other')['decision']
+    assert answered['answered_by'] == 'captain'
+
+    # Existing worker host/attempt and webhook proofs are never substituted by
+    # ordinary agent/coordinator credentials.
+    for bearer in [cli_token, coordinator_token]:
+        req = urllib.request.Request(URL+'/api/v1/workers/unknown/state', headers={
+            'authorization':'Bearer '+bearer, 'x-agentboard-worker-protocol':'1'})
+        try:
+            response = urllib.request.urlopen(req, timeout=10)
+        except urllib.error.HTTPError as error:
+            response = error
+        assert response.status in (401, 404), response.status
+
+    # Retirement and reserved identity changes invalidate an otherwise live token.
+    enforce_api('agents/auth-lifecycle/retire', {'reason':'Auth enforcement fixture'}, bearer=CAPTAIN)
+    enforce_api('tasks', bearer=lifecycle_token, actor='auth-lifecycle', status=401)
+    api('agents/auth-lifecycle/tokens/issue', {}, captain=True, status=403)
+    enforce_api('agents/auth-lifecycle/restore', {}, bearer=CAPTAIN)
+    enforce_api('tasks', bearer=lifecycle_token, actor='auth-lifecycle')
+    sql("UPDATE agents SET kind='system' WHERE id='auth-lifecycle'")
+    enforce_api('tasks', bearer=lifecycle_token, actor='auth-lifecycle', status=401)
+    sql("UPDATE agents SET kind='seat', harness='ash' WHERE id='auth-lifecycle'")
+    enforce_api('tasks', bearer=lifecycle_token, actor='auth-lifecycle', status=401)
+    sql("UPDATE agents SET harness='codex' WHERE id='auth-lifecycle'")
+    rpc('Application.put_env(:agentboard,:coordinator_id,"auth-lifecycle")')
+    enforce_api('tasks', bearer=lifecycle_token, actor='auth-lifecycle', status=401)
+    rpc('Application.put_env(:agentboard,:coordinator_id,"token-coordinator")')
+
+    # Revoking a live watch ends it at the next snapshot revalidation, rather
+    # than leaking snapshots forever under the initial admission decision.
+    request = urllib.request.Request(URL+'/api/v1/tasks/watch', headers={
+        'authorization':'Bearer '+lifecycle_token, 'accept':'application/x-ndjson'})
+    stream = urllib.request.urlopen(request, timeout=12)
+    assert json.loads(stream.readline())['kind'] == 'snapshot'
+    api('agents/auth-lifecycle/tokens/revoke', {}, captain=True)
+    started = time.monotonic()
+    while True:
+        line = stream.readline()
+        if not line:
+            break
+        assert not line.strip(), 'A revoked stream emitted another snapshot'
+        assert time.monotonic() - started < 10
+    stream.close()
+    enforce_api('tasks', bearer=lifecycle_token, actor='auth-lifecycle', status=401)
+
+    # Verification failure is fail-closed even when compatibility checks pass.
+    sql("CREATE FUNCTION fixture_enforce_reject_use() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Synthetic auth unavailable'; END $$")
+    sql('CREATE TRIGGER fixture_enforce_use_guard BEFORE UPDATE ON agent_api_credentials FOR EACH ROW EXECUTE FUNCTION fixture_enforce_reject_use()')
+    try:
+        enforce_api('tasks', {'id':'auth-enforce-unavailable','title':'Must fail closed'}, bearer=cli_token, status=503)
+        assert sql("SELECT count(*) FROM tasks WHERE id='auth-enforce-unavailable'") == '0'
+    finally:
+        sql('DROP TRIGGER fixture_enforce_use_guard ON agent_api_credentials; DROP FUNCTION fixture_enforce_reject_use()')
+    # Pre-authentication requests spend only an IP budget. Public metadata and
+    # rejected forged attribution must never consume another identity's quota.
+    enforce_api('agents/register', {'name':'Limiter fixture'}, bearer=CAPTAIN, actor='auth-limit-seat')
+    limit_token = api('agents/auth-limit-seat/tokens/issue', {}, captain=True)['token']
+    rpc(':persistent_term.put(:fixture_old_limits, Application.fetch_env!(:agentboard, :rate_limits)); Application.put_env(:agentboard, :rate_limits, Keyword.put(Application.fetch_env!(:agentboard, :rate_limits), :agent, 2))')
+    try:
+        # Synthetic addresses are passed through the actual pre-auth Plug; no
+        # trusted-proxy override or forwarded-header trust is introduced.
+        probe = rpc_out('for n <- 1..6 do conn = Plug.Test.conn(:get, if(rem(n, 2) == 0, do: "/api/v1/meta", else: "/api/v1/tasks")) |> Plug.Conn.put_req_header("x-agentboard-agent", "auth-limit-seat"); conn = %{conn | remote_ip: {192, 0, 2, n}}; out = conn |> AgentboardWeb.Plugs.RateLimit.call([]) |> AgentboardWeb.Plugs.AgentAuth.call([]); if out.status == 429, do: raise("spoof consumed agent budget") end; IO.puts("spoof_budget_isolated")')
+        assert 'spoof_budget_isolated' in probe
+        enforce_api('tasks', bearer=limit_token, actor=None)
+        enforce_api('tasks', bearer=limit_token, actor=None)
+        limited = enforce_api('tasks', bearer=limit_token, actor=None, status=429)
+        assert limited['error']['code'] == 'rate_limited'
+    finally:
+        rpc('Application.put_env(:agentboard,:rate_limits,:persistent_term.get(:fixture_old_limits)); :persistent_term.erase(:fixture_old_limits)')
+finally:
+    rpc('Application.put_env(:agentboard,:agent_auth_mode,"off"); Application.put_env(:agentboard,:coordinator_id,"token-coordinator")')
+print('Enforce principal binding, coordinator allowlist, captain bootstrap/admin, lifecycle invalidation, raw headers, stream revocation, verified-principal rate limiting and fail-closed outage passed')

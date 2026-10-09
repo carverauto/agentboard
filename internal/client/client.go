@@ -28,6 +28,7 @@ import (
 const MaxResponseBytes = 16 << 20
 const requestBudget = 120 * time.Second
 const maxRetries = 3
+const maxAccessServiceTokenBytes = 4096
 
 type Error struct {
 	Code       string        `json:"code"`
@@ -51,11 +52,13 @@ func (e *Error) ExitCode() int {
 }
 
 type Client struct {
-	base           *url.URL
-	http           *http.Client
-	actor          config.Actor
-	token          string
-	workerProtocol string
+	base               *url.URL
+	http               *http.Client
+	actor              config.Actor
+	token              string
+	accessClientID     string
+	accessClientSecret string
+	workerProtocol     string
 }
 
 // NewRuntime uses the existing HTTPS/redirect/retry transport with scoped auth.
@@ -104,6 +107,13 @@ func New(cfg config.Config) (*Client, error) {
 	if u.Scheme != "https" && !(u.Scheme == "http" && loopback) {
 		return nil, errors.New("API connections require HTTPS; HTTP is allowed only on loopback")
 	}
+	if cfg.AccessServiceTokenFile != "" && u.Scheme != "https" {
+		return nil, errors.New("Cloudflare Access service credentials require HTTPS, including on loopback")
+	}
+	accessID, accessSecret, err := accessServiceToken(cfg.AccessServiceTokenFile)
+	if err != nil {
+		return nil, err
+	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	if cfg.CAFile != "" {
 		pem, err := os.ReadFile(cfg.CAFile)
@@ -124,7 +134,7 @@ func New(cfg config.Config) (*Client, error) {
 	transport.DialContext = (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext
 	transport.TLSHandshakeTimeout = 10 * time.Second
 	transport.ResponseHeaderTimeout = 30 * time.Second
-	return &Client{base: u, actor: cfg.Actor, token: token, http: &http.Client{
+	return &Client{base: u, actor: cfg.Actor, token: token, accessClientID: accessID, accessClientSecret: accessSecret, http: &http.Client{
 		Transport:     transport,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 	}}, nil
@@ -179,7 +189,7 @@ func (c *Client) Stream(ctx context.Context, path string, query url.Values) (*ht
 		resp.Body.Close()
 		return nil, failure("invalid_response", "API watch returned an unexpected content type")
 	}
-	if c.token != "" {
+	if c.token != "" || c.accessClientID != "" {
 		scanner := bufio.NewScanner(resp.Body)
 		scanner.Buffer(make([]byte, 64<<10), MaxResponseBytes)
 		resp.Body = &redactedStream{body: resp.Body, scanner: scanner, redact: c.redactData}
@@ -202,6 +212,12 @@ func (c *Client) open(ctx context.Context, method, path string, query url.Values
 		}
 		req.Header.Set("Accept", accept)
 		req.Header.Set("User-Agent", "agentboard-cli/0.1")
+		// Edge authentication is distinct from the board's own bearer capability.
+		// Requests use only the configured base; redirects are never followed.
+		if c.accessClientID != "" {
+			req.Header.Set("CF-Access-Client-Id", c.accessClientID)
+			req.Header.Set("CF-Access-Client-Secret", c.accessClientSecret)
+		}
 		if c.token != "" {
 			req.Header.Set("Authorization", "Bearer "+c.token)
 			if c.workerProtocol != "" {
@@ -314,11 +330,12 @@ func uncertain(method, message string) string {
 	return message
 }
 
-// Error bodies are untrusted and may reflect an Authorization header.
+// Error bodies are untrusted and may reflect any authentication header.
 func (c *Client) redactError(err error) error {
-	if e, ok := err.(*Error); ok && c.token != "" {
-		e.Message = strings.ReplaceAll(e.Message, c.token, "[redacted]")
-		if strings.Contains(e.Code, c.token) {
+	if e, ok := err.(*Error); ok {
+		redact := c.credentialRedactor().Replace
+		e.Message = redact(e.Message)
+		if redact(e.Code) != e.Code {
 			e.Code = "invalid_response"
 		}
 	}
@@ -326,11 +343,60 @@ func (c *Client) redactError(err error) error {
 }
 
 func (c *Client) redactData(data []byte) []byte {
-	if c.token == "" {
+	if c.token == "" && c.accessClientID == "" {
 		return data
 	}
-	escaped, _ := json.Marshal(c.token)
-	return bytes.ReplaceAll(data, escaped[1:len(escaped)-1], []byte("[redacted]"))
+	redact := c.credentialRedactor().Replace
+	// Decode strings before redaction so alternate JSON escapes cannot expose a
+	// reflected credential. Preserve all other bytes, including numeric values.
+	var out bytes.Buffer
+	for pos := 0; pos < len(data); {
+		if data[pos] != '"' {
+			out.WriteByte(data[pos])
+			pos++
+			continue
+		}
+		end := pos + 1
+		for end < len(data) {
+			if data[end] == '\\' {
+				end += 2
+				continue
+			}
+			if data[end] == '"' {
+				break
+			}
+			end++
+		}
+		if end >= len(data) {
+			out.WriteString(redact(string(data[pos:])))
+			break
+		}
+		quoted := data[pos : end+1]
+		var value string
+		if json.Unmarshal(quoted, &value) == nil {
+			if redacted := redact(value); redacted != value {
+				quoted, _ = json.Marshal(redacted)
+			}
+		}
+		out.Write(quoted)
+		pos = end + 1
+	}
+	// Invalid watch records may also contain an unquoted reflection. They are
+	// still untrusted output, even though the caller will reject malformed JSON.
+	if !json.Valid(data) {
+		return []byte(redact(out.String()))
+	}
+	return out.Bytes()
+}
+
+func (c *Client) credentialRedactor() *strings.Replacer {
+	var replacements []string
+	for _, secret := range []string{c.token, c.accessClientID, c.accessClientSecret} {
+		if secret != "" {
+			replacements = append(replacements, secret, "[redacted]")
+		}
+	}
+	return strings.NewReplacer(replacements...)
 }
 
 type redactedStream struct {
@@ -363,25 +429,9 @@ func (r *redactedStream) Close() error { return r.body.Close() }
 func agentBearer(cfg config.Config) (string, error) {
 	token := cfg.Token
 	if token == "" && cfg.TokenFile != "" {
-		// Open without following symlinks; validate the descriptor, not a racy path stat.
-		fd, err := syscall.Open(filepath.Clean(cfg.TokenFile), syscall.O_RDONLY|syscall.O_NOFOLLOW, 0)
+		data, err := readProtectedCredentialFile(cfg.TokenFile, "AGENTBOARD_TOKEN_FILE", 256)
 		if err != nil {
-			return "", errors.New("cannot open protected AGENTBOARD_TOKEN_FILE")
-		}
-		f := os.NewFile(uintptr(fd), "agent credential")
-		info, err := f.Stat()
-		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0600 {
-			f.Close()
-			return "", errors.New("AGENTBOARD_TOKEN_FILE must be a regular 0600 file")
-		}
-		if st, ok := info.Sys().(*syscall.Stat_t); !ok || st.Uid != uint32(os.Geteuid()) {
-			f.Close()
-			return "", errors.New("AGENTBOARD_TOKEN_FILE must belong to the current user")
-		}
-		data, err := io.ReadAll(io.LimitReader(f, 257))
-		f.Close()
-		if err != nil || len(data) > 256 {
-			return "", errors.New("invalid agent credential file")
+			return "", err
 		}
 		token = strings.TrimSpace(string(data))
 		if token == "" {
@@ -393,4 +443,84 @@ func agentBearer(cfg config.Config) (string, error) {
 	}
 
 	return token, nil
+}
+
+// accessServiceToken loads operator-provisioned edge credentials only from an
+// explicit protected file. Neither credentials nor the supplied path enter errors.
+func accessServiceToken(path string) (string, string, error) {
+	if path == "" {
+		return "", "", nil
+	}
+	data, err := readProtectedCredentialFile(path, "AGENTBOARD_ACCESS_SERVICE_TOKEN_FILE", maxAccessServiceTokenBytes)
+	if err != nil {
+		return "", "", err
+	}
+	invalid := errors.New("AGENTBOARD_ACCESS_SERVICE_TOKEN_FILE must contain only nonempty client_id and client_secret string fields with valid credential values")
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return "", "", invalid
+	}
+	values := make(map[string]string, 2)
+	for decoder.More() {
+		field, err := decoder.Token()
+		if err != nil || (field != "client_id" && field != "client_secret") {
+			return "", "", invalid
+		}
+		key := field.(string)
+		if _, duplicate := values[key]; duplicate {
+			return "", "", invalid
+		}
+		var value string
+		if decoder.Decode(&value) != nil || !validAccessCredential(value) {
+			return "", "", invalid
+		}
+		values[key] = value
+	}
+	closing, err := decoder.Token()
+	if err != nil || closing != json.Delim('}') || len(values) != 2 {
+		return "", "", invalid
+	}
+	var trailing any
+	if decoder.Decode(&trailing) != io.EOF {
+		return "", "", invalid
+	}
+	return values["client_id"], values["client_secret"], nil
+}
+
+func validAccessCredential(value string) bool {
+	if len(value) == 0 || len(value) > 1024 {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		// Credentials are opaque visible ASCII header values, without whitespace
+		// or control characters. In particular, never accept header injection.
+		if value[i] < '!' || value[i] > '~' {
+			return false
+		}
+	}
+	return true
+}
+
+func readProtectedCredentialFile(path, label string, maxBytes int64) ([]byte, error) {
+	// Validate the descriptor instead of a racy path stat. NONBLOCK ensures a
+	// malicious FIFO is rejected promptly rather than blocking before f.Stat.
+	fd, err := syscall.Open(filepath.Clean(path), syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, errors.New("cannot open protected " + label)
+	}
+	f := os.NewFile(uintptr(fd), "protected credential")
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0600 {
+		return nil, errors.New(label + " must be a regular 0600 file")
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); !ok || st.Uid != uint32(os.Geteuid()) {
+		return nil, errors.New(label + " must belong to the current user")
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maxBytes+1))
+	if err != nil || int64(len(data)) > maxBytes {
+		return nil, errors.New("invalid protected " + label)
+	}
+	return data, nil
 }

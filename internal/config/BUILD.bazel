@@ -1,10 +1,17 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "config",
     srcs = ["config.go"],
     importpath = "github.com/carverauto/agentboard/internal/config",
     visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    deps = [":config"],
+    size = "small",
 )
 
 filegroup(name = "format_srcs", srcs = glob(["*.go"]), visibility = ["//visibility:public"])

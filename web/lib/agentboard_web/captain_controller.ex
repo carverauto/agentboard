@@ -10,15 +10,31 @@ defmodule AgentboardWeb.CaptainController do
         |> html("Captain capability rejected. <a href='/settings'>Return to settings</a>")
 
       capability ->
-        conn
-        |> configure_session(renew: true)
-        |> put_session(:captain, capability)
-        |> redirect(to: "/settings")
+        case AgentboardWeb.Plugs.FrontendAuth.rotate_session(conn) do
+          {:ok, conn} ->
+            conn
+            |> configure_session(renew: true)
+            |> put_session(:captain, capability)
+            |> redirect(to: "/settings")
+
+          {:error, conn} ->
+            conn
+        end
     end
   end
 
-  def lock(conn, _), do: conn |> delete_session(:captain) |> redirect(to: "/settings")
-  def settings(conn, _), do: AgentboardWeb.APIController.reply(conn, Housekeeping.settings())
+  def lock(conn, _),
+    do:
+      conn
+      |> AgentboardWeb.Plugs.FrontendAuth.revoke_session()
+      |> delete_session(:captain)
+      |> redirect(to: "/settings")
+
+  def settings(conn, _) do
+    if Agentboard.Auth.mode() == "enforce",
+      do: authorized(conn, fn -> Housekeeping.settings() end),
+      else: AgentboardWeb.APIController.reply(conn, Housekeeping.settings())
+  end
 
   def save(conn, _),
     do: authorized(conn, fn -> Housekeeping.save(Captain.actor(), conn.body_params) end)
