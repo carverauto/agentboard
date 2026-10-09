@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1180" viewBox="0 0 1400 1180" role="img" aria-labelledby="title desc"><title id="title">Phase 1: bounded repository strip and captain chooser</title><desc id="desc">Original static review layout. An outside-strip oldest red workflow remains first. Five repository cards use pin order then busiest fill. A separate pin-settings review and overflow chooser show bounded navigation.</desc>
+<rect width="1400" height="1180" fill="#edf2f8"/>
+<style>text{font-family:Arial,Helvetica,sans-serif} .s{font-size:14px} .m{font-size:16px} .h{font-size:21px;font-weight:700} .b{font-size:16px;font-weight:700} .tiny{font-size:12px}</style>
+<rect x="0" y="0" width="1400" height="74" rx="0" fill="#fff" stroke="#fff"/>
+<text x="32" y="34" class="h" fill="#172f48">agentboard</text>
+<text x="240" y="34" class="m" fill="#172f48">Board    Agents    PRs    Context    Settings</text>
+<text x="1060" y="34" class="s" fill="#5a6572">Read-only work view</text>
+<text x="32" y="106" class="h" fill="#172f48">01 / Repository overview</text>
+<text x="32" y="134" class="s" fill="#5a6572">ORIGINAL STATIC PROPOSAL • Invented fixtures, not live observations • Implementation awaits approval</text>
+<rect x="32" y="160" width="1336" height="151" rx="7" fill="#fce6e5" stroke="#edc0bf"/>
+<text x="50" y="188" class="h" fill="#b32f2f">! Branch attention · 3 retained red runs</text>
+<text x="50" y="212" class="m" fill="#b32f2f">Oldest: outside/tools · main · Test suite · red since 2026-10-09 17:40 UTC (2h 20m)</text>
+<text x="50" y="236" class="s" fill="#172f48">Routed to codex-tools-a · run 410 / attempt 2 · SHA 7ea21f0 · observed 19:57 UTC (3m ago)</text>
+<text x="50" y="259" class="s" fill="#175bb8">Outside strip · View workflow / failed job / source task · View all retained failures</text>
+<text x="50" y="285" class="s" fill="#b32f2f">Observation enabled · A webhook feed is required; absence of failures does not verify green.</text>
+<text x="905" y="259" class="tiny" fill="#5a6572">Oldest summary shown; detailed run list omitted.</text>
+<text x="32" y="350" class="h" fill="#172f48">Watched repositories</text>
+<text x="310" y="350" class="s" fill="#5a6572">Local tracked delivery inventory · 12 repositories</text>
+<rect x="32" y="368" width="160" height="36" rx="4" fill="#e6edf6" stroke="#175bb8"/>
+<text x="44" y="392" class="s" fill="#175bb8">All repositories</text>
+<rect x="1154" y="368" width="214" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="1166" y="392" class="s" fill="#175bb8">Choose pins in Settings</text>
+<rect x="32" y="423" width="256" height="216" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="46" y="449" class="b" fill="#175bb8">demo/api</text>
+<text x="46" y="472" class="s" fill="#5a6572">Pinned 1 · Open topology</text>
+<text x="46" y="496" class="s" fill="#172f48">8 open · 1 conflict</text>
+<path d="M57 526 L253 526" fill="none" stroke="#cfdae6" stroke-width="2"/>
+<circle cx="57" cy="526" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="71" y="521" class="tiny" fill="#5a6572">main · health unknown</text>
+<path d="M77 526 Q80 549 112 549 L254 549" fill="none" stroke="#5a6572" stroke-width="3" stroke-dasharray="5 5"/>
+<circle cx="112" cy="549" r="7" fill="#fce6e5" stroke="#b32f2f" stroke-width="2"/>
+<text x="126" y="544" class="tiny" fill="#b32f2f">staging · RED</text>
+<text x="154" y="567" class="tiny" fill="#5a6572">configured role</text>
+<path d="M114 553 Q117 586 143 586 L255 586" fill="none" stroke="#175bb8" stroke-width="3"/>
+<circle cx="143" cy="586" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="155" y="581" class="tiny" fill="#175bb8">#41 feat/1 ?</text>
+<text x="46" y="608" class="tiny" fill="#5a6572">Ahead / behind unavailable</text>
+<text x="46" y="625" class="tiny" fill="#5a6572">Observed 19:57 UTC · 3m ago</text>
+<rect x="302" y="423" width="256" height="216" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="316" y="449" class="b" fill="#175bb8">demo/console</text>
+<text x="316" y="472" class="s" fill="#5a6572">Pinned 2 · Open topology</text>
+<text x="316" y="496" class="s" fill="#172f48">6 open · CI unknown</text>
+<path d="M327 526 L523 526" fill="none" stroke="#cfdae6" stroke-width="2"/>
+<circle cx="327" cy="526" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="341" y="521" class="tiny" fill="#5a6572">main · health unknown</text>
+<path d="M347 526 Q350 549 382 549 L524 549" fill="none" stroke="#5a6572" stroke-width="3" stroke-dasharray="5 5"/>
+<circle cx="382" cy="549" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="396" y="544" class="tiny" fill="#5a6572">staging · unknown</text>
+<text x="424" y="567" class="tiny" fill="#5a6572">configured role</text>
+<path d="M384 553 Q387 586 413 586 L525 586" fill="none" stroke="#175bb8" stroke-width="3"/>
+<circle cx="413" cy="586" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="425" y="581" class="tiny" fill="#175bb8">#42 feat/2 ?</text>
+<text x="316" y="608" class="tiny" fill="#5a6572">Ahead / behind unavailable</text>
+<text x="316" y="625" class="tiny" fill="#5a6572">Observed 19:57 UTC · 3m ago</text>
+<rect x="572" y="423" width="256" height="216" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="586" y="449" class="b" fill="#175bb8">demo/worker</text>
+<text x="586" y="472" class="s" fill="#5a6572">Busiest fill · Open topology</text>
+<text x="586" y="496" class="s" fill="#172f48">5 open · 1 failing</text>
+<path d="M597 526 L793 526" fill="none" stroke="#cfdae6" stroke-width="2"/>
+<circle cx="597" cy="526" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="611" y="521" class="tiny" fill="#5a6572">main · health unknown</text>
+<path d="M617 526 Q620 549 652 549 L794 549" fill="none" stroke="#5a6572" stroke-width="3" stroke-dasharray="5 5"/>
+<circle cx="652" cy="549" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="666" y="544" class="tiny" fill="#5a6572">staging · unknown</text>
+<text x="694" y="567" class="tiny" fill="#5a6572">configured role</text>
+<path d="M654 553 Q657 586 683 586 L795 586" fill="none" stroke="#175bb8" stroke-width="3"/>
+<circle cx="683" cy="586" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="695" y="581" class="tiny" fill="#175bb8">#43 feat/3 ?</text>
+<text x="586" y="608" class="tiny" fill="#5a6572">Ahead / behind unavailable</text>
+<text x="586" y="625" class="tiny" fill="#5a6572">Observed 19:57 UTC · 3m ago</text>
+<rect x="842" y="423" width="256" height="216" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="856" y="449" class="b" fill="#175bb8">demo/docs</text>
+<text x="856" y="472" class="s" fill="#5a6572">Busiest fill · Open topology</text>
+<text x="856" y="496" class="s" fill="#172f48">3 open · CI unknown</text>
+<path d="M867 526 L1063 526" fill="none" stroke="#cfdae6" stroke-width="2"/>
+<circle cx="867" cy="526" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="881" y="521" class="tiny" fill="#5a6572">main · health unknown</text>
+<path d="M887 526 Q890 549 922 549 L1064 549" fill="none" stroke="#5a6572" stroke-width="3" stroke-dasharray="5 5"/>
+<circle cx="922" cy="549" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="936" y="544" class="tiny" fill="#5a6572">staging · unknown</text>
+<text x="964" y="567" class="tiny" fill="#5a6572">configured role</text>
+<path d="M924 553 Q927 586 953 586 L1065 586" fill="none" stroke="#175bb8" stroke-width="3"/>
+<circle cx="953" cy="586" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="965" y="581" class="tiny" fill="#175bb8">#44 feat/4 ?</text>
+<text x="856" y="608" class="tiny" fill="#5a6572">Ahead / behind unavailable</text>
+<text x="856" y="625" class="tiny" fill="#5a6572">Observed 19:57 UTC · 3m ago</text>
+<rect x="1112" y="423" width="256" height="216" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="1126" y="449" class="b" fill="#175bb8">demo/tools</text>
+<text x="1126" y="472" class="s" fill="#5a6572">Busiest fill · Open topology</text>
+<text x="1126" y="496" class="s" fill="#172f48">2 open · CI stale</text>
+<path d="M1137 526 L1333 526" fill="none" stroke="#cfdae6" stroke-width="2"/>
+<circle cx="1137" cy="526" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="1151" y="521" class="tiny" fill="#5a6572">main · health unknown</text>
+<path d="M1157 526 Q1160 549 1192 549 L1334 549" fill="none" stroke="#5a6572" stroke-width="3" stroke-dasharray="5 5"/>
+<circle cx="1192" cy="549" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="1206" y="544" class="tiny" fill="#5a6572">staging · unknown</text>
+<text x="1234" y="567" class="tiny" fill="#5a6572">configured role</text>
+<path d="M1194 553 Q1197 586 1223 586 L1335 586" fill="none" stroke="#175bb8" stroke-width="3"/>
+<circle cx="1223" cy="586" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="1235" y="581" class="tiny" fill="#175bb8">#45 feat/5 ?</text>
+<text x="1126" y="608" class="tiny" fill="#5a6572">Ahead / behind unavailable</text>
+<text x="1126" y="625" class="tiny" fill="#5a6572">Observed 19:57 UTC · 3m ago</text>
+<rect x="32" y="655" width="166" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="44" y="679" class="s" fill="#175bb8">+7 more repos</text>
+<text x="218" y="679" class="s" fill="#5a6572">Repo headings open topology. Nodes filter rows. Global red is never filtered out.</text>
+<rect x="32" y="711" width="650" height="354" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="50" y="742" class="h" fill="#172f48">Captain Settings · PR branch flow</text>
+<text x="50" y="769" class="s" fill="#172f48">Pins (2 / 5) · Search tracked repositories</text>
+<rect x="50" y="783" width="600" height="37" rx="7" fill="#edf2f8" stroke="#cfdae6"/>
+<text x="61" y="808" class="s" fill="#5a6572">Search repo name…</text>
+<text x="50" y="847" class="m" fill="#172f48">1  demo/api       Move up / Move down / Unpin</text>
+<text x="50" y="880" class="m" fill="#172f48">2  demo/console   Move up / Move down / Unpin</text>
+<text x="50" y="915" class="m" fill="#172f48">Integration ref for demo/api: staging</text>
+<text x="50" y="944" class="s" fill="#5a6572">Role changes scope future intake; they do not verify health.</text>
+<rect x="50" y="967" width="160" height="36" rx="4" fill="#e6edf6" stroke="#175bb8"/>
+<text x="62" y="991" class="s" fill="#175bb8">Save · revision 4</text>
+<rect x="221" y="967" width="100" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="233" y="991" class="s" fill="#175bb8">Cancel</text>
+<text x="50" y="1037" class="s" fill="#5a6572">Captain-only write · explicit save · stale revisions preserve draft</text>
+<rect x="706" y="711" width="662" height="354" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="725" y="742" class="h" fill="#172f48">Overflow chooser · 7 repositories</text>
+<text x="725" y="769" class="s" fill="#5a6572">Search repository names · 20 per page</text>
+<rect x="725" y="783" width="622" height="37" rx="7" fill="#edf2f8" stroke="#cfdae6"/>
+<text x="736" y="808" class="s" fill="#5a6572">Search repo name…</text>
+<text x="725" y="849" class="m" fill="#b32f2f">outside/tools   1 tracked open · RED · outside strip</text>
+<text x="725" y="889" class="m" fill="#172f48">demo/infra      1 tracked open · health unknown</text>
+<text x="725" y="929" class="m" fill="#172f48">demo/mobile     0 tracked open · 1 lifecycle unknown</text>
+<text x="725" y="978" class="s" fill="#5a6572">Selecting a repo focuses it without changing pins.</text>
+<rect x="725" y="1003" width="96" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="737" y="1027" class="s" fill="#175bb8">Previous</text>
+<rect x="832" y="1003" width="74" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="844" y="1027" class="s" fill="#175bb8">Next</text>
+<rect x="1260" y="1003" width="87" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="1272" y="1027" class="s" fill="#175bb8">Close</text>
+<text x="32" y="1101" class="m" fill="#5a6572">Below: labeled filters + original four-column PR table + 20-row paging (shown in phase 3).</text>
+<text x="32" y="1130" class="s" fill="#5a6572">Limit: five cards, two role trunks + three PR offshoots each. Unknown ≠ green.</text>
+</svg>

@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1150" viewBox="0 0 1400 1150" role="img" aria-labelledby="title desc"><title id="title">Phase 2: focused repository and evidence popover</title><desc id="desc">Original static review layout. Global retained red stays above a focused repo. Default and integration roles are labeled separately from observed PR target edges. Detail panel includes provenance, ages and distinct owners.</desc>
+<rect width="1400" height="1150" fill="#edf2f8"/>
+<style>text{font-family:Arial,Helvetica,sans-serif} .s{font-size:14px} .m{font-size:16px} .h{font-size:21px;font-weight:700} .b{font-size:16px;font-weight:700} .tiny{font-size:12px}</style>
+<rect x="0" y="0" width="1400" height="74" rx="0" fill="#fff" stroke="#fff"/>
+<text x="32" y="34" class="h" fill="#172f48">agentboard</text>
+<text x="240" y="34" class="m" fill="#172f48">Board    Agents    PRs    Context    Settings</text>
+<text x="1060" y="34" class="s" fill="#5a6572">Read-only work view</text>
+<text x="32" y="106" class="h" fill="#172f48">02 / Focused topology</text>
+<text x="32" y="134" class="s" fill="#5a6572">ORIGINAL STATIC PROPOSAL • Invented fixtures, not live observations • Implementation awaits approval</text>
+<rect x="32" y="160" width="1336" height="151" rx="7" fill="#fce6e5" stroke="#edc0bf"/>
+<text x="50" y="188" class="h" fill="#b32f2f">! Branch attention · 3 retained red runs</text>
+<text x="50" y="212" class="m" fill="#b32f2f">Oldest: outside/tools · main · Test suite · red since 2026-10-09 17:40 UTC (2h 20m)</text>
+<text x="50" y="236" class="s" fill="#172f48">Routed to codex-tools-a · run 410 / attempt 2 · SHA 7ea21f0 · observed 19:57 UTC (3m ago)</text>
+<text x="50" y="259" class="s" fill="#175bb8">Outside strip · View workflow / failed job / source task · View all retained failures</text>
+<text x="50" y="285" class="s" fill="#b32f2f">Observation enabled · A webhook feed is required; absence of failures does not verify green.</text>
+<text x="905" y="259" class="tiny" fill="#5a6572">Oldest summary shown; detailed run list omitted.</text>
+<rect x="32" y="332" width="202" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="44" y="356" class="s" fill="#175bb8">Back to all repositories</text>
+<text x="256" y="357" class="h" fill="#172f48">demo/api · 8 tracked open PRs · 3 relations illustrated</text>
+<text x="32" y="395" class="s" fill="#5a6572">Snapshot as of 20:00 UTC · provider observations 19:57 UTC · tracked coverage only</text>
+<rect x="32" y="419" width="876" height="524" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="52" y="450" class="h" fill="#172f48">Topology · observed target relations</text>
+<text x="52" y="478" class="s" fill="#5a6572">○ Unknown health   ! Retained red   × Conflict   - - Configured role only</text>
+<path d="M85 533 L801 533" fill="none" stroke="#5a6572" stroke-width="2"/>
+<circle cx="85" cy="533" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="104" y="525" class="b" fill="#172f48">main · default · current health unknown</text>
+<text x="600" y="559" class="s" fill="#5a6572">tip 0d1b2c3 · 3m old</text>
+<path d="M 105 543 Q 105 593 160 615 L 801 615" fill="none" stroke="#5a6572" stroke-width="3" stroke-dasharray="5 5"/>
+<circle cx="160" cy="615" r="7" fill="#fce6e5" stroke="#b32f2f" stroke-width="2"/>
+<text x="179" y="607" class="b" fill="#b32f2f">staging · configured integration · ! retained red</text>
+<text x="410" y="582" class="s" fill="#5a6572">Configured role only; not ancestry or promotion</text>
+<path d="M 295 615 Q 317 697 388 697 L 801 697" fill="none" stroke="#175bb8" stroke-width="3"/>
+<circle cx="388" cy="697" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="406" y="687" class="m" fill="#172f48">#41 feature/auth · CI unknown · × conflicting</text>
+<text x="406" y="723" class="s" fill="#5a6572">staging → feature/auth · observed target</text>
+<path d="M 85 533 Q 65 533 65 558 L 65 735 Q 65 775 105 775 L 801 775" fill="none" stroke="#5a6572" stroke-width="3"/>
+<circle cx="389" cy="775" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="407" y="765" class="m" fill="#172f48">#44 feature/docs · main target · CI unknown</text>
+<path d="M 801 697 Q 868 697 868 730 L 868 816 Q 868 843 830 843 L 510 843" fill="none" stroke="#5a6572" stroke-width="3"/>
+<circle cx="510" cy="843" r="7" fill="#fff" stroke="#5a6572" stroke-width="2"/>
+<text x="527" y="832" class="m" fill="#172f48">#48 fix/auth · stacked target</text>
+<text x="527" y="867" class="s" fill="#5a6572">feature/auth → fix/auth</text>
+<rect x="52" y="892" width="160" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="64" y="916" class="s" fill="#175bb8">Text relationships</text>
+<rect x="626" y="892" width="102" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="638" y="916" class="s" fill="#175bb8">Previous</text>
+<rect x="740" y="892" width="145" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="752" y="916" class="s" fill="#175bb8">Next relations</text>
+<rect x="930" y="419" width="438" height="620" rx="7" fill="#fff" stroke="#175bb8"/>
+<text x="950" y="452" class="h" fill="#172f48">PR #41 · feature/auth</text>
+<rect x="1280" y="430" width="67" height="36" rx="4" fill="#fff" stroke="#cfdae6"/>
+<text x="1292" y="454" class="s" fill="#175bb8">Close</text>
+<text x="950" y="485" class="s" fill="#175bb8">Title not retained · Open full PR detail</text>
+<text x="950" y="515" class="tiny" fill="#5a6572">Head</text>
+<text x="950" y="533" class="s" fill="#172f48">demo/api : feature/auth @ f12a345</text>
+<text x="950" y="554" class="tiny" fill="#5a6572">Base</text>
+<text x="950" y="572" class="s" fill="#172f48">demo/api : staging @ 0a9b876</text>
+<text x="950" y="593" class="tiny" fill="#5a6572">Expected tip</text>
+<text x="950" y="611" class="s" fill="#172f48">0a9b876 · exact observed pair</text>
+<text x="950" y="632" class="tiny" fill="#5a6572">CI / merge</text>
+<text x="950" y="650" class="s" fill="#172f48">? CI unknown · × conflicting</text>
+<text x="950" y="671" class="tiny" fill="#5a6572">Divergence</text>
+<text x="950" y="689" class="s" fill="#172f48">Ahead / behind unavailable</text>
+<text x="950" y="710" class="tiny" fill="#5a6572">Observed</text>
+<text x="950" y="728" class="s" fill="#172f48">2026-10-09 19:57 UTC · 3m ago</text>
+<text x="950" y="749" class="tiny" fill="#5a6572">Source</text>
+<text x="950" y="767" class="s" fill="#172f48">Snapshot s-41 · current generation</text>
+<text x="950" y="788" class="tiny" fill="#5a6572">Submitter</text>
+<text x="950" y="806" class="s" fill="#172f48">codex-api-a · source task #41</text>
+<text x="950" y="827" class="tiny" fill="#5a6572">CI repair</text>
+<text x="950" y="845" class="s" fill="#172f48">No CI failure episode</text>
+<text x="950" y="866" class="tiny" fill="#5a6572">Rebase repair</text>
+<text x="950" y="884" class="s" fill="#172f48">codex-api-b · rebase task #73</text>
+<text x="950" y="905" class="tiny" fill="#5a6572">Progress</text>
+<text x="950" y="923" class="s" fill="#172f48">19:58 UTC · follow-up pending</text>
+<text x="950" y="944" class="tiny" fill="#5a6572">Evidence</text>
+<text x="950" y="962" class="s" fill="#172f48">PR / check / workflow source links</text>
+<text x="950" y="1019" class="tiny" fill="#5a6572">Escape closes · focus returns to PR node</text>
+<rect x="32" y="963" width="876" height="76" rx="7" fill="#fff" stroke="#cfdae6"/>
+<text x="50" y="990" class="s" fill="#172f48">Text equivalent: PR #41 targets staging; #44 targets main; #48 targets feature/auth.</text>
+<text x="50" y="1015" class="s" fill="#5a6572">No invented commits. At most 20 relations / 42 endpoints / 40 connectors per page.</text>
+<text x="32" y="1078" class="m" fill="#5a6572">Close, Escape, repo switch, paging and Back/Forward invalidate obsolete detail responses.</text>
+<text x="32" y="1107" class="s" fill="#5a6572">The relationship panel is non-modal. Global branch attention remains above every focused view.</text>
+</svg>
