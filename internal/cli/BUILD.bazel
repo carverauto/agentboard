@@ -2,7 +2,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "cli",
-    srcs = ["agent_tokens.go", "availability.go", "scope.go", "decisions.go", "host.go", "root.go", "board.go", "messages.go", "watch.go", "quota.go", "documents.go", "skills.go", "context.go", "worker.go", "worker_mattermost.go", "chat.go", "prs.go", "seat.go", "seat_attach.go", "admin.go", "admin_config.go", "admin_converge.go", "admin_rollout.go", "admin_apply.go"],
+    srcs = ["agent_tokens.go", "availability.go", "scope.go", "fleet.go", "decisions.go", "host.go", "root.go", "board.go", "messages.go", "watch.go", "quota.go", "documents.go", "skills.go", "context.go", "worker.go", "worker_mattermost.go", "chat.go", "prs.go", "seat.go", "seat_attach.go", "admin.go", "admin_config.go", "admin_converge.go", "admin_rollout.go", "admin_apply.go"],
     importpath = "github.com/carverauto/agentboard/internal/cli",
     visibility = ["//:__subpackages__"],
     deps = [
@@ -15,7 +15,7 @@ go_library(
 )
 go_test(
     name = "cli_test",
-    srcs = ["root_test.go", "skills_test.go", "chat_test.go", "seat_test.go", "admin_test.go", "roster_test.go", "scope_test.go", "worker_mattermost_test.go"],
+    srcs = ["root_test.go", "skills_test.go", "chat_test.go", "seat_test.go", "admin_test.go", "roster_test.go", "scope_test.go", "fleet_test.go", "worker_mattermost_test.go"],
     deps = [":cli", "//internal/client"],
     size = "small",
 )

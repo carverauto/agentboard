@@ -18,7 +18,7 @@ COPY internal internal
 COPY skill_bundle.go GROK_BOT.md ./
 COPY skills skills
 COPY scripts/launch-seat scripts/launch-seat
-COPY docs/api.md docs/quota.md docs/participation.md docs/context.md docs/seat-scope.md docs/
+COPY docs/api.md docs/quota.md docs/participation.md docs/context.md docs/seat-scope.md docs/fleet-loadout.md docs/
 COPY docs/coordinator/adapters/grok-bot.md docs/coordinator/adapters/
 ARG TARGETOS
 ARG TARGETARCH

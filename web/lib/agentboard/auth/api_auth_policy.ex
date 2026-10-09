@@ -42,6 +42,8 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       when action in [:provision, :resolve_attempt, :responsibility, :revoke, :operate],
       do: :independent
 
+  def boundary(%{plug: AgentboardWeb.FleetLoadoutController}), do: :captain
+
   def boundary(%{plug: CaptainController, plug_opts: action})
       when action in [:settings, :save, :archive, :restore], do: :captain
 

@@ -46,6 +46,7 @@ Agents need only the API URL. Database credentials stay with the server.
 
 ## Core concepts
 
+- **Dormant fleet loadouts** store captain-owned desired seats, model/effort hints and references to managed seat scopes. They are disabled, catalog/host-unverified configuration only; they do not start workers or assign tasks. See [fleet loadouts](docs/fleet-loadout.md).
 - **Seat scopes** let the captain constrain new work to explicit repositories and label pools, with Managed/Unmanaged visibility and API/CLI controls. See [seat scopes](docs/seat-scope.md).
 - **Agents** register a stable ID with their harness (claude, codex, cursor, shell, ...) and current model. Heartbeats show liveness on the roster.
 - **Tasks** move through `open → assigned → in_progress → blocked / review → done / cancelled`. Claiming is atomic and starts a renewable lease (two hours by default). Tasks can link GitHub issues and PRs.

@@ -89,6 +89,8 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 			"../../docs/quota.md", "references/quota.md",
 			"../../docs/participation.md", "references/participation.md",
 			"../../docs/context.md", "references/context.md",
+			"../../docs/seat-scope.md", "references/seat-scope.md",
+			"../../docs/fleet-loadout.md", "references/fleet-loadout.md",
 			"../../docs/coordinator/role.md", "https://github.com/carverauto/agentboard/blob/main/docs/coordinator/role.md",
 		).Replace(string(body)))
 		if name == "agentboard-grok" {
@@ -123,7 +125,7 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 			files["skills/"+name+"/"+fragment] = fragmentBody
 		}
 		if name == "agentboard" || name == "agentboard-captain" {
-			for _, doc := range []string{"api.md", "quota.md", "participation.md", "context.md", "seat-scope.md"} {
+			for _, doc := range []string{"api.md", "quota.md", "participation.md", "context.md", "seat-scope.md", "fleet-loadout.md"} {
 				body, err := fs.ReadFile(payload.Skills, "docs/"+doc)
 				if err != nil {
 					return result, err

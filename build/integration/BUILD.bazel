@@ -360,6 +360,16 @@ sh_test(
 )
 
 sh_test(
+    name = "fleet_loadout_api_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "fleet_loadout_api_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = [":liveview_rendered", "@worker_node_linux_x64//:bin/node", "fleet_loadout_api_test.py", "liveview_client.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)", "$(rlocationpath :liveview_rendered)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
+    size = "medium",
+    timeout = "long",
+)
+
+sh_test(
     name = "seat_scope_api_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "seat_scope_api_test.py"},
     srcs = ["board_api_test.sh"],

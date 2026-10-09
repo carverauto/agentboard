@@ -82,7 +82,7 @@ func NewRoot() *cobra.Command {
 		return err
 	}})
 	root.AddCommand(c.doctor())
-	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.hostCommands(), c.chat(), c.prs(), c.decisions(), c.seat(), c.adminCommands())
+	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.hostCommands(), c.chat(), c.prs(), c.decisions(), c.seat(), c.adminCommands(), c.fleetCommands())
 	return root
 }
 func env(key, fallback string) string {
@@ -103,7 +103,10 @@ func (c *commands) staleAfter(cmd *cobra.Command) string {
 }
 
 func (c *commands) request(cmd *cobra.Command, method, path string, query url.Values, payload any) error {
-	if method != http.MethodGet {
+	// Fleet authority and audit attribution come from verified captain transport,
+	// not the caller's self-reported actor environment.
+	fleetLoadout := strings.HasPrefix(path, "fleets/") && strings.HasSuffix(path, "/loadout")
+	if method != http.MethodGet && !fleetLoadout {
 		if err := c.cfg.Actor.Validate(); err != nil {
 			return err
 		}
@@ -111,6 +114,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	var api *client.Client
 	var err error
 	captain, _ := cmd.Flags().GetBool("captain")
+	// Fleet configuration is captain-only for reads as well as writes. There is
+	// no command flag that can downgrade this transport to an ordinary bearer.
+	captain = captain || fleetLoadout
 	if captain {
 		secret, readErr := worker.ReadProtected(os.Getenv("AGENTBOARD_CAPTAIN_TOKEN_FILE"), 4096)
 		if readErr != nil {
@@ -187,6 +193,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if strings.HasPrefix(path, "agents/") && strings.HasSuffix(path, "/scope") {
 		required = 34
 	}
+	if fleetLoadout {
+		required = 35
+	}
 	if fields, ok := payload.(map[string]any); ok {
 		if kind, ok := fields["kind"].(string); ok && (kind == "seat" || kind == "human" || kind == "system" || kind == "fixture") {
 			required = 30
@@ -222,7 +231,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "scope", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "decision", "decisions", "wake", "wakes"} {
+	for _, key := range []string{"agent", "agents", "scope", "loadout", "task", "tasks", "events", "messages", "message", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "decision", "decisions", "wake", "wakes"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue
@@ -251,6 +260,9 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 	}
 	if dupe, ok := envelope["duplicate"]; ok {
 		fmt.Fprintf(table, "duplicate\t%v\n", dupe)
+	}
+	if replayed, ok := envelope["replayed"]; ok {
+		fmt.Fprintf(table, "replayed\t%v\n", replayed)
 	}
 	if caughtUp, ok := envelope["caught_up"]; ok {
 		fmt.Fprintf(table, "caught_up\t%v\n", caughtUp)

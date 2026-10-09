@@ -244,6 +244,7 @@ defmodule AgentboardWeb.Plugs.AgentAuth do
       controller not in [
         AgentboardWeb.WorkerController,
         AgentboardWeb.CaptainController,
+        AgentboardWeb.FleetLoadoutController,
         AgentboardWeb.AgentTokenController
       ]
 

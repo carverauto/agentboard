@@ -25,5 +25,6 @@ build
 !docs/participation.md
 !docs/context.md
 !docs/seat-scope.md
+!docs/fleet-loadout.md
 !docs/coordinator/adapters/grok-bot.md
 !GROK_BOT.md
