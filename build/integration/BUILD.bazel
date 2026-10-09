@@ -527,3 +527,13 @@ sh_test(
     size = "medium",
     timeout = "long",
 )
+
+sh_test(
+    name = "branch_flow_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "branch_flow_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = [":liveview_rendered", "@worker_node_linux_x64//:bin/node", "branch_flow_test.py", "branch_flow_parity.py", "liveview_client.py", "provider_fixture.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)", "$(rlocationpath :liveview_rendered)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
+    size = "large",
+    timeout = "long",
+)

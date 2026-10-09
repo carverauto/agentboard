@@ -219,3 +219,21 @@ ex_unit_test(
     elixir_opts = ["-r", "test/test_helper.exs"],
     deps = [":erlang_app"],
 )
+
+ex_unit_test(
+    name = "branch_flow_live_test",
+    size = "small",
+    srcs = ["test/branch_flow_live_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
+    deps = [":erlang_app"],
+)
+
+ex_unit_test(
+    name = "branch_flow_test",
+    size = "small",
+    srcs = ["test/branch_flow_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
+    deps = [":erlang_app"],
+)

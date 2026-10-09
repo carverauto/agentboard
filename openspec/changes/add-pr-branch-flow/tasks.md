@@ -1,11 +1,17 @@
-# Implementation plan — all work below remains unapproved and unchecked
+# Approved implementation plan — partial preview only
 
-The proposal covers all three phases. These are future acceptance tasks, not a
-record of implementation. Documentation review/merge does not approve execution.
+The captain explicitly approved phased implementation on 2026-10-09 after the
+proposal merged. Documentation review/merge alone did not grant that approval.
+The first product increment delivers a separately scoped busiest-only preview;
+none of the broader requirements below is considered fully done by that slice.
+See [preview scope](../../../docs/branch-flow.md) and
+[verification](../../../docs/verification/branch-flow-overview.md). Captain
+pins/settings, role intake, focused topology, row mini-trees and numeric evidence
+remain pending. Landing the preview does not close #185.
 
 ## 0. Approval and dependency gates
 
-- [ ] 0.1 Record explicit captain approval of this three-phase proposal and its bounded, tracked-inventory scope before editing product code.
+- [x] 0.1 Record explicit captain approval of this three-phase proposal and its bounded, tracked-inventory scope before editing product code.
 - [ ] 0.2 Agree the persisted exact-pair numeric divergence contract and ownership with #169; record supported fields, qualification, budget/admission and unavailable fallback. Do not silently add compare calls.
 - [ ] 0.3 Approve the scoped #114 integration-workflow intake extension, source/config revision fences, retained-red semantics and separate operational activation boundary.
 - [ ] 0.4 Rebase on then-current main, inspect conflicting work, allocate migration identifiers only then, and use the required implementation seat/native publication workflow.

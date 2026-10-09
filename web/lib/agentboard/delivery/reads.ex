@@ -35,7 +35,8 @@ defmodule Agentboard.Delivery.Reads do
     end)
   end
 
-  defp budget do
+  @doc "Shared persisted provider-budget projection; performs no provider I/O."
+  def budget do
     b = Ash.get!(Agentboard.Delivery.ProviderBudget, "github")
     stamp = Ops.now()
     capacity = min(b.capacity, 60)
@@ -187,33 +188,165 @@ defmodule Agentboard.Delivery.Reads do
     records
   end
 
-  defp record(pr) do
-    s = Ash.get!(PollState, pr.id, not_found_error?: false)
+  @doc "Project a bounded preselected page using the authoritative dashboard record."
+  def records([]), do: []
 
-    o =
-      Obligation
-      |> Ash.Query.filter(pull_request_id == ^pr.id)
-      |> Ash.Query.sort(episode: :desc)
-      |> Ash.Query.limit(1)
-      |> Ash.read_one!()
+  def records(prs) when is_list(prs) and length(prs) <= 20 do
+    ids = Enum.map(prs, & &1.id)
+    states = read_by_ids(PollState, ids)
+    obligations = latest_by_pr(Obligation, ids, :episode)
+    rebases = latest_by_pr(Agentboard.Delivery.RebaseFollowUp, ids, :created_at)
 
-    rebase =
-      Agentboard.Delivery.RebaseFollowUp
-      |> Ash.Query.filter(pull_request_id == ^pr.id)
-      |> Ash.Query.sort(created_at: :desc)
-      |> Ash.Query.limit(1)
-      |> Ash.read_one!()
+    snapshots =
+      states
+      |> Map.values()
+      |> Enum.map(& &1.snapshot_id)
+      |> Enum.reject(&is_nil/1)
+      |> then(&read_by_ids(CISnapshot, &1))
 
-    responsible = (o && o.responsible_id) || (rebase && rebase.responsible_id)
+    # Retain the authoritative duplicate/worker/delivery projectors. Only skip
+    # known-absent findings and reuse identical inputs within this read snapshot.
+    findings = read_by_ids(Agentboard.Delivery.DuplicateFinding, ids)
 
-    repair_tasks =
-      [o && o.repair_task_id, rebase && rebase.repair_task_id]
+    duplicates =
+      Map.new(ids, fn id ->
+        {id, if(Map.has_key?(findings, id), do: Agentboard.Delivery.Duplicates.projection(id))}
+      end)
+
+    workers =
+      ids
+      |> Enum.map(&responsible(obligations[&1], rebases[&1]))
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
+      |> Map.new(&{&1, health(&1)})
+
+    deliveries =
+      ids
+      |> Enum.map(&repair_tasks(obligations[&1], rebases[&1]))
+      |> Enum.uniq()
+      |> Map.new(&{&1, follow_up_delivery(&1)})
+
+    expected =
+      Enum.reduce(prs, %{}, fn pr, acc ->
+        key = expected_key(pr, states[pr.id])
+
+        Map.put_new_lazy(acc, key, fn ->
+          s = states[pr.id]
+
+          Agentboard.Delivery.BaseMonitor.expected_sha(
+            pr,
+            s && s.base_ref,
+            s && s.expected_base_sha
+          )
+        end)
+      end)
+
+    batch = %{
+      states: states,
+      obligations: obligations,
+      rebases: rebases,
+      snapshots: snapshots,
+      duplicates: duplicates,
+      decisions: waiting_decisions_batch(ids),
+      workers: workers,
+      deliveries: deliveries,
+      expected: expected
+    }
+
+    Enum.map(prs, &record(&1, batch))
+  end
+
+  defp read_by_ids(_, []), do: %{}
+
+  defp read_by_ids(resource, ids) do
+    resource
+    |> Ash.Query.filter(id in ^ids)
+    |> Ash.Query.limit(length(ids))
+    |> Ash.read!()
+    |> Map.new(&{&1.id, &1})
+  end
+
+  defp latest_by_pr(resource, ids, field) do
+    resource
+    |> Ash.Query.filter(pull_request_id in ^ids)
+    |> Ash.Query.distinct(:pull_request_id)
+    |> Ash.Query.distinct_sort([{field, :desc}])
+    |> Ash.Query.limit(length(ids))
+    |> Ash.read!()
+    |> Map.new(&{&1.pull_request_id, &1})
+  end
+
+  defp waiting_decisions_batch(ids) do
+    %{rows: rows} =
+      Agentboard.Repo.statement!(
+        """
+        SELECT p.id,coalesce(jsonb_agg(waiting.record ORDER BY waiting.created_at,waiting.id)
+          FILTER (WHERE waiting.id IS NOT NULL),'[]'::jsonb)
+        FROM unnest($1::text[]) p(id)
+        LEFT JOIN LATERAL (
+          SELECT d.created_at,d.id,jsonb_build_object('id',d.id,'task_id',d.task_id,
+            'requester_id',d.requester_id,'status',d.status,
+            'requester_stale',(a.last_heartbeat IS NULL OR a.last_heartbeat<=clock_timestamp()-interval '10 minutes')) AS record
+          FROM decision_requests d JOIN agents a ON a.id=d.requester_id
+          WHERE d.status IN ('open','answered') AND EXISTS(
+            SELECT 1 FROM delivery_task_links l WHERE l.task_id=d.task_id AND l.pull_request_id=p.id)
+          ORDER BY d.created_at,d.id LIMIT 20
+        ) waiting ON true
+        GROUP BY p.id
+        """,
+        [Enum.uniq(ids)]
+      )
+
+    Map.new(rows, fn [id, decisions] -> {id, decisions} end)
+  end
+
+  defp from_batch(nil, _, _, load), do: load.()
+  defp from_batch(batch, section, key, _), do: Map.fetch!(batch, section)[key]
+
+  defp expected_key(pr, s),
+    do: {pr.owner, pr.repo, s && s.base_ref, s && s.expected_base_sha}
+
+  defp responsible(o, rebase), do: (o && o.responsible_id) || (rebase && rebase.responsible_id)
+
+  defp repair_tasks(o, rebase) do
+    [o && o.repair_task_id, rebase && rebase.repair_task_id]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp record(pr, batch \\ nil) do
+    s =
+      from_batch(batch, :states, pr.id, fn ->
+        Ash.get!(PollState, pr.id, not_found_error?: false)
+      end)
+
+    o =
+      from_batch(batch, :obligations, pr.id, fn ->
+        Obligation
+        |> Ash.Query.filter(pull_request_id == ^pr.id)
+        |> Ash.Query.sort(episode: :desc)
+        |> Ash.Query.limit(1)
+        |> Ash.read_one!()
+      end)
+
+    rebase =
+      from_batch(batch, :rebases, pr.id, fn ->
+        Agentboard.Delivery.RebaseFollowUp
+        |> Ash.Query.filter(pull_request_id == ^pr.id)
+        |> Ash.Query.sort(created_at: :desc)
+        |> Ash.Query.limit(1)
+        |> Ash.read_one!()
+      end)
+
+    responsible = responsible(o, rebase)
+    repair_tasks = repair_tasks(o, rebase)
 
     %{
-      duplicate_of: Agentboard.Delivery.Duplicates.projection(pr.id),
-      decisions: waiting_decisions(pr.id),
+      duplicate_of:
+        from_batch(batch, :duplicates, pr.id, fn ->
+          Agentboard.Delivery.Duplicates.projection(pr.id)
+        end),
+      decisions: from_batch(batch, :decisions, pr.id, fn -> waiting_decisions(pr.id) end),
       pr: Ops.public(pr),
       poll: if(s, do: Agentboard.Delivery.Polling.public_state(s)),
       poll_deferral_age:
@@ -225,10 +358,14 @@ defmodule Agentboard.Delivery.Reads do
         !!o and is_nil(o.resolved_at) and DateTime.compare(o.next_reminder_at, Ops.now()) != :gt,
       obligation: if(o, do: Ops.public(o)),
       rebase_follow_up: if(rebase, do: Ops.public(rebase)),
-      worker: if(responsible, do: health(responsible)),
-      follow_up_delivery: follow_up_delivery(repair_tasks)
+      worker:
+        if(responsible,
+          do: from_batch(batch, :workers, responsible, fn -> health(responsible) end)
+        ),
+      follow_up_delivery:
+        from_batch(batch, :deliveries, repair_tasks, fn -> follow_up_delivery(repair_tasks) end)
     }
-    |> Map.merge(ci_projection(pr, s))
+    |> Map.merge(ci_projection(pr, s, batch))
   end
 
   # Derived per-event delivery mode for open repair tasks: worker when a
@@ -282,12 +419,29 @@ defmodule Agentboard.Delivery.Reads do
   defp ci_projection(pr),
     do: ci_projection(pr, Ash.get!(PollState, pr.id, not_found_error?: false))
 
-  defp ci_projection(pr, s) do
-    snapshot = if s && s.snapshot_id, do: Ash.get!(CISnapshot, s.snapshot_id)
+  defp ci_projection(pr, s, batch \\ nil) do
+    snapshot =
+      if s && s.snapshot_id do
+        if batch do
+          case Map.fetch(batch.snapshots, s.snapshot_id) do
+            {:ok, snapshot} -> snapshot
+            :error -> Ash.get!(CISnapshot, s.snapshot_id)
+          end
+        else
+          Ash.get!(CISnapshot, s.snapshot_id)
+        end
+      end
+
     payload = snapshot_payload(s, snapshot)
 
     expected =
-      Agentboard.Delivery.BaseMonitor.expected_sha(pr, s && s.base_ref, s && s.expected_base_sha)
+      from_batch(batch, :expected, expected_key(pr, s), fn ->
+        Agentboard.Delivery.BaseMonitor.expected_sha(
+          pr,
+          s && s.base_ref,
+          s && s.expected_base_sha
+        )
+      end)
 
     # New snapshots bind the branch watch sampled before collection. Keep the
     # original provider base_sha intact; older snapshots retain their old rule.
