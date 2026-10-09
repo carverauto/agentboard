@@ -1,5 +1,5 @@
 defmodule Agentboard.Auth do
-  @moduledoc "Captain credential custody and observe-only API principal resolution."
+  @moduledoc "Captain credential custody and verified API principal resolution."
   use Ash.Domain, backwards_compatible_interface?: false
 
   resources do
@@ -10,11 +10,10 @@ defmodule Agentboard.Auth do
   alias Agentboard.{Captain, Input, Repo}
   alias Agentboard.Board.Operations, as: Ops
   alias Agentboard.Board.Resources.Agent
-  alias Agentboard.Auth.{Credential, Observation}
+  alias Agentboard.Auth.{APIAuthPolicy, Credential, Observation}
   require Ash.Query
   require Logger
 
-  @system_ids ~w(ci-accountability cooperation system housekeeping delivery delivery-observation pr-observation captain auth-system)
   @actor %{"agent" => "auth-system", "model" => "system", "harness" => "ash"}
 
   def mode, do: Application.get_env(:agentboard, :agent_auth_mode, "off")
@@ -74,13 +73,12 @@ defmodule Agentboard.Auth do
               else: "agent"
             )
 
-        if agent.harness in ~w(ash system server) or id in @system_ids or
-             String.starts_with?(id, "system-") or
-             scope not in ~w(agent coordinator),
+        if APIAuthPolicy.reserved?(id, agent.harness, agent.kind) or
+             not is_nil(agent.retired_at) or scope not in ~w(agent coordinator),
            do:
              Ops.reject(
                "forbidden",
-               "Reserved identities and privileged scopes require the approved enforcement phase"
+               "Credentials require an active, non-reserved agent and supported scope"
              )
 
         if scope == "coordinator" != (id == Application.get_env(:agentboard, :coordinator_id)),
@@ -134,28 +132,48 @@ defmodule Agentboard.Auth do
   def verify(nil), do: {:ok, nil}
 
   def verify("abt_" <> suffix = token) when byte_size(suffix) == 43 do
+    if Regex.match?(~r/\A[A-Za-z0-9_-]{43}\z/, suffix),
+      do: verify_token(token),
+      else: {:ok, nil}
+  end
+
+  def verify(_), do: {:ok, nil}
+
+  defp verify_token(token) do
     hash = digest(token)
 
     Ops.transaction(fn ->
-      # Lookup first, then lock the same agent row as rotation and recheck the
-      # credential under that lock. Revocation cannot race into stale validity.
+      # Rotation and verification serialize on the agent row. Authentication is
+      # a request-admission decision: revocation does not cancel an operation
+      # already admitted. Long-lived watches revalidate before each snapshot.
       case Credential |> Ash.Query.filter(token_hash == ^hash) |> Ash.read_one!() do
         nil ->
           nil
 
         candidate ->
           Repo.statement!("SELECT id FROM agents WHERE id=$1 FOR UPDATE", [candidate.agent_id])
-          row = Ash.get!(Credential, candidate.id)
+          row = Ash.get!(Credential, candidate.id, not_found_error?: false)
+          agent = Ash.get!(Agent, candidate.agent_id, not_found_error?: false)
 
-          if is_nil(row.revoked_at) do
+          if row &&
+               APIAuthPolicy.credential_allowed?(
+                 row,
+                 agent,
+                 Application.get_env(:agentboard, :coordinator_id)
+               ) do
             Ops.update(row, :use, %{last_used_at: Ops.now()}, @actor)
-            %{agent_id: row.agent_id, scope: row.scope, credential_id: row.id}
+
+            %{
+              agent_id: row.agent_id,
+              scope: row.scope,
+              credential_id: row.id,
+              model: agent.model,
+              harness: agent.harness
+            }
           end
       end
     end)
   end
-
-  def verify(_), do: {:ok, nil}
 
   def observe(attributed, token, method, route) do
     with {:ok, principal} <- verify(token) do

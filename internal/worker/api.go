@@ -53,6 +53,10 @@ type API struct {
 }
 
 func OpenAPI(cfg Config, b Binding, receipt bool) (*API, error) {
+	accessFile, err := cfg.accessServiceTokenFile()
+	if err != nil {
+		return nil, err
+	}
 	path := b.TokenFile
 	if receipt {
 		path += ".receipt"
@@ -62,7 +66,10 @@ func OpenAPI(cfg Config, b Binding, receipt bool) (*API, error) {
 		return nil, err
 	}
 	token := strings.TrimSpace(string(data))
-	c, err := client.NewRuntime(config.Config{URL: cfg.URL, CAFile: cfg.CAFile, Actor: config.Actor{ID: b.Agent, Model: b.Model, Harness: b.Harness}}, token)
+	c, err := client.NewRuntime(config.Config{
+		URL: cfg.URL, CAFile: cfg.CAFile, AccessServiceTokenFile: accessFile,
+		Actor: config.Actor{ID: b.Agent, Model: b.Model, Harness: b.Harness},
+	}, token)
 	if err != nil {
 		return nil, err
 	}

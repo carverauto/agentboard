@@ -8,13 +8,24 @@ defmodule AgentboardWeb.Plugs.RateLimit do
   @impl true
   def call(conn, _opts) do
     agent =
-      case get_req_header(conn, "x-agentboard-agent") do
-        [value] when byte_size(value) <= 128 -> value
-        _ -> nil
+      if Agentboard.Auth.mode() in ["off", "observe"] do
+        case get_req_header(conn, "x-agentboard-agent") do
+          [value] when byte_size(value) <= 128 -> value
+          _ -> nil
+        end
       end
 
     # Forwarded headers are untrusted; Gateway proxy support must be explicitly configured.
-    case Agentboard.RateLimits.check(conn.remote_ip, agent) do
+    # Enforced requests cannot spend somebody else's agent budget before proof.
+    limit(conn, Agentboard.RateLimits.check(conn.remote_ip, agent))
+  end
+
+  def authenticated_agent(%{assigns: %{authenticated_agent: %{agent_id: id}}} = conn)
+      when is_binary(id),
+      do: limit(conn, Agentboard.RateLimits.check_agent(id))
+
+  defp limit(conn, result) do
+    case result do
       :ok ->
         conn
 
@@ -36,4 +47,3 @@ defmodule AgentboardWeb.Plugs.RateLimit do
     |> halt()
   end
 end
-

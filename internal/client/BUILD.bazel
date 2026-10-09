@@ -8,7 +8,7 @@ go_library(
 )
 go_test(
     name = "client_test",
-    srcs = ["client_test.go"],
+    srcs = ["access_service_token_test.go", "client_test.go"],
     deps = [":client", "//internal/config"],
     size = "small",
 )

@@ -1,12 +1,39 @@
 import Config
 
-# Observe-only delivery: enforcement is a separate captain-approved change.
+# Enforcement is opt-in so existing private deployments can migrate credentials
+# before enabling it. Never expose an off/observe deployment to the Internet.
 auth_mode = System.get_env("AGENTBOARD_AUTH_MODE", "off")
 
-if auth_mode not in ["off", "observe"],
-  do: raise("AGENTBOARD_AUTH_MODE must be off or observe; enforcement requires captain approval")
+if auth_mode not in ["off", "observe", "enforce"],
+  do: raise("AGENTBOARD_AUTH_MODE must be off, observe, or enforce")
 
 config :agentboard, :agent_auth_mode, auth_mode
+
+# Human authentication is independent of agent bearer authentication. Both must
+# be enabled before exposing the full application outside a trusted network.
+frontend_mode = System.get_env("AGENTBOARD_FRONTEND_AUTH_MODE", "off")
+
+if frontend_mode not in ["off", "cloudflare_access"],
+  do: raise("AGENTBOARD_FRONTEND_AUTH_MODE must be off or cloudflare_access")
+
+allowlist = fn name ->
+  System.get_env(name, "") |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+end
+
+frontend_ttl =
+  case Integer.parse(System.get_env("AGENTBOARD_FRONTEND_SESSION_TTL_SECONDS", "300")) do
+    {ttl, ""} when ttl >= 1 and ttl <= 300 -> ttl
+    _ -> raise("AGENTBOARD_FRONTEND_SESSION_TTL_SECONDS must be between 1 and 300")
+  end
+
+config :agentboard, :frontend_auth,
+  mode: frontend_mode,
+  issuer: System.get_env("AGENTBOARD_ACCESS_ISSUER"),
+  audience: System.get_env("AGENTBOARD_ACCESS_AUDIENCE"),
+  jwks_file: System.get_env("AGENTBOARD_ACCESS_JWKS_FILE"),
+  allowed_emails: allowlist.("AGENTBOARD_FRONTEND_ALLOWED_EMAILS"),
+  allowed_subjects: allowlist.("AGENTBOARD_FRONTEND_ALLOWED_SUBJECTS"),
+  session_ttl_seconds: frontend_ttl
 
 # Board remains primary unless an explicitly selected transport passes its gate.
 config :agentboard, :message_mode, System.get_env("AGENTBOARD_MESSAGE_MODE", "board")
@@ -157,8 +184,7 @@ config :agentboard, :rate_limits,
   watch_agent: String.to_integer(System.get_env("API_WATCH_LIMIT_AGENT", "5")),
   max_watches: 1_000
 
-config :agentboard, :roster,
-  stale_after: System.get_env("AGENTBOARD_ROSTER_STALE_AFTER", "20m")
+config :agentboard, :roster, stale_after: System.get_env("AGENTBOARD_ROSTER_STALE_AFTER", "20m")
 
 database_url = System.get_env("DATABASE_URL")
 

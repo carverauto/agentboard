@@ -19,10 +19,18 @@ class Page(HTMLParser):
         if 'data-phx-main' in attrs:self.root=attrs
 
 class LiveView:
-    def __init__(self,base,path,cookie_header=''):
+    def __init__(self,base,path,cookie_header='',*,headers=None,page_document=None,expect_join=True):
         url=base+path
-        with urllib.request.urlopen(urllib.request.Request(url,headers={'Cookie':cookie_header}),timeout=10) as response:
-            document=response.read().decode();cookies=SimpleCookie();cookies.load(cookie_header);cookies.load(response.headers.get('Set-Cookie',''))
+        cookies=SimpleCookie();cookies.load(cookie_header)
+        if page_document is None:
+            request_headers=dict(headers or {},Cookie=cookie_header)
+            with urllib.request.urlopen(urllib.request.Request(url,headers=request_headers),timeout=10) as response:
+                document=response.read().decode();cookies.load(response.headers.get('Set-Cookie',''))
+        else:
+            # Replay the already signed page/session directly at WebSocket join,
+            # without an HTTP request silently reauthenticating the browser.
+            document=page_document
+        self.document=document
         page=Page();page.feed(document)
         assert page.root and page.csrf, 'Missing LiveView root/session or CSRF token'
         self.topic='lv:'+page.root['id']
@@ -32,6 +40,8 @@ class LiveView:
         self.events=[]
         key=base64.b64encode(os.urandom(16)).decode()
         cookie='; '.join(k+'='+v.value for k,v in cookies.items())
+        self.cookie_header=cookie
+        self.csrf=page.csrf
         endpoint='/live/websocket?vsn=2.0.0&_csrf_token='+urllib.parse.quote(page.csrf)
         headers=f'GET {endpoint} HTTP/1.1\r\nHost: {target.netloc}\r\nOrigin: {base}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: {key}\r\nCookie: {cookie}\r\n\r\n'
         self.socket.sendall(headers.encode())
@@ -42,8 +52,9 @@ class LiveView:
         assert expected in header
         self.send(['1','1',self.topic,'phx_join',{'url':url,'params':{'_csrf_token':page.csrf,'_mounts':0},'session':page.root['data-phx-session'],'static':page.root.get('data-phx-static')}])
         joined=self.wait(lambda event:event[3]=='phx_reply')
-        assert joined and joined[4]['status']=='ok',joined
-        self.initial=joined[4]['response']['rendered']
+        self.join_result=joined
+        if expect_join:assert joined and joined[4]['status']=='ok',joined
+        self.initial=joined[4]['response'].get('rendered') if joined else None
     def send(self,payload,opcode=1):
         raw=json.dumps(payload,separators=(',',':')).encode() if opcode==1 else payload
         length=len(raw);mask=os.urandom(4)

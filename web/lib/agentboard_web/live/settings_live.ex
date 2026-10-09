@@ -60,6 +60,13 @@ defmodule AgentboardWeb.SettingsLive do
     ~H"""
     <main id="settings-view">
       <div class="page-title"><h1>Settings</h1><a href="/archive">Browse archived tasks</a></div>
+      <section :if={assigns[:frontend_identity]} class="settings-panel">
+        <p>Signed in as {@frontend_identity.email}. Captain controls are unlocked separately.</p>
+        <form action="/auth/logout" method="post">
+          <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+          <button type="submit" class="text-button">Sign out</button>
+        </form>
+      </section>
       <p :if={@error} class="notice danger" role="alert">{@error}</p>
       <p :if={@saved} class="notice healthy" role="status">Archive policy saved.</p>
       <p :if={!@policy} class="notice">Connecting to the board…</p>

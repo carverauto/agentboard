@@ -17,7 +17,10 @@ defmodule Agentboard.MixProject do
   end
 
   def application do
-    [mod: {Agentboard.Application, []}, extra_applications: [:logger, :runtime_tools, :inets, :ssl]]
+    [
+      mod: {Agentboard.Application, []},
+      extra_applications: [:logger, :runtime_tools, :inets, :ssl]
+    ]
   end
 
   # Runs in the remote release assembler for both Bazel and Docker. Phoenix owns
@@ -56,6 +59,7 @@ defmodule Agentboard.MixProject do
       {:bandit, "== 1.12.5"},
       {:ecto_sql, "== 3.14.0"},
       {:jason, "== 1.4.5"},
+      {:jose, "== 1.11.12"},
       {:phoenix, "== 1.8.13"},
       {:phoenix_ecto, "== 4.7.0"},
       {:phoenix_html, "== 4.3.0"},
@@ -64,4 +68,3 @@ defmodule Agentboard.MixProject do
     ]
   end
 end
-

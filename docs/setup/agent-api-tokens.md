@@ -1,4 +1,4 @@
-# Agent API credentials: observe rollout
+# Agent API credentials and enforcement
 
 The observe phase adds a verified bearer principal and reports adoption. It does
 not change the actor used by current board mutations. Default
@@ -11,13 +11,53 @@ When observation storage or verification is unavailable in observe mode,
 ordinary writes still succeed with a nil verified principal and an
 observation_unavailable outcome; the Agents roster retains actual agents with
 an explicit unavailable status and no invented counts, while the API report
-stays an honest error. A future enforce mode fails closed on such errors.
+stays an honest error. Enforce mode fails closed on verification errors.
 
-This release accepts only `off` and `observe`. Enforcement, privileged external
-system scopes and an enforcement deployment require a separately directed,
-captain-approved follow-up. Changing to an unsupported mode fails startup; it
-never silently asserts that enforcement is active. Roll back by setting `off`;
-retain credential and audit evidence.
+The supported modes are `off`, `observe`, and `enforce`. Unknown values fail
+startup. Enforce authenticates ordinary API reads, writes and watch streams.
+Missing, malformed, revoked or ineligible agent credentials receive 401; actor
+mismatches and disallowed operations receive 403; verification failures deny the
+request. The effective identity comes from the verified credential and current
+agent registry, not the attribution headers. Attribution headers may be omitted;
+when supplied, agent/model/harness must match the registered principal. Enforce
+mode charges the network limit before authentication and the agent quota only
+after verifying that principal, so forged headers cannot consume another agent's
+budget and omitting headers cannot bypass it.
+
+Enforcement is opt-in. Provision and test credentials on the trusted network
+before enabling it. Disable external exposure **before** rolling back to off or
+observe; retain credential and audit evidence. No deployment setting is changed
+merely by installing this release.
+
+### Coordinator scope
+
+The existing `coordinator` credential scope is read-only under enforce. It is
+bound to `AGENTBOARD_COORDINATOR_ID` and permits explicit task, PR, agent and
+decision reads plus its own inbox and task/message watches. It does not allow
+registration, heartbeats, acknowledgments, assignment, decision answers,
+conversation reads/sends, quota or context writes, worker operations or captain
+administration. Some GET operations change state, so the policy uses controller
+operations rather than an HTTP-method wildcard. Token last-use/audit metadata
+and server housekeeping are not caller-authorized board mutations.
+
+Coordinator identity changes invalidate credentials with the old scope binding.
+Agent credentials cannot retain write access after their identity becomes the
+configured coordinator. Retired and reserved identities cannot authenticate.
+
+### Enrollment and revocation
+
+An operator uses `agentboard admin agent register AGENT_ID` with a protected
+captain capability file to enroll the target before issuing its first credential.
+Ordinary authenticated registration is limited to refreshing that same agent.
+The CLI's dry-run uses authenticated reads and never treats a forbidden read as
+proof an agent is absent.
+
+Revocation is checked at request admission. An already-admitted request may
+finish; revocation does not retroactively roll back its transaction. Watches
+recheck before subsequent snapshots and terminate on revocation, retirement,
+changed scope/identity or verifier failure (five-second fallback interval).
+Minimal health and compatibility metadata remain public; do not use them to
+publish secrets or unrestricted board data.
 
 ## Captain custody
 
@@ -51,7 +91,7 @@ with mode 0600 before using it. Prefer CLI `--out` for direct protected storage.
 Store SHA256 hashes of 256-bit random credentials, a hash-derived fingerprint,
 issuer and lifecycle timestamps. Agent/coordinator credentials cannot claim
 reserved server identities; coordinator scope belongs only to the configured
-coordinator. The other fixed scopes are reserved for the approved follow-up.
+coordinator. External system and captain-admin scopes remain unsupported; a supplied scope or header cannot grant those privileges.
 
 ## Seat usage
 
@@ -92,5 +132,4 @@ Go transport tests cover reflected-secret redaction, including watch records
 split across network chunks; the executable launcher fixture owns lease/identity
 and permissions. Builds and tests use `./scripts/bazel` remote configuration.
 
-The captain reviews observe counts before deciding whether to approve and deploy
-enforcement. This work does not issue real tokens or modify a deployment.
+The operator reviews adoption, provisions credentials and explicitly enables enforcement. Installing the code does not issue real credentials or change a deployment.

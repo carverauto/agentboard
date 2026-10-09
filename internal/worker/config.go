@@ -33,11 +33,12 @@ type Binding struct {
 }
 
 type Config struct {
-	Version    int       `json:"version"`
-	URL        string    `json:"url"`
-	CAFile     string    `json:"ca_file,omitempty"`
-	JournalDir string    `json:"journal_dir"`
-	Bindings   []Binding `json:"bindings"`
+	Version                int       `json:"version"`
+	URL                    string    `json:"url"`
+	CAFile                 string    `json:"ca_file,omitempty"`
+	AccessServiceTokenFile string    `json:"access_service_token_file,omitempty"`
+	JournalDir             string    `json:"journal_dir"`
+	Bindings               []Binding `json:"bindings"`
 }
 
 func Load(path string) (Config, error) {
@@ -58,6 +59,9 @@ func Load(path string) (Config, error) {
 	if cfg.Version != Protocol || !filepath.IsAbs(cfg.JournalDir) || len(cfg.Bindings) == 0 || len(cfg.Bindings) > 64 {
 		return cfg, errors.New("unsupported worker config version, journal directory or binding count")
 	}
+	if _, err := cfg.accessServiceTokenFile(); err != nil {
+		return cfg, err
+	}
 	seen := map[string]bool{}
 	for _, b := range cfg.Bindings {
 		if !config.ValidID(b.Agent) || b.Host == "" || b.Server == "" || b.Session == "" || b.Generation == "" || b.Model == "" || b.Harness == "" || b.Epoch < 0 || !filepath.IsAbs(b.Socket) || !filepath.IsAbs(b.TokenFile) || seen[b.Agent] {
@@ -75,6 +79,32 @@ func Load(path string) (Config, error) {
 		seen[b.Agent] = true
 	}
 	return cfg, nil
+}
+
+// The supervised config may name the edge credential file explicitly. An
+// environment setting is a fallback, never a silent override of that binding.
+// Only a file path is accepted; the protected reader owns credential custody.
+func (cfg Config) accessServiceTokenFile() (string, error) {
+	configured := cfg.AccessServiceTokenFile
+	if configured != "" && !filepath.IsAbs(configured) {
+		return "", errors.New("worker access_service_token_file must be an absolute path")
+	}
+	environment := os.Getenv("AGENTBOARD_ACCESS_SERVICE_TOKEN_FILE")
+	if environment != "" {
+		absolute, err := filepath.Abs(environment)
+		if err != nil {
+			return "", errors.New("cannot resolve AGENTBOARD_ACCESS_SERVICE_TOKEN_FILE")
+		}
+		environment = absolute
+	}
+	if configured == "" {
+		return environment, nil
+	}
+	configured = filepath.Clean(configured)
+	if environment != "" && configured != environment {
+		return "", errors.New("worker access_service_token_file conflicts with AGENTBOARD_ACCESS_SERVICE_TOKEN_FILE")
+	}
+	return configured, nil
 }
 
 // ReadProtected refuses links, non-regular files, other owners and group/world access.

@@ -27,7 +27,11 @@ defmodule AgentboardWeb.APIController do
   def pr(conn, %{"id" => id}), do: reply(conn, Agentboard.Delivery.Reads.detail(id))
 
   def duplicate_decision(conn, %{"id" => id}),
-    do: reply(conn, Agentboard.Delivery.Duplicates.request_decision(id, actor(conn), conn.body_params))
+    do:
+      reply(
+        conn,
+        Agentboard.Delivery.Duplicates.request_decision(id, actor(conn), conn.body_params)
+      )
 
   def quota(conn, _), do: list(conn, "quota")
   def push_quota(conn, _), do: reply(conn, Agentboard.Quota.push(actor(conn), conn.body_params))
@@ -100,9 +104,7 @@ defmodule AgentboardWeb.APIController do
 
   def message_filters(conn, _), do: {:ok, conn.query_params}
 
-  def actor(conn) do
-    Map.new(~w(agent model harness), fn key -> {key, header(conn, "x-agentboard-" <> key)} end)
-  end
+  def actor(conn), do: AgentboardWeb.Plugs.AgentAuth.actor(conn)
 
   defp privileged_actor(conn) do
     proof = Agentboard.Captain.authenticate_header(conn)
@@ -110,13 +112,6 @@ defmodule AgentboardWeb.APIController do
     if Agentboard.Captain.authorized?(proof),
       do: Map.put(actor(conn), :availability_admin, true),
       else: actor(conn)
-  end
-
-  defp header(conn, key) do
-    case get_req_header(conn, key) do
-      [value] -> value
-      _ -> nil
-    end
   end
 
   defp list(conn, resource),
@@ -131,6 +126,7 @@ defmodule AgentboardWeb.APIController do
         "not_found" -> 404
         "conflict" -> 409
         "forbidden" -> 403
+        "unauthorized" -> 401
         _ -> 503
       end
 

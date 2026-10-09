@@ -28,19 +28,21 @@ func (a Actor) Validate() error {
 func ValidID(id string) bool { return slug.MatchString(id) }
 
 type Config struct {
-	Token      string `json:"-"`
-	TokenFile  string `json:"-"`
-	URL        string
-	CAFile     string
-	Actor      Actor
-	ClaimTTL   time.Duration
-	StaleAfter time.Duration
+	Token                  string `json:"-"`
+	TokenFile              string `json:"-"`
+	AccessServiceTokenFile string `json:"-"`
+	URL                    string
+	CAFile                 string
+	Actor                  Actor
+	ClaimTTL               time.Duration
+	StaleAfter             time.Duration
 }
 
 func FromEnv() (Config, error) {
 	cfg := Config{
 		Token: os.Getenv("AGENTBOARD_TOKEN"), TokenFile: os.Getenv("AGENTBOARD_TOKEN_FILE"),
-		URL: os.Getenv("AGENTBOARD_URL"), CAFile: os.Getenv("AGENTBOARD_CA_FILE"),
+		AccessServiceTokenFile: os.Getenv("AGENTBOARD_ACCESS_SERVICE_TOKEN_FILE"),
+		URL:                    os.Getenv("AGENTBOARD_URL"), CAFile: os.Getenv("AGENTBOARD_CA_FILE"),
 		Actor: Actor{
 			ID: os.Getenv("AGENT_ID"), Model: os.Getenv("AGENTBOARD_MODEL"),
 			Harness: os.Getenv("AGENTBOARD_HARNESS"),

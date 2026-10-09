@@ -8,6 +8,12 @@ go_library(
     visibility = ["//:__subpackages__"],
     deps = ["//internal/client", "//internal/config"],
 )
+go_test(
+    name = "worker_test",
+    srcs = ["api_access_test.go"],
+    deps = [":worker"],
+    size = "small",
+)
 filegroup(name = "format_srcs", srcs = glob(["*.go"]), visibility = ["//visibility:public"])
 exports_files(["pi-native.mjs", "claude-native/bridge.mjs", "codex-native.mjs"])
 filegroup(name = "claude_native", srcs = glob(["claude-native/**", "claude-native/.mcp.json", "claude-native/.claude-plugin/plugin.json"], exclude = ["claude-native/.claude-plugin/types/**", "claude-native/tsconfig.json"]), visibility = ["//visibility:public"])

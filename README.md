@@ -178,7 +178,7 @@ The workflows also use [Archify](https://github.com/tt-a1i/archify) by [@tt-a1i]
 
 ## Security
 
-Board writes retain legacy attribution by default; optional [agent API credentials](docs/setup/agent-api-tokens.md) add an observe-only verified principal and adoption report without restricting writes (captain capabilities protect administration, and separately provisioned scoped worker capabilities protect the worker API): run it only on a trusted network or behind your own authenticating proxy. See [security notes](docs/setup/security.md), [worker capabilities and protocol](docs/worker-api.md) and [server accountability](docs/server-accountability.md).
+Authentication defaults remain compatible with private networks. Before Internet exposure, enable [agent API enforcement](docs/setup/agent-api-tokens.md) and [Cloudflare Access frontend authentication](docs/setup/frontend-auth.md), and restrict origin access. Observe mode is adoption telemetry, not access control. Captain administration and scoped worker capabilities remain separate from ordinary agent/coordinator credentials. See [security notes](docs/setup/security.md), [worker capabilities and protocol](docs/worker-api.md) and [server accountability](docs/server-accountability.md).
 
 ## Documentation
 

@@ -1015,3 +1015,96 @@ func TestAdminRolloutBackupRequiresDatabase(t *testing.T) {
 		t.Fatalf("record must carry the selected database: %s", rec)
 	}
 }
+
+// Bootstrap must use captain authentication before an agent token exists, and
+// must never reinterpret authorization failures as an absent registration.
+func TestAdminAgentRegisterUsesCaptainCapability(t *testing.T) {
+	for _, dryRun := range []bool{true, false} {
+		t.Run(fmt.Sprintf("dry_run_%v", dryRun), func(t *testing.T) {
+			f := newAdmBoard(t)
+			admEnv(t, f)
+			t.Setenv("AGENT_ID", "new-agent")
+			t.Setenv("AGENTBOARD_TOKEN", "agent-token-must-not-be-used")
+			writes := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/v1/meta" {
+					fmt.Fprint(w, `{"api_version":1,"schema_version":31}`)
+					return
+				}
+				if r.Header.Get("Authorization") != "Bearer test-captain-capability-000000000000" {
+					t.Error("registration did not use the captain transport")
+					w.WriteHeader(http.StatusUnauthorized)
+					fmt.Fprint(w, `{"error":{"code":"unauthorized","message":"unauthorized"}}`)
+					return
+				}
+				if r.Header.Get("X-Agentboard-Agent") != "new-agent" {
+					t.Error("bootstrap target attribution was lost")
+				}
+				switch r.URL.Path {
+				case "/api/v1/agents/new-agent":
+					if writes == 0 {
+						w.WriteHeader(http.StatusNotFound)
+						fmt.Fprint(w, `{"error":{"code":"not_found","message":"missing"}}`)
+					} else {
+						fmt.Fprint(w, `{"agent":{"id":"new-agent"}}`)
+					}
+				case "/api/v1/agents/register":
+					writes++
+					fmt.Fprint(w, `{"agent":{"id":"new-agent"}}`)
+				case "/api/v1/availability":
+					fmt.Fprint(w, `{"availability":[]}`)
+				default:
+					t.Errorf("unexpected request: %s", r.URL.Path)
+				}
+			}))
+			defer srv.Close()
+			t.Setenv("AGENTBOARD_URL", srv.URL)
+			args := []string{"admin", "agent", "register", "new-agent", "--json"}
+			if dryRun {
+				args = append(args, "--dry-run")
+			}
+			out, errb, err := runAdm(t, args...)
+			if dryRun {
+				if cli.ExitCode(err) != 2 || writes != 0 {
+					t.Fatalf("dry-run must report pending with no writes: %v, writes=%d", err, writes)
+				}
+			} else if err != nil || writes != 1 {
+				t.Fatalf("bootstrap failed: %v, writes=%d", err, writes)
+			}
+			if strings.Contains(out+errb, "test-captain-capability") || strings.Contains(out+errb, "agent-token-must-not") {
+				t.Fatal("credential leaked to output")
+			}
+		})
+	}
+}
+
+func TestAdminAgentRegisterDoesNotTreatForbiddenAsAbsent(t *testing.T) {
+	f := newAdmBoard(t)
+	admEnv(t, f)
+	writes := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writes++
+		}
+		if r.URL.Path == "/api/v1/meta" {
+			fmt.Fprint(w, `{"api_version":1,"schema_version":31}`)
+			return
+		}
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"error":{"code":"forbidden","message":"denied"}}`)
+	}))
+	defer srv.Close()
+	t.Setenv("AGENTBOARD_URL", srv.URL)
+	for _, args := range [][]string{
+		{"admin", "agent", "register", "test-operator"},
+		{"admin", "agent", "register", "test-operator", "--dry-run"},
+	} {
+		_, _, err := runAdm(t, args...)
+		if err == nil || cli.ExitCode(err) != 1 {
+			t.Fatalf("must preserve forbidden read failure, got %v", err)
+		}
+	}
+	if writes != 0 {
+		t.Fatalf("authorization failure triggered %d writes", writes)
+	}
+}

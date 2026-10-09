@@ -3,7 +3,8 @@ defmodule Agentboard.RateLimits do
   Per-replica request/stream admission through atomic ETS operations.
 
   Checks run in the caller, without GenServer.call or any database access.
-  Declared agent IDs are collaboration metadata, not authentication.
+  Enforce mode uses IP admission before authentication and a separate verified
+  principal budget afterward. Legacy modes retain declared-agent accounting.
   """
   @requests Agentboard.RateLimits.Requests
   @watches Agentboard.RateLimits.Watches
@@ -12,13 +13,23 @@ defmodule Agentboard.RateLimits do
 
   def check(ip, agent) do
     config = settings()
+    subjects = [{:ip, ip, config[:ip]}]
+    subjects = if agent, do: subjects ++ [{:agent, agent, config[:agent]}], else: subjects
+    check_subjects(subjects, config)
+  end
+
+  # Only call after verifying the credential. This never charges the IP budget
+  # again, and the identity must never come from request attribution headers.
+  def check_agent(agent) when is_binary(agent) do
+    config = settings()
+    check_subjects([{:agent, agent, config[:agent]}], config)
+  end
+
+  defp check_subjects(subjects, config) do
     window = Keyword.fetch!(config, :window_ms)
     now = System.monotonic_time(:millisecond)
     expires = (Integer.floor_div(now, window) + 1) * window
     retry_after = max(1, Integer.floor_div(expires - now + 999, 1_000))
-
-    subjects = [{:ip, ip, config[:ip]}]
-    subjects = if agent, do: subjects ++ [{:agent, agent, config[:agent]}], else: subjects
 
     Enum.reduce_while(subjects, :ok, fn {scope, identity, limit}, _ ->
       case increment({expires, scope, identity}, config[:max_buckets]) do
@@ -85,4 +96,3 @@ defmodule Agentboard.RateLimits do
     :limiter_capacity -> {:error, :unavailable}
   end
 end
-

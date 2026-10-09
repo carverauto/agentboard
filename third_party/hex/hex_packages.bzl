@@ -24,6 +24,7 @@ HEX_PACKAGES = [
     ('hpax', 'hpax', '1.1.0', '0b8d0f05832f55571d65ac720f79bf8994138ffbb133209dc4685eae0ad456a8'),
     ('iterex', 'iterex', '0.1.2', '2e103b8bcc81757a9af121f6dc0df312c9a17220f302b1193ef720460d03029d'),
     ('jason', 'jason', '1.4.5', 'b0c823996102bcd0239b3c2444eb00409b72f6a140c1950bc8b457d836b30684'),
+    ('jose', 'jose', '1.11.12', '31e92b653e9210b696765cdd885437457de1add2a9011d92f8cf63e4641bab7b'),
     ('mint_web_socket', 'mint_web_socket', '1.0.6', '0c360e9012413f1c115a63532601eb5d63731aab7010949178769760686c1698'),
     ('mint', 'mint', '1.11.0', 'c6279ba2d6aa3a383a1d4cfbe7b59f42e6efd400f58d8e2acfeac48a438693ab'),
     ('mime', 'mime', '2.0.7', '6171188e399ee16023ffc5b76ce445eb6d9672e2e241d2df6050f3c771e80ccd'),

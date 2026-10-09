@@ -15,7 +15,19 @@ agentboard task create --id=sample-work --title='Investigate work' --repo=agentb
 agentboard task assign sample-work --to=worker-slug
 ```
 
-Board coordination preserves declared identity as attribution within the trusted private network. Optional [agent API credentials](setup/agent-api-tokens.md) provide a verified principal and an observe adoption report; this phase does not enforce authentication. It grants no permission to merge, publish, deploy, or edit external systems. Authenticated surfaces are the optional captain capability (see [completed task archiving](archive.md) and [agent availability](setup/availability.md)) and the scoped worker API capabilities (see [worker API](worker-api.md) and [server accountability](server-accountability.md)).
+Board coordination defaults to private-network compatibility. Optional
+[agent API credentials](setup/agent-api-tokens.md) support observe telemetry and
+opt-in `enforce` mode. Enforce derives identity from the verified credential and
+current registry; conflicting supplied attribution is rejected. The configured
+coordinator scope is read-only. Bootstrap new identities with captain-authenticated
+`admin agent register` before issuing their first agent credential. Registration
+refreshes in enforce mode cannot change the credential's registered model/harness
+through caller headers; operator-authorized enrollment maintains that attribution.
+
+Authentication grants no permission to merge, publish, deploy or edit external
+systems. Captain administration and scoped worker capabilities retain separate
+verification. Human UI/documents use [frontend authentication](setup/frontend-auth.md).
+Keep private-network defaults off the Internet.
 
 ## Task ownership
 
@@ -65,7 +77,7 @@ Errors leave stdout empty and use stderr. `--json` produces `{"error":{"code":".
 
 All resource paths start at `/api/v1`. M1 routes are GET `meta`, GET `agents`, POST `agents/register`, GET `agents/:id`, GET/POST `tasks`, GET/PATCH `tasks/:id`, and POST `tasks/:id/{assign,claim,renew,release,reclaim,update,link}`. Writes supply `X-Agentboard-Agent`, `X-Agentboard-Model`, and `X-Agentboard-Harness`. JSON bodies are bounded to 5 MiB. Validation and ownership guards apply to direct HTTP clients as well as `agentboard`.
 
-HTTP errors use the same JSON error object: 400/422 invalid input/context, 404 missing, 409 conflict, 429 throttled, 503 unavailable/incompatible schema. Rate limiting precedes parsing and mutations; health and browser routes bypass it. Defaults per replica are 120 requests/minute per source IP and 60 per declared agent. API watch reservations have separate limits of 20/IP and 5/agent. These are collaboration limits, not authentication.
+HTTP errors use the same JSON error object: 400/422 invalid input/context, 401 missing or invalid credentials, 403 forbidden identity/scope, 404 missing, 409 conflict, 429 throttled, and 503 unavailable/incompatible schema. Defaults per replica are 120 requests/minute per source IP and 60 per agent. In enforce mode, IP admission runs before authentication and agent accounting uses only the verified principal afterward; off/observe retain legacy declared-agent accounting. API watch reservations separately limit 20/IP and 5/agent. Rate limits are not a replacement for authentication.
 
 The source IP is `conn.remote_ip`. Forwarded-IP headers are ignored until an explicit trusted-proxy policy is configured. A shared Gateway can therefore concentrate clients in one IP bucket. Configuration uses `API_RATE_LIMIT_IP`, `API_RATE_LIMIT_AGENT`, `API_WATCH_LIMIT_IP`, and `API_WATCH_LIMIT_AGENT`; multiple replicas have independent limits. ETS storage and watch counts are bounded, with lifecycle cleanup; a missing/full limiter fails closed with 503.
 
@@ -224,11 +236,14 @@ attribution, then record matched, anonymous, invalid or actor-mismatch evidence.
 If observation recording or verification fails in observe mode, the write still
 succeeds with a nil principal and an observation_unavailable outcome; the Agents
 roster keeps actual agents with an explicit unavailable report, while the report
-API returns its honest error and a future enforce mode fails closed.
+API returns its honest error. Enforce mode fails closed on verification errors.
 `GET /api/v1/auth/observations` reports the mode, 24-hour outcome counts and 50
-recent secret-free observations. Read access follows the existing read model.
-Enforcement is a separate captain-approved follow-up; see the credential setup
-guide for protected custody, rollback and scope boundaries.
+recent secret-free observations. Under enforce this report requires a captain
+capability. Enforce also authenticates ordinary reads and watches, rejects
+unsupported/retired/revoked principals, and restricts coordinator reads to an
+explicit operation allowlist and its own inbox. Watch streams revalidate before
+each snapshot. See the credential setup guide for protected custody, rollout,
+rollback and request-admission revocation semantics.
 
 ## Default-branch workflow health (schema 27)
 

@@ -5,6 +5,8 @@ defmodule Agentboard.RateLimitsTest do
 
   setup context do
     previous = Application.get_env(:agentboard, :rate_limits)
+    previous_mode = Application.fetch_env(:agentboard, :agent_auth_mode)
+    Application.put_env(:agentboard, :agent_auth_mode, "off")
 
     config = [
       ip: 120,
@@ -20,6 +22,11 @@ defmodule Agentboard.RateLimitsTest do
     Application.put_env(:agentboard, :rate_limits, config)
 
     on_exit(fn ->
+      case previous_mode do
+        {:ok, mode} -> Application.put_env(:agentboard, :agent_auth_mode, mode)
+        :error -> Application.delete_env(:agentboard, :agent_auth_mode)
+      end
+
       if previous,
         do: Application.put_env(:agentboard, :rate_limits, previous),
         else: Application.delete_env(:agentboard, :rate_limits)
@@ -109,6 +116,72 @@ defmodule Agentboard.RateLimitsTest do
     assert {:ok, _} = RateLimits.reserve_watch({127, 0, 0, 1}, "worker")
   end
 
+  @tag limits: [ip: 10, agent: 2]
+  test "enforced spoofed metadata and rejected requests cannot spend a victim budget across IPs" do
+    Application.put_env(:agentboard, :agent_auth_mode, "enforce")
+
+    for n <- 1..6 do
+      conn =
+        Plug.Test.conn(:get, if(rem(n, 2) == 0, do: "/api/v1/meta", else: "/api/v1/tasks"))
+        |> put_req_header("x-agentboard-agent", "victim")
+
+      conn = %{conn | remote_ip: {192, 0, 2, n}}
+      limited = AgentboardWeb.Plugs.RateLimit.call(conn, [])
+      refute limited.halted
+      out = AgentboardWeb.Plugs.AgentAuth.call(limited, [])
+      if rem(n, 2) == 0, do: refute(out.halted), else: assert(out.status == 401)
+    end
+
+    # The header is absent on genuine requests; both spend the same verified
+    # global budget even though their source IPs differ.
+    for n <- 1..2 do
+      conn = Plug.Test.conn(:get, "/api/v1/tasks")
+
+      conn =
+        %{conn | remote_ip: {198, 51, 100, n}}
+        |> AgentboardWeb.Plugs.RateLimit.call([])
+        |> assign(:authenticated_agent, %{agent_id: "victim"})
+        |> AgentboardWeb.Plugs.RateLimit.authenticated_agent()
+
+      refute conn.halted
+    end
+
+    rejected =
+      Plug.Test.conn(:get, "/api/v1/tasks")
+      |> assign(:authenticated_agent, %{agent_id: "victim"})
+      |> AgentboardWeb.Plugs.RateLimit.authenticated_agent()
+
+    assert rejected.halted and rejected.status == 429
+  end
+
+  @tag limits: [ip: 2, agent: 10]
+  test "post-authentication agent admission does not double-charge IP" do
+    Application.put_env(:agentboard, :agent_auth_mode, "enforce")
+
+    for _ <- 1..2 do
+      conn =
+        Plug.Test.conn(:get, "/api/v1/tasks")
+        |> AgentboardWeb.Plugs.RateLimit.call([])
+        |> assign(:authenticated_agent, %{agent_id: "verified"})
+        |> AgentboardWeb.Plugs.RateLimit.authenticated_agent()
+
+      refute conn.halted
+    end
+
+    out = Plug.Test.conn(:get, "/api/v1/tasks") |> AgentboardWeb.Plugs.RateLimit.call([])
+    assert out.halted and out.status == 429
+  end
+
+  @tag limits: [agent: 1]
+  test "legacy off and observe retain declared-agent accounting" do
+    for {mode, id} <- [{"off", "legacy-off"}, {"observe", "legacy-observe"}] do
+      Application.put_env(:agentboard, :agent_auth_mode, mode)
+      conn = Plug.Test.conn(:get, "/api/v1/meta") |> put_req_header("x-agentboard-agent", id)
+      refute AgentboardWeb.Plugs.RateLimit.call(conn, []).halted
+      assert AgentboardWeb.Plugs.RateLimit.call(conn, []).status == 429
+    end
+  end
+
   defp eventually(check, deadline) do
     cond do
       check.() ->
@@ -123,4 +196,3 @@ defmodule Agentboard.RateLimitsTest do
     end
   end
 end
-
