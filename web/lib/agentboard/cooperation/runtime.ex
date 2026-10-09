@@ -101,6 +101,7 @@ defmodule Agentboard.Cooperation.Runtime do
 
     token = new_credential(id, "host", nil, data["idempotency_key"])
     bootstrap(s)
+    Agentboard.Wake.Reconcile.enqueue(id)
 
     %{
       worker: worker_record(s),
@@ -153,26 +154,65 @@ defmodule Agentboard.Cooperation.Runtime do
     end)
   end
 
-  def request(id, token, operation, data) do
+  def request(id, token, operation, data, host_id \\ nil) do
     if not Input.slug?(id) or not is_binary(token) or byte_size(token) > 256 do
       {:error, "unauthorized", "Runtime capability required"}
     else
+      with {:ok, _} <- route_before_worker(id, token, operation, data) do
+        Ops.transaction(fn ->
+          # Authenticate before taking source locks. Route immutable events before
+          # worker custody: route must never acquire an event below a worker lock.
+          credential!(id, token)
+          Agentboard.Availability.lock_admission()
+          Agentboard.Wake.Transport.lock_sources(id, operation, data)
+          lock_worker(id)
+          credential = credential!(id, token)
+          s = Ops.fetch!(Subscription, id, "Worker not enrolled")
+          b = Ops.fetch!(Binding, id, "Worker binding not found")
+          if s.revoked, do: Ops.reject("unauthorized", "Runtime capability revoked")
+
+          if host_id && s.host_id != host_id,
+            do: Ops.reject("forbidden", "Host does not own this enrollment")
+
+          if credential.scope == "receipt" and
+               (credential.epoch != b.epoch or
+                  operation not in ~w(state pending responsibilities obligations doctor receipts reconcile mattermost_inbox mattermost_read mattermost_ack wake_intents wake_reconcile)),
+             do: Ops.reject("forbidden", "Capability does not authorize this operation")
+
+          execute(operation, data, s, b, credential)
+        end)
+      end
+    end
+  end
+
+  defp route_before_worker(id, token, operation, data) when operation in ~w(pending reserve) do
+    # Recovery owns only this worker; release it before route acquires events and
+    # a sorted audience. The actual request then reacquires/revalidates custody.
+    with {:ok, _} <-
+           Ops.transaction(fn ->
+             c = credential!(id, token)
+
+             if operation == "reserve" and c.scope != "host",
+               do: Ops.reject("forbidden", "Host capability required for reservation")
+
+             lock_worker(id)
+             s = Ops.fetch!(Subscription, id, "Worker not enrolled")
+             b = Ops.fetch!(Binding, id, "Worker binding not found")
+
+             if s.revoked or (c.scope == "receipt" and c.epoch != b.epoch),
+               do: Ops.reject("forbidden", "Current runtime capability required")
+
+             if operation == "reserve" or data["cursor"] in [nil, ""],
+               do: recover_mattermost(s)
+           end) do
       Ops.transaction(fn ->
-        lock_worker(id)
-        credential = credential!(id, token)
-        s = Ops.fetch!(Subscription, id, "Worker not enrolled")
-        b = Ops.fetch!(Binding, id, "Worker binding not found")
-        if s.revoked, do: Ops.reject("unauthorized", "Runtime capability revoked")
-
-        if credential.scope == "receipt" and
-             (credential.epoch != b.epoch or
-                operation not in ~w(state pending responsibilities obligations doctor receipts reconcile mattermost_inbox mattermost_read mattermost_ack)),
-           do: Ops.reject("forbidden", "Capability does not authorize this operation")
-
-        execute(operation, data, s, b, credential)
+        credential!(id, token)
+        route()
       end)
     end
   end
+
+  defp route_before_worker(_, _, _, _), do: {:ok, :not_needed}
 
   defp execute("bind", data, s, b, _c) do
     valid =
@@ -306,6 +346,20 @@ defmodule Agentboard.Cooperation.Runtime do
 
   defp execute("pending", data, s, _b, _c), do: pending_page(s, data)
 
+  defp execute("wake_intents", data, s, b, _c), do: Agentboard.Wake.Reads.preview(s, b, data)
+
+  defp execute("wake_reserve", data, s, b, _c) do
+    Agentboard.Wake.Transport.reserve(data, s, b, fn deliveries ->
+      reserve(data, s, b, deliveries)
+    end)
+  end
+
+  defp execute("wake_result", data, s, b, _c),
+    do: Agentboard.Wake.Transport.result(data, s, b, &result(&1, s, b))
+
+  defp execute("wake_reconcile", data, s, b, c),
+    do: Agentboard.Wake.Transport.reconcile(data, s, b, &execute("reconcile", &1, s, b, c))
+
   defp execute("responsibilities", data, s, _b, _c) do
     {cursor, limit} = page_params(data)
 
@@ -384,7 +438,7 @@ defmodule Agentboard.Cooperation.Runtime do
   defp execute("receipts", data, s, b, _c), do: receipt(data, s, b)
   defp execute(_, _, _, _, _), do: Ops.reject("not_found", "Worker operation not found")
 
-  defp reserve(data, s, b) do
+  defp reserve(data, s, b, selected \\ nil) do
     Agentboard.Availability.lock_admission()
     epoch!(b, data)
 
@@ -404,6 +458,11 @@ defmodule Agentboard.Cooperation.Runtime do
         %{batch: nil, degraded_reasons: ["agent_unavailable"]}
 
       existing ->
+        # Wake retries are resolved by their own immutable attempt before this
+        # callback. A generic key must never lend an unrelated batch to a wake.
+        if selected,
+          do: Ops.reject("conflict", "Reservation key already belongs to a cooperation attempt")
+
         if existing.epoch != b.epoch,
           do: Ops.reject("conflict", "Reservation belongs to old epoch")
 
@@ -423,13 +482,11 @@ defmodule Agentboard.Cooperation.Runtime do
         }
 
       true ->
-        recover_mattermost(s)
-        route()
         suppress_context(s.id)
         suppress_mattermost(s.id)
-        rows = pending_rows(s.id, 100)
+        rows = selected || pending_rows(s.id, 100)
         # Give the oldest ordinary item the first slot; urgent arrivals cannot starve it.
-        ordinary = oldest_ordinary(s.id)
+        ordinary = if is_nil(selected), do: oldest_ordinary(s.id)
 
         ordered =
           if ordinary, do: [ordinary | Enum.reject(rows, &(&1.id == ordinary.id))], else: rows
@@ -582,8 +639,11 @@ defmodule Agentboard.Cooperation.Runtime do
 
     if kind == "handled" do
       case InboundStore.notification_reference(event) do
-        nil -> :ok
-        ref -> InboundStore.acknowledge(s, %{"items" => [%{"id" => ref.id, "version" => ref.version}]})
+        nil ->
+          :ok
+
+        ref ->
+          InboundStore.acknowledge(s, %{"items" => [%{"id" => ref.id, "version" => ref.version}]})
       end
     end
 
@@ -651,7 +711,8 @@ defmodule Agentboard.Cooperation.Runtime do
     end)
   end
 
-  defp batch_record(batch, a) do
+  @doc false
+  def batch_record(batch, a) do
     %{
       batch_id: batch.id,
       attempt_id: a.id,
@@ -694,8 +755,6 @@ defmodule Agentboard.Cooperation.Runtime do
   end
 
   defp pending_page(s, data) do
-    if data["cursor"] in [nil, ""], do: recover_mattermost(s)
-    route()
     suppress_context(s.id)
     suppress_mattermost(s.id)
     {cursor, limit} = page_params(data)
@@ -718,7 +777,7 @@ defmodule Agentboard.Cooperation.Runtime do
   defp pending_rows(id, limit) do
     %{rows: rows} =
       Repo.statement!(
-        "SELECT d.id FROM cooperation_deliveries d JOIN cooperation_events e ON e.id=d.event_id WHERE d.worker_id=$1 AND d.state IN ('pending','received') ORDER BY e.priority,e.created_at,d.id LIMIT $2",
+        "SELECT d.id FROM cooperation_deliveries d JOIN cooperation_events e ON e.id=d.event_id WHERE d.worker_id=$1 AND d.state IN ('pending','received') AND NOT EXISTS (SELECT 1 FROM wake_intents w WHERE w.delivery_id=d.id AND w.source_kind!='decision_wake') ORDER BY e.priority,e.created_at,d.id LIMIT $2",
         [id, limit]
       )
 
@@ -728,7 +787,7 @@ defmodule Agentboard.Cooperation.Runtime do
   defp oldest_ordinary(id) do
     %{rows: rows} =
       Repo.statement!(
-        "SELECT d.id FROM cooperation_deliveries d JOIN cooperation_events e ON e.id=d.event_id WHERE d.worker_id=$1 AND d.state IN ('pending','received') AND e.priority>1 ORDER BY e.created_at,d.id LIMIT 1",
+        "SELECT d.id FROM cooperation_deliveries d JOIN cooperation_events e ON e.id=d.event_id WHERE d.worker_id=$1 AND d.state IN ('pending','received') AND NOT EXISTS (SELECT 1 FROM wake_intents w WHERE w.delivery_id=d.id AND w.source_kind!='decision_wake') AND e.priority>1 ORDER BY e.created_at,d.id LIMIT 1",
         [id]
       )
 
@@ -946,44 +1005,43 @@ defmodule Agentboard.Cooperation.Runtime do
   end
 
   def route do
+    Agentboard.Availability.lock_admission()
+
+    # Routing changes only cursor/disposition. Preserve FK KEY SHARE compatibility
+    # with a worker-owned bootstrap/wake insert while routing waits for that worker.
     %{rows: rows} =
       Repo.statement!(
-        "SELECT id FROM cooperation_events WHERE NOT routed ORDER BY created_at,id LIMIT 100 FOR UPDATE SKIP LOCKED",
+        "SELECT id FROM cooperation_events WHERE NOT routed ORDER BY created_at,id LIMIT 100 FOR NO KEY UPDATE SKIP LOCKED",
         []
       )
 
-    {pages, _remaining} =
-      Enum.reduce_while(rows, {0, 100}, fn [id], {pages, remaining} ->
+    {plans, _remaining} =
+      Enum.reduce_while(rows, {[], 100}, fn [id], {plans, remaining} ->
         if remaining == 0 do
-          {:halt, {pages, 0}}
+          {:halt, {plans, 0}}
         else
           e = get(Event, id)
           recipients = Enum.slice(e.audience, e.route_cursor, remaining)
-
-          Enum.each(recipients, fn recipient ->
-            prior =
-              Delivery
-              |> Ash.Query.filter(event_id == ^id and worker_id == ^recipient)
-              |> Ash.read_one!()
-
-            if is_nil(prior),
-              do:
-                create(Delivery, %{
-                  id: Ash.UUID.generate(),
-                  event_id: id,
-                  worker_id: recipient,
-                  state: "pending",
-                  created_at: Ops.now()
-                })
-          end)
-
-          cursor = e.route_cursor + length(recipients)
-          change(e, %{route_cursor: cursor, routed: cursor >= length(e.audience)})
-          {:cont, {pages + 1, remaining - length(recipients)}}
+          {:cont, {[{e, recipients} | plans], remaining - length(recipients)}}
         end
       end)
 
-    %{routed_pages: pages}
+    # Delivery's subscription FK takes row custody too. Acquire all bounded
+    # recipients in stable order before inserts, so routing cannot hold an
+    # uncommitted delivery while waiting for a bootstrap owner of its worker.
+    plans
+    |> Enum.flat_map(fn {_e, recipients} -> recipients end)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.each(&lock_worker/1)
+
+    Enum.each(Enum.reverse(plans), fn {e, recipients} ->
+      Enum.each(recipients, &ensure_delivery(e, &1, @system))
+      cursor = e.route_cursor + length(recipients)
+      change(e, %{route_cursor: cursor, routed: cursor >= length(e.audience)})
+    end)
+
+    %{routed_pages: length(plans)}
   end
 
   def capture_task(task, event_id, action, actor) do
@@ -1072,16 +1130,21 @@ defmodule Agentboard.Cooperation.Runtime do
   # receipts. The source receipt remains authoritative (including its first time).
   # Existing submitted/uncertain attempts are reconciled, never replayed here.
   defp suppress_mattermost(id) do
-    %{rows: rows} = Repo.statement!("""
-    SELECT d.id,i.handled_at FROM cooperation_deliveries d
-    JOIN cooperation_events e ON e.id=d.event_id
-    JOIN mattermost_inbox i ON i.worker_id=d.worker_id
-      AND e.source_key='mattermost-inbox:' || i.id::text || ':' || i.version
-      AND e.repo=i.repo
-    WHERE d.worker_id=$1 AND e.kind='mattermost_inbox'
-      AND d.state IN ('pending','received') AND i.handled_at IS NOT NULL
-    ORDER BY d.id FOR UPDATE OF d
-    """, [id])
+    %{rows: rows} =
+      Repo.statement!(
+        """
+        SELECT d.id,i.handled_at FROM cooperation_deliveries d
+        JOIN cooperation_events e ON e.id=d.event_id
+        JOIN mattermost_inbox i ON i.worker_id=d.worker_id
+          AND e.source_key='mattermost-inbox:' || i.id::text || ':' || i.version
+          AND e.repo=i.repo
+        WHERE d.worker_id=$1 AND e.kind='mattermost_inbox'
+          AND d.state IN ('pending','received') AND i.handled_at IS NOT NULL
+        ORDER BY d.id FOR UPDATE OF d
+        """,
+        [id]
+      )
+
     Enum.each(rows, fn [key, stamp] ->
       d = get(Delivery, key)
       change(d, %{state: "handled", received_at: d.received_at || stamp, handled_at: stamp})

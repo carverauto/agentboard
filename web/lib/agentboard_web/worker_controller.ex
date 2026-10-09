@@ -15,6 +15,28 @@ defmodule AgentboardWeb.WorkerController do
 
   def revoke(conn, %{"worker_id" => id}), do: captain(conn, fn -> Runtime.revoke(id) end)
 
+  def wake(conn, params) do
+    operation =
+      case {conn.method, params["operation"]} do
+        {"GET", nil} -> "wake_intents"
+        {"POST", op} when op in ~w(reserve result reconcile) -> "wake_" <> op
+        _ -> "wake_unknown"
+      end
+
+    token =
+      case get_req_header(conn, "authorization") do
+        ["Bearer " <> value] -> value
+        _ -> nil
+      end
+
+    data =
+      if conn.method == "GET", do: fetch_query_params(conn).query_params, else: conn.body_params
+
+    protocol(conn, fn ->
+      Runtime.request(params["worker_id"], token, operation, data, params["host_id"])
+    end)
+  end
+
   def operate(conn, params) do
     operation = params["operation"]
     operation = if operation == "state" and conn.method == "POST", do: "report", else: operation
@@ -35,7 +57,9 @@ defmodule AgentboardWeb.WorkerController do
       case Runtime.request(params["worker_id"], token, operation, data) do
         {:ok, page} when operation == "mattermost_read" ->
           {:ok, Agentboard.Mattermost.Inbound.materialize(page)}
-        result -> result
+
+        result ->
+          result
       end
     end)
   end

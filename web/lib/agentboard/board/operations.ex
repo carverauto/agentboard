@@ -176,6 +176,7 @@ defmodule Agentboard.Board.Operations do
                  retire_reason: nil,
                  retire_forced: false
                }
+
                {%{"agent" => public(update(agent, :restore, attrs, actor))}, true}
              end
            end) do
@@ -506,6 +507,7 @@ defmodule Agentboard.Board.Operations do
       )
 
     if capture_notice?, do: Agentboard.Mattermost.MessageNotice.capture(message, actor, stamp)
+    if capture_notice?, do: Agentboard.WakeIntents.capture_message(message, actor)
     message
   end
 
@@ -534,6 +536,7 @@ defmodule Agentboard.Board.Operations do
     Agentboard.Mattermost.Bridge.capture(task.id, event_id, action, actor, data, stamp)
 
     Agentboard.Cooperation.Runtime.capture_task(task, event_id, action, actor)
+    Agentboard.WakeIntents.capture_task(task, actor)
     Agentboard.Delivery.Accountability.progress(task, action, data, actor, stamp)
     %{"task" => public(task), "event_id" => event_id}
   end
@@ -648,6 +651,8 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Availability.Policy,
              Agentboard.Decisions.Request,
              Agentboard.Decisions.Wake,
+             Agentboard.Wake.Intent,
+             Agentboard.Wake.Attempt,
              Agentboard.Recovery.Episode,
              Agentboard.Recovery.Attempt,
              Task,

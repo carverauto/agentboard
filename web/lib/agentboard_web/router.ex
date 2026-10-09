@@ -112,6 +112,8 @@ defmodule AgentboardWeb.Router do
     get("/workers/:worker_id/:operation", WorkerController, :operate)
     post("/workers/:worker_id/attempts/:attempt_id/:operation", WorkerController, :operate)
     post("/workers/:worker_id/:operation", WorkerController, :operate)
+    get("/hosts/:host_id/wake-intents/:worker_id", WorkerController, :wake)
+    post("/hosts/:host_id/wake-intents/:worker_id/:operation", WorkerController, :wake)
     get("/decisions/wakes", DecisionController, :wakes)
     post("/decisions/wakes/:id/:action", DecisionController, :wake_mutate)
     get("/decisions/waiting", DecisionController, :waiting)

@@ -475,3 +475,13 @@ sh_test(
     size = "medium",
     timeout = "long",
 )
+
+sh_test(
+    name = "wake_intents_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "wake_intents_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["wake_intents_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "medium",
+    timeout = "long",
+)

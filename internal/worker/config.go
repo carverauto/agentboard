@@ -19,17 +19,18 @@ const CodexAdapterVersion = "codex-app-server-v1"
 const MaxFrameBytes = 16 << 10
 
 type Binding struct {
-	Agent      string `json:"agent_id"`
-	Model      string `json:"model"`
-	Harness    string `json:"harness"`
-	Host       string `json:"host_id"`
-	Server     string `json:"server_id"`
-	Session    string `json:"session_id"`
-	Generation string `json:"adapter_generation"`
-	Adapter    string `json:"adapter"`
-	Socket     string `json:"socket_path"`
-	TokenFile  string `json:"token_file"`
-	Epoch      int64  `json:"binding_epoch"`
+	Agent      string   `json:"agent_id"`
+	Model      string   `json:"model"`
+	Harness    string   `json:"harness"`
+	Host       string   `json:"host_id"`
+	Server     string   `json:"server_id"`
+	Session    string   `json:"session_id"`
+	Generation string   `json:"adapter_generation"`
+	Adapter    string   `json:"adapter"`
+	Socket     string   `json:"socket_path"`
+	TokenFile  string   `json:"token_file"`
+	Epoch      int64    `json:"binding_epoch"`
+	Repos      []string `json:"repos,omitempty"`
 }
 
 type Config struct {

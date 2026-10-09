@@ -30,10 +30,11 @@ type State struct {
 }
 
 type Report struct {
-	Agent   string `json:"worker_id"`
-	State   string `json:"connector_state"`
-	Reason  string `json:"reason,omitempty"`
-	Attempt string `json:"attempt_id,omitempty"`
+	Agent   string          `json:"worker_id"`
+	State   string          `json:"connector_state"`
+	Reason  string          `json:"reason,omitempty"`
+	Attempt string          `json:"attempt_id,omitempty"`
+	Wake    *WakeInspection `json:"wake,omitempty"`
 }
 
 // CurrentState verifies the canonical epoch and exact native recipient.
@@ -319,6 +320,10 @@ func delay(ctx context.Context, d time.Duration) bool {
 
 // Serve multiplexes independently cancellable binding loops without task heartbeats.
 func Serve(ctx context.Context, cfg Config, out io.Writer) error {
+	return serveBindings(ctx, cfg, out, Step, true)
+}
+
+func serveBindings(ctx context.Context, cfg Config, out io.Writer, step func(context.Context, Config, Binding) (Report, error), health bool) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	outputErrors := make(chan error, 1)
@@ -330,7 +335,7 @@ func Serve(ctx context.Context, cfg Config, out io.Writer) error {
 			defer wg.Done()
 			failures := 0
 			for ctx.Err() == nil {
-				r, err := Step(ctx, cfg, b)
+				r, err := step(ctx, cfg, b)
 				d := 30 * time.Second
 				if err != nil {
 					r.State = "degraded"
@@ -348,7 +353,7 @@ func Serve(ctx context.Context, cfg Config, out io.Writer) error {
 					}
 				} else {
 					failures = 0
-					if ctx.Err() == nil {
+					if health && ctx.Err() == nil {
 						reportHealth(ctx, cfg, b, r)
 					}
 				}
