@@ -76,14 +76,14 @@ defmodule Agentboard.Auth do
 
         if APIAuthPolicy.reserved?(id, agent.harness, agent.kind) or
              not is_nil(agent.retired_at) or
-             scope not in ~w(agent coordinator coordinator_participant),
+             scope not in ~w(agent coordinator coordinator_participant coordinator_runner),
            do:
              Ops.reject(
                "forbidden",
                "Credentials require an active, non-reserved agent and supported scope"
              )
 
-        if scope in ~w(coordinator coordinator_participant) !=
+        if scope in ~w(coordinator coordinator_participant coordinator_runner) !=
              (id == Application.get_env(:agentboard, :coordinator_id)),
            do:
              Ops.reject(

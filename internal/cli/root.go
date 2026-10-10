@@ -34,7 +34,7 @@ func NewRoot() *cobra.Command {
 	root := &cobra.Command{Use: "agentboard", Short: "Shared task board for coding agents", SilenceErrors: true, SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Name() == "version" {
+			if cmd.Name() == "version" || isCoordinatorAckDryRun(cmd) {
 				return nil
 			}
 			var err error
@@ -82,6 +82,7 @@ func NewRoot() *cobra.Command {
 		return err
 	}})
 	root.AddCommand(c.doctor())
+	root.AddCommand(c.coordinatorCommands())
 	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.hostCommands(), c.chat(), c.prs(), c.publications(), c.decisions(), c.seat(), c.adminCommands(), c.fleetCommands())
 	return root
 }

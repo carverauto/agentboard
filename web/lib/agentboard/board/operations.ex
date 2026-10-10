@@ -692,6 +692,8 @@ defmodule Agentboard.Board.Operations do
              Agent,
              Agentboard.Auth.Credential,
              Agentboard.Auth.Observation,
+             Agentboard.Coordinator.Batch,
+             Agentboard.Coordinator.Item,
              Agentboard.Availability.Policy,
              Agentboard.SeatScope.Policy,
              Agentboard.CoordinatorTriage.Configuration,

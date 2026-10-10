@@ -83,6 +83,16 @@ behavior is unchanged. Installing this release never changes the auth mode.
 
 ### Enrollment and revocation
 
+Schema 40 adds the separately and explicitly issued `coordinator_runner` scope
+for [coordinator attention revision 1](../coordinator/protocol.md). It accepts no
+channel grants and adds no permissions to existing coordinator or participant
+tokens. Its entire protected allowlist is non-consuming tick, exact decision
+source read, append-only handling ack and own bounded heartbeat, all through
+the dedicated `/api/v1/coordinator` surface in enforce mode. It does not inherit
+chat, task mutations, decision answers or captain/worker operations. Default
+coordinator issuance remains `coordinator`; production provisioning and identity
+handoff require separate explicit authorization.
+
 An operator uses `agentboard admin agent register AGENT_ID` with a protected
 captain capability file to enroll the target before issuing its first credential.
 Ordinary authenticated registration is limited to refreshing that same agent.
