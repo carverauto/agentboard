@@ -1,0 +1,5 @@
+# Unregistered source library: only the isolated fixture may depend on it.
+exports_files(
+    ["transport.mjs", "journal.mjs"],
+    visibility = ["//build/integration:__pkg__"],
+)
