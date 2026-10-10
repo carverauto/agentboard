@@ -136,7 +136,7 @@ func (c *commands) decisions() *cobra.Command {
 	show := &cobra.Command{Use: "show ID", Short: "Read a retained decision verbatim", Args: decisionIDArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		return c.request(cmd, http.MethodGet, "decisions/"+args[0], nil, nil)
 	}}
-	group.AddCommand(request, c.decisionList("decisions"), show, c.decisionWaiting())
+	group.AddCommand(request, c.decisionList("decisions"), show, c.decisionWaiting(), c.decisionConversation())
 	for _, action := range []string{"recommend", "answer", "ack", "withdraw", "supersede"} {
 		action := action
 		var body, answer, reason, behalf string

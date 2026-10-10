@@ -76,8 +76,31 @@ defmodule AgentboardWeb.APIController do
   def mutate(conn, %{"id" => id, "action" => action}),
     do: reply(conn, Board.mutate(id, action, privileged_actor(conn), conn.body_params))
 
-  def heartbeat(conn, %{"id" => id}),
-    do: reply(conn, Board.heartbeat(id, actor(conn), conn.body_params))
+  def heartbeat(conn, %{"id" => id}) do
+    case conn.assigns[:authenticated_agent] do
+      %{scope: "coordinator_participant", agent_id: own_id} ->
+        cond do
+          id != own_id ->
+            reply(
+              conn,
+              {:error, "forbidden", "Participants may heartbeat only their own identity"}
+            )
+
+          not is_map(conn.body_params) or
+              Enum.any?(Map.keys(conn.body_params), &(&1 not in ~w(status task))) ->
+            reply(
+              conn,
+              {:error, "invalid_input", "Participant heartbeats accept only status and task"}
+            )
+
+          true ->
+            reply(conn, Board.heartbeat(id, actor(conn), conn.body_params))
+        end
+
+      _ ->
+        reply(conn, Board.heartbeat(id, actor(conn), conn.body_params))
+    end
+  end
 
   def retire(conn, %{"id" => id}),
     do: reply(conn, Board.retire(id, privileged_actor(conn), conn.body_params))
@@ -125,7 +148,7 @@ defmodule AgentboardWeb.APIController do
 
   defp authorize_message(conn, message) do
     case conn.assigns[:authenticated_agent] do
-      %{scope: "coordinator", agent_id: id} ->
+      %{scope: scope, agent_id: id} when scope in ~w(coordinator coordinator_participant) ->
         if message["recipient_id"] == id,
           do: :ok,
           else: {:error, "not_found", "Message not found"}
@@ -153,7 +176,14 @@ defmodule AgentboardWeb.APIController do
   def message_filters(conn, "messages") do
     params = conn.query_params
 
+    principal = conn.assigns[:authenticated_agent]
+
     cond do
+      is_map(principal) and principal.scope in ~w(coordinator coordinator_participant) and
+          (Map.has_key?(params, "task") or
+             Map.get(params, "to", principal.agent_id) != principal.agent_id) ->
+        {:error, "forbidden", "Coordinator inbox reads require their own recipient"}
+
       Map.has_key?(params, "task") or Map.has_key?(params, "to") ->
         {:ok, params}
 

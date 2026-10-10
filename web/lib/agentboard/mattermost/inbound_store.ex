@@ -1,6 +1,7 @@
 defmodule Agentboard.Mattermost.InboundStore do
   @moduledoc "Fenced metadata-only version ledger. No Mattermost message bodies, tokens or arbitrary props are persisted."
   alias Agentboard.Repo
+  alias Agentboard.Mattermost.DecisionConversations.Source
   alias Agentboard.Board.Operations, as: Ops
 
   def source(cfg), do: :crypto.hash(:sha256, cfg.base_url <> "\n" <> cfg.repo) |> Base.encode16(case: :lower)
@@ -72,6 +73,8 @@ defmodule Agentboard.Mattermost.InboundStore do
   defp canonical(v) when is_list(v), do: Enum.map(v, &canonical/1)
   defp canonical(v), do: v
 
+  # A trusted typed recipient resolver runs only after the owner fence is held,
+  # so enrollment and retirement checks share the source/inbox transaction.
   def capture(cfg, post, recipients, attribution) do
     version = version(post)
     case fenced(cfg, fn ->
@@ -99,6 +102,12 @@ defmodule Agentboard.Mattermost.InboundStore do
     INSERT INTO mattermost_post_versions(source,channel_id,post_id,version,user_id,root_id,update_at,delete_at,observed_at)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp()) ON CONFLICT DO NOTHING
     """, [cfg.source, post["channel_id"], post["id"], version, post["user_id"], post["root_id"] || "", post["update_at"] || post["create_at"] || 0, post["delete_at"] || 0])
+    recipients = if is_function(recipients, 0), do: recipients.(), else: recipients
+    store_inbox(cfg, post, recipients, attribution, version)
+    {:stored, version}
+  end
+
+  defp store_inbox(cfg, post, recipients, attribution, version) do
     Enum.each(recipients, fn id ->
       Repo.statement!("""
       INSERT INTO mattermost_inbox(id,source,channel_id,post_id,version,worker_id,repo,task_id,sender_agent_id,msg_id,kind,created_at)
@@ -118,7 +127,36 @@ defmodule Agentboard.Mattermost.InboundStore do
         Agentboard.Cooperation.Runtime.capture(attrs, recipient: id)
       end)
     end)
-    {:stored, version}
+  end
+
+  # Recovery is allowed only for an already retained exact source version. The
+  # verified send's allowlisted metadata supplies timestamps and attribution;
+  # it cannot create a version row or stand in for a missing remote observation.
+  def capture_retained(cfg, intent) do
+    fenced(cfg, fn ->
+      metadata = intent.post_metadata
+      valid = is_map(metadata) and intent.state == "sent" and not is_nil(intent.verified_at) and is_nil(intent.duplicate_observed_at) and
+        intent.source == cfg.source and intent.source == source(cfg) and intent.repo == cfg.repo and
+        intent.bot_user_id == cfg.bot_id and metadata["id"] == intent.post_id and
+        metadata["channel_id"] == intent.channel_id and metadata["user_id"] == intent.bot_user_id and
+        (metadata["root_id"] || "") == intent.root_id and (metadata["delete_at"] || 0) == 0 and
+        Enum.all?(~w(create_at update_at edit_at delete_at), fn key ->
+          is_nil(metadata[key]) or (is_integer(metadata[key]) and metadata[key] >= 0)
+        end)
+
+      if valid do
+        %{rows: rows} = Repo.statement!("""
+        SELECT 1 FROM mattermost_post_versions WHERE source=$1 AND channel_id=$2
+          AND post_id=$3 AND version=$4 AND user_id=$5 AND root_id=$6 AND delete_at=0 FOR SHARE
+        """, [cfg.source, intent.channel_id, intent.post_id, intent.post_version,
+          intent.bot_user_id, intent.root_id])
+        recipients = if rows == [], do: [], else: Source.recipients(cfg, intent, metadata)
+        store_inbox(cfg, metadata, recipients, Source.attribution(intent), intent.post_version)
+        recipients != []
+      else
+        false
+      end
+    end)
   end
 
   def notification_key(id, version), do: "mattermost-inbox:#{id}:#{version}"
@@ -182,13 +220,19 @@ defmodule Agentboard.Mattermost.InboundStore do
     {last_seq, high} = decode_cursor(data["cursor"])
     high = high || high_water()
     %{rows: rows} = Repo.statement!("""
-    SELECT i.seq,i.id::text,i.source,i.channel_id,i.post_id,i.version,v.user_id,v.root_id,v.delete_at,i.task_id,i.sender_agent_id,i.msg_id,i.kind
+    SELECT i.seq,i.id::text,i.source,i.channel_id,i.post_id,i.version,v.user_id,v.root_id,v.delete_at,i.task_id,i.sender_agent_id,i.msg_id,i.kind,d.decision_id::text,d.id::text,d.operation
     FROM mattermost_inbox i JOIN mattermost_post_versions v USING(source,channel_id,post_id,version)
+    LEFT JOIN decision_conversation_intents d ON d.source=i.source AND d.repo=i.repo
+      AND d.channel_id=i.channel_id AND d.post_id=i.post_id AND d.post_version=i.version
+      AND d.recipient_id=i.worker_id AND d.bot_user_id=v.user_id AND d.root_id=v.root_id
+      AND d.task_id=i.task_id AND d.actor_id=i.sender_agent_id AND d.msg_id=i.msg_id
+      AND d.state='sent' AND d.verified_at IS NOT NULL AND d.duplicate_observed_at IS NULL AND v.delete_at=0
     WHERE i.worker_id=$1 AND i.repo=ANY($2::text[]) AND i.handled_at IS NULL AND i.seq>$3 AND i.seq<=$4
     ORDER BY i.seq LIMIT 51
     """, [subscription.id, subscription.repos, last_seq, high])
-    items = Enum.take(rows, 50) |> Enum.map(fn [_seq, id, source, channel, post, version, user, root, deleted, task, sender, msg, kind] ->
+    items = Enum.take(rows, 50) |> Enum.map(fn [_seq, id, source, channel, post, version, user, root, deleted, task, sender, msg, kind, decision, intent, operation] ->
       %{id: id, source: source, channel_id: channel, post_id: post, version: version, user_id: user, root_id: root, delete_at: deleted, task_id: task, sender_agent_id: sender, msg_id: msg, kind: kind}
+      |> put_conversation(decision, intent, operation)
     end)
     %{rows: coverage} = Repo.statement!("""
     SELECT c.channel_id,c.page,c.history_complete,c.reason,c.checked_at,r.connected AND r.expires_at>clock_timestamp(),r.reason
@@ -226,15 +270,26 @@ defmodule Agentboard.Mattermost.InboundStore do
     unless Ecto.UUID.cast(data["id"]) != :error and is_binary(data["version"]),
       do: Ops.reject("invalid_input", "Exact inbox id/version required")
     %{rows: rows} = Repo.statement!("""
-    SELECT i.source,i.channel_id,i.post_id,i.version,v.user_id,v.root_id,v.delete_at,i.task_id,i.sender_agent_id,i.msg_id,i.kind
+    SELECT i.source,i.channel_id,i.post_id,i.version,v.user_id,v.root_id,v.delete_at,i.task_id,i.sender_agent_id,i.msg_id,i.kind,d.decision_id::text,d.id::text,d.operation
     FROM mattermost_inbox i JOIN mattermost_post_versions v USING(source,channel_id,post_id,version)
+    LEFT JOIN decision_conversation_intents d ON d.source=i.source AND d.repo=i.repo
+      AND d.channel_id=i.channel_id AND d.post_id=i.post_id AND d.post_version=i.version
+      AND d.recipient_id=i.worker_id AND d.bot_user_id=v.user_id AND d.root_id=v.root_id
+      AND d.task_id=i.task_id AND d.actor_id=i.sender_agent_id AND d.msg_id=i.msg_id
+      AND d.state='sent' AND d.verified_at IS NOT NULL AND d.duplicate_observed_at IS NULL AND v.delete_at=0
     WHERE i.id=$1 AND i.version=$2 AND i.worker_id=$3 AND i.repo=ANY($4::text[])
     """, [uuid(data["id"]), data["version"], subscription.id, subscription.repos])
     case rows do
-      [[source, channel, post, version, user, root, deleted, task, sender, msg, kind]] ->
-        %{items: [%{id: data["id"], source: source, channel_id: channel, post_id: post, version: version, user_id: user, root_id: root, delete_at: deleted, task_id: task, sender_agent_id: sender, msg_id: msg, kind: kind}]}
+      [[source, channel, post, version, user, root, deleted, task, sender, msg, kind, decision, intent, operation]] ->
+        item = %{id: data["id"], source: source, channel_id: channel, post_id: post, version: version, user_id: user, root_id: root, delete_at: deleted, task_id: task, sender_agent_id: sender, msg_id: msg, kind: kind}
+        %{items: [put_conversation(item, decision, intent, operation)]}
       _ -> Ops.reject("forbidden", "Exact version is not this worker's inbox item")
     end
+  end
+
+  defp put_conversation(item, nil, _intent, _operation), do: item
+  defp put_conversation(item, decision, intent, operation) do
+    Map.put(item, :decision_conversation, %{decision_id: decision, intent_id: intent, operation: operation})
   end
 
   def acknowledge(subscription, data) do

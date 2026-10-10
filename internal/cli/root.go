@@ -106,7 +106,8 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	// Fleet authority and audit attribution come from verified captain transport,
 	// not the caller's self-reported actor environment.
 	fleetLoadout := strings.HasPrefix(path, "fleets/") && strings.HasSuffix(path, "/loadout")
-	if method != http.MethodGet && !fleetLoadout {
+	decisionConversation := isDecisionConversationPath(path)
+	if (method != http.MethodGet || decisionConversation) && !fleetLoadout {
 		if err := c.cfg.Actor.Validate(); err != nil {
 			return err
 		}
@@ -117,6 +118,11 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	// Fleet configuration is captain-only for reads as well as writes. There is
 	// no command flag that can downgrade this transport to an ordinary bearer.
 	captain = captain || fleetLoadout
+	// Typed conversation participation always uses the caller's ordinary bearer,
+	// never a protected captain capability or a worker runtime receipt.
+	if decisionConversation {
+		captain = false
+	}
 	if captain {
 		secret, readErr := worker.ReadProtected(os.Getenv("AGENTBOARD_CAPTAIN_TOKEN_FILE"), 4096)
 		if readErr != nil {
@@ -135,9 +141,10 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 		return err
 	}
 	var meta struct {
-		API            int `json:"api_version"`
-		Schema         int `json:"schema_version"`
-		DecisionIntake int `json:"required_decision_intake_version"`
+		API                           int             `json:"api_version"`
+		Schema                        int             `json:"schema_version"`
+		DecisionIntake                int             `json:"required_decision_intake_version"`
+		DecisionConversationSupported json.RawMessage `json:"decision_conversation_supported"`
 	}
 	required := 1
 	if strings.HasPrefix(path, "messages") || strings.HasSuffix(path, "/heartbeat") || strings.HasSuffix(path, "/handoff") {
@@ -220,8 +227,17 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 			}
 		}
 	}
+	if decisionConversation {
+		required = 39
+	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
+	}
+	if decisionConversation {
+		var supported bool
+		if json.Unmarshal(meta.DecisionConversationSupported, &supported) != nil || !supported {
+			return &client.Error{Code: "schema_unavailable", Message: "Server does not advertise decision conversation support; an operator must enable a compatible release"}
+		}
 	}
 	if meta.DecisionIntake > DecisionIntakeVersion {
 		warning := "Installed CLI lacks required decision intake; upgrade from a SHA256SUMS-verified agentboard release"
@@ -233,6 +249,12 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	}
 	raw, err = api.JSON(cmd.Context(), method, path, query, payload)
 	if err != nil {
+		return err
+	}
+	if decisionConversation {
+		// Preserve the complete receipt in either output mode, including retained
+		// uncertainty and independent source/handling evidence. Do not infer delivery.
+		_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
 		return err
 	}
 	return c.output(cmd.OutOrStdout(), raw)

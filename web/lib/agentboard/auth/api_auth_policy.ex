@@ -7,6 +7,7 @@ defmodule Agentboard.Auth.APIAuthPolicy do
     AgentTokenController,
     ConversationController,
     DecisionController,
+    DecisionConversationController,
     MetaController,
     WatchController,
     WorkerController,
@@ -27,13 +28,34 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       not reserved?(agent.id, agent.harness, agent.kind) and
       credential.agent_id == agent.id and
       case credential.scope do
-        "agent" -> agent.id != coordinator
-        "coordinator" -> is_binary(coordinator) and agent.id == coordinator
-        _ -> false
+        "agent" ->
+          agent.id != coordinator
+
+        "coordinator" ->
+          is_binary(coordinator) and agent.id == coordinator
+
+        "coordinator_participant" ->
+          is_binary(coordinator) and agent.id == coordinator and
+            valid_channel_grant?(credential.scope, Map.get(credential, :channel_ids))
+
+        _ ->
+          false
       end
   end
 
   def credential_allowed?(_, _, _), do: false
+
+  def valid_channel_grant?("coordinator_participant", channel_ids) when is_list(channel_ids) do
+    length(channel_ids) in 1..20 and
+      length(Enum.uniq(channel_ids)) == length(channel_ids) and
+      Enum.all?(channel_ids, &channel_id?/1)
+  end
+
+  def valid_channel_grant?(scope, []), do: scope in ~w(agent coordinator)
+  def valid_channel_grant?(_, _), do: false
+
+  def channel_id?(id),
+    do: is_binary(id) and byte_size(id) in 1..128 and Regex.match?(~r/\A[A-Za-z0-9_-]+\z/, id)
 
   def boundary(%{plug: MetaController, plug_opts: :show}), do: :public
   def boundary(%{plug: WorkflowHookController, plug_opts: :create}), do: :independent
@@ -57,6 +79,7 @@ defmodule Agentboard.Auth.APIAuthPolicy do
              APIController,
              ConversationController,
              DecisionController,
+             DecisionConversationController,
              WatchController
            ],
       do: :agent
@@ -89,7 +112,29 @@ defmodule Agentboard.Auth.APIAuthPolicy do
   def bootstrap?(%{plug: APIController, plug_opts: :register}), do: true
   def bootstrap?(_), do: false
 
+  def allowed?(
+        %{scope: "agent"},
+        %{plug: DecisionConversationController, plug_opts: action},
+        method,
+        _
+      ) do
+    (action == :notify and method == "POST") or
+      (action == :show and method in ["GET", "HEAD"]) or
+      (action == :reconcile and method == "POST")
+  end
+
   def allowed?(%{scope: "agent"}, _info, _method, _params), do: true
+
+  def allowed?(
+        %{scope: "coordinator_participant", agent_id: id} = principal,
+        info,
+        method,
+        params
+      ) do
+    valid_channel_grant?(principal.scope, Map.get(principal, :channel_ids)) and
+      (participant_operation?(info, method) or
+         allowed?(%{scope: "coordinator", agent_id: id}, info, method, params))
+  end
 
   def allowed?(%{scope: "coordinator", agent_id: id}, info, method, params)
       when method in ["GET", "HEAD"] do
@@ -118,4 +163,23 @@ defmodule Agentboard.Auth.APIAuthPolicy do
   end
 
   def allowed?(_, _, _, _), do: false
+
+  # Path identity, exact recipient and channel checks are enforced in controllers.
+  # The auth plug's params are query-only, so they cannot authorize path targets.
+  defp participant_operation?(%{plug: APIController, plug_opts: action}, "POST")
+       when action in [:heartbeat, :read_message], do: true
+
+  defp participant_operation?(%{plug: ConversationController, plug_opts: action}, method)
+       when action in [:reads, :coverage, :diagnostics] and method in ["GET", "HEAD"], do: true
+
+  defp participant_operation?(%{plug: ConversationController, plug_opts: action}, "POST")
+       when action in [:send, :report_coverage], do: true
+
+  defp participant_operation?(%{plug: DecisionConversationController, plug_opts: :show}, method)
+       when method in ["GET", "HEAD"], do: true
+
+  defp participant_operation?(%{plug: DecisionConversationController, plug_opts: action}, "POST")
+       when action in [:reply, :reconcile], do: true
+
+  defp participant_operation?(_, _), do: false
 end

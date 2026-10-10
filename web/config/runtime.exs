@@ -321,3 +321,6 @@ config :agentboard,
 config :agentboard,
        :branch_flow_enabled,
        System.get_env("AGENTBOARD_BRANCH_FLOW_ENABLED") == "true"
+
+# Typed decision chat routing is unset by default and never activates participation.
+config :agentboard, :coordinator_chat_channel_id, System.get_env("AGENTBOARD_COORDINATOR_CHAT_CHANNEL_ID")

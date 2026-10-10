@@ -15,7 +15,9 @@ If it is unset, stop and resolve that first — an escalation sent without it
 never reaches anyone.
 
 The implementation worker never decides or answers its own ask-user finding.
-Authority sits with the coordinator (or the captain via the coordinator).
+The coordinator routes the question to the captain; canonical decision answering
+requires the protected captain capability. A `coordinator_participant` bearer
+permits conversation, not a canonical answer.
 
 ## Every captain question, including durable ask-user gates
 
@@ -40,14 +42,41 @@ mutation. The board remains the decision authority in every message mode.
    This atomically blocks the task and holds its claim. Identical retries return
    the same request; changed content conflicts. After an uncertain response,
    read `decision list --task TASK` before repeating the write.
-3. Notify the configured coordinator with the returned decision ID and task:
+3. Notify the configured coordinator with the returned decision ID and task.
+   If the server advertises schema 39 or newer and
+   `decision_conversation_supported: true`, authentication is enforced, and the
+   channel route, participant grant and both worker enrollments/capabilities have
+   been separately approved and provisioned, use:
+
+   ```sh
+   agentboard decision conversation notify DECISION_ID \
+     --channel APPROVED_CHANNEL_ID --json
+   ```
+
+   This retains the ordinary board notice before attempting its typed chat
+   projection. Do not also send `msg send` for the same notice. Inspect the
+   returned `board_message_id` and state: `prepared` means preflight, not chat
+   admission or delivery; `uncertain` requires retained-state reconciliation,
+   never a blind repost. Even `sent` is only a verified remote receipt, not proof
+   of coordinator handling. After a lost response or error, use
+   `decision conversation show DECISION_ID --json` and inspect the board notice
+   before considering fallback. Follow the
+   [round-trip runbook](../../docs/setup/coordinator-message-roundtrip.md).
+
+   Otherwise, use the existing board notification:
    `agentboard msg send --to "$AGENTBOARD_COORDINATOR_ID" --task TASK --body 'Decision ID awaits captain; read decision show ID.'`
-   Heartbeat busy with the task, then end the turn only after request and notice
-   succeed. Do not burn turns polling or take another task while held.
+   Do not enable auth, issue credentials, enroll a worker or change routing to
+   make this workflow pass without separate approval. Heartbeat busy with the
+   task, then end the turn only after the request and board notice are confirmed;
+   report chat unavailability/uncertainty honestly. Keep the existing board inbox
+   sweep and monitoring. Do not burn turns polling or take another task while held.
 4. On the next session/wake, read `agentboard decision show ID --json` and the
    task. Apply only the canonical answer through `no-mistakes axi respond`;
-   keep all fixes with the active pipeline. An inbox notice is a pointer, not
-   authority to invent another answer.
+   keep all fixes with the active pipeline. An inbox notice or typed chat reply
+   is a pointer, not authority to invent another answer. Exact Mattermost source
+   reads/handling still use separately protected `worker mattermost-read` and
+   `worker mattermost-ack`; replying does not acknowledge that source or apply
+   the canonical decision.
 5. Explicitly `agentboard task renew TASK --json` before
    `agentboard decision ack ID --json`, after applying the answer. Heartbeat
    does not renew. The last outstanding request's ack releases the hold;

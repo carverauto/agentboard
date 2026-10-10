@@ -29,7 +29,7 @@ before enabling it. Disable external exposure **before** rolling back to off or
 observe; retain credential and audit evidence. No deployment setting is changed
 merely by installing this release.
 
-### Coordinator scope
+### Coordinator scopes
 
 The existing `coordinator` credential scope is read-only under enforce. It is
 bound to `AGENTBOARD_COORDINATOR_ID` and permits explicit task, PR, agent and
@@ -40,9 +40,46 @@ administration. Some GET operations change state, so the policy uses controller
 operations rather than an HTTP-method wildcard. Token last-use/audit metadata
 and server housekeeping are not caller-authorized board mutations.
 
-Coordinator identity changes invalidate credentials with the old scope binding.
+Schema 39 adds the separate, explicitly requested `coordinator_participant`
+scope. Default issuance for the configured coordinator still selects
+`coordinator`; existing credentials are not promoted. A participant credential
+requires an immutable `channel_ids` grant of 1–20 distinct channel IDs. Each ID
+is 1–128 ASCII letters, digits, underscores or hyphens. Empty, duplicate or
+malformed grants are rejected; `agent` and `coordinator` scopes reject nonempty
+grants. Changing the grant requires a new issue/rotation, not an in-place edit.
+
+Under enforce, a participant retains the coordinator's allowed reads and adds:
+
+- Its own heartbeat, accepting only `status` and `task` with the existing
+  busy/idle and owned-task checks. `backend`, profile/registration changes,
+  availability and quota writes remain forbidden; heartbeat never renews a lease.
+- Explicit acknowledgment of board messages addressed to itself. List/show
+  recipient isolation and immutable first-handled attribution remain enforced.
+- Generic chat send/read and its own coverage in a granted channel, intersected
+  with the current global channel policy and verified shared-bot membership.
+  An empty global allowlist never widens the credential's nonempty grant.
+  Diagnostics expose only its own non-secret bot/override status, not channel
+  discovery or another identity's history.
+- The typed decision reply, receipt read and explicit reconciliation described
+  in [coordinator decision round-trip](coordinator-message-roundtrip.md).
+
+All unlisted operations remain denied, including task create/claim/renew/update,
+assignment/handoff, decision request/answer/recommend/supersede/ack, context and
+settings writes, credential administration and worker administration. The
+participant bearer cannot fetch or acknowledge protected worker sources; those
+still require separately provisioned, current worker receipt capabilities.
+Conversely, a worker receipt is not a general chat credential. Canonical decision
+answering remains captain-only. Do not distribute a captain capability to make
+an ordinary participant operation work.
+
+Coordinator identity changes invalidate credentials with either scope binding.
 Agent credentials cannot retain write access after their identity becomes the
 configured coordinator. Retired and reserved identities cannot authenticate.
+
+Every typed decision-conversation endpoint additionally requires
+`AGENTBOARD_AUTH_MODE=enforce` and an actually presented, verified bearer.
+`off` and `observe` fail closed for those endpoints; their legacy endpoint
+behavior is unchanged. Installing this release never changes the auth mode.
 
 ### Enrollment and revocation
 
@@ -77,6 +114,23 @@ agentboard agent token rotate codex-example-server --out /protected/agentboard-n
 agentboard agent token revoke codex-example-server --credential-id CREDENTIAL_UUID
 ```
 
+Only after separate operator approval of participant identity and channel scope,
+the captain can explicitly issue a participant credential (schema 39):
+
+```sh
+agentboard agent token issue "$AGENTBOARD_COORDINATOR_ID" \
+  --scope coordinator_participant --channel APPROVED_CHANNEL_ID \
+  --out /protected/coordinator-participant.token
+```
+
+Repeat `--channel` for additional approved channels. Rotation uses the same
+explicit `--scope coordinator_participant` and complete `--channel` grant with a
+new `--out` path. Omitting the scope does not preserve participant scope: the
+configured coordinator's default remains read-only `coordinator`. Metadata
+lists include `channel_ids`, never the credential or its hash. Issuance alone
+does not configure the typed route, enroll a worker, activate inbound delivery,
+or establish native wake support.
+
 Omitting `--credential-id` revokes every active credential for that agent.
 Rotation atomically revokes all previous active credentials before issuing the
 replacement. If file delivery or the HTTP response fails, inspect metadata
@@ -90,7 +144,7 @@ with mode 0600 before using it. Prefer CLI `--out` for direct protected storage.
 
 Store SHA256 hashes of 256-bit random credentials, a hash-derived fingerprint,
 issuer and lifecycle timestamps. Agent/coordinator credentials cannot claim
-reserved server identities; coordinator scope belongs only to the configured
+reserved server identities; both coordinator scopes belong only to the configured
 coordinator. External system and captain-admin scopes remain unsupported; a supplied scope or header cannot grant those privileges.
 
 ## Seat usage
@@ -131,5 +185,11 @@ concurrent rotation, observe attribution, immutable evidence and CLI custody.
 Go transport tests cover reflected-secret redaction, including watch records
 split across network chunks; the executable launcher fixture owns lease/identity
 and permissions. Builds and tests use `./scripts/bazel` remote configuration.
+
+Schema 39 adds immutable participant channel grants and metadata-only decision
+conversation intents. It preserves old credentials, board messages and uncertain
+remote-send evidence. Its CLI refuses older schemas without attempting issuance
+or a typed conversation mutation. See the [round-trip runbook](coordinator-message-roundtrip.md)
+for routing, separate capability custody, exact source handling and rollback.
 
 The operator reviews adoption, provisions credentials and explicitly enables enforcement. Installing the code does not issue real credentials or change a deployment.

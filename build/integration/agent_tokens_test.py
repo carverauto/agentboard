@@ -324,8 +324,10 @@ print('Hash-only lifecycle, captain guards, off/observe attribution/audit, concu
 import http.client
 import time
 
-def enforce_api(path, body=None, bearer=None, actor='token-owner', model='fixture', harness='codex', status=200):
+def enforce_api(path, body=None, bearer=None, actor='token-owner', model='fixture', harness='codex', status=200, protocol=False):
     headers = {'content-type': 'application/json'}
+    if protocol:
+        headers['x-agentboard-worker-protocol'] = '1'
     if actor is not None:
         headers.update({'x-agentboard-agent': actor, 'x-agentboard-model': model,
                         'x-agentboard-harness': harness})
@@ -399,6 +401,190 @@ try:
     rpc('Application.put_env(:agentboard,:coordinator_id,"another-coordinator")')
     enforce_api('tasks', bearer=coordinator_token, actor='token-coordinator', status=401)
     rpc('Application.put_env(:agentboard,:coordinator_id,"token-coordinator")')
+
+    # Participant credentials are always explicit, channel-bounded, immutable,
+    # and distinct from the read-only coordinator and protected runtime proof.
+    participant_scope = 'coordinator_participant'
+    grant = ['participant-channel']
+    for invalid_grant in [None, [], 'participant-channel', [''], ['has space'],
+                          ['slash/channel'], ['line\n'], ['é'], ['x'*129],
+                          ['same', 'same'], ['channel-'+str(n) for n in range(21)]]:
+        bad = {'scope': participant_scope, 'channel_ids': invalid_grant}
+        before = sql('SELECT count(*) FROM agent_api_credentials')
+        api('agents/token-coordinator/tokens/issue', bad, captain=True, status=422)
+        assert sql('SELECT count(*) FROM agent_api_credentials') == before
+    api('agents/token-owner/tokens/issue', {'scope':participant_scope,'channel_ids':grant}, captain=True, status=403)
+    for identity, scope in [('token-owner','agent'), ('token-coordinator','coordinator')]:
+        api('agents/'+identity+'/tokens/issue', {'scope':scope,'channel_ids':grant}, captain=True, status=422)
+    participant_issued = api('agents/token-coordinator/tokens/issue',
+        {'scope':participant_scope,'channel_ids':grant}, captain=True)
+    participant_token = participant_issued['token']
+    participant_id = participant_issued['credential']['id']
+    assert participant_issued['credential']['channel_ids'] == grant
+    listed = api('agents/token-coordinator/tokens', captain=True)
+    assert participant_token not in json.dumps(listed) and 'token_hash' not in json.dumps(listed)
+    for statement in ["UPDATE agent_api_credentials SET channel_ids=ARRAY['foreign-channel'] WHERE id='"+participant_id+"'",
+                      "UPDATE agent_api_credentials SET channel_ids=ARRAY[]::text[] WHERE id='"+participant_id+"'"]:
+        outcome = subprocess.run([os.environ['FIXTURE_PSQL'],'-At','-v','ON_ERROR_STOP=1','-c',statement],capture_output=True,text=True)
+        assert outcome.returncode != 0, 'Credential channel grant was mutable'
+    assert sql("SELECT channel_ids[1] FROM agent_api_credentials WHERE id='"+participant_id+"'") == grant[0]
+    enforce_api('tasks', bearer=participant_token, actor='token-coordinator')
+    enforce_api('agents/token-coordinator/heartbeat', {'status':'idle'}, bearer=participant_token, actor='token-coordinator')
+    enforce_api('agents/token-owner/heartbeat', {'status':'idle'}, bearer=participant_token, actor='token-coordinator', status=403)
+    enforce_api('agents/token-coordinator/heartbeat', {'status':'away'}, bearer=participant_token, actor='token-coordinator', status=422)
+    enforce_api('agents/token-coordinator/heartbeat', {'status':'idle','backend':'profile-write'}, bearer=participant_token, actor='token-coordinator', status=422)
+    enforce_api('agents/token-coordinator/heartbeat', {'status':'busy','task':'auth-enforce-bound'}, bearer=participant_token, actor='token-coordinator', status=409)
+    own_notice = enforce_api('messages', {'to':'token-coordinator','body':'Participant exact inbox fixture'}, bearer=cli_token)['message']
+    foreign_notice = enforce_api('messages', {'to':'token-other','body':'Foreign recipient fixture'}, bearer=cli_token)['message']
+    for read_token in [coordinator_token, participant_token]:
+        enforce_api('messages/'+str(own_notice['id']), bearer=read_token, actor='token-coordinator')
+        enforce_api('messages/'+str(foreign_notice['id']), bearer=read_token, actor='token-coordinator', status=404)
+        enforce_api('messages/'+str(foreign_notice['id'])+'/triage', bearer=read_token, actor='token-coordinator', status=404)
+        enforce_api('messages?to=token-other', bearer=read_token, actor='token-coordinator', status=403)
+        enforce_api('messages?task=auth-enforce-bound', bearer=read_token, actor='token-coordinator', status=403)
+    enforce_api('messages/'+str(own_notice['id'])+'/read', {}, bearer=coordinator_token, actor='token-coordinator', status=403)
+    acknowledged = enforce_api('messages/'+str(own_notice['id'])+'/read', {}, bearer=participant_token, actor='token-coordinator')['message']
+    repeated = enforce_api('messages/'+str(own_notice['id'])+'/read', {}, bearer=participant_token, actor='token-coordinator')['message']
+    for field in ['read_at','read_model','read_harness']:
+        assert repeated[field] == acknowledged[field] and repeated[field] is not None
+    enforce_api('messages/'+str(foreign_notice['id'])+'/read', {}, bearer=participant_token, actor='token-coordinator', status=409)
+    for path, body in [('tasks', {'title':'Participant cannot create'}),
+                       ('tasks/auth-enforce-bound/claim', {}), ('tasks/auth-enforce-bound/renew', {}),
+                       ('tasks/auth-enforce-bound/assign', {'to':'token-owner'}),
+                       ('agents/register', {}), ('availability', {}), ('quota', {}),
+                       ('messages', {'to':'token-owner','body':'Participant cannot board-send'}),
+                       ('decisions', {}), ('decisions/00000000-0000-4000-8000-000000000001/answer', {'answer':'No'}),
+                       ('agents/token-coordinator/tokens/issue', {})]:
+        enforce_api(path, body, bearer=participant_token, actor='token-coordinator', status=403)
+    enforce_api('workers/token-coordinator/mattermost_read', {}, bearer=participant_token, actor='token-coordinator', status=401, protocol=True)
+    enforce_api('workers/token-coordinator/mattermost_ack', {}, bearer=participant_token, actor='token-coordinator', status=401, protocol=True)
+
+    # Actual loopback HTTP proves grant, global policy and current shared-bot
+    # identity/membership all gate generic chat and coverage operations.
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    chat_state = {'channels':grant[:], 'bot':True, 'posts':0, 'history':0, 'flip_config':False, 'redirect_status':None}
+    redirect_state={'requests':0,'credential_received':False}
+    class ParticipantRedirectTarget(BaseHTTPRequestHandler):
+        def log_message(self, *_args): pass
+        def do_GET(self):
+            redirect_state['requests']+=1
+            redirect_state['credential_received'] |= self.headers.get('Authorization') is not None
+            self.rfile.read(int(self.headers.get('Content-Length','0')))
+            raw=json.dumps({'id':'redirected-post','order':[],'posts':{}}).encode()
+            self.send_response(201 if self.command=='POST' else 200)
+            self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(raw)))
+            self.end_headers();self.wfile.write(raw)
+        do_POST=do_GET
+    redirect_server=ThreadingHTTPServer(('127.0.0.1',0),ParticipantRedirectTarget)
+    redirect_thread=threading.Thread(target=redirect_server.serve_forever,daemon=True);redirect_thread.start()
+    class ParticipantChatFixture(BaseHTTPRequestHandler):
+        def log_message(self, *_args): pass
+        def send_json(self, value, status=200):
+            raw=json.dumps(value).encode(); self.send_response(status)
+            self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(raw)))
+            self.end_headers(); self.wfile.write(raw)
+        def redirect(self):
+            self.send_response(chat_state['redirect_status'])
+            # Different host and port: following this would escape the verified
+            # shared-bot destination and could forward its authorization header.
+            self.send_header('Location','http://localhost:'+str(redirect_server.server_port)+'/redirected')
+            self.send_header('Content-Length','0');self.end_headers()
+        def do_GET(self):
+            assert self.headers.get('Authorization') == 'Bearer fixture-participant-shared-bot'
+            if self.path == '/api/v4/users/me':
+                self.send_json({'id':'participant-bot','roles':'system_user','is_bot':chat_state['bot']})
+            elif self.path == '/api/v4/users/me/channels':
+                if chat_state['flip_config']:
+                    chat_state['flip_config']=False
+                    rpc('Application.put_env(:agentboard,:mattermost_base_url,"http://127.0.0.1:9")')
+                self.send_json([{'id':channel,'delete_at':0} for channel in chat_state['channels']])
+            elif self.path.startswith('/api/v4/channels/participant-channel/posts'):
+                if chat_state['redirect_status']:return self.redirect()
+                chat_state['history']+=1; self.send_json({'order':[],'posts':{}})
+            else: self.send_json({},404)
+        def do_POST(self):
+            assert self.path == '/api/v4/posts'
+            body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            if chat_state['redirect_status']:return self.redirect()
+            chat_state['posts']+=1
+            self.send_json(dict(body,id='participant-post-'+str(chat_state['posts']),user_id='participant-bot'),201)
+    chat_server=ThreadingHTTPServer(('127.0.0.1',0),ParticipantChatFixture)
+    chat_thread=threading.Thread(target=chat_server.serve_forever,daemon=True);chat_thread.start()
+    config_keys='[:mattermost_base_url,:mattermost_bot_token,:mattermost_bot_token_file,:mattermost_channel_allowlist]'
+    rpc(':persistent_term.put(:participant_prior, Map.new('+config_keys+', &{&1, Application.fetch_env(:agentboard, &1)})); Application.put_env(:agentboard,:mattermost_base_url,"http://127.0.0.1:'+str(chat_server.server_port)+'"); Application.put_env(:agentboard,:mattermost_bot_token,"fixture-participant-shared-bot"); Application.delete_env(:agentboard,:mattermost_bot_token_file); Application.put_env(:agentboard,:mattermost_channel_allowlist,"participant-channel")')
+    try:
+        for path in ['conversations/reads?channel_id=foreign-channel', 'conversations/coverage/token-coordinator/foreign-channel',
+                     'conversations/coverage/token-other/participant-channel']:
+            enforce_api(path, bearer=participant_token, actor='token-coordinator', status=403)
+        enforce_api('conversations/send', {'channel_id':'foreign-channel','body':'Denied'}, bearer=participant_token, actor='token-coordinator', status=403)
+        enforce_api('conversations/coverage/token-coordinator/foreign-channel', {'last_post_id':'post'}, bearer=participant_token, actor='token-coordinator', status=403)
+        enforce_api('conversations/coverage/token-other/participant-channel', {'last_post_id':'post'}, bearer=participant_token, actor='token-coordinator', status=422)
+        assert chat_state['posts']==0 and chat_state['history']==0
+        # A config replacement after membership verification cannot switch the
+        # service used for the admitted generic read/send.
+        chat_state['flip_config']=True
+        enforce_api('conversations/reads?channel_id=participant-channel', bearer=participant_token, actor='token-coordinator')
+        rpc('Application.put_env(:agentboard,:mattermost_base_url,"http://127.0.0.1:'+str(chat_server.server_port)+'")')
+        chat_state['flip_config']=True
+        enforce_api('conversations/send', {'channel_id':'participant-channel','body':'Participant generic chat'}, bearer=participant_token, actor='token-coordinator')
+        rpc('Application.put_env(:agentboard,:mattermost_base_url,"http://127.0.0.1:'+str(chat_server.server_port)+'")')
+        enforce_api('conversations/coverage/token-coordinator/participant-channel', {'last_post_id':'participant-post-1','last_version':1,'caught_up':True}, bearer=participant_token, actor='token-coordinator')
+        own_coverage=enforce_api('conversations/coverage/token-coordinator/participant-channel', bearer=participant_token, actor='token-coordinator')
+        assert own_coverage['agent_id']=='token-coordinator' and own_coverage['channel_id']=='participant-channel'
+        assert chat_state['posts']==1 and chat_state['history']>=1
+        for redirect_status in [307,308]:
+            chat_state['redirect_status']=redirect_status
+            enforce_api('conversations/reads?channel_id=participant-channel', bearer=participant_token, actor='token-coordinator', status=503)
+            enforce_api('conversations/send', {'channel_id':'participant-channel','body':'Do not follow redirects'}, bearer=participant_token, actor='token-coordinator', status=503)
+            enforce_api('conversations/send', {'channel_id':'participant-channel','body':'No redirect adoption','retry_key':'redirect-'+str(redirect_status)}, bearer=participant_token, actor='token-coordinator', status=503)
+            assert redirect_state['requests']==0 and not redirect_state['credential_received'], 'Mattermost escaped its authorized destination'
+            assert chat_state['posts']==1
+        chat_state['redirect_status']=None
+        for change in ['membership','policy','identity']:
+            if change=='membership':chat_state['channels']=[]
+            if change=='policy':rpc('Application.put_env(:agentboard,:mattermost_channel_allowlist,"another-channel")')
+            if change=='identity':chat_state['bot']=False
+            expected=503 if change=='identity' else 403
+            for path, body in [('conversations/reads?channel_id=participant-channel',None),
+                               ('conversations/send',{'channel_id':'participant-channel','body':'Must fail closed'}),
+                               ('conversations/coverage/token-coordinator/participant-channel',None),
+                               ('conversations/coverage/token-coordinator/participant-channel',{'last_post_id':'post'})]:
+                enforce_api(path,body,bearer=participant_token,actor='token-coordinator',status=expected)
+            diagnostics=enforce_api('conversations/diagnostics',bearer=participant_token,actor='token-coordinator')
+            assert set(diagnostics)=={'bot','overrides'} and 'channels' not in json.dumps(diagnostics)
+            chat_state['channels']=grant[:];chat_state['bot']=True
+            rpc('Application.put_env(:agentboard,:mattermost_channel_allowlist,"participant-channel")')
+        assert chat_state['posts']==1
+    finally:
+        rpc('Enum.each(:persistent_term.get(:participant_prior), fn {key, {:ok, value}} -> Application.put_env(:agentboard,key,value); {key, :error} -> Application.delete_env(:agentboard,key) end); :persistent_term.erase(:participant_prior)')
+        chat_server.shutdown();chat_server.server_close();chat_thread.join(timeout=5)
+        redirect_server.shutdown();redirect_server.server_close();redirect_thread.join(timeout=5)
+    rpc('Application.put_env(:agentboard,:coordinator_id,"replacement-coordinator")')
+    enforce_api('tasks',bearer=participant_token,actor='token-coordinator',status=401)
+    rpc('Application.put_env(:agentboard,:coordinator_id,"token-coordinator")')
+    # Failed rotation validation must not revoke either existing coordinator scope.
+    api('agents/token-coordinator/tokens/rotate', {'scope':participant_scope,'channel_ids':[]}, captain=True, status=422)
+    enforce_api('tasks', bearer=participant_token, actor='token-coordinator')
+    enforce_api('tasks', bearer=coordinator_token, actor='token-coordinator')
+    participant_outfile=root/'participant-rotated.token'
+    participant_cli=cli('agent','token','rotate','token-coordinator','--scope',participant_scope,
+        '--channel','rotated-channel','--out',str(participant_outfile))
+    replacement_participant=participant_outfile.read_text().strip()
+    replacement_metadata=json.loads(participant_cli.stdout)['credential']
+    assert replacement_metadata['scope']==participant_scope and replacement_metadata['channel_ids']==['rotated-channel']
+    assert participant_outfile.stat().st_mode & 0o777 == 0o600
+    assert replacement_participant not in participant_cli.stdout+participant_cli.stderr
+    enforce_api('tasks', bearer=participant_token, actor='token-coordinator', status=401)
+    enforce_api('tasks', bearer=coordinator_token, actor='token-coordinator', status=401)
+    enforce_api('tasks', bearer=replacement_participant, actor='token-coordinator')
+    api('agents/token-coordinator/tokens/revoke', {'credential_id':replacement_metadata['id']}, captain=True)
+    enforce_api('tasks', bearer=replacement_participant, actor='token-coordinator', status=401)
+    default_rotation=api('agents/token-coordinator/tokens/rotate', {}, captain=True)
+    assert default_rotation['credential']['scope']=='coordinator' and default_rotation['credential']['channel_ids']==[]
+    coordinator_token=default_rotation['token']
+    enforce_api('agents/token-coordinator/heartbeat', {'status':'idle'}, bearer=coordinator_token, actor='token-coordinator', status=403)
+    print('Participant immutable grants, own heartbeat/inbox/ack, token rotation custody and live shared-bot channel intersection passed')
 
     # Dedicated captain reads and administration preserve their independent proof.
     for path in ['auth/observations', 'settings/archive', 'agents/token-owner/tokens']:

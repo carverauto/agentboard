@@ -11,7 +11,16 @@ defmodule Agentboard.Auth.Credential do
     defaults([:read])
 
     create :issue do
-      accept([:id, :agent_id, :token_hash, :fingerprint, :scope, :issuer, :created_at])
+      accept([
+        :id,
+        :agent_id,
+        :token_hash,
+        :fingerprint,
+        :scope,
+        :channel_ids,
+        :issuer,
+        :created_at
+      ])
     end
 
     update :revoke do
@@ -29,6 +38,7 @@ defmodule Agentboard.Auth.Credential do
     attribute(:token_hash, :string, allow_nil?: false, sensitive?: true)
     attribute(:fingerprint, :string, allow_nil?: false)
     attribute(:scope, :string, allow_nil?: false)
+    attribute(:channel_ids, {:array, :string}, allow_nil?: false, default: [])
     attribute(:issuer, :string, allow_nil?: false)
     attribute(:created_at, :utc_datetime_usec, allow_nil?: false)
     attribute(:last_used_at, :utc_datetime_usec)

@@ -6,7 +6,7 @@ defmodule Agentboard.APIAuthTest do
   alias AgentboardWeb.{APIController, ConversationController, DecisionController, WatchController}
 
   setup do
-    keys = [:agent_auth_mode, :captain_token, :coordinator_id]
+    keys = [:agent_auth_mode, :captain_token, :coordinator_id, :mattermost_channel_allowlist]
     prior = Map.new(keys, &{&1, Application.fetch_env(:agentboard, &1)})
     Application.put_env(:agentboard, :agent_auth_mode, "enforce")
     Application.put_env(:agentboard, :captain_token, "fixture-captain-capability-0123456789")
@@ -231,5 +231,214 @@ defmodule Agentboard.APIAuthTest do
     Application.put_env(:agentboard, :agent_auth_mode, "enfroce")
     out = AgentAuth.call(conn, [])
     assert out.halted and out.status == 503
+  end
+
+  defp participant,
+    do: %{scope: "coordinator_participant", agent_id: "coordinator", channel_ids: ["channel-1"]}
+
+  test "participant scope is explicit and requires a bounded distinct channel grant" do
+    for channels <- [
+          nil,
+          [],
+          "channel-1",
+          [nil],
+          [""],
+          ["with space"],
+          ["a/b"],
+          ["a\n"],
+          ["é"],
+          [String.duplicate("a", 129)],
+          ["channel-1", "channel-1"],
+          Enum.map(1..21, &"channel-#{&1}")
+        ] do
+      refute Policy.valid_channel_grant?("coordinator_participant", channels)
+    end
+
+    assert Policy.valid_channel_grant?("coordinator_participant", [String.duplicate("a", 128)])
+
+    assert Policy.valid_channel_grant?(
+             "coordinator_participant",
+             Enum.map(1..20, &"channel-#{&1}")
+           )
+
+    for scope <- ~w(agent coordinator) do
+      assert Policy.valid_channel_grant?(scope, [])
+      refute Policy.valid_channel_grant?(scope, ["channel-1"])
+    end
+
+    refute Policy.valid_channel_grant?("unknown", [])
+
+    agent = %{id: "coordinator", harness: "codex", kind: "seat", retired_at: nil}
+    credential = participant() |> Map.put(:revoked_at, nil)
+    assert Policy.credential_allowed?(credential, agent, "coordinator")
+    refute Policy.credential_allowed?(%{credential | channel_ids: []}, agent, "coordinator")
+    refute Policy.credential_allowed?(credential, agent, "replacement")
+
+    refute Policy.credential_allowed?(
+             %{credential | revoked_at: DateTime.utc_now()},
+             agent,
+             "coordinator"
+           )
+
+    refute Policy.credential_allowed?(
+             credential,
+             %{agent | retired_at: DateTime.utc_now()},
+             "coordinator"
+           )
+  end
+
+  test "participant allowlist permits only named method operations and own inbox filters" do
+    for {controller, action, method} <- [
+          {APIController, :heartbeat, "POST"},
+          {APIController, :read_message, "POST"},
+          {ConversationController, :send, "POST"},
+          {ConversationController, :report_coverage, "POST"},
+          {ConversationController, :reads, "GET"},
+          {ConversationController, :coverage, "GET"},
+          {ConversationController, :diagnostics, "GET"},
+          {APIController, :tasks, "GET"},
+          {APIController, :message, "GET"},
+          {APIController, :message_triage, "GET"},
+          {DecisionController, :show, "GET"},
+          {WatchController, :tasks, "GET"}
+        ] do
+      assert Policy.allowed?(participant(), route(controller, action), method, %{})
+      refute Policy.allowed?(participant(), route(controller, action), "DELETE", %{})
+    end
+
+    for {controller, action} <- [
+          {APIController, :register},
+          {APIController, :create},
+          {APIController, :edit},
+          {APIController, :mutate},
+          {APIController, :set_availability},
+          {APIController, :set_seat_scope},
+          {APIController, :push_quota},
+          {APIController, :context_publish},
+          {APIController, :send_message},
+          {APIController, :future_write},
+          {DecisionController, :create},
+          {DecisionController, :mutate},
+          {DecisionController, :promote},
+          {DecisionController, :wake_mutate},
+          {AgentboardWeb.AgentTokenController, :mutate},
+          {AgentboardWeb.WorkerController, :operate}
+        ],
+        method <- ["GET", "POST", "PUT", "PATCH"] do
+      refute Policy.allowed?(participant(), route(controller, action), method, %{})
+    end
+
+    for controller <- [APIController, WatchController] do
+      assert Policy.allowed?(participant(), route(controller, :messages), "GET", %{})
+
+      refute Policy.allowed?(participant(), route(controller, :messages), "GET", %{
+               "to" => "other"
+             })
+
+      refute Policy.allowed?(participant(), route(controller, :messages), "GET", %{
+               "task" => "any"
+             })
+    end
+
+    refute Policy.allowed?(
+             %{participant() | channel_ids: []},
+             route(APIController, :tasks),
+             "GET",
+             %{}
+           )
+  end
+
+  test "typed conversation boundary splits requester and participant operations" do
+    controller = AgentboardWeb.DecisionConversationController
+    assert Policy.boundary(route(controller, :notify)) == :agent
+
+    for {scope, action, method, permitted} <- [
+          {"agent", :notify, "POST", true},
+          {"agent", :reply, "POST", false},
+          {"agent", :show, "GET", true},
+          {"agent", :reconcile, "POST", true},
+          {"agent", :notify, "GET", false},
+          {"agent", :future_operation, "POST", false},
+          {"coordinator_participant", :notify, "POST", false},
+          {"coordinator_participant", :reply, "POST", true},
+          {"coordinator_participant", :show, "GET", true},
+          {"coordinator_participant", :reconcile, "POST", true},
+          {"coordinator_participant", :reply, "GET", false}
+        ] do
+      principal = %{participant() | scope: scope}
+      assert Policy.allowed?(principal, route(controller, action), method, %{}) == permitted
+      refute Policy.allowed?(observer(), route(controller, action), method, %{})
+    end
+  end
+
+  test "credential metadata exposes immutable grant without hash or token" do
+    row =
+      Map.merge(participant(), %{
+        id: "fixture",
+        token_hash: "hash-secret",
+        token: "token-secret",
+        created_at: nil
+      })
+
+    metadata = Agentboard.Auth.metadata(row)
+    assert metadata.channel_ids == ["channel-1"]
+    refute Map.has_key?(metadata, :token_hash)
+    refute Map.has_key?(metadata, :token)
+  end
+
+  test "participant path identity and channel denials happen before operations" do
+    principal = participant()
+    actor = %{"agent" => principal.agent_id, "model" => "fixture", "harness" => "codex"}
+
+    conn =
+      Plug.Test.conn(:post, "/api/v1/agents/other/heartbeat", %{"status" => "idle"})
+      |> assign(:authenticated_agent, principal)
+      |> assign(:trusted_actor, actor)
+
+    assert APIController.heartbeat(conn, %{"id" => "other"}).status == 403
+
+    conn =
+      Plug.Test.conn(:get, "/api/v1/conversations/coverage/other/channel-1")
+      |> assign(:authenticated_agent, principal)
+      |> assign(:trusted_actor, actor)
+
+    assert ConversationController.coverage(conn, %{
+             "agent_id" => "other",
+             "channel_id" => "channel-1"
+           }).status == 403
+
+    assert ConversationController.reads(conn, %{"channel_id" => "foreign"}).status == 403
+
+    assert ConversationController.send(conn, %{"channel_id" => "foreign", "body" => "denied"}).status ==
+             403
+
+    conn =
+      Plug.Test.conn(:get, "/api/v1/messages?to=other")
+      |> fetch_query_params()
+      |> assign(:authenticated_agent, principal)
+      |> assign(:trusted_actor, actor)
+
+    assert {:error, "forbidden", _} = APIController.message_filters(conn, "messages")
+  end
+
+  test "local receipt authorization checks grants and current global policy without remote work" do
+    alias Agentboard.Mattermost.Participation
+    Application.put_env(:agentboard, :mattermost_channel_allowlist, "channel-1, channel-2")
+    assert :ok = Participation.authorize_local(participant(), "channel-1")
+    assert {:error, "forbidden", _} = Participation.authorize_local(participant(), "channel-2")
+    assert {:error, "forbidden", _} = Participation.authorize_local(observer(), "channel-1")
+
+    assert {:error, "forbidden", _} =
+             Participation.authorize_local(%{participant() | channel_ids: []}, "channel-1")
+
+    Application.put_env(:agentboard, :mattermost_channel_allowlist, "channel-2")
+    assert {:error, "forbidden", _} = Participation.authorize_local(participant(), "channel-1")
+    Application.put_env(:agentboard, :mattermost_channel_allowlist, "")
+    assert :ok = Participation.authorize_local(participant(), "channel-1")
+    Application.put_env(:agentboard, :mattermost_channel_allowlist, [nil])
+    assert {:error, "forbidden", _} = Participation.authorize_local(participant(), "channel-1")
+    Application.put_env(:agentboard, :mattermost_channel_allowlist, "channel-1")
+    Application.put_env(:agentboard, :coordinator_id, "replacement")
+    assert {:error, "forbidden", _} = Participation.authorize_local(participant(), "channel-1")
   end
 end
