@@ -41,3 +41,5 @@ All ten remote targets pass after the final runtime changes: https://carverauto.
 ## Quality review
 
 The targeted review extracted task-admission/identity guards and routing evidence checks, eliminating new complexity regressions in existing mutation/repair creation functions. Ripwire still reports 12 gating candidates: advisory-lock/result/config boilerplate, the existing CI/rebase producer similarity, the established AshOban reconciliation pattern and growth in the conflict-order module. Four new-symbol findings include module/function size and a six-argument assignment helper. These are retained review findings; no blanket suppression or clean-quality claim is made.
+
+The native retained-deadline/dedup fixes and corrected current-order regression now have intended product RED, byte-for-byte restoration and fresh remote GREEN. See [the recovery receipt](conflict-routing-recovery-receipt.md) for exact checkpoints, hashes, invocations and unfinished publication obligations.

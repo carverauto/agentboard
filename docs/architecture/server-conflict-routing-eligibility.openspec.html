@@ -1,4 +1,67 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Conflict routing — publication recovery and consumers</title><style>*{box-sizing:border-box}html{background:#08111f;color:#e6edf8;font:16px/1.65 ui-sans-serif,system-ui,sans-serif}body{margin:0}main{max-width:1100px;margin:auto;padding:32px 22px}h1{font-size:clamp(24px,4vw,38px);line-height:1.15}h2{font-size:22px;color:#38d4df}p{color:#a9b9cc}section{min-width:0;background:#101c2d;border:1px solid #293c53;border-radius:14px;padding:22px;margin:24px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.6 ui-monospace,monospace;max-width:100%}a{color:#38d4df}iframe{display:block;width:100%;height:820px;border:0;border-radius:12px}nav{display:flex;flex-wrap:wrap;gap:15px}details{min-width:0;margin:12px 0}summary{cursor:pointer;color:#bceef2;overflow-wrap:anywhere}summary:focus-visible,a:focus-visible{outline:2px solid #38d4df;outline-offset:4px}@media(max-width:600px){main{padding:22px 12px}section{padding:16px}iframe{height:740px}}</style><main><h1>Conflict tracking survives publication and notification gaps</h1><p>Server checkpoint for #169 and the shared #170 eligibility contract. Snapshot/deadline audit, repair-only routing, canonical inbox adoption and frozen worker dispatch use retained evidence. Registered branches now recover missing PR links with unknown authorship and retained ambiguity findings. Native publication custody and live rollout remain unfinished.</p><nav><a href="#recovery">Publication recovery</a><a href="#consumer">Consumer contract</a><a href="#contract">Eligibility</a><a href="#audit">Audit</a><a href="#resolver">Source resolver</a><a href="#sources">Executable sources</a><a href="#proposal">OpenSpec</a></nav><section id="recovery"><h2>Registered-branch tracking recovery</h2><pre># Registered-branch publication recovery
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Conflict routing — publication recovery and consumers</title><style>*{box-sizing:border-box}html{background:#08111f;color:#e6edf8;font:16px/1.65 ui-sans-serif,system-ui,sans-serif}body{margin:0}main{max-width:1100px;margin:auto;padding:32px 22px}h1{font-size:clamp(24px,4vw,38px);line-height:1.15}h2{font-size:22px;color:#38d4df}p{color:#a9b9cc}section{min-width:0;background:#101c2d;border:1px solid #293c53;border-radius:14px;padding:22px;margin:24px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.6 ui-monospace,monospace;max-width:100%}a{color:#38d4df}iframe{display:block;width:100%;height:820px;border:0;border-radius:12px}nav{display:flex;flex-wrap:wrap;gap:15px}details{min-width:0;margin:12px 0}summary{cursor:pointer;color:#bceef2;overflow-wrap:anywhere}summary:focus-visible,a:focus-visible{outline:2px solid #38d4df;outline-offset:4px}@media(max-width:600px){main{padding:22px 12px}section{padding:16px}iframe{height:740px}}
+</style><main><h1>Conflict tracking survives publication and notification gaps</h1><p>Server checkpoint for #169 and the shared #170 eligibility contract. Snapshot/deadline audit, repair-only routing, canonical inbox adoption and frozen worker dispatch use retained evidence. Registered branches now recover missing PR links with unknown authorship and retained ambiguity findings. Native publication custody and live rollout remain unfinished.</p><nav><a href="#recovery">Publication recovery</a><a href="#consumer">Consumer contract</a><a href="#contract">Eligibility</a><a href="#audit">Audit</a><a href="#resolver">Source resolver</a><a href="#sources">Executable sources</a><a href="#proposal">OpenSpec</a></nav><section id="native-recovery"><h2>Preserved native fixes and deadline regression</h2><nav><a href="https://carverauto.buildbuddy.io/invocation/d1c4535d-0007-4e02-8f2c-e207bc30b5bf">Product RED</a> <a href="https://carverauto.buildbuddy.io/invocation/a89bc54b-a276-4c3c-86b2-02a75cc68922">Fresh remote GREEN</a> <a href="https://carverauto.buildbuddy.io/invocation/f6454b32-ed4c-49d5-9ad3-7c83df883255">cached GREEN</a> </nav><pre># Native routing checkpoint recovery
+
+Captain message1856 authorizes guarded recovery and one continuation run for
+#169. It supersedes message1852&#x27;s same-run restriction, retaining the task,
+leased Treehouse seat, fixes and evidence. It authorizes no merge, deployment,
+activation or native publication/custody capability.
+
+The old run `01M4HCGTXV2PYEN9DWV6YEHN1P` stopped at its Document evidence gate.
+The installed v1.84.0 refused completed Test reentry with `step mismatch:
+responding to &quot;test&quot; but &quot;document&quot; is awaiting approval`. Supported cancellation
+then guarded `no-mistakes axi sync --recover` returned custody at
+`e6fab488ad72f1f07aa3fe1d5ceedb0553f576a8`, preserving all four native fix
+commits: retained-deadline enforcement, deduplication, corrected timestamp
+fixture/documentation and deadline documentation. Prior logs and receipts were
+retained before cancellation. No reset, replacement ref or native state edit
+was used to recover custody.
+
+## Product regression proof
+
+The corrected collector/API/Postgres/AshOban fixture remains the primary owner.
+Its retained episode hands the repair from the unavailable author to retain-a,
+then at the elapsed earliest deadline to retain-b. Consecutive routes of the
+current retained_third order must leave its identity, effect counts and audits
+unchanged; source claims remain unchanged and publication grants remain absent.
+
+Only the deduplication guard in `ConflictRouting.route_reason` was temporarily
+removed, restoring that file exactly to native commit
+`9d9686abdbc8cc8e34589492df6fb9f8e0560a1f`, while retaining the corrected test.
+[Product RED](https://carverauto.buildbuddy.io/invocation/d1c4535d-0007-4e02-8f2c-e207bc30b5bf)
+failed remotely at the intended assertion: repeated routing changed the current
+order ID instead of retaining retained_third. This is distinct from the earlier
+timestamp-fixture failure, which is not product regression evidence.
+
+Production bytes were restored immediately after RED, before any further test.
+The restored hash equals the pre-mutation hash and Git reported a clean tree.
+[Fresh remote GREEN](https://carverauto.buildbuddy.io/invocation/a89bc54b-a276-4c3c-86b2-02a75cc68922)
+passed in 41.0s with test caching disabled. The preceding
+[cached GREEN](https://carverauto.buildbuddy.io/invocation/f6454b32-ed4c-49d5-9ad3-7c83df883255)
+reused the valid prior identical-source result; fresh GREEN supplies the final
+post-restoration execution evidence.
+
+| Bytes | SHA256 |
+| --- | --- |
+| Production before and after restoration | `dd3fcbb26b56a46cbf299bb178131085c599d003fbced8ce38bac1593abe4cf3` |
+| Pre-dedup production used for RED | `14bdc2409be5df12cb57f974537bdba0753843b31eb3cb31dc1304124f00c5cb` |
+| Corrected test, unchanged throughout | `489b294243936242e459fe42ac625f403faa3e4a1d498f67ba6753eb7ae5dcc2` |
+
+Every check used `./scripts/bazel test //build/integration:conflict_routing_test
+--config=remote --test_output=errors`; fresh GREEN additionally used
+`--nocache_test_results`. No workstation compilation or test execution occurred.
+
+## Publication status
+
+The portable wrappers are regenerated from tracked source and include this
+receipt, the corrected regression and retained production. The accepted
+consumer.v3 diagram is unchanged. Documents201/202 remain historical receipts
+for submitted ef706a39 and must not be described as the corrected publication
+head. Final uploads/download verification and the continuation run&#x27;s PR and
+exact-head CI evidence remain outstanding. Full OpenSpec remains incomplete;
+native admission/grants/custody/credit and live rollout retain their previously
+declared limits. Deployed keyboard and narrow-screen product behavior remains
+UNTESTED-live.
+</pre></section><section id="recovery"><h2>Registered-branch tracking recovery</h2><pre># Registered-branch publication recovery
 
 A registered branch can identify its card after a publisher stops between GitHub PR creation and returning the URL. Recovery does not infer the actual publisher from either the binding creator or a shared GitHub login. It records the PR author as unknown until a separately verified native publication receipt supplies that evidence.
 
@@ -128,7 +191,7 @@ The source task is neither locked nor mutated by repair routing. Assignment chan
 
 `AGENTBOARD_CONFLICT_DEADLINE_SECONDS` defaults to 2700 and accepts 60–86400. Each episode retains its earliest deadline across supersession. `ConflictDisposition` persists an immediate AshOban job for new orders and reevaluates open orders through bounded keyset pages every minute. This catches deadline expiry and changes in policy, scope, liveness, queue and captain holds without another provider poller.
 
-An eligible author receives the initial repair. An ineligible recipient can be replaced before its deadline; an unresolved author is replaced at its deadline. An eligible replacement remains assigned across subsequent ticks. Candidate admission and the canonical base/order fence commit with repair handoff, supersession, new current pointer and the sole #122 source election. The old order&#x27;s pending/admitted grants are revoked and retained captain findings are superseded. No branch grant is created by this workflow.
+An eligible author receives the initial repair. An ineligible recipient can be replaced before its deadline; an unresolved current recipient — author or reassigned seat — is replaced once at its retained earliest deadline, and a generation that already fired its deadline routing stays assigned across subsequent ticks. Candidate admission and the canonical base/order fence commit with repair handoff, supersession, new current pointer and the sole #122 source election. The old order&#x27;s pending/admitted grants are revoked and retained captain findings are superseded. No branch grant is created by this workflow.
 
 No eligible seat creates one durable captain decision for the current order/revision, plus `conflict_escalated` timeline evidence. Later ticks reevaluate eligibility without repeating that finding. A replacement creates a visible `native_custody_unsupported` decision until the separately owned native adapter supplies its verified contract. Clean/closed evidence cancels the order before a frozen timer can issue a replacement. The server retains unknown rebaser credit and does not complete the repair from notification or unverified clean evidence.
 
@@ -141,6 +204,8 @@ All ten remote targets pass after the final runtime changes: https://carverauto.
 ## Quality review
 
 The targeted review extracted task-admission/identity guards and routing evidence checks, eliminating new complexity regressions in existing mutation/repair creation functions. Ripwire still reports 12 gating candidates: advisory-lock/result/config boilerplate, the existing CI/rebase producer similarity, the established AshOban reconciliation pattern and growth in the conflict-order module. Four new-symbol findings include module/function size and a six-argument assignment helper. These are retained review findings; no blanket suppression or clean-quality claim is made.
+
+The native retained-deadline/dedup fixes and corrected current-order regression now have intended product RED, byte-for-byte restoration and fresh remote GREEN. See [the recovery receipt](conflict-routing-recovery-receipt.md) for exact checkpoints, hashes, invocations and unfinished publication obligations.
 </pre></section><section id="audit"><h2>Snapshot/deadline audit and typed capture</h2><pre># Conflict audit and typed capture v1
 
 This supplements the shared eligibility v1 checkpoint and captain-approved source contract. Captain message1824 assigns the minimal shared evaluator to #169; #170 reuses it. Inbox owner message1828 confirms the deferred-notice producer contract. Neither agreement supplies native custody or authorizes deployment.
@@ -2532,9 +2597,12 @@ end
   defp route_reason(order, task, stamp) do
     recipient = if order.recipient_id, do: Eligibility.admit(order.recipient_id, task)
     author_turn? = not is_nil(order.author_id) and order.recipient_id == order.author_id
+    deadline_passed? = DateTime.compare(stamp, order.deadline_at) != :lt
+    deadline_fired? = order.selection_reason in [&quot;author_deadline&quot;, &quot;retained_deadline&quot;]
 
     cond do
-      author_turn? and DateTime.compare(stamp, order.deadline_at) != :lt -&gt; &quot;author_deadline&quot;
+      deadline_passed? and author_turn? and not deadline_fired? -&gt; &quot;author_deadline&quot;
+      deadline_passed? and not deadline_fired? -&gt; &quot;retained_deadline&quot;
       is_nil(recipient) -&gt; &quot;recipient_ineligible&quot;
       not recipient.eligible -&gt; &quot;recipient_ineligible&quot;
       true -&gt; nil
@@ -8527,6 +8595,357 @@ with tls_provider(Provider) as (url,ca,_):
 
 
 print(&#x27;Canonical source relation, one effect, superseding default/target fences, retained deadline, frozen-source rejection and repair-only assignment passed&#x27;)
+</pre></details><details><summary>build/integration/conflict_routing_test.py</summary><pre>&quot;&quot;&quot;Collector-created repair routing at real API/PG/AshOban boundaries.
+
+Owns eligibility, deterministic admission, repair-only lease transfer and retained
+captain escalation. Sources/repair/orders/decisions are produced normally; SQL
+only resets provider budget/due time or advances retained timestamps.
+&quot;&quot;&quot;
+import concurrent.futures
+import http.server
+import json
+import os
+import subprocess
+import urllib.error
+import urllib.parse
+import urllib.request
+from provider_fixture import tls_provider
+
+URL = os.environ[&#x27;AGENTBOARD_URL&#x27;]
+CAPTAIN = &#x27;fixture-conflict-routing-captain-0123456789&#x27;
+clean = set()
+
+
+def sql(query):
+    return subprocess.check_output([os.environ[&#x27;FIXTURE_PSQL&#x27;], &#x27;-At&#x27;, &#x27;-v&#x27;, &#x27;ON_ERROR_STOP=1&#x27;, &#x27;-c&#x27;, query], text=True).strip()
+
+
+def rpc(expr):
+    result = subprocess.run([os.environ[&#x27;AGENTBOARD_BIN&#x27;], &#x27;rpc&#x27;, expr], capture_output=True, text=True, timeout=45)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    return result.stdout
+
+
+def api(path, data=None, actor=&#x27;routing-captain&#x27;, captain=False, method=None, status=200):
+    headers = {&#x27;Content-Type&#x27;: &#x27;application/json&#x27;, &#x27;X-Agentboard-Agent&#x27;: actor,
+        &#x27;X-Agentboard-Model&#x27;: &#x27;fixture-model&#x27;, &#x27;X-Agentboard-Harness&#x27;: &#x27;codex&#x27;}
+    if captain: headers[&#x27;Authorization&#x27;] = &#x27;Bearer &#x27; + CAPTAIN
+    request = urllib.request.Request(URL+&#x27;/api/v1/&#x27;+path, headers=headers,
+        data=None if data is None else json.dumps(data).encode(), method=method)
+    try: response = urllib.request.urlopen(request, timeout=20)
+    except urllib.error.HTTPError as error: response = error
+    with response:
+        body = json.load(response)
+        assert response.status == status, (path, response.status, body)
+        return body
+
+
+def register(agent, kind=&#x27;seat&#x27;, scope=True):
+    api(&#x27;agents/register&#x27;, dict(name=agent,kind=kind,capabilities=[&#x27;fixture/repair&#x27;]), actor=agent)
+    api(&#x27;agents/&#x27;+agent+&#x27;/heartbeat&#x27;, dict(status=&#x27;idle&#x27;), actor=agent)
+    if scope: set_scope(agent)
+
+
+def set_scope(agent, repos=None, required=None):
+    previous = api(&#x27;agents/&#x27;+agent+&#x27;/scope&#x27;)[&#x27;scope&#x27;][&#x27;revision&#x27;]
+    api(&#x27;agents/&#x27;+agent+&#x27;/scope&#x27;, dict(allowed_repos=repos or [&#x27;fixture/repair&#x27;],
+        required_labels=required or [],allowed_labels=[],revision=previous), captain=True, method=&#x27;PUT&#x27;)
+
+
+def policy(agent, state):
+    api(&#x27;availability&#x27;, dict(agent_id=agent,state=state,reason=&#x27;Invented routing policy&#x27;), captain=True)
+
+
+def task(identity, owner=None, repo=&#x27;fixture/repair&#x27;):
+    api(&#x27;tasks&#x27;, dict(id=identity,title=&#x27;Invented routing task&#x27;,repo=repo))
+    if owner: api(&#x27;tasks/&#x27;+identity+&#x27;/claim&#x27;, {}, actor=owner)
+
+
+def poll(pr):
+    sql(&quot;UPDATE delivery_provider_budgets SET remaining=60,blocked_until=NULL,reset_at=clock_timestamp()+interval &#x27;60 seconds&#x27; WHERE id=&#x27;github&#x27;&quot;)
+    sql(&quot;UPDATE delivery_poll_states SET next_poll_at=clock_timestamp()-interval &#x27;1 second&#x27; WHERE id=&#x27;&quot;+pr+&quot;&#x27;&quot;)
+    assert &#x27;observed&#x27; in rpc(&#x27;IO.inspect(Agentboard.Delivery.Scheduling.poll(&#x27;+json.dumps(pr)+&#x27;))&#x27;)
+
+
+def create_order(number, owner):
+    identity = &#x27;routing-source-&#x27;+str(number)
+    task(identity, owner)
+    api(&#x27;tasks/&#x27;+identity+&#x27;/link&#x27;, dict(pr_url=&#x27;https://github.com/fixture/repair/pull/&#x27;+str(number)), actor=owner)
+    pr = sql(&quot;SELECT pull_request_id FROM delivery_task_links WHERE task_id=&#x27;&quot;+identity+&quot;&#x27;&quot;)
+    before = api(&#x27;tasks/&#x27;+identity)
+    poll(pr)
+    return current(pr), before
+
+
+def current(pr):
+    return json.loads(sql(&quot;SELECT to_jsonb(o) FROM delivery_conflict_orders o WHERE pull_request_id=&#x27;&quot;+pr+&quot;&#x27; AND state=&#x27;open&#x27;&quot;))
+
+
+def route(identity):
+    # Invoke the production Ash action with its actual system authorization,
+    # exactly as the persisted scheduled action does, not a test-only wrapper.
+    output = rpc(&#x27;result = Ash.run_action(Ash.ActionInput.for_action(Agentboard.Delivery.ConflictDisposition, :route, &#x27;
+        &#x27;%{id: &#x27;+json.dumps(identity)+&#x27;}, actor: %{role: :system})); IO.inspect(result)&#x27;)
+    assert &#x27;{:ok,&#x27; in output, output
+    return output
+
+
+def perform_persisted(order):
+    # Production enqueues this job in the canonical order transaction. Exercise
+    # its generated worker and default system actor with the actual stored args.
+    ids=json.loads(sql(&quot;SELECT coalesce(jsonb_agg(id),&#x27;[]&#x27;) FROM oban_jobs WHERE worker=&#x27;Agentboard.Delivery.RouteConflicts&#x27; AND args-&gt;&#x27;action_arguments&#x27;-&gt;&gt;&#x27;id&#x27;=&#x27;&quot;+order[&#x27;id&#x27;]+&quot;&#x27;&quot;))
+    assert len(ids)==1, &#x27;Current order did not retain its unique deadline job&#x27;
+    output=rpc(&#x27;result = Agentboard.Delivery.RouteConflicts.perform(Agentboard.Repo.get!(Oban.Job, &#x27;+str(ids[0])+&#x27;)); IO.puts(&quot;JOB_OK=&quot; &lt;&gt; to_string(result == :ok))&#x27;)
+    assert &#x27;JOB_OK=true&#x27; in output, output
+
+
+def preview(order, plan, reason, candidate, source_id):
+    effects=&quot;SELECT jsonb_build_array((SELECT count(*) FROM tasks),(SELECT count(*) FROM task_events),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM cooperation_deliveries),(SELECT count(*) FROM wake_intents),(SELECT count(*) FROM decision_requests),(SELECT count(*) FROM delivery_publication_grants))&quot;
+    before_effects=sql(effects)
+    before_repair=api(&#x27;tasks/&#x27;+order[&#x27;repair_task_id&#x27;])
+    before_source=api(&#x27;tasks/&#x27;+source_id)
+    before_order=current(order[&#x27;pull_request_id&#x27;])
+    before_audits=int(sql(&quot;SELECT count(*) FROM board_action_events WHERE resource=&#x27;Elixir.Agentboard.Delivery.ConflictEvaluation&#x27;&quot;))
+    rpc(&#x27;Application.put_env(:agentboard, :conflict_routing_mode, &quot;dry_run&quot;)&#x27;)
+    perform_persisted(order)
+    rows=json.loads(sql(&quot;SELECT coalesce(jsonb_agg(data ORDER BY occurred_at,id),&#x27;[]&#x27;) FROM board_action_events WHERE resource=&#x27;Elixir.Agentboard.Delivery.ConflictEvaluation&#x27;&quot;))
+    assert len(rows)==before_audits+1, &#x27;Dry-run deadline omitted its canonical selection evidence&#x27;
+    evaluation=rows[-1]
+    assert evaluation[&#x27;pull_request_id&#x27;]==order[&#x27;pull_request_id&#x27;]
+    facts=evaluation[&#x27;facts&#x27;]
+    assert facts[&#x27;phase&#x27;]==&#x27;deadline&#x27; and facts[&#x27;plan&#x27;]==plan and facts[&#x27;reason&#x27;]==reason
+    assert facts[&#x27;current_order_id&#x27;]==order[&#x27;id&#x27;] and facts[&#x27;current_order_revision&#x27;]==order[&#x27;revision&#x27;]
+    assert facts[&#x27;repair_task_id&#x27;]==order[&#x27;repair_task_id&#x27;] and facts[&#x27;native_custody&#x27;]==&#x27;unsupported&#x27;
+    if candidate:
+        assert facts[&#x27;candidate&#x27;][&#x27;agent_id&#x27;]==candidate and facts[&#x27;candidate&#x27;][&#x27;eligible&#x27;] is True
+    else: assert facts[&#x27;candidate&#x27;] is None
+    assert sql(effects)==before_effects
+    assert api(&#x27;tasks/&#x27;+order[&#x27;repair_task_id&#x27;])==before_repair and api(&#x27;tasks/&#x27;+source_id)==before_source
+    assert current(order[&#x27;pull_request_id&#x27;])==before_order
+    rpc(&#x27;Application.put_env(:agentboard, :conflict_routing_mode, &quot;apply&quot;)&#x27;)
+
+
+def elapsed(order):
+    # Advance only retained episode/deadline timestamps, modeling elapsed time.
+    sql(&quot;UPDATE delivery_conflict_orders SET episode_started_at=episode_started_at-interval &#x27;1 hour&#x27;,deadline_at=deadline_at-interval &#x27;1 hour&#x27; WHERE id=&#x27;&quot;+order[&#x27;id&#x27;]+&quot;&#x27;&quot;)
+
+
+class Provider(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *_): pass
+    def do_GET(self):
+        assert self.headers[&#x27;Authorization&#x27;] == &#x27;Bearer invented-routing-token&#x27;
+        path = urllib.parse.urlparse(self.path).path
+        if path == &#x27;/repos/fixture/repair&#x27;: body = dict(full_name=&#x27;fixture/repair&#x27;,default_branch=&#x27;main&#x27;)
+        elif &#x27;/branches/&#x27; in path: body = dict(name=&#x27;main&#x27;,commit=dict(sha=&#x27;b&#x27;*40))
+        elif &#x27;/pulls/&#x27; in path:
+            number = int(path.rsplit(&#x27;/&#x27;,1)[1]); mergeable = number in clean
+            body = dict(number=number,state=&#x27;open&#x27;,merged=False,draft=False,
+                head=dict(sha=f&#x27;{number:040x}&#x27;,ref=&#x27;feat/&#x27;+str(number),repo=dict(full_name=&#x27;fixture/repair&#x27;)),
+                base=dict(sha=&#x27;b&#x27;*40,ref=&#x27;main&#x27;),mergeable=mergeable,
+                mergeable_state=&#x27;clean&#x27; if mergeable else &#x27;dirty&#x27;)
+        elif path.endswith(&#x27;/check-suites&#x27;): body = dict(total_count=0,check_suites=[])
+        elif path.endswith(&#x27;/statuses&#x27;): body = []
+        else: raise AssertionError(path)
+        data=json.dumps(body).encode();self.send_response(200)
+        self.send_header(&#x27;Content-Type&#x27;,&#x27;application/json&#x27;);self.send_header(&#x27;Content-Length&#x27;,str(len(data)))
+        self.end_headers();self.wfile.write(data)
+
+
+rpc(&#x27;:ok = Oban.stop_queue(queue: :delivery_scheduler); :ok = Oban.stop_queue(queue: :delivery_polling); &#x27;
+    &#x27;Application.put_env(:agentboard, :cooperation_enabled, true); &#x27;
+    &#x27;Application.put_env(:agentboard, :conflict_routing_mode, &quot;apply&quot;); &#x27;
+    &#x27;Application.put_env(:agentboard, :captain_token, &#x27;+json.dumps(CAPTAIN)+&#x27;)&#x27;)
+api(&#x27;agents/register&#x27;, dict(name=&#x27;Fixture captain&#x27;,kind=&#x27;human&#x27;), actor=&#x27;routing-captain&#x27;)
+for agent in [&#x27;author-1&#x27;,&#x27;author-2&#x27;,&#x27;author-3&#x27;,&#x27;author-4&#x27;,&#x27;author-5&#x27;,&#x27;author-6&#x27;,&#x27;author-7&#x27;,&#x27;author-8&#x27;,&#x27;good-a&#x27;,&#x27;good-b&#x27;,&#x27;good-c&#x27;,&#x27;good-d&#x27;,
+              &#x27;a-reject-stale&#x27;,&#x27;a-reject-reserved&#x27;,&#x27;a-reject-offline&#x27;,&#x27;a-reject-retired&#x27;,&#x27;a-reject-waiting&#x27;,&#x27;a-reject-repo&#x27;,&#x27;a-reject-label&#x27;,&#x27;a-reject-full&#x27;]:
+    register(agent)
+register(&#x27;a-reject-unmanaged&#x27;, scope=False)
+register(&#x27;a-reject-system&#x27;, kind=&#x27;system&#x27;)
+sql(&quot;UPDATE agents SET last_heartbeat=clock_timestamp()-interval &#x27;21 minutes&#x27; WHERE id=&#x27;a-reject-stale&#x27;&quot;)
+policy(&#x27;a-reject-reserved&#x27;,&#x27;reserved&#x27;);policy(&#x27;a-reject-offline&#x27;,&#x27;out_of_service&#x27;)
+api(&#x27;agents/a-reject-retired/retire&#x27;, dict(reason=&#x27;Invented retirement&#x27;), captain=True)
+set_scope(&#x27;a-reject-repo&#x27;, repos=[&#x27;fixture/other&#x27;]);set_scope(&#x27;a-reject-label&#x27;, required=[&#x27;security&#x27;])
+for n in range(2): task(&#x27;full-&#x27;+str(n), &#x27;a-reject-full&#x27;)
+task(&#x27;unrelated-hold&#x27;,&#x27;a-reject-waiting&#x27;)
+api(&#x27;decisions&#x27;, dict(task=&#x27;unrelated-hold&#x27;,question=&#x27;Invented unrelated approval?&#x27;,kind=&#x27;approval&#x27;), actor=&#x27;a-reject-waiting&#x27;)
+for who in [&#x27;good-c&#x27;,&#x27;good-d&#x27;,&#x27;author-2&#x27;,&#x27;author-3&#x27;,&#x27;author-4&#x27;,&#x27;author-5&#x27;,&#x27;author-6&#x27;,&#x27;author-7&#x27;,&#x27;author-8&#x27;]: policy(who,&#x27;reserved&#x27;)
+# Source authors may retain their named source claims through a captain&#x27;s
+# explicit assignment, but reserved availability excludes automatic repair.
+for who in [&#x27;author-2&#x27;,&#x27;author-3&#x27;,&#x27;author-4&#x27;,&#x27;author-5&#x27;,&#x27;author-6&#x27;,&#x27;author-7&#x27;,&#x27;author-8&#x27;]: policy(who,&#x27;active&#x27;)
+task(&#x27;older-assignment&#x27;,&#x27;good-a&#x27;)
+
+with tls_provider(Provider) as (url,ca,_):
+    rpc(&#x27;Application.put_env(:agentboard, :github, [api_url: &#x27;+json.dumps(url)+&#x27;, token: &quot;invented-routing-token&quot;, ca_file: &#x27;+json.dumps(ca)+&#x27;])&#x27;)
+    first, source1 = create_order(101,&#x27;author-1&#x27;)
+    assert first[&#x27;recipient_id&#x27;]==&#x27;author-1&#x27;
+    repair = first[&#x27;repair_task_id&#x27;]
+    api(&#x27;tasks/&#x27;+repair+&#x27;/claim&#x27;, {}, actor=&#x27;author-1&#x27;)
+    old_lease = api(&#x27;tasks/&#x27;+repair)[&#x27;task&#x27;][&#x27;claim_expires_at&#x27;]
+    assert old_lease
+    # Out of service routes before the future deadline. All rejected candidate
+    # profiles are otherwise registered and have captain-authorized repo scope.
+    policy(&#x27;author-1&#x27;,&#x27;out_of_service&#x27;)
+    for who in [&#x27;author-2&#x27;,&#x27;author-3&#x27;,&#x27;author-4&#x27;,&#x27;author-5&#x27;,&#x27;author-6&#x27;,&#x27;author-7&#x27;,&#x27;author-8&#x27;]: policy(who,&#x27;reserved&#x27;)
+    preview(first,&#x27;reassign_repair&#x27;,&#x27;recipient_ineligible&#x27;,&#x27;good-b&#x27;,&#x27;routing-source-101&#x27;)
+    preview(first,&#x27;reassign_repair&#x27;,&#x27;recipient_ineligible&#x27;,&#x27;good-b&#x27;,&#x27;routing-source-101&#x27;)
+    perform_persisted(first)
+    replacement = current(first[&#x27;pull_request_id&#x27;])
+    assert replacement[&#x27;recipient_id&#x27;]==&#x27;good-b&#x27;, replacement  # shortest queue
+    assert replacement[&#x27;author_id&#x27;]==&#x27;author-1&#x27; and replacement[&#x27;revision&#x27;]==2
+    assert replacement[&#x27;deadline_at&#x27;]==first[&#x27;deadline_at&#x27;] and replacement[&#x27;episode_id&#x27;]==first[&#x27;episode_id&#x27;]
+    assert replacement[&#x27;selection_reason&#x27;]==&#x27;recipient_ineligible&#x27;
+    repaired = api(&#x27;tasks/&#x27;+repair)[&#x27;task&#x27;]
+    assert repaired[&#x27;assignee_id&#x27;]==&#x27;good-b&#x27; and repaired[&#x27;claim_expires_at&#x27;] is None and repaired[&#x27;claimed_at&#x27;] is None
+    assert api(&#x27;tasks/routing-source-101&#x27;)==source1
+    api(&#x27;tasks/&#x27;+repair+&#x27;/link&#x27;, dict(pr_url=&#x27;https://github.com/fixture/repair/pull/999&#x27;), actor=&#x27;good-b&#x27;,status=409)
+    assert replacement[&#x27;escalation_decision_id&#x27;]
+    assert &#x27;native_custody_unsupported&#x27; in api(&#x27;decisions/&#x27;+replacement[&#x27;escalation_decision_id&#x27;])[&#x27;decision&#x27;][&#x27;gate_ref&#x27;]
+    # Assignment does not manufacture a claim. The selected seat explicitly
+    # claims only the existing repair through the normal ownership API.
+    api(&#x27;tasks/&#x27;+repair+&#x27;/claim&#x27;, {}, actor=&#x27;good-b&#x27;)
+    claimed_repair=api(&#x27;tasks/&#x27;+repair)[&#x27;task&#x27;]
+    assert claimed_repair[&#x27;assignee_id&#x27;]==&#x27;good-b&#x27; and claimed_repair[&#x27;claim_expires_at&#x27;]
+    assert api(&#x27;tasks/routing-source-101&#x27;)==source1
+    effects = sql(&#x27;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM decision_requests))&#x27;)
+    route(first[&#x27;id&#x27;]);route(replacement[&#x27;id&#x27;]);route(replacement[&#x27;id&#x27;])
+    assert current(first[&#x27;pull_request_id&#x27;])[&#x27;id&#x27;]==replacement[&#x27;id&#x27;]
+    assert sql(&#x27;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM decision_requests))&#x27;)==effects
+    assert sql(&quot;SELECT count(*) FROM task_events WHERE task_id=&#x27;&quot;+repair+&quot;&#x27; AND kind=&#x27;repair_routed&#x27;&quot;)==&#x27;1&#x27;
+
+    # Deadline case: current active author, then equal queue counts on the two
+    # eligible replacements. Older assignment wins independently of list order.
+    policy(&#x27;author-2&#x27;,&#x27;active&#x27;)
+    second, source2 = create_order(102,&#x27;author-2&#x27;)
+    assert second[&#x27;recipient_id&#x27;]==&#x27;author-2&#x27;
+    api(&#x27;agents/author-2/heartbeat&#x27;, dict(status=&#x27;busy&#x27;,task=&#x27;routing-source-102&#x27;), actor=&#x27;author-2&#x27;)
+    elapsed(second)
+    preview(second,&#x27;reassign_repair&#x27;,&#x27;author_deadline&#x27;,&#x27;good-a&#x27;,&#x27;routing-source-102&#x27;)
+    route(second[&#x27;id&#x27;])
+    selected = current(second[&#x27;pull_request_id&#x27;])
+    assert selected[&#x27;recipient_id&#x27;]==&#x27;good-a&#x27; and selected[&#x27;selection_reason&#x27;]==&#x27;author_deadline&#x27;, selected
+    assert api(&#x27;tasks/routing-source-102&#x27;)==source2
+    policy(&#x27;author-2&#x27;,&#x27;reserved&#x27;)
+
+    task(&#x27;fill-good-b&#x27;,&#x27;good-b&#x27;)
+
+    # With no prior assignments, the stable full ID breaks the tie.
+    policy(&#x27;good-c&#x27;,&#x27;active&#x27;);policy(&#x27;good-d&#x27;,&#x27;active&#x27;);policy(&#x27;author-3&#x27;,&#x27;active&#x27;)
+    third, source3 = create_order(103,&#x27;author-3&#x27;);elapsed(third);route(third[&#x27;id&#x27;])
+    assert current(third[&#x27;pull_request_id&#x27;])[&#x27;recipient_id&#x27;]==&#x27;good-c&#x27;
+    assert api(&#x27;tasks/routing-source-103&#x27;)==source3
+    policy(&#x27;author-3&#x27;,&#x27;reserved&#x27;);policy(&#x27;good-d&#x27;,&#x27;reserved&#x27;)
+
+    # Competing real orders, one remaining slot on good-c. Other healthy seats
+    # are already full. At most one transaction may admit the last slot.
+    policy(&#x27;author-4&#x27;,&#x27;active&#x27;);fourth, source4 = create_order(104,&#x27;author-4&#x27;);elapsed(fourth)
+    policy(&#x27;author-5&#x27;,&#x27;active&#x27;);fifth, source5 = create_order(105,&#x27;author-5&#x27;);elapsed(fifth)
+    policy(&#x27;author-4&#x27;,&#x27;reserved&#x27;);policy(&#x27;author-5&#x27;,&#x27;reserved&#x27;)
+    with concurrent.futures.ThreadPoolExecutor(2) as pool:
+        list(pool.map(route,[fourth[&#x27;id&#x27;],fifth[&#x27;id&#x27;]]))
+    current4,current5 = current(fourth[&#x27;pull_request_id&#x27;]),current(fifth[&#x27;pull_request_id&#x27;])
+    assert [current4[&#x27;recipient_id&#x27;],current5[&#x27;recipient_id&#x27;]].count(&#x27;good-c&#x27;)==1, (current4,current5)
+    assert sql(&quot;SELECT count(*) FROM tasks WHERE assignee_id=&#x27;good-c&#x27; AND status IN (&#x27;assigned&#x27;,&#x27;in_progress&#x27;,&#x27;blocked&#x27;,&#x27;review&#x27;)&quot;)==&#x27;2&#x27;
+    loser = current4 if current4[&#x27;recipient_id&#x27;]!=&#x27;good-c&#x27; else current5
+    assert loser[&#x27;escalation_decision_id&#x27;]
+    retained = api(&#x27;decisions/&#x27;+loser[&#x27;escalation_decision_id&#x27;])[&#x27;decision&#x27;]
+    assert &#x27;no_eligible_seat&#x27; in retained[&#x27;gate_ref&#x27;]
+    preview(loser,&#x27;escalate_no_eligible_seat&#x27;,&#x27;author_deadline&#x27;,None,
+        &#x27;routing-source-104&#x27; if loser[&#x27;id&#x27;]==fourth[&#x27;id&#x27;] else &#x27;routing-source-105&#x27;)
+    decisions = sql(&#x27;SELECT count(*) FROM decision_requests&#x27;)
+    route(loser[&#x27;id&#x27;]);route(loser[&#x27;id&#x27;])
+    assert sql(&#x27;SELECT count(*) FROM decision_requests&#x27;)==decisions
+    assert api(&#x27;tasks/routing-source-104&#x27;)==source4 and api(&#x27;tasks/routing-source-105&#x27;)==source5
+
+    # Canonical resolution wins before a queued deadline: no new assignment,
+    # source or grant may be issued by a frozen old timer after the clean poll.
+    policy(&#x27;author-6&#x27;,&#x27;active&#x27;);sixth, source6 = create_order(106,&#x27;author-6&#x27;)
+    elapsed(sixth);clean.add(106);poll(sixth[&#x27;pull_request_id&#x27;])
+    counts = sql(&quot;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM task_events WHERE kind=&#x27;repair_routed&#x27;))&quot;)
+    route(sixth[&#x27;id&#x27;])
+    assert sql(&quot;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM task_events WHERE kind=&#x27;repair_routed&#x27;))&quot;)==counts
+    assert api(&#x27;tasks/routing-source-106&#x27;)==source6
+    # Relevant captain hold and stale liveness both trigger early evaluation,
+    # before the future deadline, while retaining the exact source lease.
+    policy(&#x27;author-7&#x27;,&#x27;active&#x27;);seventh, _ = create_order(107,&#x27;author-7&#x27;)
+    api(&#x27;decisions&#x27;, dict(task=&#x27;routing-source-107&#x27;,question=&#x27;Invented source approval?&#x27;,kind=&#x27;approval&#x27;), actor=&#x27;author-7&#x27;)
+    held_source = api(&#x27;tasks/routing-source-107&#x27;)
+    route(seventh[&#x27;id&#x27;])
+    held_order = current(seventh[&#x27;pull_request_id&#x27;])
+    assert held_order[&#x27;escalation_decision_id&#x27;] and held_order[&#x27;id&#x27;]==seventh[&#x27;id&#x27;]
+    assert api(&#x27;tasks/routing-source-107&#x27;)==held_source
+    policy(&#x27;author-8&#x27;,&#x27;active&#x27;);eighth, source8 = create_order(108,&#x27;author-8&#x27;)
+    sql(&quot;UPDATE agents SET last_heartbeat=clock_timestamp()-interval &#x27;21 minutes&#x27; WHERE id=&#x27;author-8&#x27;&quot;)
+    stale_source = api(&#x27;tasks/routing-source-108&#x27;)
+    route(eighth[&#x27;id&#x27;])
+    assert current(eighth[&#x27;pull_request_id&#x27;])[&#x27;escalation_decision_id&#x27;]
+    assert api(&#x27;tasks/routing-source-108&#x27;)==stale_source
+    assert stale_source[&#x27;task&#x27;][&#x27;claim_expires_at&#x27;]==source8[&#x27;task&#x27;][&#x27;claim_expires_at&#x27;]
+    assert sql(&#x27;SELECT count(*) FROM delivery_publication_grants&#x27;)==&#x27;0&#x27;
+    # Retained earliest deadline still binds the current repair recipient after a
+    # repair-only handoff. The reassigned seat stays eligible past the retained
+    # deadline, so production AshOban routing must reassign again (never reset
+    # the deadline, stack a duplicate, or touch the source claim).
+    for who in [&#x27;good-a&#x27;,&#x27;good-b&#x27;,&#x27;good-c&#x27;,&#x27;author-6&#x27;,&#x27;author-7&#x27;]: policy(who,&#x27;reserved&#x27;)
+    for who in [&#x27;retain-author&#x27;,&#x27;retain-a&#x27;,&#x27;retain-b&#x27;]: register(who)
+    retained_first, retained_source = create_order(109,&#x27;retain-author&#x27;)
+    assert retained_first[&#x27;recipient_id&#x27;]==&#x27;retain-author&#x27;
+    policy(&#x27;retain-author&#x27;,&#x27;out_of_service&#x27;)
+    perform_persisted(retained_first)
+    retained_second = current(retained_first[&#x27;pull_request_id&#x27;])
+    assert retained_second[&#x27;recipient_id&#x27;]==&#x27;retain-a&#x27;, retained_second
+    assert retained_second[&#x27;author_id&#x27;]==&#x27;retain-author&#x27; and retained_second[&#x27;revision&#x27;]==2
+    assert retained_second[&#x27;deadline_at&#x27;]==retained_first[&#x27;deadline_at&#x27;]
+    assert retained_second[&#x27;episode_id&#x27;]==retained_first[&#x27;episode_id&#x27;]
+    assert retained_second[&#x27;selection_reason&#x27;]==&#x27;recipient_ineligible&#x27;
+    assert api(&#x27;tasks/routing-source-109&#x27;)==retained_source
+    elapsed(retained_second)
+    elapsed_second = current(retained_first[&#x27;pull_request_id&#x27;])
+    assert elapsed_second[&#x27;deadline_at&#x27;] != retained_first[&#x27;deadline_at&#x27;]
+    effects=&quot;SELECT jsonb_build_array((SELECT count(*) FROM tasks),(SELECT count(*) FROM task_events),(SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM cooperation_events),(SELECT count(*) FROM cooperation_deliveries),(SELECT count(*) FROM wake_intents),(SELECT count(*) FROM decision_requests),(SELECT count(*) FROM delivery_publication_grants))&quot;
+    before_effects=sql(effects)
+    before_repair=api(&#x27;tasks/&#x27;+retained_second[&#x27;repair_task_id&#x27;])
+    before_order=current(retained_first[&#x27;pull_request_id&#x27;])
+    before_audits=int(sql(&quot;SELECT count(*) FROM board_action_events WHERE resource=&#x27;Elixir.Agentboard.Delivery.ConflictEvaluation&#x27;&quot;))
+    rpc(&#x27;Application.put_env(:agentboard, :conflict_routing_mode, &quot;dry_run&quot;)&#x27;)
+    route(retained_second[&#x27;id&#x27;])
+    rows=json.loads(sql(&quot;SELECT coalesce(jsonb_agg(data ORDER BY occurred_at,id),&#x27;[]&#x27;) FROM board_action_events WHERE resource=&#x27;Elixir.Agentboard.Delivery.ConflictEvaluation&#x27;&quot;))
+    assert len(rows)==before_audits+1, &#x27;Dry-run retained deadline omitted its canonical selection evidence&#x27;
+    evaluation=rows[-1]
+    assert evaluation[&#x27;pull_request_id&#x27;]==retained_second[&#x27;pull_request_id&#x27;]
+    facts=evaluation[&#x27;facts&#x27;]
+    assert facts[&#x27;phase&#x27;]==&#x27;deadline&#x27; and facts[&#x27;plan&#x27;]==&#x27;reassign_repair&#x27; and facts[&#x27;reason&#x27;]==&#x27;retained_deadline&#x27;
+    assert facts[&#x27;current_order_id&#x27;]==retained_second[&#x27;id&#x27;] and facts[&#x27;current_order_revision&#x27;]==retained_second[&#x27;revision&#x27;]
+    assert facts[&#x27;candidate&#x27;][&#x27;agent_id&#x27;]==&#x27;retain-b&#x27; and facts[&#x27;candidate&#x27;][&#x27;eligible&#x27;] is True
+    assert sql(effects)==before_effects
+    assert api(&#x27;tasks/&#x27;+retained_second[&#x27;repair_task_id&#x27;])==before_repair
+    assert current(retained_first[&#x27;pull_request_id&#x27;])==before_order
+    rpc(&#x27;Application.put_env(:agentboard, :conflict_routing_mode, &quot;apply&quot;)&#x27;)
+    routed = sql(&quot;SELECT count(*) FROM task_events WHERE task_id=&#x27;&quot;+retained_second[&#x27;repair_task_id&#x27;]+&quot;&#x27; AND kind=&#x27;repair_routed&#x27;&quot;)
+    route(retained_second[&#x27;id&#x27;])
+    retained_third = current(retained_first[&#x27;pull_request_id&#x27;])
+    assert retained_third[&#x27;recipient_id&#x27;]==&#x27;retain-b&#x27;, retained_third
+    assert retained_third[&#x27;author_id&#x27;]==&#x27;retain-author&#x27; and retained_third[&#x27;revision&#x27;]==3
+    assert retained_third[&#x27;deadline_at&#x27;]==elapsed_second[&#x27;deadline_at&#x27;]
+    assert retained_third[&#x27;episode_id&#x27;]==retained_first[&#x27;episode_id&#x27;]
+    assert retained_third[&#x27;selection_reason&#x27;]==&#x27;retained_deadline&#x27;
+    assert api(&#x27;tasks/routing-source-109&#x27;)==retained_source
+    assert sql(&quot;SELECT count(*) FROM task_events WHERE task_id=&#x27;&quot;+retained_second[&#x27;repair_task_id&#x27;]+&quot;&#x27; AND kind=&#x27;repair_routed&#x27;&quot;)==str(int(routed)+1)
+    superseded_effects = sql(&#x27;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM decision_requests))&#x27;)
+    route(retained_second[&#x27;id&#x27;])
+    assert current(retained_first[&#x27;pull_request_id&#x27;])[&#x27;id&#x27;]==retained_third[&#x27;id&#x27;]
+    assert sql(&#x27;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM decision_requests))&#x27;)==superseded_effects
+    repeat_effects = sql(&quot;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM task_events WHERE kind=&#x27;repair_routed&#x27;),(SELECT count(*) FROM decision_requests))&quot;)
+    repeat_audits=int(sql(&quot;SELECT count(*) FROM board_action_events WHERE resource=&#x27;Elixir.Agentboard.Delivery.ConflictEvaluation&#x27;&quot;))
+    route(retained_third[&#x27;id&#x27;])
+    route(retained_third[&#x27;id&#x27;])
+    assert current(retained_first[&#x27;pull_request_id&#x27;])[&#x27;id&#x27;]==retained_third[&#x27;id&#x27;]
+    assert current(retained_first[&#x27;pull_request_id&#x27;])[&#x27;selection_reason&#x27;]==&#x27;retained_deadline&#x27;
+    assert sql(&quot;SELECT jsonb_build_array((SELECT count(*) FROM delivery_conflict_orders),(SELECT count(*) FROM delivery_conflict_sources),(SELECT count(*) FROM messages),(SELECT count(*) FROM task_events WHERE kind=&#x27;repair_routed&#x27;),(SELECT count(*) FROM decision_requests))&quot;)==repeat_effects
+    assert int(sql(&quot;SELECT count(*) FROM board_action_events WHERE resource=&#x27;Elixir.Agentboard.Delivery.ConflictEvaluation&#x27;&quot;))==repeat_audits
+    assert api(&#x27;tasks/routing-source-109&#x27;)==retained_source
+    assert sql(&#x27;SELECT count(*) FROM delivery_publication_grants&#x27;)==&#x27;0&#x27;
+
+print(&#x27;Shared eligibility profiles, queue/assignment/ID ties, repair-only lease transfer, duplicate timers, concurrent last-slot admission and owner-resolution fencing passed&#x27;)
 </pre></details></section><section id="proposal"><h2>OpenSpec implementation and remaining tasks</h2><details><summary>openspec/changes/add-server-conflict-routing/proposal.md</summary><pre># Proposal
 
 ## Why
@@ -8677,6 +9096,8 @@ Manual terminal status supplies no resolution proof. The collector preserves ter
 </pre></details><details><summary>openspec/changes/add-server-conflict-routing/tasks.md</summary><pre># Tasks
 
 This checklist is implementation work after proposal review. No runtime task is completed by drafting this change. Current server checkpoint: nine of nineteen tasks complete. Native producer/custody, grants/credit and rollout remain separate incomplete obligations; connected dashboard evidence is implemented, deployed keyboard/narrow behavior is UNTESTED-live. Combined23 remote targets pass at https://carverauto.buildbuddy.io/invocation/8ed23df5-4d41-4ca4-839f-d11eca24836f.
+
+The native deadline fixes and corrected current-order regression are preserved through captain-authorized recovery1856; product RED, exact byte restoration and fresh remote GREEN are recorded in `docs/architecture/conflict-routing-recovery-receipt.md`. Final portable uploads and the continuation run PR/current-head CI remain required before task5.4 is complete.
 
 Every Bazel command uses `./scripts/bazel` or explicit `--config=remote`; no workstation compilation.
 

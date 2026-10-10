@@ -2,6 +2,8 @@
 
 This checklist is implementation work after proposal review. No runtime task is completed by drafting this change. Current server checkpoint: nine of nineteen tasks complete. Native producer/custody, grants/credit and rollout remain separate incomplete obligations; connected dashboard evidence is implemented, deployed keyboard/narrow behavior is UNTESTED-live. Combined23 remote targets pass at https://carverauto.buildbuddy.io/invocation/8ed23df5-4d41-4ca4-839f-d11eca24836f.
 
+The native deadline fixes and corrected current-order regression are preserved through captain-authorized recovery1856; product RED, exact byte restoration and fresh remote GREEN are recorded in `docs/architecture/conflict-routing-recovery-receipt.md`. Final portable uploads and the continuation run PR/current-head CI remain required before task5.4 is complete.
+
 Every Bazel command uses `./scripts/bazel` or explicit `--config=remote`; no workstation compilation.
 
 ## 1. Durable contracts and migration
