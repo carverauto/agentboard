@@ -37,8 +37,8 @@ INSERT INTO quota_windows (observation_id, window_id, data) SELECT id,'five-hour
 INSERT INTO quota_scopes (observation_id, scope, data) SELECT id,'fixture-model','{\"available\":true}' FROM quota_observations;" >/dev/null
 export ASH_COMPAT_SCRIPT="$TEST_SRCDIR/$TEST_WORKSPACE/build/integration/ash_schema_compat.exs"
 "$release_root/bin/agentboard" eval 'Code.eval_file(System.fetch_env!("ASH_COMPAT_SCRIPT"))'
-[[ -s "$release_root/lib/agentboard-0.1.0/priv/static/assets/app.js" ]]
-[[ -s "$release_root/lib/agentboard-0.1.0/priv/static/assets/app.css" ]]
+[[ -s "$release_root/lib/agentboard-0.2.0/priv/static/assets/app.js" ]]
+[[ -s "$release_root/lib/agentboard-0.2.0/priv/static/assets/app.css" ]]
 echo "Packaged release migrations, schema guards, and assets passed"
 
 # Upgrade the actual current schema-4 migration set, retaining existing history.

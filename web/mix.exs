@@ -4,7 +4,7 @@ defmodule Agentboard.MixProject do
   def project do
     [
       app: :agentboard,
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.19",
       elixirc_paths: ["lib"],
       start_permanent: Mix.env() == :prod,

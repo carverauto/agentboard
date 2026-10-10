@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag pointing to the approved commit (v0.1.0)
+        description: Existing release tag pointing to the approved commit (for example v0.2.0)
         required: true
         type: string
 permissions:
@@ -31,7 +31,7 @@ jobs:
           set -euo pipefail
           # ARC's container checkout is owned by the runner, not the job UID.
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          test "$RELEASE_TAG" = v0.1.0
+          test "$RELEASE_TAG" = v0.2.0
           test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
           git merge-base --is-ancestor HEAD origin/main
       - name: Configure remote execution

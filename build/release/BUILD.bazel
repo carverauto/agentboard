@@ -60,7 +60,7 @@ oci_image(
     labels = {
         "org.opencontainers.image.title": "agentboard",
         "org.opencontainers.image.source": "https://github.com/carverauto/agentboard",
-        "org.opencontainers.image.version": "0.1.0",
+        "org.opencontainers.image.version": "0.2.0",
     },
 )
 
@@ -110,7 +110,7 @@ genrule(
 genrule(
     name = "cli_artifacts",
     srcs = ["//cmd/agentboard:agentboard_" + os + "_" + arch for os in ["linux", "darwin"] for arch in ["amd64", "arm64"]],
-    outs = ["agentboard-cli-0.1.0.tar.gz"],
+    outs = ["agentboard-cli-0.2.0.tar.gz"],
     cmd = """
       set -euo pipefail
       scratch=$$(mktemp -d)
