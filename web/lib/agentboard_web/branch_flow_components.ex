@@ -79,7 +79,9 @@ defmodule AgentboardWeb.BranchFlowComponents do
     <section id="branch-repositories" class="branch-section" aria-labelledby="branch-repositories-heading">
       <h2 id="branch-repositories-heading" tabindex="-1">Tracked repositories</h2>
       <p>Local tracked delivery inventory · {count(@data.inventory_count)} repositories. Counts cover retained local records, not every GitHub PR.</p>
-      <p class="text-muted">Preview: busiest-only ordering. Captain pins/settings and integration intake are pending. Default-branch metadata, integration health and ahead/behind counts are unavailable in this slice.</p>
+      <p class="text-muted">Preview: eligible captain pins first, then busiest tracked repositories. Integration intake, default-branch metadata, integration health and ahead/behind counts remain unavailable in this slice.</p>
+      <p><a href="/settings#branch-flow-settings">Manage captain repository pins</a></p>
+      <p :if={get_in(@data, [:settings, :error])} class="notice warning" role="alert">{@data.settings.error}</p>
       <p class="text-muted">Snapshot <.stamp value={@data.as_of} />. A refreshed database view does not renew provider evidence.</p>
       <div class="branch-controls">
         <.link patch={repo_path(@params, nil)} aria-current={if is_nil(@params["repo"]), do: "page", else: nil}>All repositories</.link>
@@ -89,8 +91,9 @@ defmodule AgentboardWeb.BranchFlowComponents do
       </div>
       <p :if={@data.inventory_count == 0} class="empty">No tracked repositories. Branch names and health are unknown.</p>
       <p :if={is_nil(@data.inventory_count)} class="notice warning">Repository ranking and counts unavailable. Retained failures remain global.</p>
-      <div class="branch-repo-strip" role="region" aria-label="Five busiest tracked repositories">
+      <div class="branch-repo-strip" role="region" aria-label="Up to five pinned and busiest tracked repositories">
         <article :for={card <- @data.cards} id={"branch-repo-" <> identity(card.repository)} data-branch-repo={card.repository} class="branch-repo-card">
+          <p :if={Map.get(card, :pin_position)} class="flag">Captain pin {card.pin_position}</p>
           <h3><.link patch={repo_path(@params, card.repository)} aria-current={if @params["repo"] == card.repository, do: "page", else: nil}>Focus {card.repository}</.link></h3>
           <%= if Map.get(card, :available, true) do %>
             <p>{count(card.open_count)} tracked open · {count(card.unknown_lifecycle_count)} lifecycle unknown · {count(card.terminal_count)} retained terminal</p>

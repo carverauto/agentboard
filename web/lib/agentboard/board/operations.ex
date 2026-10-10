@@ -696,6 +696,8 @@ defmodule Agentboard.Board.Operations do
              Agentboard.FleetLoadout.Configuration,
              Agentboard.FleetLoadout.Binding,
              Agentboard.FleetLoadout.Receipt,
+             Agentboard.Delivery.BranchFlow.Configuration,
+             Agentboard.Delivery.BranchFlow.Receipt,
              Agentboard.Decisions.Request,
              Agentboard.Decisions.Wake,
              Agentboard.Wake.Intent,

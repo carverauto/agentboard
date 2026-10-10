@@ -4,7 +4,7 @@ load("@rules_elixir//:mix_app.bzl", "mix_app")
 
 package(default_visibility = ["//visibility:public"])
 
-exports_files(["assets/app.js"])
+exports_files(["assets/app.js", "test/branch_flow_pin_editor_hook_test.mjs"])
 
 filegroup(
     name = "srcs",
@@ -224,6 +224,24 @@ ex_unit_test(
     name = "branch_flow_live_test",
     size = "small",
     srcs = ["test/branch_flow_live_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
+    deps = [":erlang_app"],
+)
+
+ex_unit_test(
+    name = "branch_flow_settings_live_test",
+    size = "small",
+    srcs = ["test/branch_flow_settings_live_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
+    deps = [":erlang_app"],
+)
+
+ex_unit_test(
+    name = "branch_flow_settings_test",
+    size = "small",
+    srcs = ["test/branch_flow_settings_test.exs"],
     data = ["test/test_helper.exs"],
     elixir_opts = ["-r", "test/test_helper.exs"],
     deps = [":erlang_app"],

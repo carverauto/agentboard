@@ -21,6 +21,8 @@ defmodule Agentboard.Board do
     resource(Agentboard.FleetLoadout.Configuration)
     resource(Agentboard.FleetLoadout.Binding)
     resource(Agentboard.FleetLoadout.Receipt)
+    resource(Agentboard.Delivery.BranchFlow.Configuration)
+    resource(Agentboard.Delivery.BranchFlow.Receipt)
     resource(Agentboard.Board.Resources.Agent)
     resource(Agentboard.Board.Resources.Task)
     resource(Agentboard.Board.Resources.TaskEvent)
