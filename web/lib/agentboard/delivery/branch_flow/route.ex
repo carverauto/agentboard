@@ -1,8 +1,8 @@
 defmodule Agentboard.Delivery.BranchFlow.Route do
   @moduledoc "Pure, bounded route validation and filter-bound pagination for the read-only PR view."
-  @keys ~w(repo node_kind node view q show_terminal cursor attention_cursor chooser_q chooser_cursor)
+  @keys ~w(repo node_kind node view q show_terminal cursor topology_cursor attention_cursor chooser_q chooser_cursor)
   @table_keys ~w(repo node_kind node q show_terminal)
-  @page_sizes %{"table" => 20, "chooser" => 20, "attention" => 10}
+  @page_sizes %{"table" => 20, "topology" => 20, "chooser" => 20, "attention" => 10}
 
   def normalize(params) when is_map(params) do
     params = Map.take(params, @keys)
@@ -117,6 +117,10 @@ defmodule Agentboard.Delivery.BranchFlow.Route do
     do: {:error, "Invalid cursor (maximum 200 bytes). Reset this page to continue."}
 
   defp fingerprint("table", filters), do: fingerprint_value(Map.take(filters, @table_keys))
+
+  defp fingerprint("topology", filters),
+    do: fingerprint_value(Map.take(filters, ~w(repo node_kind node)))
+
   defp fingerprint("chooser", filters), do: fingerprint_value(Map.take(filters, ["chooser_q"]))
   defp fingerprint("attention", _), do: fingerprint_value(%{"scope" => "all-retained-red"})
   defp fingerprint(_, _), do: "invalid"

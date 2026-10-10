@@ -1,4 +1,4 @@
-# Approved implementation plan — partial preview and pins
+# Approved implementation plan — preview, pins and observed-PR inspection
 
 The captain explicitly approved phased implementation on 2026-10-09 after the
 proposal merged. Documentation review/merge alone did not grant that approval.
@@ -7,8 +7,7 @@ none of the broader requirements below is considered fully done by that slice.
 See [preview scope](../../../docs/branch-flow.md) and
 [verification](../../../docs/verification/branch-flow-overview.md). Captain
 pins/settings are the second bounded increment described in
-[pins verification](../../../docs/verification/branch-flow-pins.md). Role intake,
-focused topology, row mini-trees and numeric evidence remain pending. Combined
+[pins verification](../../../docs/verification/branch-flow-pins.md). The next read-only increment adds focused observed relationships and shared PR inspection/glyphs; role intake and numeric evidence remain pending. See [inspection verification](../../../docs/verification/branch-flow-inspection.md). Combined
 checklist items stay open where those dependencies are unfinished. Landing these
 increments does not close #185.
 
@@ -41,8 +40,8 @@ increments does not close #185.
 ## 3. Phase 2 — focused topology
 
 - [ ] 3.1 Implement one focused repo with explicit role labels, actual base→head relations, fork identity, unknown/deleted/stacked/cyclic cases, text equivalent and no invented DAG/promotion edges.
-- [ ] 3.2 Enforce twenty relations, forty-two endpoints and forty connectors per topology page, with stable pagination and off-page continuation labels.
-- [ ] 3.3 Add the single non-modal detail panel with full source/time/currentness, separate submitter/CI/rebase responsibility, failure sources and full-detail links.
+- [x] 3.2 Enforce twenty relations, forty-two endpoints and forty connectors per topology page, with stable pagination and off-page continuation labels. This read-only slice uses no role trunks and caps observed endpoints/connectors at forty/twenty.
+- [x] 3.3 Add the single non-modal detail panel with full source/time/currentness, separate submitter/CI/rebase responsibility, failure sources and full-detail links. Sources and failed-attempt summaries are each capped at ten; role/title/numeric availability is explicit.
 - [ ] 3.4 Test Enter/Space/open, Escape/Close/outside dismissal, focus fallback, PR-to-PR replacement, repo switch, page switch, removed node and head-change races.
 
 ## 4. Phase 3 — row glyph and mini-tree

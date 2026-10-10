@@ -1,7 +1,7 @@
-# Branch-flow overview preview
+# Branch-flow inspection preview
 
 The #185 implementation provides a bounded `/prs` preview with **captain-managed
-repository pins**. The presentation is off by default. It does not complete the full
+repository pins** and bounded observed-PR inspection. The presentation is off by default. It does not complete the full
 [approved branch-flow design](../openspec/changes/add-pr-branch-flow/design.md).
 
 ## Presentation opt-in and rollback
@@ -32,12 +32,12 @@ existing producers. No view action contacts GitHub or enqueues collection.
   only retained terminal PRs remains eligible with zero open PRs; unknown
   lifecycle is separate. Disabled nonterminal states and ignored/queued workflow
   cues alone do not enroll a repository.
-- Repository headings focus the filtered table. Separate exact base-ref and
+- Repository headings focus the filtered table and a twenty-relation repository view. Separate exact base-ref and
   canonical PR links filter rows. The labeled search matches tracked PR numbers
   and retained base/head refs; it does not promise title search. Refs are
   case-sensitive, including slashes and Unicode.
 - The four-column table keeps twenty-row paging, merged/closed choice, CI/merge,
-  responsibility/repair and delivery/progress. Table, attention and chooser
+  responsibility/repair and delivery/progress. Table, topology, attention and chooser
   cursors are independently bound to their applicable filters. Invalid selections
   show an explicit error and clear/reset action; they never silently broaden the
   table. Links and form search preserve unrelated attention state.
@@ -116,11 +116,58 @@ performs no operational backfill. This was a proposed code allocation after a
 read-only migration inventory, not an atomic live-board reservation. Presentation
 rollback retains all pin settings, history, receipts and delivery evidence.
 
+## Observed PR relationships
+
+A focused repository shows twenty retained open PR relationships per page,
+ordered by canonical PR identity. Each edge means only **observed base → PR
+head**. It does not claim ancestry, a merge/promotion path or a current branch tip.
+Exact endpoints use repository, case-sensitive ref and full observed SHA. A
+schematic deduplicates only identical triples, with at most forty endpoints and
+twenty connectors; the same paged text list is always visible. Missing metadata,
+conflicting retained SHAs for one ref, and cycles fall back to explicit text.
+Exact retained parent matches outside the page use a bounded continuation link,
+without recursively loading ancestry. Multiple matches are labeled ambiguous.
+
+Selecting a PR opens one inline non-modal inspection. The table provides the same
+base→head glyph and inspection as one subordinate `colspan=4` disclosure row.
+Both show full source identities, independently qualified CI/mergeability,
+observed-at UTC and age, authoritative expected base, exact snapshot/generations,
+collection deferral, and separately labeled immutable submitter, CI responsibility,
+rebase responsibility, delivery and progress. Ten source attributions and ten
+failed-attempt summaries are shown at most, with explicit truncation and a full
+PR-detail link. Titles are not retained. Default branch, integration role/health
+and numeric divergence stay explicitly unavailable.
+
+The topology reads compact evidence for at most twenty selected PRs; it does not
+preload full details or historical snapshots per graph node. A shared exact-source
+guard qualifies overview, topology, table glyph and inspection. It binds PR,
+snapshot, head/base, observed time, generation and exact base ref. The existing
+expected-base projector accounts for a base watch advancing before paged poll
+invalidation. Missing proof suppresses positive/current labels while retaining
+red failure obligations and repair ownership. A failed refresh also de-qualifies
+last-known positive labels across every retained surface.
+
+Inspection is keyed by canonical PR and route/client/dismissal generations.
+Selecting another PR replaces it; Close, Escape, pointer outside, navigation,
+filter/page changes or removed/off-page selection close it. A late older response
+cannot reopen or focus dismissed content. Keyboard opening focuses its heading;
+Close/Escape restore the invoker or a stable heading, without a modal focus trap.
+Outside clicks preserve their intended target. Graph and glyph visibility are
+local presentation choices; hiding glyphs closes the drawer. Text/status columns
+remain available. Ordinary Back/Forward restores route filters and pages while
+transient inspection stays closed.
+
+No migration, repository role/intake change, provider request, job enqueue,
+repair action, worker contact or settings write is added by this slice. Existing
+captain pins and their audited CAS save remain separate and unchanged. See
+[inspection verification](verification/branch-flow-inspection.md) for measured
+bounds, regressions and the separate browser/load rollout gates.
+
 ## Still pending for #185
 
 This increment does not implement provider repository-role metadata, the #114
 configured-integration intake extension or resolution-only recovery, risk-ranked
-card aggregates, focused repository topology/popover, or per-row mini-trees. All
+card aggregates, and complete role/numeric evidence for the visual phases. All
 remain tracked in the [implementation plan](../openspec/changes/add-pr-branch-flow/tasks.md).
 
 Integration health remains unavailable. Ahead/behind numbers remain unavailable

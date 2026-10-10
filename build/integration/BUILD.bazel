@@ -555,3 +555,21 @@ sh_test(
     args = ["$(rlocationpath //web:test/branch_flow_pin_editor_hook_test.mjs)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
     size = "small",
 )
+
+sh_test(
+    name = "branch_flow_inspection_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "branch_flow_inspection_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = [":liveview_rendered", "@worker_node_linux_x64//:bin/node", "branch_flow_inspection_test.py", "branch_flow_test.py", "branch_flow_parity.py", "liveview_client.py", "provider_fixture.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)", "$(rlocationpath :liveview_rendered)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
+    size = "large",
+    timeout = "long",
+)
+
+sh_test(
+    name = "branch_inspection_hook_test",
+    srcs = ["branch_flow_pin_editor_hook_test.sh"],
+    data = ["//web:test/branch_inspection_hook_test.mjs", "//web:assets/app.js", "@worker_node_linux_x64//:bin/node"],
+    args = ["$(rlocationpath //web:test/branch_inspection_hook_test.mjs)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
+    size = "small",
+)
