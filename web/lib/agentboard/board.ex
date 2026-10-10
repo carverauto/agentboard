@@ -6,6 +6,8 @@ defmodule Agentboard.Board do
   end
 
   resources do
+    resource(Agentboard.Coordinator.Batch)
+    resource(Agentboard.Coordinator.Item)
     resource(Agentboard.CoordinatorTriage.Configuration)
     resource(Agentboard.CoordinatorTriage.Record)
     resource(Agentboard.CoordinatorTriage.Disposition)

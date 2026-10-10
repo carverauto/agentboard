@@ -11,6 +11,17 @@ defmodule AgentboardWeb.Plugs.JSONBody do
       )
 
   def call(conn, options) do
+    options =
+      if coordinator?(conn),
+        do:
+          Plug.Parsers.init(
+            parsers: [:json],
+            pass: ["application/json"],
+            json_decoder: Agentboard.Coordinator.JSON,
+            length: 16_384
+          ),
+        else: options
+
     Plug.Parsers.call(conn, options)
   rescue
     _error in [
@@ -25,11 +36,17 @@ defmodule AgentboardWeb.Plugs.JSONBody do
         Jason.encode!(%{
           error: %{
             code: "invalid_input",
-            message: "Request must be valid JSON no larger than 5 MiB"
+            message:
+              if(coordinator?(conn),
+                do: "Request must be unambiguous JSON no larger than 16 KiB",
+                else: "Request must be valid JSON no larger than 5 MiB"
+              )
           }
         })
       )
       |> halt()
   end
-end
 
+  defp coordinator?(%{path_info: ["api", "v1", "coordinator" | _]}), do: true
+  defp coordinator?(_), do: false
+end

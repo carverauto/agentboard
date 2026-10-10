@@ -31,6 +31,12 @@ A coordinator-capable agent is **required** per board. The board keeps the books
 
 The coordinator acts only within captain-approved policy. It never merges, tags, deploys, or handles secrets. See the [coordinator role](docs/coordinator/role.md) for the normative MUST/SHOULD/MAY contract, the adapter capability matrix, and the conformance checklist.
 
+The [revision-1 coordinator attention protocol](docs/coordinator/protocol.md)
+offers the same decision-only tick/ack contract over HTTPS and a thin CLI, using
+an explicitly issued runner credential. It records handling without answering
+decisions or dispatching seats; server-policy and live adapter rollout remain
+separate work.
+
 ## Architecture
 
 | Piece | Role |

@@ -105,6 +105,10 @@ defmodule AgentboardWeb.Router do
 
   scope "/api/v1", AgentboardWeb do
     pipe_through([:api, :compatible])
+    get("/coordinator/tick", CoordinatorController, :tick)
+    get("/coordinator/decisions/:id", CoordinatorController, :show)
+    post("/coordinator/ack", CoordinatorController, :ack)
+    post("/coordinator/heartbeat", CoordinatorController, :heartbeat)
     post("/workers/provision", WorkerController, :provision)
     post("/workers/:worker_id/resolve_attempt", WorkerController, :resolve_attempt)
     post("/obligations/:id/responsibility", WorkerController, :responsibility)

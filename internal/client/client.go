@@ -52,15 +52,16 @@ func (e *Error) ExitCode() int {
 }
 
 type Client struct {
-	base               *url.URL
-	http               *http.Client
-	actor              config.Actor
-	token              string
-	accessClientID     string
-	accessClientSecret string
-	workerProtocol     string
-	captain            bool
-	workerCaptain      bool
+	base                *url.URL
+	http                *http.Client
+	actor               config.Actor
+	token               string
+	accessClientID      string
+	accessClientSecret  string
+	workerProtocol      string
+	coordinatorProtocol string
+	captain             bool
+	workerCaptain       bool
 }
 
 // NewRuntime uses the existing HTTPS/redirect/retry transport with scoped auth.
@@ -235,6 +236,9 @@ func (c *Client) open(ctx context.Context, method, path string, query url.Values
 		}
 		req.Header.Set("Accept", accept)
 		req.Header.Set("User-Agent", "agentboard-cli/0.1")
+		if c.coordinatorProtocol != "" {
+			req.Header.Set("X-Agentboard-Coordinator-Protocol", c.coordinatorProtocol)
+		}
 		// Edge authentication is distinct from the board's own bearer capability.
 		// Requests use only the configured base; redirects are never followed.
 		if c.accessClientID != "" {
