@@ -82,7 +82,7 @@ func NewRoot() *cobra.Command {
 		return err
 	}})
 	root.AddCommand(c.doctor())
-	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.hostCommands(), c.chat(), c.prs(), c.decisions(), c.seat(), c.adminCommands(), c.fleetCommands())
+	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.hostCommands(), c.chat(), c.prs(), c.publications(), c.decisions(), c.seat(), c.adminCommands(), c.fleetCommands())
 	return root
 }
 func env(key, fallback string) string {
@@ -151,6 +151,9 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	}
 	if strings.HasPrefix(path, "prs") {
 		required = 14
+	}
+	if strings.HasPrefix(path, "publications") {
+		required = 32
 	}
 	if strings.HasPrefix(path, "availability") || path == "messages/task-orders" {
 		required = 15

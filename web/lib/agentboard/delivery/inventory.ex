@@ -32,6 +32,15 @@ defmodule Agentboard.Delivery.Inventory do
     persist(task, event, stamp, attribution)
   end
 
+  # Recovery identifies the card, never the actual PR author. The system
+  # tracking event is not a publisher submission receipt.
+  def recovered(task, stamp), do: persist(task, nil, stamp, "unknown")
+
+  def lock(id) do
+    <<key::signed-64, _::binary>> = :crypto.hash(:sha256, "agentboard-pr:" <> id)
+    Repo.statement!("SELECT pg_advisory_xact_lock($1)", [key])
+  end
+
   def discover(after_id, limit)
       when (is_nil(after_id) or is_binary(after_id)) and is_integer(limit) and limit in 1..100 do
     query = Task |> Ash.Query.filter(not is_nil(pr_url)) |> Ash.Query.sort(id: :asc)
@@ -112,8 +121,7 @@ defmodule Agentboard.Delivery.Inventory do
         else: nil
 
     {:ok, attrs} = canonical(task.pr_url)
-    <<key::signed-64, _::binary>> = :crypto.hash(:sha256, "agentboard-pr:" <> attrs.id)
-    Repo.statement!("SELECT pg_advisory_xact_lock($1)", [key])
+    lock(attrs.id)
 
     provenance =
       actor || %{"agent" => "delivery-discovery", "model" => "system", "harness" => "ash"}

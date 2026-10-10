@@ -51,7 +51,7 @@ defmodule Agentboard.Delivery.PollState do
     end
 
     update :invalidate_base do
-      accept([:generation, :expected_base_sha, :next_poll_at, :last_error])
+      accept([:generation, :expected_base_sha, :expected_default_sha, :next_poll_at, :last_error])
       change(set_attribute(:unchanged_polls, 0))
       change(set_attribute(:attempt_id, nil))
       change(set_attribute(:lease_expires_at, nil))
@@ -95,6 +95,8 @@ defmodule Agentboard.Delivery.PollState do
           :base_sha,
           :base_ref,
           :expected_base_sha,
+          :default_ref,
+          :expected_default_sha,
           :snapshot_id,
           :lifecycle,
           :unchanged_polls,
@@ -165,6 +167,8 @@ defmodule Agentboard.Delivery.PollState do
     attribute(:base_sha, :string, public?: true)
     attribute(:base_ref, :string, public?: true)
     attribute(:expected_base_sha, :string, public?: true)
+    attribute(:default_ref, :string, public?: true)
+    attribute(:expected_default_sha, :string, public?: true)
     attribute(:snapshot_id, :uuid, public?: true)
     attribute(:lifecycle, :string, public?: true)
   end

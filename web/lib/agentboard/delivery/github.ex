@@ -1,6 +1,6 @@
 defmodule Agentboard.Delivery.Github do
   @moduledoc "Bounded complete head-check collection; repository policies and merge-ref verdicts are a later gate."
-  alias Agentboard.Delivery.{GithubHTTP, ProviderAdmission}
+  alias Agentboard.Delivery.{GithubHTTP, ProviderAdmission, ConflictPolicy}
 
   @max_requests 32
   @max_pages 10
@@ -101,6 +101,9 @@ defmodule Agentboard.Delivery.Github do
            "base_ref" => after_read.base_ref,
            "head_ref" => after_read.head_ref,
            "head_repo" => after_read.head_repo,
+           "default_ref" => Map.get(after_read, :default_ref),
+           "default_tip_sha" => Map.get(after_read, :default_tip_sha),
+           "evaluation_base_sha" => Map.get(after_read, :evaluation_base_sha),
            "coverage" => "complete_head",
            "policy" => "unknown",
            "tested_ref" => "head",
@@ -140,6 +143,9 @@ defmodule Agentboard.Delivery.Github do
         :base_ref,
         :head_ref,
         :head_repo,
+        :default_ref,
+        :default_tip_sha,
+        :evaluation_base_sha,
         :lifecycle,
         :draft
       ])
@@ -174,25 +180,74 @@ defmodule Agentboard.Delivery.Github do
          true <-
            sha?(head) and sha?(base) and state in ["open", "closed"] and
              is_boolean(merged) and is_integer(number) and Integer.to_string(number) == pr.number do
-      {:ok,
-       %{
-         head_sha: head,
-         base_sha: base,
-         lifecycle: if(merged, do: "merged", else: state),
-         draft: if(is_boolean(data["draft"]), do: data["draft"], else: nil),
-         mergeable: if(is_boolean(data["mergeable"]), do: data["mergeable"], else: nil),
-         mergeable_state: bounded_state(data["mergeable_state"]),
-         base_ref: if(ref?(data["base"]["ref"]), do: data["base"]["ref"]),
-         head_ref:
-           if(ref?(data["head"]["ref"]) and not contains_token?(data["head"]["ref"]),
-             do: data["head"]["ref"]
-           ),
-         head_repo: head_repository(data["head"]["repo"])
-       }, ctx}
+      metadata = %{
+        head_sha: head,
+        base_sha: base,
+        lifecycle: if(merged, do: "merged", else: state),
+        draft: if(is_boolean(data["draft"]), do: data["draft"], else: nil),
+        mergeable: if(is_boolean(data["mergeable"]), do: data["mergeable"], else: nil),
+        mergeable_state: bounded_state(data["mergeable_state"]),
+        base_ref: if(ref?(data["base"]["ref"]), do: data["base"]["ref"]),
+        head_ref:
+          if(ref?(data["head"]["ref"]) and not contains_token?(data["head"]["ref"]),
+            do: data["head"]["ref"]
+          ),
+        head_repo: head_repository(data["head"]["repo"])
+      }
+
+      default_identity(root, metadata, ctx)
     else
       {:error, _, _} = error -> error
       _ -> {:error, "incomplete", 60}
     end
+  end
+
+  defp default_identity(root, %{lifecycle: "open"} = metadata, ctx) do
+    if ConflictPolicy.observe_defaults?() do
+      with {:ok, repository, _headers, ctx} <- request(root, ctx),
+           true <-
+             is_map(repository) and is_binary(repository["full_name"]) and
+               String.downcase(repository["full_name"]) == String.trim_leading(root, "/repos/") and
+               ref?(repository["default_branch"]),
+           {:ok, default, ctx} <- branch_identity(root, repository["default_branch"], ctx),
+           {:ok, evaluation, ctx} <-
+             evaluation_identity(
+               root,
+               metadata.base_ref,
+               repository["default_branch"],
+               default,
+               ctx
+             ) do
+        {:ok,
+         Map.merge(metadata, %{
+           default_ref: repository["default_branch"],
+           default_tip_sha: default,
+           evaluation_base_sha: evaluation
+         }), ctx}
+      else
+        {:error, _, _} = error -> error
+        _ -> {:error, "incomplete", 60}
+      end
+    else
+      {:ok, metadata, ctx}
+    end
+  end
+
+  defp default_identity(_root, metadata, ctx), do: {:ok, metadata, ctx}
+
+  defp evaluation_identity(_root, ref, ref, default, ctx), do: {:ok, default, ctx}
+
+  defp evaluation_identity(root, ref, _default_ref, _default, ctx),
+    do: branch_identity(root, ref, ctx)
+
+  defp branch_identity(root, ref, ctx) do
+    with true <- ref?(ref),
+         {:ok, %{"name" => ^ref, "commit" => %{"sha" => sha}}, _headers, ctx} <-
+           request(root <> "/branches/" <> URI.encode(ref, &URI.char_unreserved?/1), ctx),
+         true <- sha?(sha),
+         do: {:ok, sha, ctx},
+         else: (error ->
+                  if match?({:error, _, _}, error), do: error, else: {:error, "incomplete", 60})
   end
 
   defp head_repository(%{"full_name" => name}) when is_binary(name) do

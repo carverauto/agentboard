@@ -17,13 +17,7 @@ defmodule Agentboard.Wake.Transport do
   # before its worker lock. No provider I/O is performed in this transaction.
   def lock_sources(id, operation, data)
       when operation in ~w(wake_reserve wake_result wake_reconcile) do
-    row =
-      if operation == "wake_reserve" do
-        fetch_intent!(id, data["intent_id"])
-      else
-        attempt = fetch_attempt!(id, data["attempt_id"])
-        fetch_intent!(id, attempt.intent_id)
-      end
+    row = occurrence(id, operation, data)
 
     if row.task_id, do: Ops.lock_task(row.task_id)
 
@@ -56,7 +50,19 @@ defmodule Agentboard.Wake.Transport do
 
   def lock_sources(_, _, _), do: :ok
 
-  def reserve(data, s, b, reserve_batch) do
+  def occurrence(id, operation, data)
+      when operation in ~w(wake_reserve wake_result wake_reconcile) do
+    if operation == "wake_reserve" do
+      fetch_intent!(id, data["intent_id"])
+    else
+      attempt = fetch_attempt!(id, data["attempt_id"])
+      fetch_intent!(id, attempt.intent_id)
+    end
+  end
+
+  def occurrence(_, _, _), do: nil
+
+  def reserve(data, s, b, reserve_batch, context) do
     exact_keys!(
       data,
       ~w(intent_id intent_revision reason_hash enrollment_revision binding_epoch session_id adapter_generation idempotency_key)
@@ -97,18 +103,18 @@ defmodule Agentboard.Wake.Transport do
         idempotent: true
       }
     else
-      reserve_new(row, data, s, b, reserve_batch)
+      reserve_new(row, data, s, b, reserve_batch, context)
     end
   end
 
-  defp reserve_new(row, data, s, b, reserve_batch) do
+  defp reserve_new(row, data, s, b, reserve_batch, context) do
     unless row.revision == data["intent_revision"] and row.reason_hash == data["reason_hash"] and
              enrollment_revision(s) == data["enrollment_revision"] and
              b.epoch == data["binding_epoch"] and
              b.session_id == data["session_id"] and b.pane_id == data["adapter_generation"],
            do: Ops.reject("conflict", "Wake source or recipient fence changed")
 
-    reasons = admission(row, s, b)
+    reasons = admission(row, s, b, context)
 
     if reasons != [] do
       %{reservation: nil, reason_codes: reasons, native_delivery_enabled: false}
@@ -132,10 +138,10 @@ defmodule Agentboard.Wake.Transport do
     end
   end
 
-  defp admission(row, s, b) do
+  defp admission(row, s, b, context) do
     stamp = Ops.now()
     agent = Availability.admission_agent(s.id)
-    source = Reads.canonical_state(row, stamp)
+    source = Reads.canonical_state(row, stamp, context)
 
     []
     |> reason(
@@ -250,6 +256,11 @@ defmodule Agentboard.Wake.Transport do
     source = %{"kind" => row.source_kind, "id" => row.source_id, "version" => row.source_version}
     source = if row.task_id, do: Map.put(source, "task_id", row.task_id), else: source
     ref = source |> Map.delete("task_id") |> Map.put("delivery_id", delivery.id)
+
+    ref =
+      if row.source_ref["order_ref"],
+        do: Map.put(ref, "order_ref", row.source_ref["order_ref"]),
+        else: ref
 
     reservation = %{
       "protocol_revision" => 1,

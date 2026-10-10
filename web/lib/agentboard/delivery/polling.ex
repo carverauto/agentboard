@@ -288,6 +288,9 @@ defmodule Agentboard.Delivery.Polling do
               base_sha: result.base_sha,
               base_ref: result.payload["base_ref"],
               expected_base_sha: base_watch_sha,
+              default_ref: result.payload["default_ref"] || state.default_ref,
+              expected_default_sha:
+                result.payload["default_tip_sha"] || state.expected_default_sha,
               ci_state: result.ci_state,
               lifecycle: result.lifecycle,
               observed_at: stamp,

@@ -165,6 +165,7 @@ defmodule Agentboard.Cooperation.Runtime do
           # Authenticate before taking source locks. Route immutable events before
           # worker custody: route must never acquire an event below a worker lock.
           credential!(id, token)
+          context = lock_conflict_sources(id, operation, data)
           Agentboard.Availability.lock_admission()
           Agentboard.Wake.Transport.lock_sources(id, operation, data)
           lock_worker(id)
@@ -181,7 +182,7 @@ defmodule Agentboard.Cooperation.Runtime do
                   operation not in ~w(state pending responsibilities obligations doctor receipts reconcile mattermost_inbox mattermost_read mattermost_ack wake_intents wake_reconcile)),
              do: Ops.reject("forbidden", "Capability does not authorize this operation")
 
-          execute(operation, data, s, b, credential)
+          execute(operation, data, s, b, credential, context)
         end)
       end
     end
@@ -216,7 +217,118 @@ defmodule Agentboard.Cooperation.Runtime do
 
   defp route_before_worker(_, _, _, _), do: {:ok, :not_needed}
 
-  defp execute("bind", data, s, b, _c) do
+  defp lock_conflict_sources(id, operation, data) do
+    deliveries = conflict_deliveries(id, operation, data)
+
+    wakes =
+      if operation == "wake_intents" do
+        {rows, _limit} = Agentboard.Wake.Reads.selection(Ash.get!(Subscription, id), data)
+        rows
+      else
+        Agentboard.Wake.Transport.occurrence(id, operation, data)
+      end
+
+    Agentboard.Delivery.ConflictConsumer.lock(id, deliveries, wakes)
+  end
+
+  defp conflict_deliveries(id, operation, data)
+       when operation in ~w(dispatch result reconcile receipts) do
+    a = Ops.fetch!(Attempt, data["attempt_id"], "Attempt not found")
+    if a.worker_id != id, do: Ops.reject("forbidden", "Foreign attempt")
+    Enum.map(Ash.get!(Batch, a.batch_id).delivery_ids, &Ash.get!(Delivery, &1))
+  end
+
+  defp conflict_deliveries(id, "reserve", data) do
+    existing =
+      Attempt
+      |> Ash.Query.filter(worker_id == ^id and idempotency_key == ^data["idempotency_key"])
+      |> Ash.read_one!()
+
+    if existing do
+      Enum.map(Ash.get!(Batch, existing.batch_id).delivery_ids, &Ash.get!(Delivery, &1))
+    else
+      Enum.reject(pending_rows(id, 100) ++ [oldest_ordinary(id)], &is_nil/1)
+    end
+  end
+
+  defp conflict_deliveries(id, "pending", data) do
+    {rows, _limit} = pending_selection(Ash.get!(Subscription, id), data)
+    rows
+  end
+
+  defp conflict_deliveries(_, _, _), do: []
+
+  defp execute("pending", data, s, _b, _c, context), do: pending_page(s, data, context)
+  defp execute("reserve", data, s, b, _c, context), do: reserve(data, s, b, nil, context)
+
+  defp execute("wake_intents", data, s, b, _c, context),
+    do: Agentboard.Wake.Reads.preview(s, b, data, context)
+
+  defp execute("wake_reserve", data, s, b, _c, context) do
+    Agentboard.Wake.Transport.reserve(
+      data,
+      s,
+      b,
+      fn deliveries ->
+        reserve(data, s, b, deliveries, context)
+      end,
+      context
+    )
+  end
+
+  defp execute("wake_reconcile", data, s, b, c, context),
+    do:
+      Agentboard.Wake.Transport.reconcile(data, s, b, &execute("reconcile", &1, s, b, c, context))
+
+  defp execute("dispatch", data, s, b, _c, context) do
+    {attempt, batch} = fenced_attempt!(data, s, b)
+    expire_attempt(attempt, batch)
+    agent = Agentboard.Availability.admission_agent(s.id)
+
+    source_states =
+      Enum.map(batch.delivery_ids, fn id ->
+        delivery = Ash.get!(Delivery, id)
+
+        Map.put(
+          Agentboard.Delivery.ConflictConsumer.delivery_state(delivery, context),
+          :delivery_id,
+          id
+        )
+      end)
+
+    reasons =
+      Enum.flat_map(source_states, fn result ->
+        if result.state == "pending", do: [], else: ["source_" <> result.state]
+      end)
+
+    reasons =
+      reasons
+      |> add_reason(not enabled?(s) or s.paused, "cooperation_unavailable")
+      |> add_reason(
+        not is_nil(agent.retired_at) or not Agentboard.Availability.active?(agent),
+        "agent_unavailable"
+      )
+      |> add_reason(
+        b.active_attempt_id != attempt.id or Ash.get!(Attempt, attempt.id).status != "reserved",
+        "attempt_not_reserved"
+      )
+      |> add_reason(
+        Enum.any?(
+          batch.delivery_ids,
+          &(Ash.get!(Delivery, &1).state not in ~w(pending received))
+        ),
+        "delivery_resolved"
+      )
+
+    %{
+      dispatch_allowed: reasons == [],
+      reason_codes: Enum.uniq(reasons),
+      source_state: source_states,
+      native_publication: "unsupported"
+    }
+  end
+
+  defp execute("bind", data, s, b, _c, _context) do
     valid =
       data["expected_epoch"] == b.epoch and data["host_id"] == s.host_id and
         key?(data["idempotency_key"]) and
@@ -272,9 +384,9 @@ defmodule Agentboard.Cooperation.Runtime do
     end
   end
 
-  defp execute("state", _data, s, b, _c), do: state(s, b)
+  defp execute("state", _data, s, b, _c, _context), do: state(s, b)
 
-  defp execute("doctor", _data, s, b, c) do
+  defp execute("doctor", _data, s, b, c, _context) do
     Map.merge(state(s, b), %{
       scope: c.scope,
       authorized_repos: s.repos,
@@ -283,7 +395,7 @@ defmodule Agentboard.Cooperation.Runtime do
     })
   end
 
-  defp execute("report", data, s, b, _c) do
+  defp execute("report", data, s, b, _c, _context) do
     epoch!(b, data)
 
     if data["connector_state"] not in ~w(healthy degraded disconnected unknown) or
@@ -309,7 +421,7 @@ defmodule Agentboard.Cooperation.Runtime do
     state(s, get(Binding, b.id))
   end
 
-  defp execute(op, data, s, b, _c) when op in ~w(pause resume unbind) do
+  defp execute(op, data, s, b, _c, _context) when op in ~w(pause resume unbind) do
     epoch!(b, data)
 
     if op == "unbind" do
@@ -334,35 +446,22 @@ defmodule Agentboard.Cooperation.Runtime do
     state(get(Subscription, s.id), get(Binding, b.id))
   end
 
-  defp execute("mattermost_inbox", data, s, _b, _c),
+  defp execute("mattermost_inbox", data, s, _b, _c, _context),
     do: Agentboard.Mattermost.InboundStore.page(s, data)
 
-  defp execute("mattermost_ack", data, s, _b, _c) do
+  defp execute("mattermost_ack", data, s, _b, _c, _context) do
     result = InboundStore.acknowledge(s, data)
     suppress_mattermost(s.id)
     result
   end
 
-  defp execute("mattermost_read", data, s, _b, _c),
+  defp execute("mattermost_read", data, s, _b, _c, _context),
     do: Agentboard.Mattermost.InboundStore.read(s, data)
 
-  defp execute("pending", data, s, _b, _c), do: pending_page(s, data)
-
-  defp execute("wake_intents", data, s, b, _c), do: Agentboard.Wake.Reads.preview(s, b, data)
-
-  defp execute("wake_reserve", data, s, b, _c) do
-    Agentboard.Wake.Transport.reserve(data, s, b, fn deliveries ->
-      reserve(data, s, b, deliveries)
-    end)
-  end
-
-  defp execute("wake_result", data, s, b, _c),
+  defp execute("wake_result", data, s, b, _c, _context),
     do: Agentboard.Wake.Transport.result(data, s, b, &result(&1, s, b))
 
-  defp execute("wake_reconcile", data, s, b, c),
-    do: Agentboard.Wake.Transport.reconcile(data, s, b, &execute("reconcile", &1, s, b, c))
-
-  defp execute("responsibilities", data, s, _b, _c) do
+  defp execute("responsibilities", data, s, _b, _c, _context) do
     {cursor, limit} = page_params(data)
 
     query =
@@ -380,7 +479,7 @@ defmodule Agentboard.Cooperation.Runtime do
     page(query, limit, :tasks)
   end
 
-  defp execute("obligations", data, s, _b, _c) do
+  defp execute("obligations", data, s, _b, _c, _context) do
     {cursor, limit} = page_params(data)
 
     query =
@@ -402,10 +501,9 @@ defmodule Agentboard.Cooperation.Runtime do
     page(query, limit, :obligations)
   end
 
-  defp execute("reserve", data, s, b, _c), do: reserve(data, s, b)
-  defp execute("result", data, s, b, _c), do: result(data, s, b)
+  defp execute("result", data, s, b, _c, _context), do: result(data, s, b)
 
-  defp execute("reconcile", data, s, b, credential) do
+  defp execute("reconcile", data, s, b, credential, context) do
     {a, batch} = fenced_attempt!(data, s, b, credential.scope == "host")
     historical = historical_attempt?(a, b)
     unless historical, do: expire_attempt(a, batch)
@@ -432,15 +530,20 @@ defmodule Agentboard.Cooperation.Runtime do
       batch: batch_record(batch, get(Attempt, a.id)),
       deliveries: deliveries,
       receipts: receipts,
-      replay_allowed: not historical and a.status == "not_submitted",
-      source_state: Enum.map(batch.delivery_ids, &delivery_record/1)
+      replay_allowed:
+        not historical and a.status == "not_submitted" and
+          Enum.all?(batch.delivery_ids, fn id ->
+            Agentboard.Delivery.ConflictConsumer.delivery_state(Ash.get!(Delivery, id), context).state ==
+              "pending"
+          end),
+      source_state: Enum.map(batch.delivery_ids, &delivery_record(&1, context))
     }
   end
 
-  defp execute("receipts", data, s, b, _c), do: receipt(data, s, b)
-  defp execute(_, _, _, _, _), do: Ops.reject("not_found", "Worker operation not found")
+  defp execute("receipts", data, s, b, _c, context), do: receipt(data, s, b, context)
+  defp execute(_, _, _, _, _, _), do: Ops.reject("not_found", "Worker operation not found")
 
-  defp reserve(data, s, b, selected \\ nil) do
+  defp reserve(data, s, b, selected, context) do
     Agentboard.Availability.lock_admission()
     epoch!(b, data)
 
@@ -498,11 +601,18 @@ defmodule Agentboard.Cooperation.Runtime do
         ordered =
           if ordinary, do: [ordinary | Enum.reject(rows, &(&1.id == ordinary.id))], else: rows
 
+        ordered =
+          Agentboard.Delivery.ConflictConsumer.admitted_deliveries(
+            ordered,
+            context,
+            &change(&1, %{state: "suppressed"})
+          )
+
         batch_id = Ash.UUID.generate()
         attempt_id = Ash.UUID.generate()
         generation = b.generation + 1
         stamp = Ops.now()
-        {items, payload} = freeze(ordered, batch_id, attempt_id, b.epoch, generation)
+        {items, payload} = freeze(ordered, batch_id, attempt_id, b.epoch, generation, context)
 
         if items == [] do
           %{batch: nil, degraded_reasons: []}
@@ -577,7 +687,7 @@ defmodule Agentboard.Cooperation.Runtime do
     end
   end
 
-  defp receipt(data, s, b) do
+  defp receipt(data, s, b, context) do
     {a, batch} = fenced_attempt!(data, s, b)
     historical = historical_attempt?(a, b)
     ids = data["delivery_ids"]
@@ -613,7 +723,7 @@ defmodule Agentboard.Cooperation.Runtime do
       # deliveries or canonical sources now owned by the newer attempt.
       if historical,
         do: Enum.each(ids, &receipt_delivery!(&1, s)),
-        else: Enum.each(ids, &apply_delivery_receipt(&1, data["kind"], s, stamp))
+        else: Enum.each(ids, &apply_current_receipt(&1, data["kind"], s, stamp, context))
 
       r =
         create(Receipt, %{
@@ -639,6 +749,14 @@ defmodule Agentboard.Cooperation.Runtime do
 
       %{receipt: Ops.public(r), idempotent: false, historical: historical}
     end
+  end
+
+  defp apply_current_receipt(id, kind, subscription, stamp, context) do
+    {delivery, _event} = receipt_delivery!(id, subscription)
+
+    if Agentboard.Delivery.ConflictConsumer.delivery_state(delivery, context).state == "pending",
+      do: apply_delivery_receipt(id, kind, subscription, stamp),
+      else: change(delivery, %{state: "suppressed"})
   end
 
   defp receipt_delivery!(id, s) do
@@ -714,7 +832,7 @@ defmodule Agentboard.Cooperation.Runtime do
         })
   end
 
-  defp freeze(rows, batch_id, attempt_id, epoch, gen) do
+  defp freeze(rows, batch_id, attempt_id, epoch, gen, context) do
     header = %{
       batch_id: batch_id,
       attempt_id: attempt_id,
@@ -727,7 +845,9 @@ defmodule Agentboard.Cooperation.Runtime do
     Enum.reduce_while(rows, {[], Jason.encode!(Map.put(header, :items, []))}, fn d,
                                                                                  {items, payload} ->
       next = items ++ [d]
-      rendered = Jason.encode!(Map.put(header, :items, Enum.map(next, &delivery_record(&1.id))))
+
+      rendered =
+        Jason.encode!(Map.put(header, :items, Enum.map(next, &delivery_record(&1.id, context))))
 
       if length(next) <= 20 and byte_size(rendered) <= 10_240,
         do: {:cont, {next, rendered}},
@@ -753,7 +873,7 @@ defmodule Agentboard.Cooperation.Runtime do
     }
   end
 
-  defp delivery_record(id) do
+  defp delivery_record(id, context) do
     d = get(Delivery, id)
     e = get(Event, d.event_id)
 
@@ -769,6 +889,7 @@ defmodule Agentboard.Cooperation.Runtime do
       priority: e.priority
     })
     |> maybe_mattermost_reference(e)
+    |> Map.merge(Agentboard.Delivery.ConflictConsumer.project(d, context))
   end
 
   defp maybe_mattermost_reference(record, event) do
@@ -778,9 +899,19 @@ defmodule Agentboard.Cooperation.Runtime do
     end
   end
 
-  defp pending_page(s, data) do
+  defp pending_page(s, data, context) do
     suppress_context(s.id)
     suppress_mattermost(s.id)
+    {rows, limit} = pending_selection(s, data)
+    selected = Enum.take(rows, limit)
+
+    %{
+      deliveries: Enum.map(selected, &delivery_record(&1.id, context)),
+      next_cursor: if(length(rows) > limit, do: List.last(selected).id, else: nil)
+    }
+  end
+
+  defp pending_selection(s, data) do
     {cursor, limit} = page_params(data)
 
     query =
@@ -790,12 +921,7 @@ defmodule Agentboard.Cooperation.Runtime do
 
     query = if cursor != "", do: Ash.Query.filter(query, id > ^cursor), else: query
     rows = query |> Ash.Query.limit(limit + 1) |> Ash.read!()
-    selected = Enum.take(rows, limit)
-
-    %{
-      deliveries: Enum.map(selected, &delivery_record(&1.id)),
-      next_cursor: if(length(rows) > limit, do: List.last(selected).id, else: nil)
-    }
+    {rows, limit}
   end
 
   defp pending_rows(id, limit) do
@@ -957,7 +1083,7 @@ defmodule Agentboard.Cooperation.Runtime do
       ids = [Keyword.get(opts, :recipient) | recipient_ids]
 
       case fallback_message(event) do
-        nil -> send_fallback(event, ids, actor)
+        nil -> send_fallback(event, ids, actor, opts)
         message -> {:adopted, message}
       end
     else
@@ -994,7 +1120,7 @@ defmodule Agentboard.Cooperation.Runtime do
     |> Ash.read_one!()
   end
 
-  defp send_fallback(event, recipient_ids, actor) do
+  defp send_fallback(event, recipient_ids, actor, opts) do
     chain =
       recipient_ids
       |> Enum.reject(&(&1 in [nil, @captain_sentinel]))
@@ -1019,7 +1145,8 @@ defmodule Agentboard.Cooperation.Runtime do
             "kind" => "note",
             "body" => event.summary <> "\n" <> fallback_marker(event.source_key)
           },
-          Ops.now()
+          Ops.now(),
+          Keyword.get(opts, :capture_notice?, true)
         )
 
       {:sent, message}

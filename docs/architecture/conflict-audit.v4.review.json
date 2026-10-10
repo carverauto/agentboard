@@ -1,0 +1,62 @@
+{
+  "deterministic": {
+    "schemaVersion": 1,
+    "ok": true,
+    "command": "deliver",
+    "type": "workflow",
+    "input": "/Users/mfreeman/.local/share/agentboard/treehouse-v3.1.2-server-conflict-routing/.treehouse/agentboard-obligation-source-115218/1/agentboard-obligation-source/docs/architecture/conflict-audit.v4.workflow.json",
+    "output": "/Users/mfreeman/.local/share/agentboard/treehouse-v3.1.2-server-conflict-routing/.treehouse/agentboard-obligation-source-115218/1/agentboard-obligation-source/docs/architecture/conflict-audit.v4.html",
+    "specification": {
+      "sha256": "8e0abc5103cc1a3429d1011c9b0db3431cd1f83dd6e2df0c8f3f3fa664f21271",
+      "bytes": 3627
+    },
+    "artifact": {
+      "sha256": "b7e9d34db1be9a9e196f306a958dfbb13242357257bb107939d7264bf9e39fe7",
+      "bytes": 710195
+    },
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "automated_browser": {
+    "receipt": "conflict-audit.v4.visual-check.json",
+    "status": "pass",
+    "viewports": [
+      "1440x900",
+      "1600x1000",
+      "1920x1080",
+      "2048x1320"
+    ]
+  },
+  "perceptual_review": {
+    "status": "pass",
+    "method": "actual image inspection",
+    "captures": [
+      "1440x900 dark",
+      "2048x1320 light"
+    ]
+  },
+  "remote": {
+    "owner_and_siblings": "https://carverauto.buildbuddy.io/invocation/9181cc5a-da4b-4240-b631-cc9697154abb",
+    "passed": 4,
+    "latest_persisted_job_actor_busy_and_claim": "https://carverauto.buildbuddy.io/invocation/d1c28971-c40e-44af-a77c-c646c1c8f787"
+  },
+  "quality": {
+    "baseline": "ecf1e24089c12143e6737f7b9165523b1b8b136d",
+    "new_gating": 0,
+    "minor_growth": 1,
+    "earlier_findings_retained": true
+  },
+  "limits": [
+    "No virtual future deadline order in snapshot dry-run",
+    "Disable-time grant cleanup pending",
+    "Frozen/batch consumer currentness pending",
+    "Native custody/publication unsupported",
+    "No deployment, activation, PR or merge"
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Conflict source currentness \u2014 server contract",
+    "quality_profile": "showcase",
+    "animation": "none"
+  },
+  "lanes": [
+    {
+      "id": "fence",
+      "label": "Currentness transaction"
+    },
+    {
+      "id": "refusal",
+      "label": "Refusal before callback",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "source",
+    "base",
+    "repair",
+    "order",
+    "consumer"
+  ],
+  "nodes": [
+    {
+      "id": "source",
+      "lane": "fence",
+      "col": 0,
+      "type": "database",
+      "label": "Source relation",
+      "sublabel": "Event or Message identity",
+      "width": 180,
+      "height": 104
+    },
+    {
+      "id": "base",
+      "lane": "fence",
+      "col": 1,
+      "type": "database",
+      "label": "Base fences",
+      "sublabel": "BaseWatch \u2192 PR \u2192 PollState",
+      "width": 180,
+      "height": 104
+    },
+    {
+      "id": "repair",
+      "lane": "fence",
+      "col": 2,
+      "type": "security",
+      "label": "Repair assignment",
+      "sublabel": "Admission \u2192 agent \u2192 task",
+      "width": 180,
+      "height": 104
+    },
+    {
+      "id": "order",
+      "lane": "fence",
+      "col": 3,
+      "type": "security",
+      "label": "Current order",
+      "sublabel": "Pointer \u00b7 revision \u00b7 selected mode",
+      "width": 180,
+      "height": 104
+    },
+    {
+      "id": "consumer",
+      "lane": "fence",
+      "col": 4,
+      "type": "backend",
+      "label": "Consumer callback",
+      "sublabel": "Same database transaction",
+      "width": 180,
+      "height": 104
+    },
+    {
+      "id": "stale",
+      "lane": "refusal",
+      "col": 3,
+      "type": "security",
+      "label": "No effect",
+      "sublabel": "stale_order / unsupported",
+      "width": 180,
+      "height": 104
+    }
+  ],
+  "edges": [
+    {
+      "id": "source-next",
+      "to": "base",
+      "label": "lock",
+      "from": "source"
+    },
+    {
+      "id": "base-next",
+      "to": "repair",
+      "label": "lock",
+      "from": "base"
+    },
+    {
+      "id": "repair-next",
+      "to": "order",
+      "label": "verify",
+      "from": "repair"
+    },
+    {
+      "id": "order-next",
+      "to": "consumer",
+      "label": "admit",
+      "from": "order"
+    },
+    {
+      "id": "refuse",
+      "to": "stale",
+      "label": "obsolete or unavailable",
+      "role": "error",
+      "variant": "security",
+      "from": "order"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Producer",
+      "items": [
+        "One current order; earliest deadline retained",
+        "Sole #122 selector; immutable Event/order relation"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Consumers",
+      "items": [
+        "#156 must wire the callback before worker locks",
+        "A read-only API response cannot fence later dispatch"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Native boundary",
+      "items": [
+        "Separate upstream adapter after quota reset",
+        "No custody grants, publication or activation"
+      ]
+    }
+  ]
+}

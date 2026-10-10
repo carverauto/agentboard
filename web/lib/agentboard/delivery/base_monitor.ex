@@ -4,6 +4,7 @@ defmodule Agentboard.Delivery.BaseMonitor do
 
   alias Agentboard.Delivery.{
     BaseWatch,
+    ConflictPolicy,
     BaseWorker,
     BaseInvalidationWorker,
     Github,
@@ -40,36 +41,53 @@ defmodule Agentboard.Delivery.BaseMonitor do
   end
 
   def assert_current!(reservation, %{lifecycle: "open"} = result) do
-    ref = result.payload["base_ref"]
+    {owner, repo} = resolve_scope(reservation)
 
-    if is_binary(ref) do
-      {owner, repo} = resolve_scope(reservation)
-      key = id(owner, repo, ref)
-      # Commit acquires this lock BEFORE PollState, matching invalidation's
-      # branch -> PR order. It also closes the check-to-commit race.
-      Repo.statement!("SELECT id FROM delivery_base_watches WHERE id=$1 FOR SHARE", [key])
-      watch = Ash.get!(BaseWatch, key, not_found_error?: false)
-      current = if watch, do: {watch.revision, watch.head_sha}
+    watches =
+      Map.get(reservation, :base_watches, Map.get(reservation, "base_watches", %{})) || %{}
 
-      watches =
-        Map.get(reservation, :base_watches, Map.get(reservation, "base_watches", %{})) || %{}
+    refs = observation_refs(result)
+    strict? = is_binary(result.payload["default_ref"])
 
-      before = Map.get(watches, ref)
+    # Lock all watched identities in the same order before PollState. Default
+    # and actual target may differ; neither is acquired under a PR reservation.
+    admitted =
+      refs
+      |> Enum.sort()
+      |> Map.new(fn {ref, sha} ->
+        key = id(owner, repo, ref)
+        Repo.statement!("SELECT id FROM delivery_base_watches WHERE id=$1 FOR SHARE", [key])
+        watch = Ash.get!(BaseWatch, key, not_found_error?: false)
+        current = if watch, do: {watch.revision, watch.head_sha}
+        before = Map.get(watches, ref)
+        same? = before == current or (is_nil(before) and current == {0, sha})
+        evidence_current? = not strict? or is_nil(watch) or watch.head_sha == sha
 
-      admitted? =
-        before == current or
-          (is_nil(before) and match?({0, _}, current) and elem(current, 1) == result.base_sha)
+        unless same? and evidence_current?,
+          do: Ops.reject("base_changed", "Base watch changed during collection")
 
-      unless admitted?,
-        do: Ops.reject("base_changed", "Base watch changed during collection")
+        {ref, if(watch && watch.last_success_at, do: watch.head_sha, else: sha)}
+      end)
 
-      if watch && watch.last_success_at, do: watch.head_sha, else: result.base_sha
-    else
-      result.base_sha
-    end
+    Map.get(admitted, result.payload["base_ref"], result.base_sha)
   end
 
   def assert_current!(_reservation, result), do: result.base_sha
+
+  defp observation_refs(result) do
+    base = result.payload["base_ref"]
+
+    refs =
+      if is_binary(base),
+        do: %{base => result.payload["evaluation_base_sha"] || result.base_sha},
+        else: %{}
+
+    default = result.payload["default_ref"]
+
+    if is_binary(default) and is_binary(result.payload["default_tip_sha"]),
+      do: Map.put(refs, default, result.payload["default_tip_sha"]),
+      else: refs
+  end
 
   defp resolve_scope(reservation) do
     owner = Map.get(reservation, :owner, Map.get(reservation, "owner"))
@@ -90,10 +108,14 @@ defmodule Agentboard.Delivery.BaseMonitor do
   end
 
   def enroll(pr, observation) do
-    ref = observation.payload["base_ref"]
-
-    if observation.lifecycle == "open" and is_binary(ref) do
-      Ops.transaction(fn -> enroll_branch(pr.owner, pr.repo, ref, observation.base_sha) end)
+    if observation.lifecycle == "open" do
+      Ops.transaction(fn ->
+        observation_refs(observation)
+        |> Enum.sort()
+        |> Enum.each(fn {ref, sha} ->
+          enroll_branch(pr.owner, pr.repo, ref, sha)
+        end)
+      end)
     else
       {:ok, :skipped}
     end
@@ -119,16 +141,16 @@ defmodule Agentboard.Delivery.BaseMonitor do
         # Catch the crash gap between a committed PR observation and enrollment.
         %{rows: missing} =
           Repo.statement!(
-            "SELECT DISTINCT p.owner,p.repo,s.base_ref,s.base_sha FROM delivery_poll_states s JOIN delivery_pull_requests p ON p.id=s.id WHERE s.enabled AND s.lifecycle='open' AND s.base_ref IS NOT NULL AND s.base_sha IS NOT NULL AND NOT EXISTS (SELECT 1 FROM delivery_base_watches b WHERE b.owner=p.owner AND b.repo=p.repo AND b.ref=s.base_ref) ORDER BY p.owner,p.repo,s.base_ref,s.base_sha LIMIT 100",
-            []
+            "SELECT DISTINCT candidates.owner,candidates.repo,candidates.ref,candidates.sha FROM (SELECT p.owner,p.repo,s.base_ref AS ref,COALESCE(c.payload->>'evaluation_base_sha',s.base_sha) AS sha FROM delivery_poll_states s JOIN delivery_pull_requests p ON p.id=s.id LEFT JOIN delivery_ci_snapshots c ON c.id=s.snapshot_id WHERE s.enabled AND s.lifecycle='open' UNION ALL SELECT p.owner,p.repo,c.payload->>'default_ref',c.payload->>'default_tip_sha' FROM delivery_poll_states s JOIN delivery_pull_requests p ON p.id=s.id JOIN delivery_ci_snapshots c ON c.id=s.snapshot_id WHERE $1 AND s.enabled AND s.lifecycle='open') candidates WHERE candidates.ref IS NOT NULL AND candidates.sha IS NOT NULL AND NOT EXISTS (SELECT 1 FROM delivery_base_watches b WHERE b.owner=candidates.owner AND b.repo=candidates.repo AND b.ref=candidates.ref) ORDER BY candidates.owner,candidates.repo,candidates.ref,candidates.sha LIMIT 100",
+            [ConflictPolicy.observe_defaults?()]
           )
 
         Enum.each(missing, fn [owner, repo, ref, sha] -> enroll_branch(owner, repo, ref, sha) end)
 
         %{rows: due} =
           Repo.statement!(
-            "SELECT b.id FROM delivery_base_watches b WHERE b.next_poll_at<=clock_timestamp() AND (b.lease_expires_at IS NULL OR b.lease_expires_at<=clock_timestamp()) AND EXISTS (SELECT 1 FROM delivery_poll_states s JOIN delivery_pull_requests p ON p.id=s.id WHERE s.enabled AND s.lifecycle='open' AND p.owner=b.owner AND p.repo=b.repo AND s.base_ref=b.ref) ORDER BY b.next_poll_at,b.id LIMIT 10",
-            []
+            "SELECT b.id FROM delivery_base_watches b WHERE b.next_poll_at<=clock_timestamp() AND (b.lease_expires_at IS NULL OR b.lease_expires_at<=clock_timestamp()) AND EXISTS (SELECT 1 FROM delivery_poll_states s JOIN delivery_pull_requests p ON p.id=s.id WHERE s.enabled AND s.lifecycle='open' AND p.owner=b.owner AND p.repo=b.repo AND (s.base_ref=b.ref OR ($1 AND s.default_ref=b.ref))) ORDER BY b.next_poll_at,b.id LIMIT 10",
+            [ConflictPolicy.observe_defaults?()]
           )
 
         Enum.each(due, fn [key] -> %{"id" => key} |> BaseWorker.new() |> Oban.insert!() end)
@@ -164,8 +186,8 @@ defmodule Agentboard.Delivery.BaseMonitor do
     Ops.transaction(fn ->
       %{rows: rows} =
         Repo.statement!(
-          "SELECT b.id FROM delivery_base_watches b WHERE b.id=$1 AND b.next_poll_at<=clock_timestamp() AND (b.lease_expires_at IS NULL OR b.lease_expires_at<=clock_timestamp()) AND EXISTS (SELECT 1 FROM delivery_poll_states s JOIN delivery_pull_requests p ON p.id=s.id WHERE s.enabled AND s.lifecycle='open' AND p.owner=b.owner AND p.repo=b.repo AND s.base_ref=b.ref) FOR UPDATE OF b SKIP LOCKED",
-          [key]
+          "SELECT b.id FROM delivery_base_watches b WHERE b.id=$1 AND b.next_poll_at<=clock_timestamp() AND (b.lease_expires_at IS NULL OR b.lease_expires_at<=clock_timestamp()) AND EXISTS (SELECT 1 FROM delivery_poll_states s JOIN delivery_pull_requests p ON p.id=s.id WHERE s.enabled AND s.lifecycle='open' AND p.owner=b.owner AND p.repo=b.repo AND (s.base_ref=b.ref OR ($2 AND s.default_ref=b.ref))) FOR UPDATE OF b SKIP LOCKED",
+          [key, ConflictPolicy.observe_defaults?()]
         )
 
       if rows != [] do
@@ -256,29 +278,11 @@ defmodule Agentboard.Delivery.BaseMonitor do
           else
             %{rows: rows} =
               Repo.statement!(
-                "SELECT s.id FROM delivery_poll_states s JOIN delivery_pull_requests p ON p.id=s.id WHERE s.enabled AND s.lifecycle='open' AND p.owner=$1 AND p.repo=$2 AND s.base_ref=$3 AND s.id>$4 ORDER BY s.id LIMIT 100 FOR UPDATE OF s",
-                [b.owner, b.repo, b.ref, cursor]
+                "SELECT s.id FROM delivery_poll_states s JOIN delivery_pull_requests p ON p.id=s.id WHERE s.enabled AND s.lifecycle='open' AND p.owner=$1 AND p.repo=$2 AND (s.base_ref=$3 OR ($5 AND s.default_ref=$3)) AND s.id>$4 ORDER BY s.id LIMIT 100 FOR UPDATE OF s",
+                [b.owner, b.repo, b.ref, cursor, ConflictPolicy.observe_defaults?()]
               )
 
-            Enum.each(rows, fn [key] ->
-              s = Ash.get!(PollState, key)
-
-              if s.expected_base_sha != b.head_sha do
-                Ops.update(
-                  s,
-                  :invalidate_base,
-                  %{
-                    generation: s.generation + 1,
-                    expected_base_sha: b.head_sha,
-                    last_error: "base_changed",
-                    next_poll_at: Ops.now()
-                  },
-                  @actor
-                )
-
-                Scheduling.enqueue(key)
-              end
-            end)
+            Enum.each(rows, fn [key] -> invalidate_pr(Ash.get!(PollState, key), b) end)
 
             if length(rows) == 100,
               do: enqueue_page(b.id, revision, List.last(rows) |> hd()),
@@ -294,6 +298,32 @@ defmodule Agentboard.Delivery.BaseMonitor do
       end
     else
       snooze()
+    end
+  end
+
+  defp invalidate_pr(state, watch) do
+    target_changed? = state.base_ref == watch.ref and state.expected_base_sha != watch.head_sha
+
+    default_changed? =
+      state.default_ref == watch.ref and state.expected_default_sha != watch.head_sha
+
+    if target_changed? or default_changed? do
+      Ops.update(
+        state,
+        :invalidate_base,
+        %{
+          generation: state.generation + 1,
+          expected_base_sha:
+            if(target_changed?, do: watch.head_sha, else: state.expected_base_sha),
+          expected_default_sha:
+            if(default_changed?, do: watch.head_sha, else: state.expected_default_sha),
+          last_error: if(target_changed?, do: "base_changed", else: "default_changed"),
+          next_poll_at: Ops.now()
+        },
+        @actor
+      )
+
+      Scheduling.enqueue(state.id)
     end
   end
 

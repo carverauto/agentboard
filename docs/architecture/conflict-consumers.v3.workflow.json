@@ -1,0 +1,197 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Frozen conflict notification \u2014 reserve and dispatch",
+    "quality_profile": "showcase",
+    "animation": "none"
+  },
+  "lanes": [
+    {
+      "id": "inbox",
+      "label": "Source and refusal evidence"
+    },
+    {
+      "id": "server",
+      "label": "Server transaction"
+    },
+    {
+      "id": "host",
+      "label": "Protected host boundary"
+    }
+  ],
+  "mainPath": [
+    "worker_source",
+    "batch_prefix",
+    "current_order",
+    "frozen_bytes",
+    "dispatch_gate",
+    "native_input"
+  ],
+  "nodes": [
+    {
+      "id": "worker_source",
+      "lane": "server",
+      "col": 0,
+      "type": "messagebus",
+      "label": "Selected Event",
+      "sublabel": "Existing worker delivery",
+      "width": 172,
+      "height": 104
+    },
+    {
+      "id": "inbox_source",
+      "lane": "inbox",
+      "col": 0,
+      "type": "messagebus",
+      "label": "Canonical Message",
+      "sublabel": "Typed inbox wake",
+      "width": 172,
+      "height": 104
+    },
+    {
+      "id": "batch_prefix",
+      "lane": "server",
+      "col": 1,
+      "type": "database",
+      "label": "Sorted batch fence",
+      "sublabel": "Watches \u2192 PRs \u2192 polls",
+      "width": 172,
+      "height": 104
+    },
+    {
+      "id": "current_order",
+      "lane": "server",
+      "col": 2,
+      "type": "security",
+      "label": "Current order",
+      "sublabel": "Recipient, repair and revision",
+      "width": 172,
+      "height": 104
+    },
+    {
+      "id": "frozen_bytes",
+      "lane": "server",
+      "col": 3,
+      "type": "database",
+      "label": "Frozen payload",
+      "sublabel": "Closed order_ref, exact hash",
+      "width": 172,
+      "height": 104
+    },
+    {
+      "id": "dispatch_gate",
+      "lane": "server",
+      "col": 4,
+      "type": "security",
+      "label": "Dispatch check",
+      "sublabel": "Same source fence, before I/O",
+      "width": 172,
+      "height": 104
+    },
+    {
+      "id": "native_input",
+      "lane": "host",
+      "col": 4,
+      "type": "external",
+      "label": "Native notification",
+      "sublabel": "Outside database transaction",
+      "width": 172,
+      "height": 104
+    },
+    {
+      "id": "obsolete_source",
+      "lane": "inbox",
+      "col": 2,
+      "type": "security",
+      "label": "Obsolete source",
+      "sublabel": "No new reservation",
+      "width": 172,
+      "height": 104
+    },
+    {
+      "id": "obsolete_batch",
+      "lane": "inbox",
+      "col": 4,
+      "type": "security",
+      "label": "Dispatch denied",
+      "sublabel": "Bytes and evidence retained",
+      "width": 172,
+      "height": 104
+    }
+  ],
+  "edges": [
+    {
+      "id": "selected-worker",
+      "from": "worker_source",
+      "to": "batch_prefix",
+      "role": "main"
+    },
+    {
+      "id": "selected-inbox",
+      "from": "inbox_source",
+      "to": "batch_prefix",
+      "role": "branch",
+      "label": "Existing wake.nudge"
+    },
+    {
+      "id": "prefix-current",
+      "from": "batch_prefix",
+      "to": "current_order",
+      "role": "main"
+    },
+    {
+      "id": "current-freeze",
+      "from": "current_order",
+      "to": "frozen_bytes",
+      "role": "main",
+      "label": "Current"
+    },
+    {
+      "id": "freeze-dispatch",
+      "from": "frozen_bytes",
+      "to": "dispatch_gate",
+      "role": "main",
+      "label": "Exact attempt"
+    },
+    {
+      "id": "dispatch-io",
+      "from": "dispatch_gate",
+      "to": "native_input",
+      "role": "main",
+      "label": "Commit, then I/O"
+    },
+    {
+      "id": "source-stale",
+      "from": "current_order",
+      "to": "obsolete_source",
+      "role": "error",
+      "label": "Stale or disabled"
+    },
+    {
+      "id": "batch-stale",
+      "from": "dispatch_gate",
+      "to": "obsolete_batch",
+      "role": "error",
+      "label": "Recheck failed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One currentness contract",
+      "items": [
+        "Global branch/PR prefix precedes policy, repair and worker locks.",
+        "New arrivals without that prefix defer to the next request."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Transport and publication differ",
+      "items": [
+        "Pre-I/O denial proves not submitted; cancellation after I/O retains uncertainty.",
+        "Notification evidence grants no PR write or native custody."
+      ]
+    }
+  ]
+}

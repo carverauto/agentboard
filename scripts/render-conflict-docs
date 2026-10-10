@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Regenerate portable #169 documents from tracked contracts and diagrams."""
+from pathlib import Path
+import base64,hashlib,html,re
+root=Path(__file__).resolve().parent.parent
+style=(root/'docs/architecture/conflict-docs.css').read_text()
+def pre(path):return '<pre>'+html.escape((root/path).read_text())+'</pre>'
+def details(path):return '<details><summary>'+html.escape(path)+'</summary>'+pre(path)+'</details>'
+def diagram(path,title):
+ b64=base64.b64encode((root/path).read_bytes()).decode();return '<section><h2>'+title+'</h2><iframe title="'+title+'" src="data:text/html;base64,'+b64+'"></iframe></section>'
+base='docs/architecture/'
+sources=[
+ 'web/lib/agentboard/eligibility.ex','web/lib/agentboard/queue_admission.ex',
+ 'web/lib/agentboard/delivery/publication.ex','web/lib/agentboard/delivery/publication_binding.ex',
+ 'web/lib/agentboard/delivery/publication_recovery.ex','web/lib/agentboard/delivery/unlinked_publications.ex',
+ 'web/lib/agentboard/delivery/publication_recovery_finding.ex','web/lib/agentboard/delivery/discovery.ex',
+ 'web/lib/agentboard/delivery/inventory.ex','web/lib/agentboard/delivery/github_http.ex',
+ 'web/lib/agentboard/delivery/provider_admission.ex','build/integration/publication_binding_api_test.py',
+ 'web/lib/agentboard/delivery/conflict_currentness.ex','web/lib/agentboard/delivery/conflict_consumer.ex',
+ 'web/lib/agentboard/delivery/conflict_routing.ex','web/lib/agentboard/delivery/conflict_orders.ex',
+ 'web/lib/agentboard/delivery/conflict_disposition.ex','web/lib/agentboard/delivery/rebase.ex',
+ 'web/lib/agentboard/delivery/rebase_follow_up.ex','web/lib/agentboard/schema_version.ex',
+ 'web/lib/agentboard/delivery/reads.ex','web/lib/agentboard_web/components/conflict_order_notice.ex',
+ 'build/integration/conflict_default_watch_test.py','build/integration/coop_inbox_fallback_test.py',
+ 'web/priv/repo/migrations/20261008003200_conflict_routing.exs',
+ 'web/lib/agentboard/delivery/conflict_policy.ex','web/lib/agentboard/delivery/conflict_dry_run.ex',
+ 'web/lib/agentboard/delivery/conflict_evaluation.ex','web/lib/agentboard/delivery/conflict_deadline_audit.ex',
+ 'web/lib/agentboard/cooperation/runtime.ex','web/lib/agentboard/wake/reads.ex','web/lib/agentboard/wake/transport.ex',
+ 'internal/worker/runtime.go','internal/worker/conflict_dispatch_test.go','build/integration/conflict_order_sources_test.py',
+ 'build/integration/conflict_routing_test.py']
+change='openspec/changes/add-server-conflict-routing/'
+formal=[change+x for x in ('proposal.md','design.md','tasks.md','specs/pr-conflict-routing/spec.md','specs/publication-admission/spec.md')]
+page='<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Conflict routing — publication recovery and consumers</title><style>'+style+'</style><main>'
+page+='<h1>Conflict tracking survives publication and notification gaps</h1><p>Server checkpoint for #169 and the shared #170 eligibility contract. Snapshot/deadline audit, repair-only routing, canonical inbox adoption and frozen worker dispatch use retained evidence. Registered branches now recover missing PR links with unknown authorship and retained ambiguity findings. Native publication custody and live rollout remain unfinished.</p>'
+page+='<nav><a href="#recovery">Publication recovery</a><a href="#consumer">Consumer contract</a><a href="#contract">Eligibility</a><a href="#audit">Audit</a><a href="#resolver">Source resolver</a><a href="#sources">Executable sources</a><a href="#proposal">OpenSpec</a></nav>'
+receipt=(root/base/'conflict-routing-recovery-receipt.md').read_text()
+links=''.join('<a href="'+html.escape(url,quote=True)+'">'+html.escape(label)+'</a> ' for label,url in re.findall(r'\[([^\]]+)\]\((https://[^)]+)\)',receipt))
+page+='<section id="native-recovery"><h2>Preserved native fixes and deadline regression</h2><nav>'+links+'</nav>'+pre(base+'conflict-routing-recovery-receipt.md')+'</section>'
+page+='<section id="recovery"><h2>Registered-branch tracking recovery</h2>'+pre(base+'publication-recovery.v1.md')+'</section>'
+page+=diagram(base+'conflict-consumers.v3.html','Frozen notification reservation and dispatch')
+page+='<section id="consumer"><h2>One consumer contract</h2>'+pre(base+'conflict-consumers.v1.md')+'</section>'
+page+='<p>The preceding audit diagram and its validated snapshot/deadline checkpoint remain retained in <a href="https://agentboard.farm01.carverauto.dev/documents/193">document193</a>. The updated audit contract is embedded below.</p>'
+for identity,title,path in [('contract','Shared eligibility and repair admission',base+'shared-eligibility.v1.md'),('audit','Snapshot/deadline audit and typed capture',base+'conflict-audit-and-capture.v1.md'),('resolver','Canonical source resolver',base+'conflict-source-resolver.v1.md')]:
+ page+='<section id="'+identity+'"><h2>'+title+'</h2>'+pre(path)+'</section>'
+page+='<section id="sources"><h2>Executable sources</h2>'+''.join(details(p) for p in sources)+'</section>'
+page+='<section id="proposal"><h2>OpenSpec implementation and remaining tasks</h2>'+''.join(details(p) for p in formal)+'</section>'
+page+='<p>Design source: Agentboard dark/cyan theme tokens, matching the product. Trusted Archify HTML is embedded unchanged. Browser evidence proves documentation readability; runtime receipts prove the specific tested behavior. No deployment or native publication authority is implied.</p></main></html>'
+for name in ('shared-eligibility-contract.v1.html','server-conflict-routing-eligibility.openspec.html'):(root/base/name).write_text(page)
+print({'bytes':len(page.encode()),'sha256':hashlib.sha256(page.encode()).hexdigest(),'source_files':len(sources),'planning_documents':len(formal)})
+
+# Keep the historical v1 source visible while making its superseding v2
+# contract explicit. The approved planning diagram is retained unchanged.
+contract='<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Conflict routing integration contract v1 — historical</title><style>'+style+'</style><main>'
+contract+='<h1>Conflict routing integration contract v1 — historical</h1><p>The original both-mode Message requirement was superseded by captain decision aca78ca8. The current v2 contract retains Event/Delivery for healthy workers and one canonical Message for inbox fallback. This planning diagram is historical, not runtime or native custody proof.</p>'
+contract+='<section><h2>Current delivery-source contract v2</h2>'+pre(base+'conflict-routing-contract.v2.md')+'</section>'
+contract+=diagram(base+'server-conflict-routing.html','Retained approved planning diagram')
+contract+='<details><summary>Historical v1 source and amendment notice</summary>'+pre(base+'conflict-routing-contract.v1.md')+'</details>'
+contract+='<details><summary>Unchanged closed order reference v1</summary>'+pre(base+'conflict-order-ref.v1.schema.json')+'</details></main></html>'
+(root/base/'conflict-routing-contract.v1.html').write_text(contract)

@@ -1,0 +1,166 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Agentboard conflict repair \u2014 proposed",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "repair",
+      "label": "Bound publication \u2192 verified repair"
+    },
+    {
+      "id": "exception",
+      "label": "Explicit escalation",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "binding",
+    "observation",
+    "order",
+    "selection",
+    "custody",
+    "resolution"
+  ],
+  "nodes": [
+    {
+      "id": "binding",
+      "lane": "repair",
+      "col": 0,
+      "type": "security",
+      "label": "Bind card",
+      "sublabel": "fresh-base admission"
+    },
+    {
+      "id": "observation",
+      "lane": "repair",
+      "col": 1,
+      "type": "external",
+      "label": "Observe PR",
+      "sublabel": "open / link / base"
+    },
+    {
+      "id": "order",
+      "lane": "repair",
+      "col": 2,
+      "type": "database",
+      "label": "Retain order",
+      "sublabel": "one current base",
+      "tag": "45m default"
+    },
+    {
+      "id": "selection",
+      "lane": "repair",
+      "col": 3,
+      "type": "backend",
+      "label": "Route repair",
+      "sublabel": "author / eligible"
+    },
+    {
+      "id": "custody",
+      "lane": "repair",
+      "col": 4,
+      "type": "security",
+      "label": "Fence write",
+      "sublabel": "custody + exact head"
+    },
+    {
+      "id": "resolution",
+      "lane": "repair",
+      "col": 5,
+      "type": "backend",
+      "label": "Prove repair",
+      "sublabel": "new mergeable head"
+    },
+    {
+      "id": "captain",
+      "lane": "exception",
+      "col": 4,
+      "type": "frontend",
+      "label": "Captain lane",
+      "sublabel": "durable reason"
+    }
+  ],
+  "edges": [
+    {
+      "id": "opened",
+      "from": "binding",
+      "to": "observation",
+      "label": "record URL",
+      "role": "main"
+    },
+    {
+      "id": "dirty",
+      "from": "observation",
+      "to": "order",
+      "label": "dirty evidence",
+      "role": "main"
+    },
+    {
+      "id": "deadline",
+      "from": "order",
+      "to": "selection",
+      "label": "deadline / stale",
+      "role": "main"
+    },
+    {
+      "id": "repair-only",
+      "from": "selection",
+      "to": "custody",
+      "label": "repair lease",
+      "role": "main"
+    },
+    {
+      "id": "same-pr",
+      "from": "custody",
+      "to": "resolution",
+      "label": "same PR",
+      "role": "main"
+    },
+    {
+      "id": "unavailable",
+      "from": "selection",
+      "to": "captain",
+      "label": "no free seat",
+      "role": "branch",
+      "variant": "security"
+    },
+    {
+      "id": "unsupported",
+      "from": "custody",
+      "to": "captain",
+      "label": "unsafe handoff",
+      "role": "branch",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Reuse delivery",
+      "items": [
+        "BaseWatch + fenced observations already exist.",
+        "New tips supersede orders; unknown is retried."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Preserve ownership",
+      "items": [
+        "Only the repair changes hands.",
+        "Source lease and author credit stay intact."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Evidence closes work",
+      "items": [
+        "A reply or green checks do not resolve a conflict.",
+        "Dry-run records plans without task or branch writes."
+      ]
+    }
+  ]
+}

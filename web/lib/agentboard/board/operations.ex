@@ -239,6 +239,8 @@ defmodule Agentboard.Board.Operations do
         Agentboard.Availability.lock_admission()
         identity!(actor)
 
+        Agentboard.QueueAdmission.lock_action(action, actor, data)
+
         if action == "create" do
           stamp = now()
 
@@ -261,6 +263,8 @@ defmodule Agentboard.Board.Operations do
           lock_task(id)
           task = fetch!(Task, id, "Task not found")
           stamp = now()
+
+          Agentboard.Delivery.Rebase.guard_pr_identity!(id, data)
 
           attrs =
             Agentboard.Board.Transition.attributes(task, action, actor["agent"], data, stamp)
@@ -709,6 +713,10 @@ defmodule Agentboard.Board.Operations do
              TaskEvent,
              Agentboard.Board.AuditEvent,
              Agentboard.Delivery.PullRequest,
+             Agentboard.Delivery.PublicationBinding,
+             Agentboard.Delivery.ConflictOrder,
+             Agentboard.Delivery.ConflictSource,
+             Agentboard.Delivery.PublicationGrant,
              Agentboard.Delivery.DuplicateFinding,
              Agentboard.Delivery.TaskLink,
              Agentboard.Delivery.PollState,

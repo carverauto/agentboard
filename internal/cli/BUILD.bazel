@@ -2,7 +2,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "cli",
-    srcs = ["agent_tokens.go", "availability.go", "scope.go", "fleet.go", "decisions.go", "host.go", "root.go", "board.go", "messages.go", "message_triage.go", "watch.go", "quota.go", "documents.go", "skills.go", "context.go", "worker.go", "worker_mattermost.go", "chat.go", "prs.go", "seat.go", "seat_attach.go", "admin.go", "admin_config.go", "admin_converge.go", "admin_rollout.go", "admin_apply.go"],
+    srcs = ["agent_tokens.go", "availability.go", "scope.go", "fleet.go", "decisions.go", "host.go", "root.go", "board.go", "messages.go", "message_triage.go", "watch.go", "quota.go", "documents.go", "skills.go", "context.go", "worker.go", "worker_mattermost.go", "chat.go", "prs.go", "publication.go", "seat.go", "seat_attach.go", "admin.go", "admin_config.go", "admin_converge.go", "admin_rollout.go", "admin_apply.go"],
     importpath = "github.com/carverauto/agentboard/internal/cli",
     visibility = ["//:__subpackages__"],
     deps = [

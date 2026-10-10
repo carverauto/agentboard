@@ -1,0 +1,50 @@
+{
+  "deterministic": {
+    "schemaVersion": 1,
+    "ok": true,
+    "command": "deliver",
+    "type": "workflow",
+    "input": "/Users/mfreeman/.local/share/agentboard/treehouse-v3.1.2-server-conflict-routing/.treehouse/agentboard-obligation-source-115218/1/agentboard-obligation-source/docs/architecture/shared-eligibility.v1.workflow.json",
+    "output": "/Users/mfreeman/.local/share/agentboard/treehouse-v3.1.2-server-conflict-routing/.treehouse/agentboard-obligation-source-115218/1/agentboard-obligation-source/docs/architecture/shared-eligibility.v1.html",
+    "specification": {
+      "sha256": "1e7ba70385867c35f9b7a92d89fd71dd2da09b7488216b73f2c7bacf0fa92a4d",
+      "bytes": 3191
+    },
+    "artifact": {
+      "sha256": "1a513ca833f625c9bc3d681d63ae1c440c1ccec8014fa49db56c3199dba23677",
+      "bytes": 708194
+    },
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "automated_browser": {
+    "receipt": "shared-eligibility.v1.visual-check.json",
+    "status": "pass",
+    "viewports": [
+      "1440x900",
+      "1600x1000",
+      "1920x1080",
+      "2048x1320"
+    ]
+  },
+  "perceptual_review": {
+    "status": "pass",
+    "method": "image inspection",
+    "captures": [
+      "1440x900 dark",
+      "2048x1320 light"
+    ]
+  },
+  "remote_suite": {
+    "status": "10 passed",
+    "url": "https://carverauto.buildbuddy.io/invocation/db52c2f7-fb6f-4475-b87f-8ed681e0aa9a"
+  },
+  "native_custody": "unsupported",
+  "worker_wake_consumer_integration": "pending"
+}

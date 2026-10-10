@@ -1,0 +1,171 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Conflict evaluation \u2014 apply or audit",
+    "quality_profile": "showcase",
+    "animation": "none"
+  },
+  "lanes": [
+    {
+      "id": "audit",
+      "label": "Dry-run evidence"
+    },
+    {
+      "id": "admission",
+      "label": "Server routing transaction"
+    },
+    {
+      "id": "captain",
+      "label": "Captain escalation",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "timer",
+    "fenced",
+    "candidate",
+    "transfer",
+    "effect"
+  ],
+  "nodes": [
+    {
+      "id": "timer",
+      "lane": "admission",
+      "col": 0,
+      "type": "backend",
+      "label": "Persisted order",
+      "sublabel": "Deadline or seat change",
+      "width": 170,
+      "height": 104
+    },
+    {
+      "id": "fenced",
+      "lane": "admission",
+      "col": 1,
+      "type": "database",
+      "label": "Canonical evidence",
+      "sublabel": "BaseWatch \u2192 PR \u2192 PollState",
+      "width": 170,
+      "height": 104
+    },
+    {
+      "id": "candidate",
+      "lane": "admission",
+      "col": 2,
+      "type": "security",
+      "label": "Shared eligibility",
+      "sublabel": "Policy \u2192 seat gate \u2192 agent",
+      "width": 170,
+      "height": 104
+    },
+    {
+      "id": "transfer",
+      "lane": "admission",
+      "col": 3,
+      "type": "database",
+      "label": "Repair/order fence",
+      "sublabel": "Recheck current assignment",
+      "width": 170,
+      "height": 104
+    },
+    {
+      "id": "effect",
+      "lane": "admission",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Selected source",
+      "sublabel": "Sole worker or inbox election",
+      "width": 170,
+      "height": 104
+    },
+    {
+      "id": "finding",
+      "lane": "captain",
+      "col": 2,
+      "type": "security",
+      "label": "Retained decision",
+      "sublabel": "No seat or unsupported custody",
+      "width": 170,
+      "height": 104
+    },
+    {
+      "id": "audit-record",
+      "lane": "audit",
+      "col": 3,
+      "type": "database",
+      "label": "Retained plan",
+      "sublabel": "No repair or wake effect",
+      "width": 170,
+      "height": 104
+    }
+  ],
+  "edges": [
+    {
+      "id": "admit-0",
+      "from": "timer",
+      "to": "fenced",
+      "label": "lock"
+    },
+    {
+      "id": "admit-1",
+      "from": "fenced",
+      "to": "candidate",
+      "label": "evaluate"
+    },
+    {
+      "id": "admit-2",
+      "from": "candidate",
+      "to": "transfer",
+      "label": "recheck"
+    },
+    {
+      "id": "admit-3",
+      "from": "transfer",
+      "to": "effect",
+      "label": "apply"
+    },
+    {
+      "id": "missing-seat",
+      "from": "transfer",
+      "to": "finding",
+      "label": "apply: no seat",
+      "role": "error",
+      "variant": "security"
+    },
+    {
+      "id": "dry-plan",
+      "from": "transfer",
+      "to": "audit-record",
+      "label": "dry-run",
+      "role": "branch",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Eligibility",
+      "items": [
+        "Managed repository and label scope; live active seat",
+        "No retirement or captain hold; queue below N"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Admission",
+      "items": [
+        "Queue \u2192 least recent assignment \u2192 full agent ID",
+        "Per-seat gates prevent concurrent oversubscription"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Mode boundary",
+      "items": [
+        "Dry-run records the selected plan only",
+        "Apply changes the repair; native custody unsupported"
+      ]
+    }
+  ]
+}

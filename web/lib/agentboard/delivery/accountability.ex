@@ -86,6 +86,7 @@ defmodule Agentboard.Delivery.Accountability do
     task_id = "ci-repair-" <> oid
     source_ids = links |> Enum.map(& &1.task_id) |> Enum.join(", ")
     Availability.lock_admission()
+    Agentboard.QueueAdmission.lock(owner)
 
     task =
       Ops.create(
@@ -248,6 +249,7 @@ defmodule Agentboard.Delivery.Accountability do
   def responsibility(id, data) do
     Ops.transaction(fn ->
       Availability.lock_admission()
+      Agentboard.QueueAdmission.lock(data["to"])
       initial = Ops.fetch!(Obligation, id, "Obligation not found")
       Ops.lock_task(initial.repair_task_id)
       lock_obligation(id)

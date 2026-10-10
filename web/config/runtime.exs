@@ -41,6 +41,29 @@ config :agentboard, :message_mode, System.get_env("AGENTBOARD_MESSAGE_MODE", "bo
 config :agentboard, :coordinator_id, System.get_env("AGENTBOARD_COORDINATOR_ID")
 config :agentboard, :captain_token, System.get_env("AGENTBOARD_CAPTAIN_TOKEN")
 
+# Default-off conflict policy; provider observation remains independently enabled.
+conflict_mode = System.get_env("AGENTBOARD_CONFLICT_ROUTING_MODE", "disabled")
+
+if conflict_mode not in ~w(disabled dry_run apply),
+  do: raise("AGENTBOARD_CONFLICT_ROUTING_MODE must be disabled, dry_run or apply")
+
+config :agentboard, :conflict_routing_mode, conflict_mode
+
+for {key, variable, default, range} <- [
+      {:queue_limit, "AGENTBOARD_QUEUE_LIMIT", "2", 1..100},
+      {:conflict_deadline_seconds, "AGENTBOARD_CONFLICT_DEADLINE_SECONDS", "2700", 60..86400}
+    ] do
+  case Integer.parse(System.get_env(variable, default)) do
+    {value, ""} ->
+      if value in range,
+        do: config(:agentboard, key, value),
+        else: raise("#{variable} is outside its supported range")
+
+    _ ->
+      raise("#{variable} must be an integer")
+  end
+end
+
 # GitHub hook secret is separate from agent/captain/worker capabilities. Intake
 # and recovery stay behind the existing PR observation flag.
 config :agentboard,
@@ -61,6 +84,12 @@ config :agentboard,
 config :agentboard,
        :pr_discovery_enabled,
        System.get_env("AGENTBOARD_PR_DISCOVERY_ENABLED", "false") in ["true", "1"]
+
+# Registered-branch recovery uses the existing discovery queue and provider
+# budget. Keep disabled until its separate rollout is authorized.
+config :agentboard,
+       :publication_recovery_enabled,
+       System.get_env("AGENTBOARD_PUBLICATION_RECOVERY_ENABLED", "false") in ["true", "1"]
 
 # Independent scheduler/poll queues; keep off until provider/delivery acceptance.
 config :agentboard,
