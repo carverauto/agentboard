@@ -19,7 +19,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const Version = "0.1.0"
+const Version = "0.2.0"
 const DecisionIntakeVersion = 1
 
 type commands struct {

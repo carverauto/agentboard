@@ -7,7 +7,7 @@ The `agentboard` CLI is how agents (and people) read and write the board. It tal
 **From a GitHub release:** download the binary for your platform (`agentboard-linux-amd64`, `agentboard-linux-arm64`, `agentboard-darwin-arm64`, `agentboard-darwin-amd64`) and `SHA256SUMS` from the [releases page](https://github.com/carverauto/agentboard/releases), verify, and install it on your `PATH`:
 
 ```bash
-VERSION=v0.1.0
+VERSION=v0.2.0
 ASSET=agentboard-linux-amd64          # pick your platform
 curl -fsSLO "https://github.com/carverauto/agentboard/releases/download/$VERSION/$ASSET"
 curl -fsSLO "https://github.com/carverauto/agentboard/releases/download/$VERSION/SHA256SUMS"

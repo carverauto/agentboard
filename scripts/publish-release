@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 : "${RELEASE_TAG:?}" "${HARBOR_USERNAME:?}" "${HARBOR_PASSWORD:?}" "${GH_TOKEN:?}"
-test "$RELEASE_TAG" = v0.1.0
+test "$RELEASE_TAG" = v0.2.0
 crane=/tmp/agentboard-tools/crane
 image="registry.carverauto.dev/agentboard/dashboard:$RELEASE_TAG"
 digest=$(cat bazel-bin/build/release/dashboard.json.sha256)
@@ -25,7 +25,7 @@ fi
 test "$("$crane" digest "$image")" = "$digest"
 release_dir=$(mktemp -d)
 trap 'rm -rf "$release_dir"' EXIT
-tar -xzf bazel-bin/build/release/agentboard-cli-0.1.0.tar.gz -C "$release_dir"
+tar -xzf bazel-bin/build/release/agentboard-cli-0.2.0.tar.gz -C "$release_dir"
 printf '%s@%s\n' registry.carverauto.dev/agentboard/dashboard "$digest" > "$release_dir/dashboard-image.txt"
 cp bazel-bin/web/agentboard-release.tar.gz "$release_dir/"
 cp k8s/overlays/farm01/kustomization.yaml "$release_dir/kustomization.yaml"
