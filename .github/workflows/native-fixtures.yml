@@ -4,7 +4,9 @@ on:
     branches: [main]
     paths:
       - internal/worker/**
+      - internal/nativequeue/codex/**
       - build/integration/*native*
+      - build/integration/codex_queue_test.*
       - build/integration/BUILD.bazel
       - MODULE.bazel
       - .github/workflows/native-fixtures.yml
@@ -12,7 +14,9 @@ on:
     branches: [main]
     paths:
       - internal/worker/**
+      - internal/nativequeue/codex/**
       - build/integration/*native*
+      - build/integration/codex_queue_test.*
       - build/integration/BUILD.bazel
       - MODULE.bazel
       - .github/workflows/native-fixtures.yml
@@ -65,3 +69,8 @@ jobs:
           node build/integration/codex_native_test.mjs \
             "${GITHUB_WORKSPACE}/internal/worker/codex-native.mjs" \
             "${GITHUB_WORKSPACE}/build/integration/codex_native_fixture.mjs"
+      - name: Test Codex native queue fixture
+        run: |
+          set -euo pipefail
+          node build/integration/codex_queue_test.mjs \
+            "${GITHUB_WORKSPACE}/internal/nativequeue/codex/transport.mjs"

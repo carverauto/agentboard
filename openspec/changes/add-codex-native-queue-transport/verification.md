@@ -51,3 +51,23 @@ On 2026-10-10, a fresh fetch confirmed `origin/main` remained at the baseline
 above. All 31 synthetic fixture groups, module and shell syntax, whitespace
 and exact path-scope checks were rerun before the authorized local commit.
 Remote Bazel and native interoperability limitations remain unchanged.
+
+## Hosted standalone CI wiring
+
+The hosted `Native bridge fixtures` workflow now includes both
+`internal/nativequeue/codex/**` and `build/integration/codex_queue_test.*` in its
+pull-request and main-push path filters. A dedicated Codex native queue fixture
+step runs the standalone suite using the workflow's existing checksum-pinned
+Node v22.23.2. Existing fixture steps, credentials and permissions are unchanged.
+
+On 2026-10-10, the new step was executed verbatim in the assistant VM using the
+official Node v22.23.2 Linux archive after verifying the workflow/MODULE SHA-256
+`d60acfe00a2932254bb0ad20e01b0d74397a0875595de719654b214f4b03f307`.
+All 31 groups passed on both pinned Node v22.23.2 and VM Node v24.19.0; Node
+syntax, shell syntax, parsed YAML/event-filter/pin/permission assertions and
+whitespace checks passed. A fresh main fetch remained at the baseline above.
+
+This closes the workflow wiring gap; the hosted result for the added step is
+pending publication of this change. Hosted standalone fixtures are synthetic
+RPC/process/filesystem tests. They do not establish remote Bazel aggregate
+acceptance, installed Codex/native interoperability or activation readiness.
