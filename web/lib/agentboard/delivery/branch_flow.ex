@@ -2,19 +2,14 @@ defmodule Agentboard.Delivery.BranchFlow do
   @moduledoc "Bounded, read-only retained branch evidence. No provider calls, enrollment or inferred branch health."
   alias Agentboard.{Repo, SeatScope}
   alias Agentboard.Delivery.{PullRequest, Reads, WorkflowRun}
-  alias Agentboard.Delivery.BranchFlow.{Inventory, Route, Settings}
+  alias Agentboard.Delivery.BranchFlow.{Inventory, Relations, Route, Settings}
   alias Agentboard.Board.Operations, as: Ops
   require Ash.Query
   require Ecto.Query
 
   @inventory Inventory.sql()
-  @matched """
-  c.id=s.snapshot_id AND c.pull_request_id=p.id AND c.head_sha=s.head_sha
-    AND c.base_sha=s.base_sha AND c.observed_at=s.observed_at AND c.generation=s.generation
-    AND c.payload->>'base_ref'=s.base_ref
-  """
+  @matched Relations.matched_sql()
   @summary_fields ~w(repository open_count terminal_count unknown_lifecycle_count red_count)a
-  @relation_fields ~w(id url number repository base_repo base_ref base_sha head_repo head_ref head_sha expected_base_sha observed_at snapshot_generation poll_generation metadata_available)a
 
   def list(params \\ %{}, opts \\ []) do
     params = if is_map(params), do: params, else: %{"repo" => :invalid}
@@ -46,8 +41,11 @@ defmodule Agentboard.Delivery.BranchFlow do
 
     filters =
       case normalized do
-        {:ok, filters} -> filters
-        _ -> params |> Map.take(~w(repo node_kind node view q show_terminal cursor))
+        {:ok, filters} ->
+          filters
+
+        _ ->
+          params |> Map.take(~w(repo node_kind node view q show_terminal cursor topology_cursor))
       end
 
     settings = protected(:settings, &Settings.read/0)
@@ -69,6 +67,8 @@ defmodule Agentboard.Delivery.BranchFlow do
     cards = inventory.cards
     chooser = chooser(params, stamp)
     table = table(normalized, stamp)
+    topology = topology(normalized, stamp)
+    inspection = inspection(opts, table, topology, stamp)
     attention = attention(params, Enum.map(cards, & &1.repository), stamp)
     budget = protected(:budget, &Reads.budget/0)
 
@@ -109,6 +109,8 @@ defmodule Agentboard.Delivery.BranchFlow do
         end,
       chooser: chooser,
       table: table,
+      topology: topology,
+      inspection: inspection,
       attention: attention,
       unavailable: [:branch_roles, :numeric_divergence]
     })
@@ -159,7 +161,8 @@ defmodule Agentboard.Delivery.BranchFlow do
 
     case result do
       {:ok, {total, ranked, cards}} ->
-        relations = protected(:relations, fn -> relations(Enum.map(cards, & &1.repository)) end)
+        relations =
+          protected(:relations, fn -> relations(Enum.map(cards, & &1.repository), stamp) end)
 
         cards =
           Enum.map(cards, fn card ->
@@ -246,29 +249,21 @@ defmodule Agentboard.Delivery.BranchFlow do
     })
   end
 
-  defp relations(repositories) do
+  defp relations(repositories, stamp) do
     %{rows: rows} =
       Repo.statement!(
         """
-        SELECT relation.* FROM unnest($1::text[]) wanted(repository)
+        SELECT relation.id FROM unnest($1::text[]) wanted(repository)
         CROSS JOIN LATERAL (
-          SELECT p.id,p.url,p.number,p.owner || '/' || p.repo AS repository,
-            p.owner || '/' || p.repo AS base_repo,c.payload->>'base_ref' AS base_ref,c.base_sha,
-            c.payload->>'head_repo' AS head_repo,c.payload->>'head_ref' AS head_ref,c.head_sha,
-            s.expected_base_sha,c.observed_at,c.generation AS snapshot_generation,
-            s.generation AS poll_generation,c.id IS NOT NULL AS metadata_available
-          FROM delivery_pull_requests p JOIN delivery_poll_states s ON s.id=p.id
-          LEFT JOIN delivery_ci_snapshots c ON #{@matched}
+          SELECT p.id FROM delivery_pull_requests p JOIN delivery_poll_states s ON s.id=p.id
           WHERE p.owner || '/' || p.repo=wanted.repository AND s.enabled AND s.lifecycle='open'
           ORDER BY p.id LIMIT 3
-        ) relation ORDER BY relation.repository,relation.id
+        ) relation ORDER BY wanted.repository,relation.id
         """,
         [repositories]
       )
 
-    rows
-    |> Enum.map(&(Enum.zip(@relation_fields, &1) |> Map.new()))
-    |> Enum.group_by(& &1.repository)
+    rows |> List.flatten() |> Relations.load(stamp) |> Enum.group_by(& &1.repository)
   end
 
   defp chooser(params, stamp) do
@@ -323,13 +318,12 @@ defmodule Agentboard.Delivery.BranchFlow do
 
         %{rows: ids} =
           Repo.statement!(
-            "SELECT p.id,c.id IS NOT NULL " <> where <> " ORDER BY p.id LIMIT 21 OFFSET $6",
+            "SELECT p.id " <> where <> " ORDER BY p.id LIMIT 21 OFFSET $6",
             args ++ [offset]
           )
 
         more? = length(ids) > 20
-        proof = ids |> Enum.take(20) |> Map.new(fn [id, matched] -> {id, matched} end)
-        ids = Map.keys(proof)
+        ids = ids |> Enum.take(20) |> List.flatten()
 
         prs =
           PullRequest
@@ -337,8 +331,8 @@ defmodule Agentboard.Delivery.BranchFlow do
           |> Ash.Query.sort(id: :asc)
           |> Ash.Query.limit(20)
           |> Ash.read!()
-          |> Reads.records()
-          |> Enum.map(&qualify_source(&1, proof[&1.pr["id"]]))
+          |> Reads.records(branch_flow: true, as_of: stamp)
+          |> Enum.map(&Relations.qualify/1)
 
         page("table", filters, offset, total, stamp)
         |> with_more("table", filters, offset, more?)
@@ -350,24 +344,166 @@ defmodule Agentboard.Delivery.BranchFlow do
     end
   end
 
-  # The preview fails closed when its exact-source join cannot prove that the
-  # retained snapshot belongs to this poll revision. This is a consumer guard,
-  # not a replacement producer/currentness policy. Failure obligations and their
-  # owners remain intact; historical red is never resolved by a view action.
-  defp qualify_source(row, true), do: Map.put(row, :source_currentness_error, nil)
+  defp topology({:error, error}, stamp), do: empty_section(:relations, stamp, error)
 
-  defp qualify_source(row, _) do
-    Map.merge(row, %{
-      fresh: false,
-      ci_state: if(row.ci_state == "failing", do: "failing", else: "unknown"),
-      merge_state: if(row.merge_state == "conflicting", do: "stale", else: "unknown"),
-      mergeable: nil,
-      mergeable_state: nil,
-      base_ref: nil,
-      draft: nil,
-      source_currentness_error:
-        "Exact snapshot proof missing or mismatched (PR, head, base, observation, generation or ref). Retained failure obligations are unchanged."
-    })
+  defp topology({:ok, filters}, stamp) do
+    if is_nil(filters["repo"]) do
+      empty_section(:relations, stamp, nil)
+    else
+      with {:ok, offset} <- Route.offset(filters["topology_cursor"], "topology", filters),
+           {:ok, result} <- protected(:topology, fn -> topology_page(filters, offset, stamp) end) do
+        result
+      else
+        {:error, error} when is_binary(error) -> empty_section(:relations, stamp, error)
+        _ -> empty_section(:relations, stamp, "Observed PR relationships unavailable")
+      end
+    end
+  end
+
+  defp topology_page(filters, offset, stamp) do
+    case valid_selection(filters["repo"], filters["node_kind"], filters["node"]) do
+      :ok ->
+        args = [filters["repo"], filters["node_kind"], filters["node"]]
+
+        where = """
+        FROM delivery_pull_requests p JOIN delivery_poll_states s ON s.id=p.id
+        WHERE s.enabled AND s.lifecycle='open' AND p.owner || '/' || p.repo=$1
+          AND ($2::text IS DISTINCT FROM 'base' OR s.base_ref=$3)
+          AND ($2::text IS DISTINCT FROM 'pr' OR p.id=$3)
+        """
+
+        total =
+          case protected(:topology_count, fn ->
+                 %{rows: [[count]]} = Repo.statement!("SELECT count(*) " <> where, args)
+                 count
+               end) do
+            {:ok, count} -> count
+            _ -> nil
+          end
+
+        %{rows: ids} =
+          Repo.statement!(
+            "SELECT p.id " <> where <> " ORDER BY p.id LIMIT 21 OFFSET $4",
+            args ++ [offset]
+          )
+
+        relations = ids |> Enum.take(20) |> List.flatten() |> Relations.load(stamp)
+
+        {relations, continuation_error} =
+          case protected(:topology_continuations, fn ->
+                 Relations.with_continuations(relations)
+               end) do
+            {:ok, values} -> {values, nil}
+            _ -> {relations, "Off-page relationship lookup unavailable"}
+          end
+
+        page("topology", filters, offset, total, stamp)
+        |> with_more("topology", filters, offset, length(ids) > 20)
+        |> Map.put(:relations, relations)
+        |> Map.put(:error, expired_page(offset, total) || continuation_error)
+
+      {:error, error} ->
+        empty_section(:relations, stamp, error)
+    end
+  end
+
+  defp inspection(opts, table, topology, stamp) do
+    id = Keyword.get(opts, :inspection_id)
+    mode = Keyword.get(opts, :inspection_mode)
+
+    if is_nil(id) do
+      nil
+    else
+      base =
+        metadata(stamp, %{id: id, mode: mode})
+        |> Map.merge(%{
+          id: id,
+          mode: mode,
+          available: false,
+          record: nil,
+          relation: nil,
+          failures: [],
+          failures_truncated: false,
+          sources: [],
+          sources_truncated: false,
+          detail_path: if(is_binary(id), do: "/prs/" <> URI.encode_www_form(id)),
+          error: "Selected PR is not available on this page."
+        })
+
+      row = if mode == "table", do: Enum.find(table.prs, &(&1.pr["id"] == id))
+      relation = if mode == "topology", do: Enum.find(topology.relations, &(&1.id == id))
+
+      if is_binary(id) and byte_size(id) == 64 and (row || relation) do
+        case protected(:inspection, fn -> inspection_record(id, row, relation, base) end) do
+          {:ok, result} -> result
+          _ -> Map.put(base, :error, "Selected PR inspection unavailable")
+        end
+      else
+        base
+      end
+    end
+  end
+
+  defp inspection_record(id, row, relation, base) do
+    # Reuse the table's already loaded record. A topology selection expands just
+    # this one PR, never all graph nodes and never the unbounded detail history.
+    row =
+      row ||
+        PullRequest
+        |> Ash.Query.filter(id == ^id)
+        |> Ash.Query.limit(1)
+        |> Ash.read!()
+        |> Reads.records(branch_flow: true, as_of: base.as_of)
+        |> Enum.map(&Relations.qualify/1)
+        |> List.first()
+
+    if row do
+      failures = protected(:inspection_failures, fn -> Relations.failures(id) end)
+      sources = protected(:inspection_sources, fn -> inspection_sources(id) end)
+
+      {failure_rows, failures_truncated} =
+        case failures do
+          {:ok, value} -> value
+          _ -> {[], false}
+        end
+
+      {source_rows, sources_truncated} =
+        case sources do
+          {:ok, value} -> value
+          _ -> {[], false}
+        end
+
+      Map.merge(base, %{
+        available: true,
+        record: row,
+        relation: relation || row.relation,
+        failures: failure_rows,
+        failures_truncated: failures_truncated,
+        sources: source_rows,
+        sources_truncated: sources_truncated,
+        error:
+          if(match?({:ok, _}, failures) and match?({:ok, _}, sources),
+            do: nil,
+            else:
+              "Some retained failure or submission sources are unavailable; full details may be incomplete."
+          )
+      })
+    else
+      base
+    end
+  end
+
+  defp inspection_sources(id) do
+    rows =
+      Repo.all(
+        Ecto.Query.from(source in Agentboard.Delivery.TaskLink,
+          where: source.pull_request_id == ^id,
+          order_by: [asc: source.id],
+          limit: 11
+        )
+      )
+
+    {rows |> Enum.take(10) |> Enum.map(&Ops.public/1), length(rows) > 10}
   end
 
   defp valid_selection(nil, _, _), do: :ok
@@ -555,13 +691,19 @@ defmodule Agentboard.Delivery.BranchFlow do
     result = Map.put(result, :projection_revision, revision)
 
     result =
-      Enum.reduce([:inventory, :chooser, :table, :attention], result, fn section, acc ->
-        Map.update!(acc, section, fn value ->
-          value
-          |> Map.put(:projection_revision, revision)
-          |> Map.put(:settings_revision, result.settings_revision)
-        end)
-      end)
+      Enum.reduce(
+        [:inventory, :chooser, :table, :topology, :attention, :inspection],
+        result,
+        fn section, acc ->
+          Map.update!(acc, section, fn value ->
+            if value do
+              value
+              |> Map.put(:projection_revision, revision)
+              |> Map.put(:settings_revision, result.settings_revision)
+            end
+          end)
+        end
+      )
 
     Map.update!(
       result,

@@ -40,10 +40,149 @@ const CaptainWaitingCount = {
 }
 const BranchFlowView = {
   mounted() {
+    this.sequence = Number(this.el.dataset.clientGeneration || 0)
+    this.route = this.el.dataset.routeGeneration
+    this.intent = null
+    this.focusedSelection = null
+    this.routeChanging = false
+    this.returnFocus = null
+    this.returnMode = null
+    this.restore = false
     this.handleEvent("branch-flow-focus", ({id}) => {
       const target = document.getElementById(id)
       if (target && this.el.contains(target)) target.focus()
     })
+    this.sendIntent = (event, values = {}) => {
+      this.sequence = Math.max(this.sequence, Number(this.el.dataset.clientGeneration || 0)) + 1
+      this.pushEvent(event, {...values, route_generation: this.el.dataset.routeGeneration, client_generation: this.sequence})
+    }
+    this.dismiss = restore => {
+      const id = this.intent?.id || this.el.dataset.selectedInspection
+      const mode = this.intent?.mode || this.el.dataset.inspectionMode
+      if (!id) return
+      this.restore = restore
+      this.sendIntent("close_inspection", {id, mode, generation: this.el.dataset.inspectionGeneration})
+      this.intent = {closed: true}
+      this.suppress()
+    }
+    this.suppress = () => {
+      const panel = this.el.querySelector("[data-branch-inspection]")
+      if (!panel) return
+      const pending = Number(this.el.dataset.clientGeneration || 0) < this.sequence
+      const wrong = this.intent?.id && (panel.dataset.branchInspection !== this.intent.id || panel.dataset.mode !== this.intent.mode)
+      panel.hidden = this.routeChanging || (pending && (!!this.intent?.closed || !!wrong))
+    }
+    this.navigates = event => {
+      const link = event.target.closest("a[href]")
+      if (!link || link.target === "_blank" || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || (event.button !== undefined && event.button !== 0)) return false
+      const destination = new URL(link.href, window.location.href)
+      const current = new URL(window.location.href)
+      destination.searchParams.sort()
+      current.searchParams.sort()
+      // Same-route links and hash anchors may not invoke handle_params. Never
+      // latch navigation suppression unless the actual route changes.
+      return destination.origin !== current.origin || destination.pathname !== current.pathname || destination.search !== current.search
+    }
+    this.onClick = event => {
+      const inspect = event.target.closest("[data-branch-inspect]")
+      const close = event.target.closest("[data-branch-close]")
+      const toggle = event.target.closest("[data-branch-toggle]")
+      if (inspect && this.el.contains(inspect) && !inspect.disabled) {
+        const id = inspect.dataset.branchInspect, mode = inspect.dataset.mode
+        this.returnFocus = inspect.id
+        this.returnMode = mode
+        this.restore = false
+        const same = mode === "table" && (this.intent?.id || this.el.dataset.selectedInspection) === id && (this.intent?.mode || this.el.dataset.inspectionMode) === mode && !this.intent?.closed
+        this.intent = same ? {closed: true} : {id, mode}
+        this.sendIntent("inspect_pr", {id, mode})
+        this.suppress()
+      } else if (close && this.el.contains(close)) {
+        this.dismiss(true)
+      } else if (toggle && this.el.contains(toggle)) {
+        if (toggle.dataset.branchToggle === "toggle_branch_glyphs") {
+          this.restore = false
+          this.intent = {closed: true}
+        }
+        this.sendIntent(toggle.dataset.branchToggle)
+        this.suppress()
+      } else if (this.navigates(event)) {
+        this.routeChanging = true
+        this.intent = {closed: true}
+        this.restore = false
+        this.suppress()
+      }
+    }
+    this.onKeyDown = event => {
+      if (event.key === "Escape" && (this.intent?.id || this.el.dataset.selectedInspection)) {
+        event.preventDefault()
+        this.dismiss(true)
+      }
+    }
+    this.onOutside = event => {
+      const panel = this.el.querySelector("[data-branch-inspection]")
+      if ((panel || this.intent?.id) && !panel?.contains(event.target) && !event.target.closest("[data-branch-inspect], [data-branch-toggle]")) {
+        // Leave the clicked control's focus alone. Pointer dismissal never
+        // prevents the click or moves focus away from its intended destination.
+        this.dismiss(false)
+      }
+    }
+    this.onPopState = () => {
+      this.routeChanging = true
+      this.intent = {closed: true}
+      this.restore = false
+      this.suppress()
+    }
+    this.onPageShow = event => { if (event.persisted) window.location.reload() }
+    this.el.addEventListener("click", this.onClick)
+    this.el.addEventListener("keydown", this.onKeyDown)
+    document.addEventListener("pointerdown", this.onOutside)
+    window.addEventListener("popstate", this.onPopState)
+    window.addEventListener("pageshow", this.onPageShow)
+  },
+  updated() {
+    const route = this.el.dataset.routeGeneration
+    const selected = this.el.dataset.selectedInspection || null
+    const mode = this.el.dataset.inspectionMode
+    const panel = this.el.querySelector("[data-branch-inspection]")
+    if (route !== this.route) {
+      this.route = route
+      this.routeChanging = false
+      this.intent = null
+      this.focusedSelection = null
+      this.returnFocus = null
+      this.restore = false
+    }
+    this.suppress()
+    if (Number(this.el.dataset.clientGeneration || 0) < this.sequence || this.routeChanging) return
+    if (selected && panel && !panel.hidden) {
+      const selection = `${mode}:${selected}`
+      if (selection !== this.focusedSelection && !this.intent?.closed) {
+        this.el.querySelector("#branch-inspection-heading")?.focus()
+        this.focusedSelection = selection
+      }
+      this.intent = null
+    } else if (!selected) {
+      const wasSelected = this.focusedSelection
+      this.focusedSelection = null
+      this.intent = null
+      // Restore only explicit keyboard/Close dismissal, or when a refresh
+      // removed the focused inspection. Never steal an outside click's focus.
+      const focusWasRemoved = wasSelected && (!document.activeElement || document.activeElement === document.body)
+      if (this.restore || focusWasRemoved) {
+        const invoker = document.getElementById(this.returnFocus)
+        const fallback = document.getElementById(this.returnMode === "table" ? "branch-table-heading" : "branch-topology-heading") || document.getElementById("branch-table-heading")
+        const target = invoker && this.el.contains(invoker) ? invoker : fallback
+        target?.focus()
+      }
+      this.restore = false
+    }
+  },
+  destroyed() {
+    this.el.removeEventListener("click", this.onClick)
+    this.el.removeEventListener("keydown", this.onKeyDown)
+    document.removeEventListener("pointerdown", this.onOutside)
+    window.removeEventListener("popstate", this.onPopState)
+    window.removeEventListener("pageshow", this.onPageShow)
   }
 }
 // Settings uses ordinary document links/forms and never patches its route. A

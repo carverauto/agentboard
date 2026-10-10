@@ -30,6 +30,7 @@ defmodule AgentboardWeb.BranchFlowLiveTest do
       "q" => "41",
       "show_terminal" => "true",
       "cursor" => "table-cursor",
+      "topology_cursor" => "topology-cursor",
       "attention_cursor" => "attention-cursor",
       "chooser_q" => "repo"
     }
@@ -41,6 +42,7 @@ defmodule AgentboardWeb.BranchFlowLiveTest do
     assert query["show_terminal"] == "true"
     assert query["attention_cursor"] == "attention-cursor"
     refute query["cursor"]
+    refute query["topology_cursor"]
     refute query["node"]
     refute query["node_kind"]
 
@@ -50,6 +52,7 @@ defmodule AgentboardWeb.BranchFlowLiveTest do
     assert query["node_kind"] == "base"
     assert query["attention_cursor"] == "attention-cursor"
     refute query["cursor"]
+    refute query["topology_cursor"]
     assert path == BranchFlowComponents.node_path(query, "example/repo", "base", "Feature/東京")
   end
 

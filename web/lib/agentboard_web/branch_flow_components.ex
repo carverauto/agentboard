@@ -10,7 +10,8 @@ defmodule AgentboardWeb.BranchFlowComponents do
       "node_kind" => nil,
       "node" => nil,
       "view" => if(repository, do: "repo", else: "overview"),
-      "cursor" => nil
+      "cursor" => nil,
+      "topology_cursor" => nil
     })
   end
 
@@ -20,7 +21,8 @@ defmodule AgentboardWeb.BranchFlowComponents do
       "view" => "repo",
       "node_kind" => kind,
       "node" => node,
-      "cursor" => nil
+      "cursor" => nil,
+      "topology_cursor" => nil
     })
   end
 
@@ -155,9 +157,9 @@ defmodule AgentboardWeb.BranchFlowComponents do
       <div class="branch-controls">
         <.link :if={@params["repo"]} patch={repo_path(@params, nil)}>Clear repository filter</.link>
         <span :if={@params["node_kind"] in ["base", "pr"] and is_binary(@params["node"])} class="flag">Selected {@params["node_kind"]}: {@params["node"]}</span>
-        <.link :if={@params["node_kind"] || @params["node"]} patch={path(@params, %{"node_kind" => nil, "node" => nil, "cursor" => nil})}>Clear node filter</.link>
+        <.link :if={@params["node_kind"] || @params["node"]} patch={path(@params, %{"node_kind" => nil, "node" => nil, "cursor" => nil, "topology_cursor" => nil})}>Clear node filter</.link>
       </div>
-      <p :if={Map.get(@data.table, :error)} role="alert" class="notice warning">{@data.table.error}. Invalid filters never show an unfiltered table. <.link patch={path(@params, %{"repo" => nil, "node_kind" => nil, "node" => nil, "q" => nil, "cursor" => nil, "view" => "overview", "show_terminal" => nil})}>Reset table filters</.link></p>
+      <p :if={Map.get(@data.table, :error)} role="alert" class="notice warning">{@data.table.error}. Invalid filters never show an unfiltered table. <.link patch={path(@params, %{"repo" => nil, "node_kind" => nil, "node" => nil, "q" => nil, "cursor" => nil, "topology_cursor" => nil, "view" => "overview", "show_terminal" => nil})}>Reset table filters</.link></p>
       <p :if={is_nil(@data.table.total)}>Matching tracked PR count unavailable.</p>
       <p :if={is_integer(@data.table.total)} role="status" aria-live="polite">{@data.table.total} matching tracked PRs · twenty rows per page</p>
       <p :if={@data.table.total == 0}>No tracked PRs match this selection.</p>

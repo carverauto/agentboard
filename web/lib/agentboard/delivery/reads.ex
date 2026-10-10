@@ -3,6 +3,7 @@ defmodule Agentboard.Delivery.Reads do
   alias Agentboard.Delivery.{PullRequest, PollState, Obligation, CISnapshot}
   alias Agentboard.Board.Operations, as: Ops
   require Ash.Query
+  require Ecto.Query
 
   def list(params \\ %{}) do
     Ops.transaction(fn ->
@@ -189,9 +190,10 @@ defmodule Agentboard.Delivery.Reads do
   end
 
   @doc "Project a bounded preselected page using the authoritative dashboard record."
-  def records([]), do: []
+  def records(prs, opts \\ [])
+  def records([], _opts), do: []
 
-  def records(prs) when is_list(prs) and length(prs) <= 20 do
+  def records(prs, opts) when is_list(prs) and length(prs) <= 20 do
     ids = Enum.map(prs, & &1.id)
     states = read_by_ids(PollState, ids)
     obligations = latest_by_pr(Obligation, ids, :episode)
@@ -202,7 +204,7 @@ defmodule Agentboard.Delivery.Reads do
       |> Map.values()
       |> Enum.map(& &1.snapshot_id)
       |> Enum.reject(&is_nil/1)
-      |> then(&read_by_ids(CISnapshot, &1))
+      |> then(&snapshots_by_ids(&1, Keyword.get(opts, :branch_flow, false)))
 
     # Retain the authoritative duplicate/worker/delivery projectors. Only skip
     # known-absent findings and reuse identical inputs within this read snapshot.
@@ -226,20 +228,7 @@ defmodule Agentboard.Delivery.Reads do
       |> Enum.uniq()
       |> Map.new(&{&1, follow_up_delivery(&1)})
 
-    expected =
-      Enum.reduce(prs, %{}, fn pr, acc ->
-        key = expected_key(pr, states[pr.id])
-
-        Map.put_new_lazy(acc, key, fn ->
-          s = states[pr.id]
-
-          Agentboard.Delivery.BaseMonitor.expected_sha(
-            pr,
-            s && s.base_ref,
-            s && s.expected_base_sha
-          )
-        end)
-      end)
+    expected = expected_bases(prs, states)
 
     batch = %{
       states: states,
@@ -250,10 +239,87 @@ defmodule Agentboard.Delivery.Reads do
       decisions: waiting_decisions_batch(ids),
       workers: workers,
       deliveries: deliveries,
-      expected: expected
+      expected: expected,
+      branch_flow: Keyword.get(opts, :branch_flow, false),
+      as_of:
+        if(Keyword.get(opts, :branch_flow, false), do: Keyword.get_lazy(opts, :as_of, &Ops.now/0))
     }
 
     Enum.map(prs, &record(&1, batch))
+  end
+
+  @doc "Compact, authoritative observations for a bounded branch-flow page; no repair expansion."
+  def observations(prs, opts \\ []) when is_list(prs) and length(prs) <= 20 do
+    states = read_by_ids(PollState, Enum.map(prs, & &1.id))
+
+    snapshots =
+      states
+      |> Map.values()
+      |> Enum.map(& &1.snapshot_id)
+      |> Enum.reject(&is_nil/1)
+      |> snapshots_by_ids(true)
+
+    batch = %{
+      snapshots: snapshots,
+      expected: expected_bases(prs, states),
+      branch_flow: true,
+      as_of: Keyword.get_lazy(opts, :as_of, &Ops.now/0)
+    }
+
+    Enum.map(prs, fn pr ->
+      state = states[pr.id]
+
+      %{pr: Ops.public(pr), poll: if(state, do: Agentboard.Delivery.Polling.public_state(state))}
+      |> Map.merge(ci_projection(pr, state, batch))
+    end)
+  end
+
+  defp expected_bases(prs, states) do
+    Enum.reduce(prs, %{}, fn pr, acc ->
+      state = states[pr.id]
+
+      Map.put_new_lazy(acc, expected_key(pr, state), fn ->
+        Agentboard.Delivery.BaseMonitor.expected_sha(
+          pr,
+          state && state.base_ref,
+          state && state.expected_base_sha
+        )
+      end)
+    end)
+  end
+
+  defp snapshots_by_ids([], _), do: %{}
+  defp snapshots_by_ids(ids, false), do: read_by_ids(CISnapshot, ids)
+
+  defp snapshots_by_ids(ids, true) do
+    # Only the selected inspection reads failures, separately and with a SQL cap.
+    # Graph pages never transfer the up-to-500-attempt immutable payload.
+    Agentboard.Repo.all(
+      Ecto.Query.from(snapshot in CISnapshot,
+        where: snapshot.id in ^ids,
+        limit: ^length(ids),
+        select: %{
+          id: snapshot.id,
+          pull_request_id: snapshot.pull_request_id,
+          generation: snapshot.generation,
+          observed_at: snapshot.observed_at,
+          head_sha: snapshot.head_sha,
+          base_sha: snapshot.base_sha,
+          payload:
+            fragment(
+              "jsonb_build_object('head_repo', ?->'head_repo', 'head_ref', ?->'head_ref', 'base_ref', ?->'base_ref', 'base_watch_sha', ?->'base_watch_sha', 'draft', ?->'draft', 'mergeable', ?->'mergeable', 'mergeable_state', ?->'mergeable_state')",
+              snapshot.payload,
+              snapshot.payload,
+              snapshot.payload,
+              snapshot.payload,
+              snapshot.payload,
+              snapshot.payload,
+              snapshot.payload
+            )
+        }
+      )
+    )
+    |> Map.new(&{&1.id, &1})
   end
 
   defp read_by_ids(_, []), do: %{}
@@ -424,8 +490,14 @@ defmodule Agentboard.Delivery.Reads do
       if s && s.snapshot_id do
         if batch do
           case Map.fetch(batch.snapshots, s.snapshot_id) do
-            {:ok, snapshot} -> snapshot
-            :error -> Ash.get!(CISnapshot, s.snapshot_id)
+            {:ok, snapshot} ->
+              snapshot
+
+            :error ->
+              if(Map.get(batch, :branch_flow, false),
+                do: nil,
+                else: Ash.get!(CISnapshot, s.snapshot_id)
+              )
           end
         else
           Ash.get!(CISnapshot, s.snapshot_id)
@@ -446,7 +518,7 @@ defmodule Agentboard.Delivery.Reads do
     # New snapshots bind the branch watch sampled before collection. Keep the
     # original provider base_sha intact; older snapshots retain their old rule.
     observed_base = payload["base_watch_sha"] || (s && s.base_sha)
-    fresh = fresh?(s, expected, observed_base)
+    fresh = fresh?(s, expected, observed_base, batch && Map.get(batch, :as_of))
 
     %{
       ci_state: ci_state(s, fresh),
@@ -459,6 +531,11 @@ defmodule Agentboard.Delivery.Reads do
       base_ref: payload["base_ref"],
       expected_base_sha: expected
     }
+    |> then(fn projection ->
+      if batch && Map.get(batch, :branch_flow, false),
+        do: Map.put(projection, :snapshot_source, snapshot),
+        else: projection
+    end)
   end
 
   defp snapshot_payload(s, snapshot) when not is_nil(s) and not is_nil(snapshot) do
@@ -471,21 +548,23 @@ defmodule Agentboard.Delivery.Reads do
   defp fresh?(
          %{lifecycle: lifecycle, observed_at: %DateTime{} = observed, last_error: error},
          _expected,
-         _observed_base
+         _observed_base,
+         stamp
        )
        when lifecycle in ["merged", "closed"],
-       do: DateTime.diff(Ops.now(), observed) <= 180 and error in [nil, "policy_unknown"]
+       do: DateTime.diff(stamp || Ops.now(), observed) <= 180 and error in [nil, "policy_unknown"]
 
   defp fresh?(
          %{observed_at: %DateTime{} = observed, last_error: error},
          expected,
-         observed_base
+         observed_base,
+         stamp
        ),
        do:
-         DateTime.diff(Ops.now(), observed) <= 180 and error in [nil, "policy_unknown"] and
+         DateTime.diff(stamp || Ops.now(), observed) <= 180 and error in [nil, "policy_unknown"] and
            (is_nil(expected) or expected == observed_base)
 
-  defp fresh?(_, _, _), do: false
+  defp fresh?(_, _, _, _), do: false
 
   defp ci_state(nil, _), do: "unknown"
   defp ci_state(%{observed_at: nil}, _), do: "unknown"
