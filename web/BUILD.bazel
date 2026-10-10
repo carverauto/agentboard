@@ -149,6 +149,15 @@ filegroup(
 )
 
 ex_unit_test(
+    name = "coordinator_protocol_test",
+    size = "small",
+    srcs = ["test/coordinator_protocol_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
+    deps = [":erlang_app"],
+)
+
+ex_unit_test(
     name = "recovery_machine_test",
     size = "small",
     srcs = ["test/recovery_machine_test.exs"],

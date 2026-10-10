@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"regexp"
@@ -71,7 +72,7 @@ func (c *commands) agentTokens() *cobra.Command {
 				return err
 			}
 			defer api.Close()
-			if scope == "coordinator_participant" {
+			if scope == "coordinator_participant" || scope == "coordinator_runner" {
 				raw, err := api.JSON(cmd.Context(), http.MethodGet, "meta", nil, nil)
 				if err != nil {
 					return err
@@ -80,8 +81,12 @@ func (c *commands) agentTokens() *cobra.Command {
 					API    int `json:"api_version"`
 					Schema int `json:"schema_version"`
 				}
-				if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < 39 {
-					return &client.Error{Code: "schema_unavailable", Message: "Coordinator participation requires schema 39; an operator must run release migrations"}
+				required := 39
+				if scope == "coordinator_runner" {
+					required = 40
+				}
+				if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
+					return &client.Error{Code: "schema_unavailable", Message: fmt.Sprintf("%s credentials require schema %d; an operator must run release migrations", scope, required)}
 				}
 			}
 			data := map[string]any{}
@@ -135,7 +140,7 @@ func (c *commands) agentTokens() *cobra.Command {
 			return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]json.RawMessage{"credentials": result.Credentials})
 		}}
 		cmd.Flags().StringVar(&out, "out", "", "New 0600 credential output file (issue/rotate)")
-		cmd.Flags().StringVar(&scope, "scope", "", "agent, coordinator, or explicit coordinator_participant scope (issue/rotate)")
+		cmd.Flags().StringVar(&scope, "scope", "", "agent, coordinator, or explicit coordinator_participant/coordinator_runner scope (issue/rotate)")
 		cmd.Flags().StringArrayVar(&channels, "channel", nil, "Immutable channel grant; repeat 1–20 times with --scope coordinator_participant")
 		cmd.Flags().StringVar(&id, "credential-id", "", "Credential ID to revoke; omit to revoke all for the agent")
 		group.AddCommand(cmd)
@@ -152,7 +157,7 @@ func validateCredentialGrant(action, scope string, channels []string) error {
 		}
 		return nil
 	}
-	if scope != "" && scope != "agent" && scope != "coordinator" && scope != "coordinator_participant" {
+	if scope != "" && scope != "agent" && scope != "coordinator" && scope != "coordinator_participant" && scope != "coordinator_runner" {
 		return errors.New("unsupported credential scope")
 	}
 	if scope != "coordinator_participant" {

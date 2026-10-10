@@ -650,3 +650,28 @@ sh_test(
     size = "large",
     timeout = "long",
 )
+
+# Exact-version coordinator contract at real release/CLI/normal-role TLS SQL boundaries.
+sh_test(
+    name = "coordinator_protocol_test",
+    env = {
+        "FIXTURE_NORMAL_ROLE": "true",
+        "AGENTBOARD_API_TEST_SCRIPT": "coordinator_protocol_test.py",
+        # Packet versions and cursors must not depend on the DB/session zone.
+        "TZ": "America/Chicago",
+    },
+    srcs = ["board_api_test.sh"],
+    data = ["coordinator_protocol_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "large",
+    timeout = "long",
+)
+
+sh_test(
+    name = "coordinator_upgrade_test",
+    srcs = ["coordinator_upgrade_test.sh"],
+    data = ["postgres_fixture.sh", ":postgres_runtime", "//web:release"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)"],
+    size = "medium",
+    timeout = "long",
+)

@@ -6,6 +6,7 @@ defmodule Agentboard.Auth.APIAuthPolicy do
     CaptainController,
     AgentTokenController,
     ConversationController,
+    CoordinatorController,
     DecisionController,
     DecisionConversationController,
     MetaController,
@@ -38,6 +39,10 @@ defmodule Agentboard.Auth.APIAuthPolicy do
           is_binary(coordinator) and agent.id == coordinator and
             valid_channel_grant?(credential.scope, Map.get(credential, :channel_ids))
 
+        "coordinator_runner" ->
+          is_binary(coordinator) and agent.id == coordinator and
+            valid_channel_grant?(credential.scope, Map.get(credential, :channel_ids))
+
         _ ->
           false
       end
@@ -51,7 +56,7 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       Enum.all?(channel_ids, &channel_id?/1)
   end
 
-  def valid_channel_grant?(scope, []), do: scope in ~w(agent coordinator)
+  def valid_channel_grant?(scope, []), do: scope in ~w(agent coordinator coordinator_runner)
   def valid_channel_grant?(_, _), do: false
 
   def channel_id?(id),
@@ -78,6 +83,7 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       when controller in [
              APIController,
              ConversationController,
+             CoordinatorController,
              DecisionController,
              DecisionConversationController,
              WatchController
@@ -111,6 +117,14 @@ defmodule Agentboard.Auth.APIAuthPolicy do
 
   def bootstrap?(%{plug: APIController, plug_opts: :register}), do: true
   def bootstrap?(_), do: false
+
+  # Must precede the ordinary-agent catch-all. This surface is an independent,
+  # explicitly issued capability, not an ordinary board write.
+  def allowed?(principal, %{plug: CoordinatorController, plug_opts: action}, method, _) do
+    principal[:scope] == "coordinator_runner" and
+      ((action in [:tick, :show] and method in ["GET", "HEAD"]) or
+         (action in [:ack, :heartbeat] and method == "POST"))
+  end
 
   def allowed?(
         %{scope: "agent"},

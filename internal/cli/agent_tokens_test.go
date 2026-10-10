@@ -156,3 +156,112 @@ func TestParticipantTokenCompatibilityAndSecretCustody(t *testing.T) {
 		})
 	}
 }
+
+func TestRunnerTokenRequiresExplicitScopeAndSchema40(t *testing.T) {
+	for _, action := range []string{"issue", "rotate"} {
+		for _, schema := range []int{39, 40, 41} {
+			t.Run(action+"/"+strconv.Itoa(schema), func(t *testing.T) {
+				tokenActor(t)
+				dir := t.TempDir()
+				capfile := filepath.Join(dir, "captain")
+				captain := "synthetic-captain-capability-0123456789"
+				if err := os.WriteFile(capfile, []byte(captain), 0600); err != nil {
+					t.Fatal(err)
+				}
+				t.Setenv("AGENTBOARD_CAPTAIN_TOKEN_FILE", capfile)
+				issued := "abt_" + strings.Repeat("r", 43)
+				var reads, writes atomic.Int32
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Header.Get("Authorization") != "Bearer "+captain || r.Header.Get("X-Agentboard-Coordinator-Protocol") != "" {
+						t.Error("runner issuance changed captain transport")
+					}
+					w.Header().Set("Content-Type", "application/json")
+					if r.URL.Path == "/api/v1/meta" {
+						reads.Add(1)
+						io.WriteString(w, `{"api_version":1,"schema_version":`+strconv.Itoa(schema)+`}`)
+						return
+					}
+					if r.Method != http.MethodPost || r.URL.Path != "/api/v1/agents/coordinator/tokens/"+action {
+						t.Error("unexpected runner issuance operation")
+					}
+					writes.Add(1)
+					body, err := io.ReadAll(r.Body)
+					if err != nil || string(body) != `{"scope":"coordinator_runner"}` {
+						t.Errorf("runner grant acquired unexpected fields: %s", body)
+					}
+					json.NewEncoder(w).Encode(map[string]any{"credential": map[string]any{"id": "fixture-runner", "scope": "coordinator_runner"}, "token": issued})
+				}))
+				defer server.Close()
+				t.Setenv("AGENTBOARD_URL", server.URL)
+				t.Setenv("AGENTBOARD_CA_FILE", "")
+				t.Setenv("AGENTBOARD_ACCESS_SERVICE_TOKEN_FILE", "")
+				outfile := filepath.Join(dir, "runner")
+				out, stderr, err := tokenCommand(t, "agent", "token", action, "coordinator", "--scope", "coordinator_runner", "--out", outfile)
+				if strings.Contains(out+stderr, issued) || strings.Contains(out+stderr, captain) || reads.Load() != 1 {
+					t.Fatal("secret escaped or metadata preflight omitted")
+				}
+				if schema < 40 {
+					var apiErr *client.Error
+					if !errors.As(err, &apiErr) || apiErr.Code != "schema_unavailable" || writes.Load() != 0 {
+						t.Fatalf("old server accepted runner: writes %d error %v", writes.Load(), err)
+					}
+					if _, err := os.Stat(outfile); !os.IsNotExist(err) {
+						t.Fatal("incompatible issuance left credential output")
+					}
+				} else {
+					data, readErr := os.ReadFile(outfile)
+					info, statErr := os.Stat(outfile)
+					if err != nil || writes.Load() != 1 || readErr != nil || string(data) != issued+"\n" || statErr != nil || info.Mode().Perm() != 0600 {
+						t.Fatalf("runner issue/rotate failed: writes %d error %v", writes.Load(), err)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestRunnerGrantCannotAcquireChannelsOrChangeOtherActions(t *testing.T) {
+	tokenActor(t)
+	t.Setenv("AGENTBOARD_CAPTAIN_TOKEN_FILE", "/missing-captain-credential")
+	for _, action := range []string{"issue", "rotate", "list", "revoke"} {
+		args := []string{"agent", "token", action, "coordinator", "--scope", "coordinator_runner"}
+		path := filepath.Join(t.TempDir(), "output")
+		if action == "issue" || action == "rotate" {
+			args = append(args, "--out", path, "--channel", "chat")
+		}
+		out, _, err := tokenCommand(t, args...)
+		if err == nil || out != "" || strings.Contains(err.Error(), "CAPTAIN_TOKEN_FILE") {
+			t.Fatalf("invalid runner grant reached credential access: %v", err)
+		}
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatal("invalid grant touched output")
+		}
+	}
+}
+
+func TestCredentialDefaultDoesNotBecomeRunner(t *testing.T) {
+	tokenActor(t)
+	dir := t.TempDir()
+	capfile := filepath.Join(dir, "captain")
+	if err := os.WriteFile(capfile, []byte("fixture-captain-capability-0123456789"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AGENTBOARD_CAPTAIN_TOKEN_FILE", capfile)
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		body, _ := io.ReadAll(r.Body)
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/agents/coordinator/tokens/issue" || string(body) != "{}" {
+			t.Errorf("default credential grant changed: %s %s %s", r.Method, r.URL, body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"credential": map[string]any{"scope": "coordinator"}, "token": "abt_" + strings.Repeat("d", 43)})
+	}))
+	defer server.Close()
+	t.Setenv("AGENTBOARD_URL", server.URL)
+	t.Setenv("AGENTBOARD_CA_FILE", "")
+	t.Setenv("AGENTBOARD_ACCESS_SERVICE_TOKEN_FILE", "")
+	if _, _, err := tokenCommand(t, "agent", "token", "issue", "coordinator", "--out", filepath.Join(dir, "output")); err != nil || calls.Load() != 1 {
+		t.Fatalf("default issuance requests %d error %v", calls.Load(), err)
+	}
+}

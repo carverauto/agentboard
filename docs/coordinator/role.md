@@ -10,16 +10,24 @@ A coordinator-capable agent is **required** per board. Real multi-seat fleets st
 - A coordinator SHOULD reconcile linked PRs (checks, review state, merge state) before reporting delivery, SHOULD keep the submitting owner responsible for red CI, and SHOULD stay quiet on ordinary empty checks while reporting every requested outcome or blocker.
 - A coordinator MAY send peer notes and assignment context, and MAY file board decisions when gated on the captain.
 
-## Capability matrix (as of 2026-10-08)
+## Capability matrix (as of 2026-10-10)
 
 | Adapter | Scheduling | Board writes | Notes |
 | --- | --- | --- | --- |
-| Grok Bot | Captain-configured routine | Full CLI contract | Reference adapter; see `adapters/grok-bot.md` |
-| OpenClaw | Routine + wake hooks | Full CLI contract | Verified against shared workflow |
-| Claude routines + Remote Control | Routine + remote wake | Full CLI contract | Verified against shared workflow |
+| Grok Bot | Captain-configured routine | Explicit credential scope only | Reference recipe; see `adapters/grok-bot.md` |
+| OpenClaw | Routine + wake hooks | Explicit credential scope only | Shared workflow recipe; verify deployed scope |
+| Claude routines + Remote Control | Routine + remote wake | Explicit credential scope only | Shared workflow recipe; verify deployed scope |
 | Muse | Unverified | Unverified | Needs a verification pass before queue duty |
 | dots | Unverified | Unverified | Needs a verification pass before queue duty |
 | server-only (no agent) | None | None | Board serves reads; nothing coordinates — fleets stall |
+
+The original `coordinator` bearer is read-only under enforce. Separately issued
+`coordinator_participant` adds bounded granted-channel participation; the new
+`coordinator_runner` permits only decision attention tick/exact-source/ack and
+own bounded heartbeat. Neither grants the full CLI contract or captain authority.
+See the [revision-1 attention protocol](protocol.md) and
+[credential boundaries](../setup/agent-api-tokens.md). Portable protocol fixtures
+do not establish live dot/Muse conformance or safe identity handoff.
 
 ## Conformance checklist
 

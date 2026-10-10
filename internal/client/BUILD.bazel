@@ -1,14 +1,14 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "client",
-    srcs = ["client.go"],
+    srcs = ["client.go", "coordinator.go"],
     importpath = "github.com/carverauto/agentboard/internal/client",
     visibility = ["//:__subpackages__"],
     deps = ["//internal/config"],
 )
 go_test(
     name = "client_test",
-    srcs = ["access_service_token_test.go", "client_test.go"],
+    srcs = ["access_service_token_test.go", "client_test.go", "coordinator_test.go"],
     deps = [":client", "//internal/config"],
     size = "small",
 )
