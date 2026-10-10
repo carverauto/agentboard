@@ -129,7 +129,7 @@ def reserve():
     return json.loads(output.split('RESERVATION:', 1)[1].strip())
 
 
-def observe(state='failing', expected='ok', policy='unknown', reservation=None, attempts=None, tested_ref='head', draft=None, config_override=None):
+def observe(state='failing', expected='ok', policy='unknown', reservation=None, attempts=None, tested_ref='head', draft=None, config_override=None, head_sha=HEAD):
     reservation = reservation or reserve()
     config = '%{"fixture/repo" => %{"tested_ref" => "head", "required" => ["check:1:required"]}}' if policy == 'verified' else '%{}'
     if config_override is not None:
@@ -143,7 +143,7 @@ def observe(state='failing', expected='ok', policy='unknown', reservation=None, 
     encoded = base64.b64encode(json.dumps(payload).encode()).decode()
     expression = ('Application.put_env(:agentboard, :ci_policies, ' + config + '); '
                   'result = %{ci_state: ' + json.dumps('unknown' if state == 'passing' else state) +
-                  ', lifecycle: "open", head_sha: ' + json.dumps(HEAD) + ', base_sha: ' + json.dumps(BASE) +
+                  ', lifecycle: "open", head_sha: ' + json.dumps(head_sha) + ', base_sha: ' + json.dumps(BASE) +
                   ', payload: Jason.decode!(Base.decode64!("' + encoded + '"))}; '
                   'reservation = %{id: ' + json.dumps(reservation['id']) +
                   ', attempt_id: ' + json.dumps(reservation['attempt_id']) +
@@ -156,10 +156,37 @@ def observe(state='failing', expected='ok', policy='unknown', reservation=None, 
     return success
 
 
+# Successful checks precede the external status in normalized provider order. They
+# must not crowd the actual failure out of the ten-link accountability evidence cap.
+external_failure = 'https://carverauto.buildbuddy.io/invocation/fixture-failed-bazel'
+mixed_attempts = [dict(identity=f'check:1:green-{n:02}', latest=True,
+                       status='completed', conclusion='success',
+                       source_url=f'https://github.com/fixture/repo/actions/runs/{1000+n}')
+                  for n in range(16)]
+for conclusion in ('neutral', 'skipped', 'stale', None):
+    mixed_attempts.append(dict(identity='check:1:' + str(conclusion), latest=True,
+                               status='queued' if conclusion is None else 'completed',
+                               conclusion=conclusion,
+                               source_url='https://github.com/fixture/repo/actions/runs/nonfailure-' + str(conclusion)))
+mixed_attempts += [
+    dict(identity='check:1:green-00', latest=False, status='completed', conclusion='failure',
+         source_url='https://github.com/fixture/repo/actions/runs/superseded-failure'),
+    dict(identity='status:BazelCI', latest=True, status='completed', conclusion='failure',
+         source_url=external_failure),
+]
+
+
+def assert_failure_summary(summary, head=HEAD):
+    assert 'CI failure recorded at ' + head in summary, summary
+    assert 'Recorded failing check/status sources: ' + external_failure in summary, summary
+    assert 'actions/runs/' not in summary, summary
+    assert 'Failed jobs:' not in summary, summary
+
+
 rpc(':ok = Oban.pause_queue(queue: :delivery_scheduler); :ok = Oban.pause_queue(queue: :delivery_polling); Application.put_env(:agentboard, :pr_observation_enabled, true)')
 reservation = reserve()
 with concurrent.futures.ThreadPoolExecutor(4) as pool:
-    results = list(pool.map(lambda _: observe(reservation=reservation, expected=None), range(4)))
+    results = list(pool.map(lambda _: observe(reservation=reservation, expected=None, attempts=mixed_attempts), range(4)))
 assert results.count(True) == 1, results
 assert sql('SELECT count(*) FROM delivery_ci_snapshots') == '1'
 assert sql('SELECT count(*) FROM delivery_obligations') == '1'
@@ -167,6 +194,28 @@ assert sql("SELECT responsible_id FROM delivery_obligations") == 'ci-owner'
 assert sql("SELECT count(*) FROM tasks WHERE 'ci-repair'=ANY(labels)") == '1'
 assert sql("SELECT count(*) FROM cooperation_events WHERE kind='ci_failure'") == '1'
 repair = sql('SELECT repair_task_id FROM delivery_obligations')
+assert json.loads(sql('SELECT to_json(evidence_urls) FROM delivery_obligations')) == [external_failure]
+assert sql('SELECT ci_state FROM delivery_poll_states') == 'failing'
+assert_failure_summary(sql("SELECT summary FROM cooperation_events WHERE kind='ci_failure'"))
+assert_failure_summary(sql("SELECT body FROM messages WHERE task_id='" + repair + "'"))
+print('MIXED_SUCCESS_EXTERNAL_FAILURE_EVIDENCE', flush=True)
+# All collector failure conclusions qualify, URLs deduplicate before the cap,
+# and details-only failures retain a usable source without admitting clean checks.
+conclusions = ('failure', 'error', 'timed_out', 'cancelled', 'action_required', 'startup_failure')
+failed_attempts = [dict(identity=f'check:1:failure-{n}', latest=True, status='completed',
+                        conclusion=conclusions[n % len(conclusions)],
+                        source_url=f'https://github.com/fixture/repo/actions/runs/failure-{n}')
+                   for n in range(12)]
+failed_attempts[0]['details_url'] = failed_attempts[0].pop('source_url')
+failed_attempts.insert(1, dict(failed_attempts[0], identity='check:1:duplicate-source'))
+failed_attempts.insert(2, dict(failed_attempts[0], identity='check:1:no-source', details_url=None))
+observe(attempts=mixed_attempts[:-1] + failed_attempts)
+assert json.loads(sql('SELECT to_json(evidence_urls) FROM delivery_obligations')) == [
+    f'https://github.com/fixture/repo/actions/runs/failure-{n}' for n in range(10)]
+assert sql('SELECT ci_state FROM delivery_poll_states') == 'failing'
+assert sql('SELECT count(*) FROM delivery_obligations') == '1'
+
+
 api('/tasks/ci-source/claim', {})
 api('/tasks/ci-source/update', {'status': 'done', 'note': 'Original source done'})
 api('/tasks', {'id': 'ci-other', 'title': 'Another issue', 'repo': 'fixture/repo'})
@@ -628,6 +677,80 @@ assert 'Submission uncertain' in page and 'connector healthy / stale' in page
 rpc('Application.put_env(:agentboard, :cooperation_enabled, false)')
 page = export_page('/prs', 'prs-disabled.html')
 assert 'Disabled' in page and 'Submission uncertain' in page
+
+# A retained obligation is historical failure evidence, even after a newer head
+# is observed clean without verified policy. Repair legacy contaminated URL lists
+# from that obligation's immutable snapshot, never from the newer poll projection.
+original_pr = pr
+rpc('Application.put_env(:agentboard, :cooperation_enabled, true)')
+api('/tasks', {'id': 'ci-digest-source', 'title': 'Mixed evidence digest', 'repo': 'fixture/repo',
+               'pr_url': 'https://github.com/fixture/repo/pull/409'})
+pr = sql("SELECT id FROM delivery_pull_requests WHERE number='409'")
+observe(attempts=mixed_attempts)
+digest_o = json.loads(sql("SELECT to_jsonb(o) FROM delivery_obligations o WHERE pull_request_id='" + pr + "'"))
+sql("UPDATE delivery_obligations SET evidence_urls=ARRAY['https://github.com/fixture/repo/actions/runs/legacy-success'],blocker='Quota parking' WHERE id='" + digest_o['id'] + "'")
+new_head = 'd' * 40
+observe('passing', policy='unknown', head_sha=new_head,
+        attempts=[dict(mixed_attempts[0], source_url='https://github.com/fixture/repo/actions/runs/new-head-success')])
+assert sql("SELECT ci_state||','||head_sha FROM delivery_poll_states WHERE id='" + pr + "'") == 'unknown,' + new_head
+retained = json.loads(sql("SELECT to_jsonb(o) FROM delivery_obligations o WHERE id='" + digest_o['id'] + "'"))
+assert retained['head_sha'] == HEAD and retained['snapshot_id'] == digest_o['snapshot_id']
+assert retained['responsible_id'] == digest_o['responsible_id'] and retained['episode'] == digest_o['episode']
+assert retained['resolved_at'] is None and retained['blocker'] == 'Quota parking'
+sql("UPDATE delivery_obligations SET next_reminder_at=clock_timestamp()-interval '1 second' WHERE id='" + digest_o['id'] + "'")
+rpc('{:ok, _} = Agentboard.Delivery.Accountability.tick()')
+summary = sql("SELECT summary FROM cooperation_events WHERE kind='ci_digest' AND task_id='" + digest_o['repair_task_id'] + "'")
+assert_failure_summary(summary)
+assert new_head not in summary and 'legacy-success' not in summary, summary
+assert_failure_summary(sql("SELECT body FROM messages WHERE task_id='" + digest_o['repair_task_id'] + "' ORDER BY id DESC LIMIT 1"))
+assert sql("SELECT resolved_at IS NULL AND blocker='Quota parking' FROM delivery_obligations WHERE id='" + digest_o['id'] + "'") == 't'
+assert sql("SELECT evidence_urls[1] FROM delivery_obligations WHERE id='" + digest_o['id'] + "'").endswith('/legacy-success'), 'Notification must not rewrite retained evidence'
+print('RETAINED_FAILURE_SNAPSHOT_DIGEST', flush=True)
+
+# Producer-side bounds preserve complete URLs before Runtime's 1024-byte cap.
+# Oversized links are skipped as units; the immutable snapshot remains complete.
+api('/tasks', {'id': 'ci-bounded-source', 'title': 'Bounded evidence summary', 'repo': 'fixture/repo',
+               'pr_url': 'https://github.com/fixture/repo/pull/410'})
+pr = sql("SELECT id FROM delivery_pull_requests WHERE number='410'")
+source_urls = ['https://carverauto.buildbuddy.io/invocation/' + 'é' * 600]
+source_urls += ['https://github.com/fixture/repo/actions/runs/' + str(n) + '-' + 'é' * 80 for n in range(8)]
+observe(attempts=[dict(identity=f'status:failed-{n}', latest=True, status='completed',
+                       conclusion='failure', source_url=url) for n, url in enumerate(source_urls)])
+bounded_o = json.loads(sql("SELECT to_jsonb(o) FROM delivery_obligations o WHERE pull_request_id='" + pr + "'"))
+summary = sql("SELECT summary FROM cooperation_events WHERE kind='ci_failure' AND task_id='" + bounded_o['repair_task_id'] + "'")
+assert len(summary.encode()) <= 1024 and summary.endswith('; additional source links omitted'), summary
+assert source_urls[0] not in summary and any(url in summary for url in source_urls[1:]), summary
+included_urls = re.findall(r'https://[^,;\s]+', summary)
+assert set(included_urls) <= set(source_urls + ['https://github.com/fixture/repo/pull/410']), included_urls
+body = sql("SELECT body FROM messages WHERE task_id='" + bounded_o['repair_task_id'] + "'")
+assert body.split('\n[coop-fallback source=', 1)[0] == summary, body
+assert json.loads(sql("SELECT to_json(evidence_urls) FROM delivery_obligations WHERE id='" + bounded_o['id'] + "'")) == source_urls
+
+# Missing, foreign, wrong-head or nonfailing snapshots cannot substantiate links
+# retained in the legacy URL-only array. Never fall back to those unclassified URLs.
+for number, case in enumerate(('missing', 'foreign', 'wrong-head', 'nonfailing'), 411):
+    api('/tasks', {'id': 'ci-snapshot-' + case, 'title': 'Snapshot guard ' + case, 'repo': 'fixture/repo',
+                   'pr_url': f'https://github.com/fixture/repo/pull/{number}'})
+    pr = sql("SELECT id FROM delivery_pull_requests WHERE number='" + str(number) + "'")
+    observe(attempts=mixed_attempts)
+    guard_o = json.loads(sql("SELECT to_jsonb(o) FROM delivery_obligations o WHERE pull_request_id='" + pr + "'"))
+    if case == 'missing':
+        change = 'snapshot_id=NULL'
+    elif case == 'foreign':
+        change = "snapshot_id='" + digest_o['snapshot_id'] + "'"
+    elif case == 'wrong-head':
+        change = "head_sha='" + new_head + "'"
+    else:
+        observe('passing', policy='unknown')
+        change = "snapshot_id=(SELECT snapshot_id FROM delivery_poll_states WHERE id='" + pr + "')"
+    sql("UPDATE delivery_obligations SET " + change + ",blocker='Retained blocker',next_reminder_at=clock_timestamp()-interval '1 second' WHERE id='" + guard_o['id'] + "'")
+    rpc('{:ok, _} = Agentboard.Delivery.Accountability.tick()')
+    summary = sql("SELECT summary FROM cooperation_events WHERE kind='ci_digest' AND task_id='" + guard_o['repair_task_id'] + "'")
+    assert summary.endswith('Recorded failing check/status sources: unavailable'), (case, summary)
+    assert external_failure not in summary, (case, summary)
+    assert sql("SELECT resolved_at IS NULL AND blocker='Retained blocker' FROM delivery_obligations WHERE id='" + guard_o['id'] + "'") == 't'
+print('WHOLE_URL_BOUNDS_AND_SNAPSHOT_GUARDS', flush=True)
+pr = original_pr
 
 # Lost database after a verified-green card retains the card but removes its green claim.
 sql("UPDATE delivery_poll_states SET ci_state='passing',observed_at=clock_timestamp(),last_error=NULL WHERE id='" + pr + "'")
