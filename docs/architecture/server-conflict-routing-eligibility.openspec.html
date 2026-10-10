@@ -304,7 +304,7 @@ The public PR projection and connected task/PR renders passed through the actual
 
 Manual done/cancelled status cannot prove a dirty PR resolved. A later dirty observation at an already signaled head creates a fresh repair while retaining the historical follow-up and terminal task. A conflict after provider clearance starts a fresh episode/deadline. If the current episode&#x27;s repair becomes terminal while the PR remains dirty, the collector resolves the old follow-up relation, creates a replacement through the existing author admission path, and supersedes the order while preserving its episode ID and earliest deadline. Repeated observations reuse that replacement. Source card ownership/claim and original author attribution remain unchanged; notification or manual completion supplies no rebaser credit.
 
-The reserved, undeployed schema32 migration adds current_base=false to existing legacy follow-ups. The old once-per-head uniqueness remains for legacy records; current-base follow-ups retain distinct repair history with at most one unresolved current-base follow-up per PR. Existing historical rows receive no live deadline/order. Readiness also requires the new column. Current main schema36, triage and fleet migrations remain preserved; readiness requires the complete main table set plus the additive conflict/binding/grant tables.
+The reserved, undeployed schema32 migration adds current_base=false to existing legacy follow-ups. The old once-per-head uniqueness remains for legacy records; current-base follow-ups retain distinct repair history with at most one unresolved current-base follow-up per PR. Existing historical rows receive no live deadline/order. Readiness also requires the new column. Current main schema37 (including branch-flow), triage and fleet migrations remain preserved; readiness requires the complete main table set plus the additive conflict/binding/grant tables.
 
 The active-terminal regression failed at https://carverauto.buildbuddy.io/invocation/8d9492cd-4371-49ab-922d-74674a032ac3 on retaining the same terminal repair/order. The corrected exact historical-head fixture failed at https://carverauto.buildbuddy.io/invocation/c8110b85-1d3f-4676-b7e1-c83cab67eb8c on refusing a new episode. All four owner/sibling tests then ran freshly and passed at https://carverauto.buildbuddy.io/invocation/c595a37f-e235-4ef2-96c2-a20e9df02f78: conflict_order_sources_test, conflict_routing_test, pr_conflicts_test and release_schema_test. These exercise real provider collection, public cancellation, retained producer history, exact deadline preservation, source claim equality and legacy upgrade idempotency.
 
@@ -3645,12 +3645,12 @@ end
   end
 end
 </pre></details><details><summary>web/lib/agentboard/schema_version.ex</summary><pre>defmodule Agentboard.SchemaVersion do
-  @required 36
+  @required 37
   def required, do: @required
 
   def current do
     case Agentboard.Repo.statement(
-           &quot;SELECT version FROM board_schema WHERE id = 1 AND to_regclass(&#x27;archive_policy&#x27;) IS NOT NULL AND to_regclass(&#x27;task_archives&#x27;) IS NOT NULL AND to_regclass(&#x27;oban_jobs&#x27;) IS NOT NULL AND to_regclass(&#x27;context_entries&#x27;) IS NOT NULL AND to_regclass(&#x27;context_links&#x27;) IS NOT NULL AND to_regclass(&#x27;context_receipts&#x27;) IS NOT NULL AND to_regclass(&#x27;board_action_events&#x27;) IS NOT NULL AND to_regclass(&#x27;tasks_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_pull_requests&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_task_links&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_poll_states&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_poll_states_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_poll_credits&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_provider_budgets&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_ci_snapshots&#x27;) IS NOT NULL AND to_regclass(&#x27;cooperation_receipts&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_obligations&#x27;) IS NOT NULL AND to_regclass(&#x27;conversation_coverage&#x27;) IS NOT NULL AND to_regclass(&#x27;availability_policies&#x27;) IS NOT NULL AND to_regclass(&#x27;decision_requests&#x27;) IS NOT NULL AND to_regclass(&#x27;decision_wakes&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_base_watches&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_rebase_follow_ups&#x27;) IS NOT NULL AND to_regclass(&#x27;mattermost_agent_bots&#x27;) IS NOT NULL AND to_regclass(&#x27;mattermost_inbox&#x27;) IS NOT NULL AND to_regclass(&#x27;mattermost_post_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;mattermost_channel_recovery&#x27;) IS NOT NULL AND to_regclass(&#x27;mattermost_inbound_runs&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_duplicate_findings&#x27;) IS NOT NULL AND to_regclass(&#x27;agent_api_credentials&#x27;) IS NOT NULL AND to_regclass(&#x27;agent_auth_observations&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_workflow_runs&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_workflow_health&#x27;) IS NOT NULL AND to_regclass(&#x27;recovery_episodes&#x27;) IS NOT NULL AND to_regclass(&#x27;recovery_attempts&#x27;) IS NOT NULL AND to_regclass(&#x27;recovery_episodes_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;recovery_attempts_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;wake_intents&#x27;) IS NOT NULL AND to_regclass(&#x27;wake_attempts&#x27;) IS NOT NULL AND to_regclass(&#x27;wake_intents_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;wake_attempts_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;seat_scopes&#x27;) IS NOT NULL AND to_regclass(&#x27;seat_scopes_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;fleet_loadouts&#x27;) IS NOT NULL AND to_regclass(&#x27;fleet_seat_bindings&#x27;) IS NOT NULL AND to_regclass(&#x27;fleet_loadout_receipts&#x27;) IS NOT NULL AND to_regclass(&#x27;fleet_loadouts_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;coordinator_triage_configuration&#x27;) IS NOT NULL AND to_regclass(&#x27;coordinator_triage_configuration_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;coordinator_inbox_triage&#x27;) IS NOT NULL AND to_regclass(&#x27;coordinator_triage_dispositions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_conflict_orders&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_conflict_orders_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_publication_grants&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_publication_grants_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_publication_bindings&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_publication_bindings_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_conflict_sources&#x27;) IS NOT NULL&quot;,
+           &quot;SELECT version FROM board_schema WHERE id = 1 AND to_regclass(&#x27;archive_policy&#x27;) IS NOT NULL AND to_regclass(&#x27;task_archives&#x27;) IS NOT NULL AND to_regclass(&#x27;oban_jobs&#x27;) IS NOT NULL AND to_regclass(&#x27;context_entries&#x27;) IS NOT NULL AND to_regclass(&#x27;context_links&#x27;) IS NOT NULL AND to_regclass(&#x27;context_receipts&#x27;) IS NOT NULL AND to_regclass(&#x27;board_action_events&#x27;) IS NOT NULL AND to_regclass(&#x27;tasks_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_pull_requests&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_task_links&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_poll_states&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_poll_states_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_poll_credits&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_provider_budgets&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_ci_snapshots&#x27;) IS NOT NULL AND to_regclass(&#x27;cooperation_receipts&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_obligations&#x27;) IS NOT NULL AND to_regclass(&#x27;conversation_coverage&#x27;) IS NOT NULL AND to_regclass(&#x27;availability_policies&#x27;) IS NOT NULL AND to_regclass(&#x27;decision_requests&#x27;) IS NOT NULL AND to_regclass(&#x27;decision_wakes&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_base_watches&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_rebase_follow_ups&#x27;) IS NOT NULL AND to_regclass(&#x27;mattermost_agent_bots&#x27;) IS NOT NULL AND to_regclass(&#x27;mattermost_inbox&#x27;) IS NOT NULL AND to_regclass(&#x27;mattermost_post_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;mattermost_channel_recovery&#x27;) IS NOT NULL AND to_regclass(&#x27;mattermost_inbound_runs&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_duplicate_findings&#x27;) IS NOT NULL AND to_regclass(&#x27;agent_api_credentials&#x27;) IS NOT NULL AND to_regclass(&#x27;agent_auth_observations&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_workflow_runs&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_workflow_health&#x27;) IS NOT NULL AND to_regclass(&#x27;recovery_episodes&#x27;) IS NOT NULL AND to_regclass(&#x27;recovery_attempts&#x27;) IS NOT NULL AND to_regclass(&#x27;recovery_episodes_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;recovery_attempts_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;wake_intents&#x27;) IS NOT NULL AND to_regclass(&#x27;wake_attempts&#x27;) IS NOT NULL AND to_regclass(&#x27;wake_intents_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;wake_attempts_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;seat_scopes&#x27;) IS NOT NULL AND to_regclass(&#x27;seat_scopes_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;fleet_loadouts&#x27;) IS NOT NULL AND to_regclass(&#x27;fleet_seat_bindings&#x27;) IS NOT NULL AND to_regclass(&#x27;fleet_loadout_receipts&#x27;) IS NOT NULL AND to_regclass(&#x27;fleet_loadouts_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;coordinator_triage_configuration&#x27;) IS NOT NULL AND to_regclass(&#x27;coordinator_triage_configuration_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;coordinator_inbox_triage&#x27;) IS NOT NULL AND to_regclass(&#x27;coordinator_triage_dispositions&#x27;) IS NOT NULL AND to_regclass(&#x27;branch_flow_configuration&#x27;) IS NOT NULL AND to_regclass(&#x27;branch_flow_configuration_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;branch_flow_receipts&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_conflict_orders&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_conflict_orders_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_publication_grants&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_publication_grants_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_publication_bindings&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_publication_bindings_versions&#x27;) IS NOT NULL AND to_regclass(&#x27;delivery_conflict_sources&#x27;) IS NOT NULL&quot;,
            [],
            timeout: 2_000
          ) do
@@ -3666,6 +3666,7 @@ end
   alias Agentboard.Delivery.{PullRequest, PollState, Obligation, CISnapshot}
   alias Agentboard.Board.Operations, as: Ops
   require Ash.Query
+  require Ecto.Query
 
   def list(params \\ %{}) do
     Ops.transaction(fn -&gt;
@@ -3853,9 +3854,10 @@ end
   end
 
   @doc &quot;Project a bounded preselected page using the authoritative dashboard record.&quot;
-  def records([]), do: []
+  def records(prs, opts \\ [])
+  def records([], _opts), do: []
 
-  def records(prs) when is_list(prs) and length(prs) &lt;= 20 do
+  def records(prs, opts) when is_list(prs) and length(prs) &lt;= 20 do
     ids = Enum.map(prs, &amp; &amp;1.id)
     states = read_by_ids(PollState, ids)
     obligations = latest_by_pr(Obligation, ids, :episode)
@@ -3866,7 +3868,7 @@ end
       |&gt; Map.values()
       |&gt; Enum.map(&amp; &amp;1.snapshot_id)
       |&gt; Enum.reject(&amp;is_nil/1)
-      |&gt; then(&amp;read_by_ids(CISnapshot, &amp;1))
+      |&gt; then(&amp;snapshots_by_ids(&amp;1, Keyword.get(opts, :branch_flow, false)))
 
     # Retain the authoritative duplicate/worker/delivery projectors. Only skip
     # known-absent findings and reuse identical inputs within this read snapshot.
@@ -3890,20 +3892,7 @@ end
       |&gt; Enum.uniq()
       |&gt; Map.new(&amp;{&amp;1, follow_up_delivery(&amp;1)})
 
-    expected =
-      Enum.reduce(prs, %{}, fn pr, acc -&gt;
-        key = expected_key(pr, states[pr.id])
-
-        Map.put_new_lazy(acc, key, fn -&gt;
-          s = states[pr.id]
-
-          Agentboard.Delivery.BaseMonitor.expected_sha(
-            pr,
-            s &amp;&amp; s.base_ref,
-            s &amp;&amp; s.expected_base_sha
-          )
-        end)
-      end)
+    expected = expected_bases(prs, states)
 
     batch = %{
       states: states,
@@ -3915,10 +3904,87 @@ end
       conflict_orders: conflict_orders_batch(ids),
       workers: workers,
       deliveries: deliveries,
-      expected: expected
+      expected: expected,
+      branch_flow: Keyword.get(opts, :branch_flow, false),
+      as_of:
+        if(Keyword.get(opts, :branch_flow, false), do: Keyword.get_lazy(opts, :as_of, &amp;Ops.now/0))
     }
 
     Enum.map(prs, &amp;record(&amp;1, batch))
+  end
+
+  @doc &quot;Compact, authoritative observations for a bounded branch-flow page; no repair expansion.&quot;
+  def observations(prs, opts \\ []) when is_list(prs) and length(prs) &lt;= 20 do
+    states = read_by_ids(PollState, Enum.map(prs, &amp; &amp;1.id))
+
+    snapshots =
+      states
+      |&gt; Map.values()
+      |&gt; Enum.map(&amp; &amp;1.snapshot_id)
+      |&gt; Enum.reject(&amp;is_nil/1)
+      |&gt; snapshots_by_ids(true)
+
+    batch = %{
+      snapshots: snapshots,
+      expected: expected_bases(prs, states),
+      branch_flow: true,
+      as_of: Keyword.get_lazy(opts, :as_of, &amp;Ops.now/0)
+    }
+
+    Enum.map(prs, fn pr -&gt;
+      state = states[pr.id]
+
+      %{pr: Ops.public(pr), poll: if(state, do: Agentboard.Delivery.Polling.public_state(state))}
+      |&gt; Map.merge(ci_projection(pr, state, batch))
+    end)
+  end
+
+  defp expected_bases(prs, states) do
+    Enum.reduce(prs, %{}, fn pr, acc -&gt;
+      state = states[pr.id]
+
+      Map.put_new_lazy(acc, expected_key(pr, state), fn -&gt;
+        Agentboard.Delivery.BaseMonitor.expected_sha(
+          pr,
+          state &amp;&amp; state.base_ref,
+          state &amp;&amp; state.expected_base_sha
+        )
+      end)
+    end)
+  end
+
+  defp snapshots_by_ids([], _), do: %{}
+  defp snapshots_by_ids(ids, false), do: read_by_ids(CISnapshot, ids)
+
+  defp snapshots_by_ids(ids, true) do
+    # Only the selected inspection reads failures, separately and with a SQL cap.
+    # Graph pages never transfer the up-to-500-attempt immutable payload.
+    Agentboard.Repo.all(
+      Ecto.Query.from(snapshot in CISnapshot,
+        where: snapshot.id in ^ids,
+        limit: ^length(ids),
+        select: %{
+          id: snapshot.id,
+          pull_request_id: snapshot.pull_request_id,
+          generation: snapshot.generation,
+          observed_at: snapshot.observed_at,
+          head_sha: snapshot.head_sha,
+          base_sha: snapshot.base_sha,
+          payload:
+            fragment(
+              &quot;jsonb_build_object(&#x27;head_repo&#x27;, ?-&gt;&#x27;head_repo&#x27;, &#x27;head_ref&#x27;, ?-&gt;&#x27;head_ref&#x27;, &#x27;base_ref&#x27;, ?-&gt;&#x27;base_ref&#x27;, &#x27;base_watch_sha&#x27;, ?-&gt;&#x27;base_watch_sha&#x27;, &#x27;draft&#x27;, ?-&gt;&#x27;draft&#x27;, &#x27;mergeable&#x27;, ?-&gt;&#x27;mergeable&#x27;, &#x27;mergeable_state&#x27;, ?-&gt;&#x27;mergeable_state&#x27;)&quot;,
+              snapshot.payload,
+              snapshot.payload,
+              snapshot.payload,
+              snapshot.payload,
+              snapshot.payload,
+              snapshot.payload,
+              snapshot.payload
+            )
+        }
+      )
+    )
+    |&gt; Map.new(&amp;{&amp;1.id, &amp;1})
   end
 
   defp read_by_ids(_, []), do: %{}
@@ -4154,8 +4220,14 @@ end
       if s &amp;&amp; s.snapshot_id do
         if batch do
           case Map.fetch(batch.snapshots, s.snapshot_id) do
-            {:ok, snapshot} -&gt; snapshot
-            :error -&gt; Ash.get!(CISnapshot, s.snapshot_id)
+            {:ok, snapshot} -&gt;
+              snapshot
+
+            :error -&gt;
+              if(Map.get(batch, :branch_flow, false),
+                do: nil,
+                else: Ash.get!(CISnapshot, s.snapshot_id)
+              )
           end
         else
           Ash.get!(CISnapshot, s.snapshot_id)
@@ -4176,7 +4248,7 @@ end
     # New snapshots bind the branch watch sampled before collection. Keep the
     # original provider base_sha intact; older snapshots retain their old rule.
     observed_base = payload[&quot;base_watch_sha&quot;] || (s &amp;&amp; s.base_sha)
-    fresh = fresh?(s, expected, observed_base)
+    fresh = fresh?(s, expected, observed_base, batch &amp;&amp; Map.get(batch, :as_of))
 
     %{
       ci_state: ci_state(s, fresh),
@@ -4189,6 +4261,11 @@ end
       base_ref: payload[&quot;base_ref&quot;],
       expected_base_sha: expected
     }
+    |&gt; then(fn projection -&gt;
+      if batch &amp;&amp; Map.get(batch, :branch_flow, false),
+        do: Map.put(projection, :snapshot_source, snapshot),
+        else: projection
+    end)
   end
 
   defp snapshot_payload(s, snapshot) when not is_nil(s) and not is_nil(snapshot) do
@@ -4201,21 +4278,23 @@ end
   defp fresh?(
          %{lifecycle: lifecycle, observed_at: %DateTime{} = observed, last_error: error},
          _expected,
-         _observed_base
+         _observed_base,
+         stamp
        )
        when lifecycle in [&quot;merged&quot;, &quot;closed&quot;],
-       do: DateTime.diff(Ops.now(), observed) &lt;= 180 and error in [nil, &quot;policy_unknown&quot;]
+       do: DateTime.diff(stamp || Ops.now(), observed) &lt;= 180 and error in [nil, &quot;policy_unknown&quot;]
 
   defp fresh?(
          %{observed_at: %DateTime{} = observed, last_error: error},
          expected,
-         observed_base
+         observed_base,
+         stamp
        ),
        do:
-         DateTime.diff(Ops.now(), observed) &lt;= 180 and error in [nil, &quot;policy_unknown&quot;] and
+         DateTime.diff(stamp || Ops.now(), observed) &lt;= 180 and error in [nil, &quot;policy_unknown&quot;] and
            (is_nil(expected) or expected == observed_base)
 
-  defp fresh?(_, _, _), do: false
+  defp fresh?(_, _, _, _), do: false
 
   defp ci_state(nil, _), do: &quot;unknown&quot;
   defp ci_state(%{observed_at: nil}, _), do: &quot;unknown&quot;
