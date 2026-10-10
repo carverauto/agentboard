@@ -18,7 +18,9 @@ import urllib.request
 from provider_fixture import tls_provider
 
 URL = os.environ['AGENTBOARD_URL']
-HOOK_BYTES = os.urandom(32)  # Ephemeral per-run HMAC material (no hardcoded credential).
+# Secret-file loading trims a trailing newline; use line-safe random material so
+# the fixture never accidentally changes its own HMAC key during loading.
+HOOK_BYTES = os.urandom(32).hex().encode()  # Ephemeral, not a hardcoded credential.
 SHA = 'a' * 40
 runs = {}
 requests = []

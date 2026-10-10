@@ -30,6 +30,7 @@ defmodule Agentboard.Delivery do
     resource(Agentboard.Delivery.RebaseFollowUp)
     resource(Agentboard.Delivery.BaseWatch)
     resource(Agentboard.Delivery.BaseObservation)
+    resource(Agentboard.Delivery.RepositoryMetadata)
     resource(Agentboard.Delivery.WorkflowRun)
     resource(Agentboard.Delivery.WorkflowHealth)
     resource(Agentboard.Delivery.WorkflowObservation)

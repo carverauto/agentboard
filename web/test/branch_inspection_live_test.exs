@@ -318,6 +318,7 @@ defmodule AgentboardWeb.BranchInspectionLiveTest do
       base_ref: nil,
       obligation: nil,
       rebase_follow_up: nil,
+      conflict_order: nil,
       worker: nil,
       overdue: false,
       decisions: []

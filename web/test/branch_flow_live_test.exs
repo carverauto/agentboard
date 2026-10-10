@@ -157,7 +157,7 @@ defmodule AgentboardWeb.BranchFlowLiveTest do
       )
 
     assert html =~ "eligible captain pins first"
-    assert html =~ "Integration intake, default-branch metadata"
+    assert html =~ "Default roles use retained provider metadata"
     assert html =~ "/settings#branch-flow-settings"
     assert html =~ "Default branch unknown"
     assert html =~ "ahead/behind unavailable"

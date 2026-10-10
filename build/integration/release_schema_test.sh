@@ -13,7 +13,7 @@ export PHX_SERVER=false
 
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 37 ]]
+[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 38 ]]
 [[ "$(fixture_psql 'SELECT count(*) FROM mattermost_agent_bots')" == 0 ]]
 
 fixture_psql "INSERT INTO agents (id, name, model, harness) VALUES ('worker','Worker','model-1','codex')" >/dev/null
@@ -56,7 +56,7 @@ INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html
 CREATE EXTENSION pg_textsearch VERSION '1.5.1';" >/dev/null
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
+[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 38 ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM task_events WHERE task_id='retained-task'")" == 1 ]]
 [[ "$(upgrade_psql "SELECT html FROM task_documents WHERE task_id='retained-task'")" == '<!doctype html><p>Retained</p>' ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM pg_indexes WHERE indexname='context_entries_bm25'")" == 1 ]]
@@ -99,7 +99,7 @@ before_snapshot="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_ci_snapshots
 before_projection="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_poll_states s')"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
+[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 38 ]]
 [[ "$(inventory_psql "$history_query")" == "$before_inventory" ]]
 [[ "$(inventory_psql "SELECT to_jsonb(s)-'default_ref'-'expected_default_sha'-'base_ref'-'expected_base_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' FROM delivery_poll_states s")" == "$before_projection" ]]
 [[ "$(inventory_psql 'SELECT base_ref IS NULL AND expected_base_sha IS NULL FROM delivery_poll_states')" == t ]]
@@ -147,7 +147,7 @@ before_obligations="$(avail_psql 'SELECT jsonb_agg(to_jsonb(o) ORDER BY episode)
 before_avail="$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id'-'current_base' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'default_ref'-'expected_default_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(avail_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
+[[ "$(avail_psql 'SELECT version FROM board_schema WHERE id=1')" == 38 ]]
 [[ "$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t)-'assignment_authorized' ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id'-'current_base' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'default_ref'-'expected_default_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")" == "$before_avail" ]]
 [[ "$(avail_psql 'SELECT count(*) FROM availability_policies')" == 0 ]]
 [[ "$(avail_psql 'SELECT count(*) FROM tasks WHERE assignment_authorized')" == 0 ]]
@@ -179,7 +179,7 @@ INSERT INTO decision_requests(id,task_id,requester_id,kind,gate_ref,question,fin
 VALUES ('11111111-1111-4111-8111-111111111129','legacy-decision-card','legacy-decision-owner','ask_user_gate','legacy-gate','  Retained question?  ','Retained findings','{}','open',clock_timestamp(),clock_timestamp());" >/dev/null
 legacy_decision="$(decision_psql "SELECT to_jsonb(d) FROM decision_requests d")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(decision_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
+[[ "$(decision_psql 'SELECT version FROM board_schema WHERE id=1')" == 38 ]]
 [[ "$(decision_psql "SELECT to_jsonb(d)-'question_key'-'normalization_version'-'retry_key'-'expires_at'-'expires_in'-'bound_pr'-'source_type'-'source_id'-'promoted_by' FROM decision_requests d")" == "$legacy_decision" ]]
 
 # Older-timestamp 20261008001800 pending over a higher-marker database must not lower the marker.
@@ -246,7 +246,7 @@ INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES (
 INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES ('66666666-6666-4666-8666-666666666666',repeat('f',64),1,clock_timestamp(),repeat('a',40),repeat('b',40),'open','failing','{\"coverage\":\"complete_head\",\"policy\":\"unknown\",\"tested_ref\":\"head\",\"attempts\":[]}');" >/dev/null
 before_auth24="$(auth24_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'prs',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_pull_requests p),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(auth24_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
+[[ "$(auth24_psql 'SELECT version FROM board_schema WHERE id=1')" == 38 ]]
 [[ "$(auth24_psql "SELECT to_regclass('delivery_workflow_runs')::text||','||to_regclass('delivery_workflow_health')::text")" == 'delivery_workflow_runs,delivery_workflow_health' ]]
 [[ "$(auth24_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'prs',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_pull_requests p),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))")" == "$before_auth24" ]]
 [[ "$(auth24_psql 'SELECT count(*) FROM agent_api_credentials')" == 0 ]]
@@ -356,7 +356,7 @@ for initial_marker in 34 99; do
   before_fleet_operational="$(fleet_operational_rows)"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-  expected_marker=37
+  expected_marker=38
   if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
   [[ "$(fleet_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
   [[ "$(fleet_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003500')" == 1 ]]
@@ -412,7 +412,7 @@ for initial_marker in 35 99; do
   before_triage="$(triage_psql "$triage_history_query")"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-  expected_marker=37
+  expected_marker=38
   if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
   [[ "$(triage_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
   [[ "$(triage_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003600')" == 1 ]]
@@ -441,7 +441,7 @@ for initial_marker in 36 99; do
   before_pins="$(pins_psql "$pins_history_query")"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-  expected_marker=37
+  expected_marker=38
   if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
   [[ "$(pins_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
   [[ "$(pins_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003700')" == 1 ]]
@@ -496,7 +496,7 @@ conflict_history="SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t
 before_conflict="$(conflict_psql "$conflict_history")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(conflict_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
+[[ "$(conflict_psql 'SELECT version FROM board_schema WHERE id=1')" == 38 ]]
 [[ "$(conflict_psql "$conflict_history")" == "$before_conflict" ]]
 [[ "$(conflict_psql 'SELECT count(*) FROM delivery_publication_bindings')" == 0 ]]
 [[ "$(conflict_psql 'SELECT count(*) FROM delivery_publication_bindings_versions')" == 0 ]]
@@ -513,3 +513,48 @@ for history in delivery_publication_bindings_versions delivery_conflict_orders_v
 done
 echo 'Schema31 upgrade is idempotent and preserves legacy conflict/board/document evidence without invented bindings.'
 
+
+# Schema37 -> 38 retains verified provider metadata only after a future normal
+# collection. Migration does not infer defaults from retained branch/run rows.
+for initial_marker in 37 99; do
+  "$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard "agentboard_metadata${initial_marker}_upgrade"
+  export DATABASE_NAME="agentboard_metadata${initial_marker}_upgrade"
+  metadata_psql() {
+    PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=$DATABASE_NAME user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -Atc "$1"
+  }
+  metadata_psql "CREATE EXTENSION pg_textsearch VERSION '1.5.1'" >/dev/null
+  "$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261008003700) end)'
+  [[ "$(metadata_psql 'SELECT version FROM board_schema WHERE id=1')" == 37 ]]
+  [[ -z "$(metadata_psql "SELECT to_regclass('delivery_repository_metadata')")" ]]
+  metadata_psql "INSERT INTO delivery_workflow_runs(id,repository,run_id,requested_at,next_poll_at,generation,branch,workflow_id,failed_at) VALUES ('fixture/retained/17','fixture/retained','17',clock_timestamp(),clock_timestamp(),1,'old-default','9',clock_timestamp());
+  INSERT INTO branch_flow_configuration(id,pinned_repositories,revision,changed_by,updated_at) VALUES ('branch-flow',ARRAY['fixture/retained'],1,'captain',clock_timestamp());
+  UPDATE board_schema SET version=$initial_marker WHERE id=1" >/dev/null
+  metadata_history_query="SELECT jsonb_build_object('runs',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_workflow_runs t),'health',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_workflow_health t),'pins',(SELECT jsonb_agg(t ORDER BY id) FROM branch_flow_configuration t),'audits',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t),'jobs',(SELECT jsonb_agg(t ORDER BY id) FROM oban_jobs t))"
+  before_metadata="$(metadata_psql "$metadata_history_query")"
+  "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+  "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+  expected_marker=38
+  if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
+  [[ "$(metadata_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
+  [[ "$(metadata_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003800')" == 1 ]]
+  [[ "$(metadata_psql 'SELECT count(*) FROM delivery_repository_metadata')" == 0 ]]
+  [[ "$(metadata_psql "$metadata_history_query")" == "$before_metadata" ]]
+  metadata_psql "INSERT INTO delivery_repository_metadata(id,generation,source_generation,default_ref,observed_at,source_run_id,source_run_generation) VALUES ('fixture/retained',1,1,'release/東京',clock_timestamp(),'fixture/retained/17',1)" >/dev/null
+  for operation in 'UPDATE delivery_repository_metadata SET generation=-1' \
+                   'UPDATE delivery_repository_metadata SET source_generation=2' \
+                   'UPDATE delivery_repository_metadata SET source_generation=NULL' \
+                   'UPDATE delivery_repository_metadata SET source_run_generation=0' \
+                   'UPDATE delivery_repository_metadata SET observed_at=NULL' \
+                   "UPDATE delivery_repository_metadata SET default_ref=repeat('x',256)" \
+                   "UPDATE delivery_repository_metadata SET id='Fixture/retained'" \
+                   "UPDATE delivery_repository_metadata SET source_run_id='other/repo/17'"; do
+    if metadata_psql "$operation" >/dev/null 2>&1; then
+      echo "Invalid repository metadata shape accepted: $operation" >&2; exit 1
+    fi
+  done
+  before_metadata_rows="$(metadata_psql 'SELECT jsonb_agg(t ORDER BY id) FROM delivery_repository_metadata t')"
+  "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+  [[ "$(metadata_psql 'SELECT jsonb_agg(t ORDER BY id) FROM delivery_repository_metadata t')" == "$before_metadata_rows" ]]
+  [[ "$(metadata_psql "$metadata_history_query")" == "$before_metadata" ]]
+  echo "Schema37 to repository metadata preserves marker $expected_marker, retained-red/pins/audit and populated source metadata."
+done
