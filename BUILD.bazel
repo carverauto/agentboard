@@ -36,6 +36,7 @@ test_suite(
         "//build/integration:seat_attachment_test",
         "//build/integration:claude_native_test",
         "//build/integration:codex_native_test",
+        "//build/integration:codex_queue_test",
         "//build/integration:codex_packaged_api_test",
         "//web:rate_limits_test",
         "//web:roster_test",
