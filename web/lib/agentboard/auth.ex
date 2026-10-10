@@ -29,7 +29,8 @@ defmodule Agentboard.Auth do
       action not in ~w(issue rotate revoke list) ->
         {:error, "invalid_input", "Unknown credential action"}
 
-      not is_map(data) or Enum.any?(Map.keys(data), &(&1 not in ~w(scope credential_id))) ->
+      not is_map(data) or
+          Enum.any?(Map.keys(data), &(&1 not in ~w(scope credential_id channel_ids))) ->
         {:error, "invalid_input", "Invalid credential fields"}
 
       true ->
@@ -74,18 +75,29 @@ defmodule Agentboard.Auth do
             )
 
         if APIAuthPolicy.reserved?(id, agent.harness, agent.kind) or
-             not is_nil(agent.retired_at) or scope not in ~w(agent coordinator),
+             not is_nil(agent.retired_at) or
+             scope not in ~w(agent coordinator coordinator_participant),
            do:
              Ops.reject(
                "forbidden",
                "Credentials require an active, non-reserved agent and supported scope"
              )
 
-        if scope == "coordinator" != (id == Application.get_env(:agentboard, :coordinator_id)),
+        if scope in ~w(coordinator coordinator_participant) !=
+             (id == Application.get_env(:agentboard, :coordinator_id)),
+           do:
+             Ops.reject(
+               "forbidden",
+               "Coordinator scope belongs only to the configured coordinator"
+             )
+
+        channel_ids = Map.get(data, "channel_ids", [])
+
+        unless APIAuthPolicy.valid_channel_grant?(scope, channel_ids),
           do:
             Ops.reject(
-              "forbidden",
-              "Coordinator scope belongs only to the configured coordinator"
+              "invalid_input",
+              "Participant scope requires 1–20 distinct valid channel IDs; other scopes reject grants"
             )
 
         if mint == "rotate",
@@ -108,6 +120,7 @@ defmodule Agentboard.Auth do
               token_hash: hash,
               fingerprint: String.slice(hash, 0, 12),
               scope: scope,
+              channel_ids: channel_ids,
               issuer: "captain",
               created_at: stamp
             },
@@ -122,7 +135,9 @@ defmodule Agentboard.Auth do
 
   def metadata(row) do
     row
-    |> Map.take(~w(id agent_id fingerprint scope issuer created_at last_used_at revoked_at)a)
+    |> Map.take(
+      ~w(id agent_id fingerprint scope channel_ids issuer created_at last_used_at revoked_at)a
+    )
     |> Map.new(fn
       {key, %DateTime{} = value} -> {key, DateTime.to_iso8601(value)}
       pair -> pair
@@ -163,13 +178,17 @@ defmodule Agentboard.Auth do
                ) do
             Ops.update(row, :use, %{last_used_at: Ops.now()}, @actor)
 
-            %{
+            principal = %{
               agent_id: row.agent_id,
               scope: row.scope,
               credential_id: row.id,
               model: agent.model,
               harness: agent.harness
             }
+
+            if row.scope == "coordinator_participant",
+              do: Map.put(principal, :channel_ids, row.channel_ids),
+              else: principal
           end
       end
     end)

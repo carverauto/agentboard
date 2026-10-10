@@ -11,6 +11,7 @@ defmodule AgentboardWeb.MetaController do
     json(conn, %{
       api_version: 1,
       required_decision_intake_version: 1,
+      decision_conversation_supported: true,
       message_transport: Agentboard.MessageMode.status(),
       schema_version: current,
       required_schema_version: Agentboard.SchemaVersion.required()

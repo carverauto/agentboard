@@ -1,6 +1,7 @@
 defmodule Agentboard.Mattermost.Inbound do
   @moduledoc "Shared-bot inbound routing and overlapping reconciliation. Chat remains evidence, never command authority."
   alias Agentboard.Mattermost.{Delivery, InboundHTTP, InboundStore}
+  alias Agentboard.Mattermost.DecisionConversations.Source
   alias Agentboard.{Input, Repo}
   @historical_gap "historical_deletions_unprovable"
 
@@ -50,8 +51,23 @@ defmodule Agentboard.Mattermost.Inbound do
   end
 
   def observe(cfg, post) do
-    with true <- valid_post?(post) and allowed?(post["channel_id"]),
-         {:ok, root} <- root(cfg, post) do
+    if valid_post?(post) and allowed?(post["channel_id"]) do
+      case Source.route(cfg, post) do
+        :ordinary -> observe_ordinary(cfg, post)
+        :defer -> InboundStore.capture(cfg, post, [], %{})
+        {:typed, intent} ->
+          InboundStore.capture(cfg, post, fn -> Source.recipients(cfg, intent, post) end,
+            Source.attribution(intent))
+      end
+    else
+      {:error, :invalid_or_disallowed_post}
+    end
+  rescue
+    _ in [DBConnection.ConnectionError, Postgrex.Error] -> {:error, :store_unavailable}
+  end
+
+  defp observe_ordinary(cfg, post) do
+    with {:ok, root} <- root(cfg, post) do
       attribution = attribution(cfg, post)
       inherited = attribution(cfg, root)
       task = inherited[:task_id] || attribution[:task_id]
@@ -67,12 +83,7 @@ defmodule Agentboard.Mattermost.Inbound do
       else
         {:error, _} -> InboundStore.capture(cfg, post, [], %{})
       end
-    else
-      false -> {:error, :invalid_or_disallowed_post}
-      error -> error
     end
-  rescue
-    _ in [DBConnection.ConnectionError, Postgrex.Error] -> {:error, :store_unavailable}
   end
 
   def valid_post?(post) when is_map(post) do
@@ -135,7 +146,8 @@ defmodule Agentboard.Mattermost.Inbound do
   end
 
   def reconcile(cfg) do
-    with {:ok, channels} <- channels(cfg) do
+    with {:ok, channels} <- channels(cfg),
+         {:ok, _recovered} <- Source.recover(cfg, channels) do
       %{rows: prior_channels} = Repo.statement!("SELECT channel_id FROM mattermost_channel_recovery WHERE source=$1", [cfg.source])
       Enum.each(prior_channels, fn [channel] ->
         if channel not in channels, do: InboundStore.coverage(cfg, channel, nil, false, "membership_or_allowlist_revoked")

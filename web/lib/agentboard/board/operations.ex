@@ -721,6 +721,7 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Delivery.TaskLink,
              Agentboard.Delivery.PollState,
              Agentboard.Delivery.CISnapshot,
+             Agentboard.Mattermost.DecisionConversations.Intent,
              Agentboard.Mattermost.Outbox,
              Agentboard.Mattermost.TaskThread,
              Agentboard.Mattermost.ConversationCoverage,

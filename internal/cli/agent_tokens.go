@@ -3,12 +3,14 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
+	"os"
+	"regexp"
+	"strings"
+
 	"github.com/carverauto/agentboard/internal/client"
 	"github.com/carverauto/agentboard/internal/worker"
 	"github.com/spf13/cobra"
-	"net/http"
-	"os"
-	"strings"
 )
 
 func (c *commands) agentTokens() *cobra.Command {
@@ -16,7 +18,12 @@ func (c *commands) agentTokens() *cobra.Command {
 	for _, action := range []string{"issue", "rotate", "revoke", "list"} {
 		action := action
 		out, scope, id := "", "", ""
+		var channels []string
 		cmd := &cobra.Command{Use: action + " AGENT_ID", Args: idArgs, RunE: func(cmd *cobra.Command, args []string) error {
+			// Bound participant grants before touching credential files or the network.
+			if err := validateCredentialGrant(action, scope, channels); err != nil {
+				return err
+			}
 			if err := c.cfg.Actor.Validate(); err != nil {
 				return err
 			}
@@ -64,9 +71,25 @@ func (c *commands) agentTokens() *cobra.Command {
 				return err
 			}
 			defer api.Close()
+			if scope == "coordinator_participant" {
+				raw, err := api.JSON(cmd.Context(), http.MethodGet, "meta", nil, nil)
+				if err != nil {
+					return err
+				}
+				var meta struct {
+					API    int `json:"api_version"`
+					Schema int `json:"schema_version"`
+				}
+				if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < 39 {
+					return &client.Error{Code: "schema_unavailable", Message: "Coordinator participation requires schema 39; an operator must run release migrations"}
+				}
+			}
 			data := map[string]any{}
 			if scope != "" {
 				data["scope"] = scope
+			}
+			if len(channels) > 0 {
+				data["channel_ids"] = channels
 			}
 			if id != "" {
 				data["credential_id"] = id
@@ -112,9 +135,41 @@ func (c *commands) agentTokens() *cobra.Command {
 			return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]json.RawMessage{"credentials": result.Credentials})
 		}}
 		cmd.Flags().StringVar(&out, "out", "", "New 0600 credential output file (issue/rotate)")
-		cmd.Flags().StringVar(&scope, "scope", "", "agent or coordinator scope (issue/rotate)")
+		cmd.Flags().StringVar(&scope, "scope", "", "agent, coordinator, or explicit coordinator_participant scope (issue/rotate)")
+		cmd.Flags().StringArrayVar(&channels, "channel", nil, "Immutable channel grant; repeat 1–20 times with --scope coordinator_participant")
 		cmd.Flags().StringVar(&id, "credential-id", "", "Credential ID to revoke; omit to revoke all for the agent")
 		group.AddCommand(cmd)
 	}
 	return group
+}
+
+var credentialChannelID = regexp.MustCompile(`\A[A-Za-z0-9_-]{1,128}\z`)
+
+func validateCredentialGrant(action, scope string, channels []string) error {
+	if action != "issue" && action != "rotate" {
+		if len(channels) > 0 || scope != "" {
+			return errors.New("--scope and --channel are only supported for issue/rotate")
+		}
+		return nil
+	}
+	if scope != "" && scope != "agent" && scope != "coordinator" && scope != "coordinator_participant" {
+		return errors.New("unsupported credential scope")
+	}
+	if scope != "coordinator_participant" {
+		if len(channels) > 0 {
+			return errors.New("--channel requires explicit --scope coordinator_participant")
+		}
+		return nil
+	}
+	if len(channels) < 1 || len(channels) > 20 {
+		return errors.New("coordinator_participant requires 1–20 distinct --channel values")
+	}
+	seen := make(map[string]bool, len(channels))
+	for _, channel := range channels {
+		if !credentialChannelID.MatchString(channel) || seen[channel] {
+			return errors.New("--channel must be distinct 1–128 byte IDs using letters, digits, underscores or hyphens")
+		}
+		seen[channel] = true
+	}
+	return nil
 }

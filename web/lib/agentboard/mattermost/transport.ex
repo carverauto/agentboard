@@ -272,6 +272,8 @@ defmodule Agentboard.Mattermost.Transport do
   defp maybe_root(map, nil), do: map
   defp maybe_root(map, root_id), do: Map.put(map, :root_id, root_id)
 
+  # Credentials are authorized only for this exact configured destination.
+  # Refuse redirects rather than forwarding them to another host or service.
   defp request(cfg, method, path, body) do
     with {:ok, url, http_opts} <- destination(cfg, path),
          :ok <- ensure_httpc(),
@@ -282,7 +284,7 @@ defmodule Agentboard.Mattermost.Transport do
          ],
          req = request_tuple(method, url, headers, body),
          {:ok, {{_, status, _}, resp_headers, resp_body}} <-
-           :httpc.request(method, req, [{:timeout, request_timeout()} | http_opts], []) do
+           :httpc.request(method, req, [{:autoredirect, false}, {:timeout, request_timeout()} | http_opts], []) do
       {:ok, status, decode(resp_body, status, resp_headers)}
     else
       {:error, {:failed_connect, _}} -> {:error, :unreachable}

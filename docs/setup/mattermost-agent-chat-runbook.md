@@ -1,6 +1,6 @@
 # Mattermost agent-chat runbook (OpenSpec 4.3, shared bot plus phase 2 elastic bots)
 
-Agent chat posts every agent message through the ONE shared
+Generic agent chat posts through the ONE shared
 `agentboard` bot unless the sending agent has an active phase 2 elastic
 bot (captain decision GH #37 comment 6048795200; phase 2 is GH #82).
 Agents never hold Mattermost credentials; `agentboard chat` calls the
@@ -8,16 +8,23 @@ Agentboard API and the server posts with the existing bridge bot token
 or the agent's own bot token. Enabling, pausing, or creating bot
 accounts are captain/MM-admin decisions.
 
+Schema 39 adds a separate [typed coordinator decision round-trip](coordinator-message-roundtrip.md).
+That path always uses the verified shared bot, including when an elastic bot is
+active, and retains metadata-only send intents and exact source correlation.
+It requires enforced bearer authentication, approved channel grants/routing and
+separate worker enrollment/capabilities. It does not activate chat cutover.
+
 ## Model
 
 - One shared bot posts; per-agent attribution comes from structured post
   props (`agent_id`, `task_id`, `kind`, `msg_id` plus retry key) and a
-  readable `[<agent-id> · <task-id>]` header line. Props are the source
-  of truth, never the display name.
+  readable `[<agent-id> · <task-id>]` header line. Display names are not identity
+  evidence; typed source correlation also verifies the actual shared-bot author,
+  retained intent and exact original source version. Copied props are not authority.
 - Per-post `override_username` (agent id) and `override_icon_url` render
   only when Mattermost enables `EnablePostUsernameOverride` and
-  `EnablePostIconOverride` (both currently FALSE on farm01 — the captain
-  decides the flip). The server observes support empirically from the
+  `EnablePostIconOverride` (the captain decides any configuration change).
+  The server observes support empirically from the
   stored post in each send response (a server with the flags off strips
   the fields), caches each field's observation separately with its own
   timestamp for one hour, and omits a field while its own cache reads
@@ -33,7 +40,9 @@ accounts are captain/MM-admin decisions.
   means no send carrying a username override has happened yet and
   overrides are assumed on (likewise for icon and `icon_url`).
 - Addressing uses plain `@agent-id` text mentions; inbound routing parses
-  them and thread replies route by the thread root's props.
+  them and thread replies route by the thread root's props. Verified typed
+  decision posts instead use only their pinned recipient; reply-body mentions
+  do not add recipients.
 - Coverage receipts (`conversation_coverage`) record exact post/version
   progress per worker per channel, written automatically on reads.
   Incomplete catch-up stays explicit with a reason.
@@ -41,12 +50,14 @@ accounts are captain/MM-admin decisions.
   (phase 2), the shared bot otherwise — transparent to agents, with
   identical props and header either way.
 
-## Use a worker seat
+## Use generic chat from a worker seat
 
-No worker token exists. The seat needs only board credentials:
+Generic chat uses the seat's board credential, not a Mattermost token.
+Protected worker source read/ack operations have separate runtime capabilities;
+the board bearer does not replace them.
 
 ```bash
-export AGENTBOARD_URL=https://agentboard.farm01.carverauto.dev
+export AGENTBOARD_URL=https://agentboard.example.com
 export AGENT_ID=<stable-slug>
 export AGENTBOARD_MODEL=<model>
 export AGENTBOARD_HARNESS=<harness>
@@ -54,10 +65,30 @@ agentboard chat send --channel <channel-id> --body "status note" --task <task-id
 agentboard chat read --channel <channel-id> --limit 50 --since <last-seen-post-id>
 ```
 
-Re-running a send with the same `--retry-key` adopts the existing post
-(`duplicate: true`) instead of posting twice. A missing cursor stays
+Re-running a generic send with the same `--retry-key` attempts bounded adoption
+of an existing visible post (`duplicate: true` when found). It is not an
+exactly-once guarantee: a history-window miss is not proof that the original
+send failed. Do not use a generic send to recover an uncertain typed decision
+intent; use its explicit reconciliation command. A missing cursor stays
 explicit (`cursor_not_found`); an empty channel reports `no_posts`.
 Reads never acknowledge board inbox items.
+
+### Coordinator participant boundary
+
+Under enforce, the existing `coordinator` scope remains read-only and cannot use these chat
+commands. Only a separately issued `coordinator_participant` credential can
+participate as the configured coordinator. Its immutable nonempty channel grant
+is intersected with the global channel policy and current verified shared-bot
+membership. It may read/report only its own coverage; global diagnostics expose
+only its own non-secret bot/override status. Generic chat still has its existing
+retry semantics, even with this new credential.
+
+The participant can heartbeat its own status/task and explicitly acknowledge
+its addressed board messages. It cannot modify backend/profile/availability,
+claim or renew tasks, answer canonical decisions, administer credentials or
+enroll workers. See [agent API credentials](agent-api-tokens.md) for the complete
+boundary and [typed round-trip](coordinator-message-roundtrip.md) for notify,
+show, reply, reconcile and exact protected source handling.
 
 ## Operate the bridge and chat
 
@@ -68,11 +99,15 @@ Reads never acknowledge board inbox items.
   set `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false` and restart (captain
   decision). Queued intents stay in `mattermost_outbox` for recovery;
   rollback re-enables without reposting (source-key conflicts adopt).
+  This switch controls the lifecycle/legacy bridge, not generic chat or typed
+  decision API submissions. Typed intents have no background send scheduler;
+  use separately approved credential revocation/routing disablement to stop
+  new participation and retain all uncertainty evidence.
 - Rotate the shared bridge bot token out of band in the
   `agentboard-mattermost` Secret (`bot-token` file); no repo change
   needed. A 401/403 parks sends as unavailable with a rotate hint
   instead of retrying blindly.
-- Override flip (captain + MM admin; agents never touch farm01 config):
+- Override flip (captain + MM admin; agents never change deployment config):
   in System Console go to Site Configuration > Posts and set Enable
   Post Username Override and Enable Post Icon Override to true
   (config keys `ServiceSettings.EnablePostUsernameOverride` and
@@ -88,19 +123,36 @@ Reads never acknowledge board inbox items.
   `AGENTBOARD_MATTERMOST_CHANNEL_ALLOWLIST` to a comma-separated list of
   channel IDs (blanks ignored) to restrict which channels agent chat may
   use; send and reads outside the list are rejected. When empty or unset,
-  every channel the shared bot can reach stays available.
+  every channel the shared bot can reach stays available to ordinary generic
+  agent chat. A coordinator participant is still limited to its explicit
+  nonempty credential grant.
+
+## Preserve board fallback and rollout gates
+
+Typed notify creates its own board notice and suppresses only that notice's
+legacy dual mirror. Do not pair it with a second `msg send` notification.
+`prepared` means retained before remote admission; `sent` means a verified
+remote receipt. Neither proves native delivery or handling. Source acknowledgment
+and canonical decision application remain separate explicit operations.
+
+Old unread coordinator board DMs remain readable and individually acknowledgeable.
+Keep current inbox monitoring and sweeps; this release does not migrate or
+bulk-consume them. [MESSAGE_MODE readiness and cutover blockers](mattermost.md#message-modes-openspec-71)
+are unchanged. Code installation neither issues grants, enrolls workers, enables
+inbound, creates schedules nor changes a live mode. A later approved operator
+packet must prove real identities, repository/channel scope, capability custody,
+native support and end-to-end/unread-disposition evidence before cutover.
 
 ## Captain checklist
 
-- Farm01 Mattermost has users `mfreeman451` plus bots `agentboard`
-  (shared poster), `github`, `calls`, `system-bot`. Phase 1 needs NO new
+- Phase 1 needs NO new
   accounts and NO per-agent Secrets: only the existing
   `agentboard-mattermost` `bot-token` and channel membership of the
   `agentboard` bot in `#board`, `#agents`, `#quota`.
 - Phase 2 (GH #82): elastic per-agent bots on first `agent register`,
   AshCloak-encrypted tokens in Postgres, roster-GC retirement. Not
   blocking `dual` mode. Enablement (captain + MM admin, agents never
-  touch farm01 config):
+  change deployment config):
   1. Create a provisioner credential: a Mattermost admin creates a
      personal access token for a sysadmin user (needs bot create,
      team/channel member add, token revoke) and stores it in the

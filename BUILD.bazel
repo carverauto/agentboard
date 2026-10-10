@@ -74,6 +74,7 @@ test_suite(
         "//build/integration:agent_identity_test",
         "//build/integration:dialog_hook_test",
         "//build/integration:agent_tokens_test",
+        "//build/integration:decision_conversation_test",
         "//build/integration:frontend_auth_test",
         "//build/integration:decision_requests_test",
         "//build/integration:delivery_inventory_test",

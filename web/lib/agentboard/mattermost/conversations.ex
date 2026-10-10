@@ -21,11 +21,11 @@ defmodule Agentboard.Mattermost.Conversations do
   # Server-side send on behalf of an Agentboard-authenticated agent. The
   # caller is verified against the registered agent roster first; the
   # shared bot token never leaves the server.
-  def send_as(caller, params) when is_map(params) do
+  def send_as(caller, params, verified_cfg \\ nil) when is_map(params) do
     with {:ok, agent_id} <- registered_agent(caller),
          {:ok, channel_id, body, task_id, kind, root_id, retry_key, icon_url} <- send_params(params),
          {:ok, channel_id} <- check_channel_scope(channel_id),
-         {:ok, cfg} <- Delivery.bot_config() do
+         {:ok, cfg} <- shared_config(verified_cfg) do
       msg_id = Ash.UUID.generate()
       header = "[#{agent_id} · #{task_id}]"
       message = header <> "\n" <> body
@@ -56,6 +56,16 @@ defmodule Agentboard.Mattermost.Conversations do
       end
     end
   end
+
+  # Only an internal controller may supply a preverified shared configuration.
+  # Keep this exact service/token pair through remote I/O, even when server config
+  # changes after its live membership check. Legacy callers retain normal lookup.
+  defp shared_config(nil), do: Delivery.bot_config()
+
+  defp shared_config(%{token: token, base_url: base_url, bot_id: bot_id} = cfg)
+       when is_binary(token) and is_binary(base_url) and is_binary(bot_id), do: {:ok, cfg}
+
+  defp shared_config(_), do: {:error, "forbidden", "Invalid shared-bot authorization"}
 
   # Pluggable posting seam: the agent's own bot when active, the shared
   # bot otherwise. Props and header are identical either way; override
@@ -142,12 +152,12 @@ defmodule Agentboard.Mattermost.Conversations do
   # post shares the bot user, so MM user id suppression is meaningless).
   # Coverage is recorded as part of the read; incomplete catch-up stays
   # explicit with a reason.
-  def reads(caller, channel_id, since, limit) do
+  def reads(caller, channel_id, since, limit, verified_cfg \\ nil) do
     with {:ok, agent_id} <- registered_agent(caller),
          {:ok, channel_id} <- channel_param(channel_id),
          {:ok, channel_id} <- check_channel_scope(channel_id),
          {:ok, limit} <- read_limit(limit),
-         {:ok, cfg} <- Delivery.bot_config(),
+         {:ok, cfg} <- shared_config(verified_cfg),
          {:ok, order, posts} <- channel_history(cfg, channel_id, limit) do
       since = normalize_since(since)
       {selected, newest, found_since} = select_since(order, posts, agent_id, since)

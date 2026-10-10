@@ -7,6 +7,7 @@ defmodule Agentboard.Mattermost do
   end
 
   resources do
+    resource(Agentboard.Mattermost.DecisionConversations.Intent)
     resource(Agentboard.Mattermost.Outbox)
     resource(Agentboard.Mattermost.TaskThread)
     resource(Agentboard.Mattermost.Router)
