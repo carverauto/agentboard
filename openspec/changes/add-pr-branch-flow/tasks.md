@@ -7,7 +7,7 @@ none of the broader requirements below is considered fully done by that slice.
 See [preview scope](../../../docs/branch-flow.md) and
 [verification](../../../docs/verification/branch-flow-overview.md). Captain
 pins/settings are the second bounded increment described in
-[pins verification](../../../docs/verification/branch-flow-pins.md). The next read-only increment adds focused observed relationships and shared PR inspection/glyphs; role intake and numeric evidence remain pending. See [inspection verification](../../../docs/verification/branch-flow-inspection.md). Combined
+[pins verification](../../../docs/verification/branch-flow-pins.md). The next read-only increment adds focused observed relationships and shared PR inspection/glyphs; configured integration intake and numeric evidence remain pending. Provider-default retention is the next bounded increment; see [metadata verification](../../../docs/verification/branch-flow-metadata.md). See [inspection verification](../../../docs/verification/branch-flow-inspection.md). Combined
 checklist items stay open where those dependencies are unfinished. Landing these
 increments does not close #185.
 
@@ -20,7 +20,7 @@ increments does not close #185.
 
 ## 1. Shared persisted projection and settings
 
-- [ ] 1.1 Add audited/revisioned pin-order and repository integration-role resources, bounded tracked-repo discovery and provider-derived default-ref metadata without render-time provider calls.
+- [ ] 1.1 Add audited/revisioned pin-order and repository integration-role resources, bounded tracked-repo discovery and provider-derived default-ref metadata without render-time provider calls. Pin order and repository-generation-fenced default metadata are implemented; captain integration-role configuration remains pending.
 - [ ] 1.2 Extend existing workflow collection/commit to accept only verified default/configured integration refs plus exact unresolved-key resolution-only success; persist accepted role/config revision and retain before/after provider, generation and lease fences.
 - [ ] 1.3 Test run/attempt dedupe, delayed failures, branch-isolated recovery, config-change races, previously ignored intake, removed-role red retention, later resolution-only success, cross-run repository-metadata races and cooperation-off behavior; do not change routing semantics.
 - [ ] 1.4 Expose matched snapshot head_ref/head_repo/base identity and preserve current CI/merge qualification; add title only by a bounded sanitized field from the existing metadata response, never another request.

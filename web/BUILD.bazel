@@ -264,3 +264,12 @@ ex_unit_test(
     elixir_opts = ["-r", "test/test_helper.exs"],
     deps = [":erlang_app"],
 )
+
+ex_unit_test(
+    name = "repository_roles_test",
+    size = "small",
+    srcs = ["test/repository_roles_test.exs"],
+    data = ["test/test_helper.exs"],
+    elixir_opts = ["-r", "test/test_helper.exs"],
+    deps = [":erlang_app"],
+)

@@ -3,6 +3,7 @@ defmodule AgentboardWeb.PRLive do
   alias AgentboardWeb.BranchFlowComponents, as: Flow
   alias AgentboardWeb.BranchInspectionComponents, as: Inspect
   alias Agentboard.Delivery.BranchFlow
+  alias Agentboard.Delivery.BranchFlow.RepositoryRoles
 
   @impl true
   def mount(_, _, socket) do
@@ -296,20 +297,35 @@ defmodule AgentboardWeb.PRLive do
     end
 
     topology =
-      if data.topology,
-        do: Map.update!(data.topology, :relations, &Enum.map(&1, qualify)),
-        else: nil
+      if data.topology do
+        data.topology
+        |> Map.update!(:relations, &Enum.map(&1, qualify))
+        |> Map.update(:repository_role, nil, &RepositoryRoles.degrade/1)
+      end
 
     rows = Enum.map(table.prs, &Map.update!(&1, :relation, qualify))
 
     cards =
       Enum.map(
         data.cards,
-        &Map.update!(&1, :relations, fn relations -> Enum.map(relations, qualify) end)
+        fn card ->
+          card
+          |> Map.update!(:relations, fn relations -> Enum.map(relations, qualify) end)
+          |> Map.update(:repository_role, nil, &RepositoryRoles.degrade/1)
+          |> Map.put(:default_branch, nil)
+        end
       )
 
     assign(socket,
-      data: %{data | topology: topology, table: %{table | prs: rows}, prs: rows, cards: cards}
+      data:
+        %{data | topology: topology, table: %{table | prs: rows}, prs: rows, cards: cards}
+        |> Map.put(
+          :repository_roles,
+          Map.new(
+            Map.get(data, :repository_roles, %{}),
+            fn {repository, role} -> {repository, RepositoryRoles.degrade(role)} end
+          )
+        )
     )
   end
 

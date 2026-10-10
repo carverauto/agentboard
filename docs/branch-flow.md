@@ -1,7 +1,7 @@
 # Branch-flow inspection preview
 
 The #185 implementation provides a bounded `/prs` preview with **captain-managed
-repository pins** and bounded observed-PR inspection. The presentation is off by default. It does not complete the full
+repository pins**, bounded observed-PR inspection, and source-qualified default-branch roles. The presentation is off by default. It does not complete the full
 [approved branch-flow design](../openspec/changes/add-pr-branch-flow/design.md).
 
 ## Presentation opt-in and rollback
@@ -61,8 +61,7 @@ Actual branch labels come only from a snapshot matching the canonical PR and
 poll head/base/time/generation/ref. Missing or superseded metadata stays unknown.
 There is no compare request, Git invocation, graph library or copied prototype
 code. Projection SQL is read-only; the separate explicit captain settings save
-writes only display configuration and its immutable audit/receipt. Producer fences
-are unchanged. Selected table rows reuse the authoritative `Reads` projection through a bounded
+writes only display configuration and its immutable audit/receipt. The workflow producer now additionally fences shared repository metadata across concurrent run collections; existing run evidence/admission fences remain. Selected table rows reuse the authoritative `Reads` projection through a bounded
 batch adapter. Polls, snapshots, latest repairs, waiting decisions and duplicate
 existence are loaded in batches. Identical base/worker/delivery inputs are reused;
 rich duplicate and worker projections retain their existing behavior. Default
@@ -135,8 +134,7 @@ observed-at UTC and age, authoritative expected base, exact snapshot/generations
 collection deferral, and separately labeled immutable submitter, CI responsibility,
 rebase responsibility, delivery and progress. Ten source attributions and ten
 failed-attempt summaries are shown at most, with explicit truncation and a full
-PR-detail link. Titles are not retained. Default branch, integration role/health
-and numeric divergence stay explicitly unavailable.
+PR-detail link. Titles are not retained. Default roles use the qualified repository metadata below; integration role/health and numeric divergence stay explicitly unavailable.
 
 The topology reads compact evidence for at most twenty selected PRs; it does not
 preload full details or historical snapshots per graph node. A shared exact-source
@@ -157,16 +155,62 @@ local presentation choices; hiding glyphs closes the drawer. Text/status columns
 remain available. Ordinary Back/Forward restores route filters and pages while
 transient inspection stays closed.
 
-No migration, repository role/intake change, provider request, job enqueue,
-repair action, worker contact or settings write is added by this slice. Existing
+The observed-PR inspection increment adds no migration, repository role/intake change, provider request, job enqueue, repair action, worker contact or settings write. Existing
 captain pins and their audited CAS save remain separate and unchanged. See
 [inspection verification](verification/branch-flow-inspection.md) for measured
 bounds, regressions and the separate browser/load rollout gates.
 
+## Provider-verified default roles
+
+A card, focused repository and selected PR inspection share one bounded retained
+metadata read. A current default role is shown only when a validated workflow
+collection retained that exact repository/default ref, the repository-wide
+reservation generation still matches, observation is enabled and the observation
+is at most 180 seconds old. Missing, stale, future-dated, superseded, disabled or
+failed reads say **Default branch unknown**. A previously verified name remains
+labeled last-known, with its collection source, UTC time and source generations.
+No `main` fallback, branch tip, passing health or graph ancestry is inferred.
+
+The separate PR/default-watch collector introduced by #169 does not yet share
+this workflow generation. When its mode is `dry_run` or `apply`, or it has retained
+any default-ref evidence for the repository, current role qualification stays
+unavailable with an explicit source-contract explanation. Disabling that collector
+does not erase retained evidence. The previous workflow-observed name and source
+remain visible as historical metadata. Unifying these producers is a separate
+prerequisite; this slice does not change either collector's admission or cadence.
+
+The existing workflow collector already reads repository metadata before and
+after the run. Those same responses now supply the role; no additional GitHub
+request, schedule or view-triggered collection is introduced. Metadata is retained
+only after both repository and run responses agree and the run lease/generation
+and observation gate still permit commit. Each actual collection reserves a
+repository-scoped generation before HTTP, immediately invalidating older role
+qualification. A late older run can still record its independent failure or
+recovery, but cannot overwrite the newer repository metadata. A newer collection
+failure leaves the role unknown until another normal collection succeeds.
+
+Mixed-case workflow repository identities preserve their exact intake and run
+provenance while metadata uses a canonical lowercase key. Legacy identities that
+cannot be represented canonically continue normal workflow handling without
+retaining a role. A stable ignored topic/PR-event run may retain validated default
+metadata; it remains ignored workflow evidence and does not enroll a repository.
+
+Migration `20261008003800` adds an initially empty audited metadata resource and
+raises required schema to 38 without lowering a higher marker. It does not infer
+defaults from historical PR bases or runs, replay cues, resolve retained red,
+change settings or activate integration intake. The candidate identifier was
+checked against fresh main, open PRs and available coordination context before
+publication; it is not an atomic live-board reservation. Presentation rollback
+preserves metadata, workflow obligations, pins and history.
+
+The batch covers at most five cards, one selected repository and one inspection
+repository, in the existing repeatable-read snapshot. Failed optional metadata
+reads degrade only roles; a whole-view failure also de-qualifies all retained role
+copies. See [metadata verification](verification/branch-flow-metadata.md).
+
 ## Still pending for #185
 
-This increment does not implement provider repository-role metadata, the #114
-configured-integration intake extension or resolution-only recovery, risk-ranked
+The preview does not implement the #114 configured-integration intake extension or resolution-only recovery, risk-ranked
 card aggregates, and complete role/numeric evidence for the visual phases. All
 remain tracked in the [implementation plan](../openspec/changes/add-pr-branch-flow/tasks.md).
 

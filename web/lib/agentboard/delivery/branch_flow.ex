@@ -2,7 +2,7 @@ defmodule Agentboard.Delivery.BranchFlow do
   @moduledoc "Bounded, read-only retained branch evidence. No provider calls, enrollment or inferred branch health."
   alias Agentboard.{Repo, SeatScope}
   alias Agentboard.Delivery.{PullRequest, Reads, WorkflowRun}
-  alias Agentboard.Delivery.BranchFlow.{Inventory, Relations, Route, Settings}
+  alias Agentboard.Delivery.BranchFlow.{Inventory, Relations, RepositoryRoles, Route, Settings}
   alias Agentboard.Board.Operations, as: Ops
   require Ash.Query
   require Ecto.Query
@@ -69,6 +69,10 @@ defmodule Agentboard.Delivery.BranchFlow do
     table = table(normalized, stamp)
     topology = topology(normalized, stamp)
     inspection = inspection(opts, table, topology, stamp)
+
+    {inventory, topology, inspection, roles} =
+      repository_roles(inventory, topology, inspection, filters, stamp)
+
     attention = attention(params, Enum.map(cards, & &1.repository), stamp)
     budget = protected(:budget, &Reads.budget/0)
 
@@ -111,9 +115,51 @@ defmodule Agentboard.Delivery.BranchFlow do
       table: table,
       topology: topology,
       inspection: inspection,
+      repository_roles: roles,
       attention: attention,
-      unavailable: [:branch_roles, :numeric_divergence]
+      unavailable: [:integration_role, :numeric_divergence]
     })
+  end
+
+  defp repository_roles(inventory, topology, inspection, filters, stamp) do
+    selected = filters["repo"]
+    inspected = if inspection && inspection.available, do: inspection.relation.repository
+
+    repositories =
+      (Enum.map(inventory.cards, & &1.repository) ++ [selected, inspected])
+      |> Enum.filter(&(is_binary(&1) and SeatScope.canonical_repo(&1) == &1))
+      |> Enum.uniq()
+
+    # Five cards, one selected topology repo and one inspected repo. Roles never
+    # enlarge inventory or hydrate all table relations. A broken optional metadata
+    # read must not hide retained-red attention or the existing PR projection.
+    roles =
+      case protected(:repository_roles, fn -> RepositoryRoles.load(repositories, stamp) end) do
+        {:ok, values} ->
+          values
+
+        _ ->
+          Map.new(repositories, fn repository ->
+            role = RepositoryRoles.qualify(repository, nil, stamp, false)
+            {repository, %{role | reason: "read_unavailable"}}
+          end)
+      end
+
+    cards =
+      Enum.map(inventory.cards, fn card ->
+        role = Map.get(roles, card.repository)
+
+        card
+        |> Map.put(:repository_role, role)
+        |> Map.put(:default_branch, if(role, do: role.default_ref))
+      end)
+
+    topology = Map.put(topology, :repository_role, Map.get(roles, selected))
+
+    inspection =
+      if inspection, do: Map.put(inspection, :repository_role, Map.get(roles, inspected))
+
+    {Map.put(inventory, :cards, cards), topology, inspection, roles}
   end
 
   defp inventory(opts, stamp, pins) do

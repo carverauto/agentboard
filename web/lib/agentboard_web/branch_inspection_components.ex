@@ -13,7 +13,8 @@ defmodule AgentboardWeb.BranchInspectionComponents do
     <section :if={@section && is_binary(@params["repo"])} id="branch-topology" class="branch-section" aria-labelledby="branch-topology-heading">
       <h2 id="branch-topology-heading" tabindex="-1">Observed PR relationships · {@params["repo"]}</h2>
       <p><.link patch={Flow.repo_path(@params, nil)}>Back to all repositories</.link></p>
-      <p>Default branch unknown · Integration role/health unavailable · Ahead/behind unavailable</p>
+      <Flow.default_role role={Map.get(@section, :repository_role)} as_of={@data.as_of} />
+      <p>Integration role/health unavailable · Ahead/behind unavailable</p>
       <p>Observed PR targets, not commit ancestry or merge paths. Ref endpoints retain their exact repository and observed SHA; no current branch tip is inferred.</p>
       <p :if={is_integer(@section.total)}>Showing {if @section.relations == [], do: 0, else: @section.offset + 1}–{@section.offset + length(@section.relations)} of {@section.total} matching tracked open PRs · twenty relations per page.</p>
       <p :if={!is_integer(@section.total)}>Tracked open relationship count unavailable.</p>
@@ -73,7 +74,8 @@ defmodule AgentboardWeb.BranchInspectionComponents do
       <p>Title not retained</p>
       <p :if={@inspection.error} class="notice warning">{@inspection.error}</p>
       <.pair relation={@relation} />
-      <p class="break-all">Expected base tip: {@relation.expected_base_sha || "unavailable"}. Default branch unknown · Integration role/health unavailable.</p>
+      <p class="break-all">Expected base tip: {@relation.expected_base_sha || "unavailable"}. Integration role/health unavailable.</p>
+      <Flow.default_role role={Map.get(@inspection, :repository_role)} as_of={@as_of} />
       <.qualification relation={@relation} as_of={@as_of} />
       <p class="break-all">Retained snapshot {if @relation.metadata_available, do: "(exact source matched)", else: "(unqualified source)"}: {Map.get(@relation, :snapshot_id) || "unavailable"} · snapshot generation {@relation.snapshot_generation || "unavailable"} · poll generation {@relation.poll_generation || "unavailable"}</p>
       <p :if={@row.poll && @row.poll["last_error"]}>Collection deferred/error: {@row.poll["last_error"]}</p>

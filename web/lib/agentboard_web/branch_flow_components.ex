@@ -81,7 +81,7 @@ defmodule AgentboardWeb.BranchFlowComponents do
     <section id="branch-repositories" class="branch-section" aria-labelledby="branch-repositories-heading">
       <h2 id="branch-repositories-heading" tabindex="-1">Tracked repositories</h2>
       <p>Local tracked delivery inventory · {count(@data.inventory_count)} repositories. Counts cover retained local records, not every GitHub PR.</p>
-      <p class="text-muted">Preview: eligible captain pins first, then busiest tracked repositories. Integration intake, default-branch metadata, integration health and ahead/behind counts remain unavailable in this slice.</p>
+      <p class="text-muted">Preview: eligible captain pins first, then busiest tracked repositories. Default roles use retained provider metadata. Integration intake, integration health and ahead/behind counts remain unavailable.</p>
       <p><a href="/settings#branch-flow-settings">Manage captain repository pins</a></p>
       <p :if={get_in(@data, [:settings, :error])} class="notice warning" role="alert">{@data.settings.error}</p>
       <p class="text-muted">Snapshot <.stamp value={@data.as_of} />. A refreshed database view does not renew provider evidence.</p>
@@ -101,7 +101,8 @@ defmodule AgentboardWeb.BranchFlowComponents do
             <p>{count(card.open_count)} tracked open · {count(card.unknown_lifecycle_count)} lifecycle unknown · {count(card.terminal_count)} retained terminal</p>
             <p><span class={if is_integer(card.red_count) and card.red_count > 0, do: "flag danger", else: "flag"}>{if is_integer(card.red_count) and card.red_count > 0, do: "! #{card.red_count} retained red", else: if(is_integer(card.red_count), do: "? No retained red; health unknown", else: "? Retained red count unavailable; health unknown")}</span></p>
             <p :if={Map.get(card, :error)} class="flag warning">{card.error}</p>
-            <p class="text-muted">Default branch unknown · integration health unavailable · ahead/behind unavailable</p>
+            <.default_role role={Map.get(card, :repository_role)} as_of={@data.as_of} />
+            <p class="text-muted">Integration role/health unavailable · ahead/behind unavailable</p>
             <p class="text-muted">Up to three tracked PRs in canonical order; risk ranking pending.</p>
             <p :if={Map.get(card, :relations_error)} class="flag warning">{card.relations_error}</p>
             <ul class="branch-relations" aria-label={"Observed PR relations for " <> card.repository}>
@@ -136,6 +137,33 @@ defmodule AgentboardWeb.BranchFlowComponents do
       </details>
     </section>
     """
+  end
+
+  def default_role(assigns) do
+    ~H"""
+    <div class="branch-default-role text-muted">
+      <p :if={@role && @role.available} class="break-all">Default branch: <strong>{@role.default_ref}</strong> · workflow-observed provider role</p>
+      <p :if={!@role || !@role.available}>Default branch unknown{if @role, do: " · " <> role_reason(@role.reason), else: " · metadata not retained"}</p>
+      <p :if={@role && !@role.available && @role.retained_default_ref} class="break-all">Last workflow-observed default: {@role.retained_default_ref} (not current)</p>
+      <p>Current branch health unknown; a default-role name does not establish a branch tip or passing CI.</p>
+      <p :if={@role && @role.source_url} class="break-all"><a href={@role.source_url} target="_blank" rel="noopener noreferrer">Workflow collection source</a> · <.stamp value={@role.observed_at} as_of={@as_of} /> · repository generation {@role.source_generation}/{@role.generation} · run generation {@role.source_run_generation}</p>
+      <p :if={@role && @role.last_error && !@role.available}>Metadata collection: {@role.last_error}</p>
+    </div>
+    """
+  end
+
+  defp role_reason(reason) do
+    case reason do
+      "not_retained" -> "metadata not retained"
+      "source_mismatch" -> "metadata source proof unavailable"
+      "observation_disabled" -> "observation disabled"
+      "collection_pending_or_superseded" -> "newer collection pending or unavailable"
+      "future_observation" -> "observation time is in the future"
+      "stale" -> "metadata observation is stale"
+      "read_unavailable" -> "metadata read unavailable"
+      "default_source_contract_pending" -> "workflow and PR default sources are not yet unified"
+      _ -> "metadata unavailable"
+    end
   end
 
   def relation(assigns) do
