@@ -3,7 +3,10 @@ name: Container images
 # execution and pushes them to Harbor:
 #   push to main  -> sha-<commit> and latest
 #   push of v*    -> sha-<commit> and the version tag
-# Pull requests run the plan job only (no secrets, nothing pushed).
+# Main-targeting pull requests run the secret-free plan. Trusted same-repository PRs
+# also run remote acceptance behind the existing release environment controls,
+# using build/pull-only credentials. Fork/Dependabot PRs remain plan-only.
+# Pull requests never run image publication.
 on:
   push:
     branches: [main]
@@ -40,18 +43,10 @@ on:
       - docs/context.md
       - docs/seat-scope.md
       - docs/fleet-loadout.md
+  # Acceptance has transitive inputs (scripts, manifests, embedded docs/skills).
+  # Run every main-targeting PR rather than leaving path-filter coverage gaps.
   pull_request:
     branches: [main]
-    paths:
-      - .github/workflows/images.yml
-      - BUILD.bazel
-      - MODULE.bazel
-      - MODULE.bazel.lock
-      - build/**
-      - cmd/**
-      - internal/**
-      - web/**
-      - k8s/**
   workflow_dispatch:
 permissions:
   contents: read
@@ -113,6 +108,71 @@ jobs:
           expected="$(printf '%s\n' Cluster/agentboard-db Database/mattermost Namespace/agentboard PersistentVolumeClaim/mattermost-data | sort)"
           echo "Protected from prune/delete: $(tr '\n' ' ' <<<"${protected}")"
           test "${protected}" = "${expected}"
+
+  acceptance:
+    needs: plan
+    # PR code can use the build credentials below. Keep this on trusted source
+    # branches and preserve all existing environment approval/ref protections.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.repository == 'carverauto/agentboard' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: arc-runner-set
+    timeout-minutes: 60
+    environment: agentboard-release
+    permissions:
+      contents: read
+    container:
+      image: registry.carverauto.dev/serviceradar/buildbuddy-workflow-runner:v1.0.24.5@sha256:7f64c7cdf563c032ed7c5546eb9e4492cd527df64a615b55788fc518aa8752dd
+    defaults:
+      run:
+        shell: bash
+    env:
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      DOCKER_CONFIG: /tmp/agentboard-pr-acceptance-docker-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify tested revision
+        run: |
+          set -euo pipefail
+          echo "runner=${RUNNER_NAME:-unknown}"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          printf 'commit=%s\ntree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')"
+      - name: Configure remote execution
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: ./scripts/ci-bazelrc
+      - name: Install pinned build driver and registry client
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/agentboard-tools
+          curl -fsSL https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /tmp/agentboard-tools/bazel
+          echo 'e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76  /tmp/agentboard-tools/bazel' | sha256sum -c -
+          chmod +x /tmp/agentboard-tools/bazel
+          curl -fsSL https://github.com/google/go-containerregistry/releases/download/v0.21.7/go-containerregistry_Linux_x86_64.tar.gz -o /tmp/agentboard-tools/crane.tar.gz
+          echo '1a57bc98207fa1c0d04bf760699099e26f8383499bfd55b99c1b919a928a7230  /tmp/agentboard-tools/crane.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/agentboard-tools/crane.tar.gz -C /tmp/agentboard-tools crane
+          echo /tmp/agentboard-tools >> "$GITHUB_PATH"
+      - name: Authenticate mirrored base image (pull only)
+        env:
+          HARBOR_BUILD_USERNAME: ${{ secrets.HARBOR_BUILD_USERNAME }}
+          HARBOR_BUILD_PASSWORD: ${{ secrets.HARBOR_BUILD_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$DOCKER_CONFIG"
+          printf '%s' "$HARBOR_BUILD_PASSWORD" | crane auth login "$REGISTRY" --username "$HARBOR_BUILD_USERNAME" --password-stdin
+      - name: Test on BuildBuddy
+        run: ./scripts/bazel test --config=ci //:acceptance
+      - name: Remove job credential files
+        if: always()
+        run: rm -f "$GITHUB_WORKSPACE/.bazelrc.remote" "$DOCKER_CONFIG/config.json"
 
   publish:
     needs: plan
