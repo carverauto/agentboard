@@ -131,7 +131,7 @@ defmodule Agentboard.Coordinator.Contract do
       next_cursor: next,
       limits: Map.take(options, [:limit, :max_bytes]),
       restart_from_start: true,
-      policy_evaluation: "not_available"
+      policy_evaluation: "server_available"
     }
   end
 

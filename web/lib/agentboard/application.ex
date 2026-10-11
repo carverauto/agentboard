@@ -19,6 +19,7 @@ defmodule Agentboard.Application do
          repo: Agentboard.Repo,
          queues: [
            housekeeping: 1,
+           decision_policy: [limit: 2],
            cooperation: [
              limit: 2,
              paused: not Application.get_env(:agentboard, :cooperation_enabled, false)
@@ -64,6 +65,7 @@ defmodule Agentboard.Application do
         {Oban.Plugins.Cron, opts} ->
           entries =
             Enum.reject(opts[:crontab] || [], fn
+              {_, Agentboard.DecisionPolicy.ApplyCreated, _} -> true
               {_, Agentboard.Delivery.ReconcileLinks, _} -> not discovery_enabled?()
               {_, Agentboard.Delivery.ScheduleDue, _} -> not observation_enabled?()
               {_, Agentboard.Delivery.ScheduleBases, _} -> not observation_enabled?()

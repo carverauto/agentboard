@@ -190,7 +190,7 @@ def uuid_value(value):
 def check_item(item):
     assert set(item) == {'id', 'version', 'source_kind', 'status', 'kind', 'created_at',
         'updated_at', 'task_id', 'task_revision', 'task_owner_id', 'task_status',
-        'requester_id', 'handling', 'attention', 'reason', 'refs'}, item
+        'requester_id', 'handling', 'attention', 'reason', 'refs', 'policy_evaluation'}, item
     uuid_value(item['id'])
     assert re.fullmatch('[0-9a-f]{64}', item['version']), item
     assert item['source_kind'] == 'decision_request'
@@ -223,7 +223,7 @@ def tick(limit=20, max_bytes=16384, cursor=None, *, default=False, **kwargs):
                         'next_cursor', 'limits', 'restart_from_start', 'policy_evaluation'}, page
     assert page['protocol_revision'] == 1 and page['coordinator_id'] == COORDINATOR
     assert page['restart_from_start'] is True
-    assert page['policy_evaluation'] == 'not_available'
+    assert page['policy_evaluation'] == 'server_available'
     assert page['limits'] == dict(limit=limit, max_bytes=max_bytes)
     assert len(encoded) <= max_bytes, ('Full encoded JSON exceeds byte budget', len(encoded), max_bytes)
     assert len(page['items']) <= limit

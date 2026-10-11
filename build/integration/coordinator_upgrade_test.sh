@@ -80,10 +80,10 @@ for initial_marker in 9000 39; do (
   # for tables without a primary key; complete JSON rows preserve all columns.
   history_query="$(fixture_psql "SELECT 'SELECT jsonb_object_agg(name,rows ORDER BY name) FROM (' || string_agg(format('SELECT %L AS name, COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),''[]''::jsonb) AS rows FROM %I.%I t',tablename,schemaname,tablename),' UNION ALL ' ORDER BY tablename) || ') preserved' FROM pg_tables WHERE schemaname='public' AND tablename NOT IN ('board_schema','schema_migrations')")"
   fixture_psql "$history_query" >"$case_root/before.json"
-  "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()' >"$case_root/migrate40.log" 2>&1 || {
+  "$release_root/bin/agentboard" eval 'Application.load(:agentboard); {:ok, _, _} = Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, :up, to: 20261008004000) end)' >"$case_root/migrate40.log" 2>&1 || {
     cat "$case_root/migrate40.log" >&2; exit 1;
   }
-  "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()' >"$case_root/repeat40.log" 2>&1 || {
+  "$release_root/bin/agentboard" eval 'Application.load(:agentboard); {:ok, _, _} = Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, :up, to: 20261008004000) end)' >"$case_root/repeat40.log" 2>&1 || {
     cat "$case_root/repeat40.log" >&2; exit 1;
   }
   expected_marker=40
@@ -137,7 +137,7 @@ for initial_marker in 9000 39; do (
     echo 'Coordinator migration unexpectedly allowed destructive down' >&2; exit 1
   fi
   grep -q 'Retain immutable coordinator handling evidence; use compatible code' "$case_root/down.log"
-  "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()' >"$case_root/populated-repeat.log" 2>&1 || {
+  "$release_root/bin/agentboard" eval 'Application.load(:agentboard); {:ok, _, _} = Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, :up, to: 20261008004000) end)' >"$case_root/populated-repeat.log" 2>&1 || {
     cat "$case_root/populated-repeat.log" >&2; exit 1;
   }
   assert_eq "$(fixture_psql 'SELECT version FROM board_schema WHERE id=1')" "$expected_marker" 'marker survives down refusal and repeat'

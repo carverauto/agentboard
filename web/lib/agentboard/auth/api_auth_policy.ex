@@ -69,6 +69,14 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       when action in [:provision, :resolve_attempt, :responsibility, :revoke, :operate],
       do: :independent
 
+  def boundary(%{plug: AgentboardWeb.DecisionPolicyController, plug_opts: action})
+      when action in [:draft, :approve, :activate, :deactivate, :apply], do: :captain
+
+  # Independent read boundary admits captain proof without the legacy POST
+  # bootstrap registration side effect. The controller still verifies agent
+  # scopes through the normal agent boundary for ordinary readers.
+  def boundary(%{plug: AgentboardWeb.DecisionPolicyController}), do: :agent
+
   def boundary(%{plug: AgentboardWeb.CoordinatorTriageController}), do: :captain
 
   def boundary(%{plug: AgentboardWeb.FleetLoadoutController}), do: :captain
@@ -113,6 +121,8 @@ defmodule Agentboard.Auth.APIAuthPolicy do
   def captain_operation?(%{plug: APIController, plug_opts: action}, _)
       when action in [:agent, :availability, :seat_scope], do: true
 
+  def captain_operation?(%{plug: AgentboardWeb.DecisionPolicyController}, _), do: true
+
   def captain_operation?(_, _), do: false
 
   def bootstrap?(%{plug: APIController, plug_opts: :register}), do: true
@@ -135,6 +145,17 @@ defmodule Agentboard.Auth.APIAuthPolicy do
     (action == :notify and method == "POST") or
       (action == :show and method in ["GET", "HEAD"]) or
       (action == :reconcile and method == "POST")
+  end
+
+  def allowed?(
+        %{scope: scope},
+        %{plug: AgentboardWeb.DecisionPolicyController, plug_opts: action},
+        method,
+        _
+      )
+      when scope in ["agent", "coordinator", "coordinator_participant"] do
+    (action in [:index, :show, :ledger] and method in ["GET", "HEAD"]) or
+      (action in [:validate, :plan, :explain] and method == "POST")
   end
 
   def allowed?(%{scope: "agent"}, _info, _method, _params), do: true

@@ -34,8 +34,9 @@ The coordinator acts only within captain-approved policy. It never merges, tags,
 The [revision-1 coordinator attention protocol](docs/coordinator/protocol.md)
 offers the same decision-only tick/ack contract over HTTPS and a thin CLI, using
 an explicitly issued runner credential. It records handling without answering
-decisions or dispatching seats; server-policy and live adapter rollout remain
-separate work.
+decisions or dispatching seats; server policy evaluation is available separately through
+[versioned captain decision policies](docs/decision-policy.md); live adapter and
+signed escalation delivery rollout remain separate work.
 
 ## Architecture
 

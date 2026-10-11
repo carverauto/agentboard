@@ -31,7 +31,7 @@ func (c *commands) decisions() *cobra.Command {
 	var task, kind, gate, question, findingsFile, retryKey string
 	var options []string
 	var newRequest bool
-	var expires int
+	var expires, ciRuns int
 	request := &cobra.Command{Use: "request [TASK]", Short: "File any captain question on your owned task", Args: cobra.MaximumNArgs(1)}
 	request.Flags().StringVar(&task, "task", "", "Owned task; must agree with positional TASK")
 	request.Flags().StringVar(&kind, "kind", "approval", "approval, merge, policy, credential, scope, ask_user_gate, blocked_decision or other")
@@ -42,6 +42,7 @@ func (c *commands) decisions() *cobra.Command {
 	request.Flags().BoolVar(&newRequest, "new", false, "Deliberate re-ask after terminal disposition; requires --request-key")
 	request.Flags().StringVar(&retryKey, "request-key", "", "Stable retry identity for --new")
 	request.Flags().IntVar(&expires, "expires-in", 0, "Optional non-gate expiry in seconds (60–2592000); cleanup defaults off")
+	request.Flags().IntVar(&ciRuns, "ci-runs", 0, "Explicit requested CI run count, 0–100; omission is not a verified zero")
 	request.RunE = func(cmd *cobra.Command, args []string) error {
 		if len(args) == 1 {
 			if task != "" && task != args[0] {
@@ -72,6 +73,9 @@ func (c *commands) decisions() *cobra.Command {
 		}
 		if expires != 0 && (kind == "ask_user_gate" || expires < 60 || expires > 2592000) {
 			return errors.New("--expires-in is bounded and available only for non-gate kinds")
+		}
+		if cmd.Flags().Changed("ci-runs") && (ciRuns < 0 || ciRuns > 100) {
+			return errors.New("--ci-runs must be 0–100")
 		}
 		findings := []byte{}
 		if findingsFile != "" {
@@ -109,6 +113,10 @@ func (c *commands) decisions() *cobra.Command {
 		if expires != 0 {
 			data["expires_in"] = expires
 		}
+		if cmd.Flags().Changed("ci-runs") {
+			data["requested_ci_runs"] = ciRuns
+			return c.decisionPolicyRequest(cmd, http.MethodPost, "decisions", nil, data, false, true)
+		}
 		return c.request(cmd, http.MethodPost, "decisions", nil, data)
 	}
 	var promoteTask, sourceType, sourceID, promoteQuestion, promoteKind string
@@ -136,7 +144,7 @@ func (c *commands) decisions() *cobra.Command {
 	show := &cobra.Command{Use: "show ID", Short: "Read a retained decision verbatim", Args: decisionIDArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		return c.request(cmd, http.MethodGet, "decisions/"+args[0], nil, nil)
 	}}
-	group.AddCommand(request, c.decisionList("decisions"), show, c.decisionWaiting(), c.decisionConversation())
+	group.AddCommand(request, c.decisionList("decisions"), show, c.decisionWaiting(), c.decisionConversation(), c.decisionPolicy())
 	for _, action := range []string{"recommend", "answer", "ack", "withdraw", "supersede"} {
 		action := action
 		var body, answer, reason, behalf string

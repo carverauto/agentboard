@@ -323,4 +323,11 @@ config :agentboard,
        System.get_env("AGENTBOARD_BRANCH_FLOW_ENABLED") == "true"
 
 # Typed decision chat routing is unset by default and never activates participation.
-config :agentboard, :coordinator_chat_channel_id, System.get_env("AGENTBOARD_COORDINATOR_CHAT_CHANNEL_ID")
+config :agentboard,
+       :coordinator_chat_channel_id,
+       System.get_env("AGENTBOARD_COORDINATOR_CHAT_CHANNEL_ID")
+
+# Default no-answer. Only the exact apply string enables approved active policy execution.
+config :agentboard,
+       :decision_policy_mode,
+       System.get_env("AGENTBOARD_DECISION_POLICY_MODE", "dry_run")

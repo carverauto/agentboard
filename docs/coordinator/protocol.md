@@ -75,7 +75,7 @@ that cannot fit returns an explicit error; it is never skipped silently.
 Example empty response:
 
 ```json
-{"protocol_revision":1,"coordinator_id":"shell-example-coordinator","items":[],"complete":true,"next_cursor":null,"limits":{"limit":20,"max_bytes":16384},"restart_from_start":true,"policy_evaluation":"not_available"}
+{"protocol_revision":1,"coordinator_id":"shell-example-coordinator","items":[],"complete":true,"next_cursor":null,"limits":{"limit":20,"max_bytes":16384},"restart_from_start":true,"policy_evaluation":"server_available"}
 ```
 
 Each item includes:
@@ -102,8 +102,9 @@ inactive-task sources stay visibly blocked. Canonical answer/withdraw/supersede
 removes a decision from open tick results.
 An exact read of a retained non-open decision reports `attention=resolved`.
 
-`policy_evaluation=not_available` is deliberate: #154 policy evaluation is not
-implemented here. Tick does not claim its items were screened by that engine.
+`policy_evaluation=server_available` announces the schema41 evaluator. Each
+item separately reports inactive, dry_run, not_evaluated or its current retained
+policy result; availability alone does not claim a source was screened.
 Answered-decision wakes, CI/conflict selection, quota interpretation and digest
 work remain with their existing owners; no mechanical sweep is reproduced.
 
@@ -175,3 +176,11 @@ into an automatic resend.
 
 No schedule, credential, deployment or cutover is installed. #150/#156 native
 admission/delivery, #153 transport and #155 liveness supervision remain separate.
+
+### Decision policy metadata
+
+Schema41 exposes read-only per-item `policy_evaluation` metadata from the exact
+source snapshot, with current policy generation and UTC-day freshness. The
+runner still has only tick/show/ack/own-heartbeat authority. It cannot activate
+or apply policies. Missing signed escalation push is reported as unavailable;
+see [decision policies](../decision-policy.md) before any operational cutover.

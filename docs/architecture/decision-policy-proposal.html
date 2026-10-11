@@ -1,0 +1,200 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Decision policy portable proposal</title><style>body{margin:0;background:#09111e;color:#e9eff8;font:16px/1.55 system-ui,sans-serif}main{max-width:1220px;margin:auto;padding:40px 28px}h1{font-size:34px;line-height:1.2;margin:8px 0 14px}h2{font-size:20px;color:#b8d7ff}.eyebrow{color:#6ad1c6;letter-spacing:.12em;text-transform:uppercase;font-size:12px}p{max-width:970px;color:#b8c4d6}.diagram{background:#101b2c;border:1px solid #26354b;border-radius:18px;padding:12px;overflow:auto}svg{display:block;width:100%;min-width:760px;height:auto}.cards{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px}section{background:#101b2c;padding:22px;border-radius:14px;border:1px solid #26354b}a{color:#80b8ff}li{margin:9px 0;color:#c4cfdf}small{color:#93a5bf}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.6 ui-monospace,monospace;background:#09111e;border-radius:10px;padding:18px}details{margin:18px 0}summary{font-weight:650;cursor:pointer}@media(max-width:780px){main{padding:24px 16px}h1{font-size:28px}.cards{grid-template-columns:1fr}}</style></head><body><main><span class="eyebrow">Portable review · Implementation scope only</span><h1>Captain decision policy proposal</h1><p>Review the policy authority, transaction and rollout boundaries. Approval of code is separate from approval or activation of a stored live policy.</p><details open><summary>Proposal</summary><pre># Server-owned captain decision policy
+
+## Why
+
+GH154 moves routine decision answers into deterministic board machinery. GH145&#x27;s
+schema/evaluator is not on main, so this change includes that prerequisite and a
+thin API-backed CLI. The coordinator never receives captain authority.
+
+## What changes
+
+- A strict bounded `CaptainDecisionPolicy` document, a single authoritative
+  deterministic evaluator, and read-only validate/plan/explain surfaces.
+- Immutable named policy versions, captain-only approval of an exact digest,
+  and a compare-and-set active-version pointer. Editing creates a fresh draft.
+- Transactional event-created AshOban jobs. Only an explicitly active, approved
+  version and opt-in server apply mode can answer; the default is dry-run.
+- An append-only evaluation/answer ledger, database uniqueness, current-source
+  and policy generation fences, and serialized PR/day and decision CI budgets.
+- Existing decision answer/message/event/wake behavior reused atomically.
+- Thin CLI lifecycle, plan/explain/ledger commands and truthful coordinator
+  attention metadata without additional runner authority.
+
+## Boundaries and remaining work
+
+No deployment, credential changes, live policy activation, seat dispatch or
+coordinator schedule changes are part of implementation. GH153 signed push is
+absent; escalations remain durable open decisions with explicit delivery status,
+not a claim of human push. Do not retire the existing decision poll until a
+separately authorized live deployment and transport/cutover verification.
+
+This is the server-owned replacement for GH145 apply. JSON is the initial
+interchange format (the schema is compatible with JSON&#x27;s YAML subset). Full
+standalone YAML parsing, offline apply/file locks and local pending JSONL are
+not claimed complete; thin CLI calls the server&#x27;s one authoritative evaluator.
+They remain GH145 packaging work rather than a second rule implementation.
+
+## Validation
+
+Test strict schema and deterministic matching; auth spoofing and approval hash
+binding; activation/current-source races; duplicate job and answer delivery
+idempotency; shared PR/day and CI budgets; transaction rollback and database
+immutability; read-only CLI/plan and existing decision/coordinator regressions.
+Every Bazel invocation remains remote; absent remote configuration is disclosed.
+</pre></details><details open><summary>Design</summary><pre># Design
+
+## Baseline
+
+Fresh main `540cb4349f2b45020199b19f8373405169bf7711`. Existing Decisions owns
+request/task locks and transactional answer/message/event/wake capture. Reuse
+this path. GH145 has no implementation. GH153 transport and GH168 schema allocator
+are absent. Migration 41 is a candidate from this checkout, not a live reservation.
+
+## Document and evaluator
+
+One Elixir evaluator validates a bounded JSON map, rejecting unknown nested
+keys, duplicate IDs, missing ruling/date sources and invalid/oversized regexes. Regexes use an explicitly bounded safe grammar; arbitrary backtracking constructs are rejected rather than trusted based on length.
+Metadata names a version; submitted status/approval metadata cannot grant
+approval. Draft creation must use draft status and no approval attestations.
+The server supplies approval, activation, timestamps and content digest.
+
+Evaluation is pure and stable: non-open/retained identity skip; explicit captain
+markers across question/options/findings; escalation guards; rule kind/gate,
+keyword and option matching; specificity and top-tie rejection; manual or
+unverified conditions; then budgets. Rule keywords are case-insensitive word-start stems; escalation keywords are fully word bounded; only complete isolated negated guard clauses in a closed grammar are removed. Ambiguous negation remains escalation text.
+Escalation checks include the proposed answer. A zero-score candidate must match
+a question keyword. Conditions that cannot be proved deterministically never
+auto-answer. No model judgments or implicit coordinator verification. CI grants
+must declare bounded `ci_runs` cost. CI-related decisions must retain an explicit bounded canonical `requested_ci_runs` intent field; absent or larger requests escalate. Text never supplies authoritative numeric budgets or evidence that outside conditions hold.
+Generated answer provenance always includes policy version, rule ID and source.
+
+Policy limits include a fixed explicit UTC calendar day for this first server
+revision, with `engine.timezone` restricted to `UTC` when supplied. This is
+independent of database/session timezone. Non-UTC board-local days require a
+future versioned timezone capability; they are rejected, not silently converted.
+
+## Storage and lifecycle
+
+Immutable policy_versions contain `(name, version, document, sha256, creator,
+created_at)`. A new version must be the next version for that name. Immutable
+approvals bind version ID and digest to authenticated captain attribution. A
+singleton state row records active version and monotonically increasing
+generation; captain activate/deactivate requires its expected generation.
+Activation requires exact retained approval. Approval/draft exact retries are idempotent. Active-state CAS takes precedence: an old expected generation never resurrects a policy after deactivation. Changed content under an existing name/version conflicts.
+Creating another draft never mutates or inherits the older version&#x27;s approval.
+
+Immutable evaluation identity is `(decision_id, gate_ref, policy_version_id, source_version, generation, UTC_day)`. Only answered rows suppress future eligibility; a separate partial unique answered decision_id fence prevents any second automatic answer across all versions. Stale/disabled jobs create no retained evaluation. Negative evaluations may be revisited by a fresh explicit source/generation/day and never consume answer budget.
+Records retain policy/rule/digest, source version, exact answer/hash, UTC day,
+PR-or-task limit key, CI cost, outcome/reason and server timestamp. All writes
+use Ash actions/audit. Database UPDATE/DELETE/TRUNCATE guards protect immutable
+records. The answer and answered ledger record are one transaction, so neither
+can commit alone. Escalations are ledgered and stay open; delivery explicitly
+reports unavailable until GH153 exists. Infrastructure errors roll back and are
+retried by Oban without a misleading terminal successful ledger entry.
+
+## Creation, currentness and lock order
+
+The new-request path enqueues an AshOban trigger transactionally AFTER the task blocked revision increment, including promoted and duplicate-PR intake requests. It captures the active version/generation and canonical
+source version (decision updated_at/content plus current task owner/revision/PR).
+No active policy produces no job. Activation does not replay old decisions.
+Dry-run mode does not enqueue mutating apply work or answer any decision.
+
+An apply locks task, then decision, then the singleton policy state. Lifecycle
+operations take only state; no lifecycle operation subsequently acquires a task
+lock. This preserves existing task -&gt; decision -&gt; worker ordering and avoids a
+policy/task inversion. State locking serializes automatic answer budgets across
+all tasks/PRs. Recheck mode, active exact version/digest/approval/generation,
+source version, ownership/status/expiry and retained ledger while holding locks.
+A stale job does not switch to a newer policy or overwrite a human answer.
+
+Count answered ledger entries using existing Delivery.Inventory.canonical for the PR URL (task ID fallback) and UTC date across all policy versions. A single locked database clock sample fixes the evaluation, budget date and ledger timestamp across midnight. Reserve no independent external action:
+the budget, CAS answer, inbox message, task event, one frozen wake and ledger
+commit atomically. Decision CI grant count is likewise ledger-derived across
+versions. Duplicate jobs and retries produce no duplicate ledger or delivery.
+No native I/O occurs in the transaction. Failed enqueue aborts request creation.
+
+## Authorization and public interfaces
+
+New policy routes precede `/decisions/:id`. Lifecycle writes require current
+captain proof derived at the boundary, rechecked with Captain.authorized? inside each lifecycle transaction after waiting for locks, in auth off/observe/enforce alike. No public
+field, agent header, coordinator scope or document approval field becomes that
+proof. Read/plan/explain/ledger use existing authenticated read permissions;
+coordinator_runner remains limited to its existing protocol and receives bounded
+policy summary through tick/show, not lifecycle or answer authority.
+
+A narrowly scoped internal decision-answer entry point is callable only from
+the policy transaction after all fences, with a server-reserved attribution.
+Public decision mutate retains its captain requirement and existing API shape.
+The policy actor is not supplied by requests and does not require storing or
+forwarding a captain token. Answer delivery remains the canonical existing path.
+
+CLI `decision policy` defaults to plan. `validate --file`, `plan [--file]`,
+`explain ID [--file]`, `ledger`, `list`, `show`, `draft --file`, `approve` and
+`activate`/`deactivate --generation` call the matching server surfaces. File
+inputs are bounded JSON, not a new local policy engine. An explicit captain
+`apply` may submit an exact read plan token to the server; it cannot bypass
+active-version/currentness/mode/budget checks or enable the server globally.
+Plan/explain never write ledger/jobs or answer state and give exact outcomes.
+
+## Rollout and proof
+
+Server mode defaults to dry_run. Only the exact configured string apply permits answers; absent/unknown/off/dry_run fail closed and document engine mode cannot override this fence. engine.default_mode remains the human dry_run default; engine.server_mode is a separate explicit dry_run|apply opt-in (default dry_run). Both server_mode=apply and global mode=apply are required. No approved or active policies are seeded.
+Existing APIs, task holds and decision wakes remain compatible. Coordinator
+metadata distinguishes unavailable, disabled, not evaluated and exact-version
+retained evaluation; it never implies a stale evaluation covers changed source.
+Recovery readiness and unrelated server automation remain disabled.
+
+Fresh/upgrade migrations preserve records and higher board_schema markers with
+GREATEST. Test normal-role immutability, hash/approval/currentness fences,
+concurrent answers/activation/human writes, dry-run no effects, per-PR/day and CI
+limits, enqueue and ledger rollback, duplicate jobs and all evaluator precedence. Cover API create, duplicate-PR intake, owner promotion and captain LiveView promotion so every canonical creation path is exercised.
+Remote Bazel and hosted CI proof remain required publication evidence.
+</pre></details><details open><summary>Tasks</summary><pre># Tasks
+
+- [x] Review proposal/schema/auth/currentness/budget contract before code.
+- [x] Add strict bounded schema and pure deterministic evaluator with fixtures.
+- [x] Add immutable version/approval/ledger storage and CAS active state.
+- [x] Add captain lifecycle API and read-only validate/plan/explain/ledger API.
+- [x] Add transactional AshOban creation trigger and fenced canonical answer path.
+- [x] Add thin CLI and bounded truthful coordinator evaluation projection.
+- [x] Add auth/race/idempotency/limit/rollback/upgrade regression tests.
+- [ ] Verify remote checks or explicitly record unavailable checks; obtain hosted CI.
+- [x] Document operational activation and missing GH153 cutover prerequisites.
+
+## Separately gated / not completed here
+
+- [ ] GH153 signed human escalation push and production cutover.
+- [ ] GH145 standalone YAML/offline apply, file locking and JSONL packaging.
+- [ ] Authorized live policy import, approval, activation and poll retirement.
+</pre></details><details open><summary>Requirements</summary><pre>## ADDED Requirements
+
+### Requirement: Exact captain-approved immutable versions
+The server MUST create edits as a new draft and MUST require verified captain
+approval of that exact digest before an explicit compare-and-set activation.
+
+#### Scenario: Forged approval metadata
+- **WHEN** a client submits approved status or another person&#x27;s approval fields
+- **THEN** the draft write fails and no active authority is created.
+
+### Requirement: Atomic fenced event-created answers
+The server MUST enqueue from decision creation transactionally and MUST only
+answer an unchanged open source under the same active approved policy generation,
+with limits, canonical answer delivery and immutable ledger in one transaction.
+
+#### Scenario: Concurrent duplicate jobs
+- **WHEN** two jobs evaluate one captured decision and policy identity
+- **THEN** at most one answer, ledger, message, task event and wake commits.
+
+#### Scenario: Human or policy state changed
+- **WHEN** source/task currentness, policy generation or apply mode differs
+- **THEN** the queued job cannot overwrite an answer or switch policy versions.
+
+### Requirement: Default no-answer and transparent escalation
+Human plan/explain MUST be read-only. Server mode MUST default to dry_run.
+Unmatched, tied, captain-only, unverifiable and over-budget decisions MUST remain
+open. Missing human push transport MUST be disclosed, without claiming cutover.
+
+### Requirement: Shared serialized budgets
+Answers MUST consume the PR (or task fallback) UTC-day budget across policy
+versions; CI grants MUST be bounded per decision and never reset on retries.
+</pre></details><h2>Architecture</h2><div class="diagram"><svg viewBox="0 0 1160 560" role="img" aria-labelledby="diagram-title"><title id="diagram-title">Server decision policy boundaries and atomic flow</title><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#99a7bb"/></marker></defs><path d="M370 87 H410" fill="none" stroke="#99a7bb" stroke-width="2" marker-end="url(#arrow)"/><path d="M745 87 H785" fill="none" stroke="#99a7bb" stroke-width="2" marker-end="url(#arrow)"/><path d="M370 277 H410" fill="none" stroke="#99a7bb" stroke-width="2" marker-end="url(#arrow)"/><path d="M745 277 H785" fill="none" stroke="#99a7bb" stroke-width="2" marker-end="url(#arrow)"/><path d="M952 140 V225" fill="none" stroke="#99a7bb" stroke-width="2" marker-end="url(#arrow)"/><path d="M952 330 V415" fill="none" stroke="#99a7bb" stroke-width="2" marker-end="url(#arrow)"/><path d="M785 467 H745" fill="none" stroke="#99a7bb" stroke-width="2" marker-end="url(#arrow)"/><path d="M805 330 V377 H202 V415" fill="none" stroke="#99a7bb" stroke-width="2" marker-end="url(#arrow)"/><text x="415" y="369" fill="#aebbd0" font-size="14">Escalations stay open</text><g id="captain"><rect x="35" y="35" width="335" height="105" rx="12" fill="#132034" stroke="#f0b75d"/><rect x="35" y="50" width="4" height="75" rx="2" fill="#f0b75d"/><text x="54" y="72" fill="#f5f8ff" font-size="18" font-weight="600">Captain capability</text><text x="54" y="102" fill="#aebbd0" font-size="13">Approve exact digest; CAS active version</text></g><g id="versions"><rect x="410" y="35" width="335" height="105" rx="12" fill="#132034" stroke="#57c9be"/><rect x="410" y="50" width="4" height="75" rx="2" fill="#57c9be"/><text x="429" y="72" fill="#f5f8ff" font-size="18" font-weight="600">Immutable policy versions</text><text x="429" y="102" fill="#aebbd0" font-size="13">New edit = new draft + reapproval</text></g><g id="state"><rect x="785" y="35" width="335" height="105" rx="12" fill="#132034" stroke="#f0b75d"/><rect x="785" y="50" width="4" height="75" rx="2" fill="#f0b75d"/><text x="804" y="72" fill="#f5f8ff" font-size="18" font-weight="600">Active pointer + modes</text><text x="804" y="102" fill="#aebbd0" font-size="13">Document apply AND global apply</text></g><g id="intake"><rect x="35" y="225" width="335" height="105" rx="12" fill="#132034" stroke="#80aaff"/><rect x="35" y="240" width="4" height="75" rx="2" fill="#80aaff"/><text x="54" y="262" fill="#f5f8ff" font-size="18" font-weight="600">Canonical decision intake</text><text x="54" y="292" fill="#aebbd0" font-size="13">Request + blocked revision + captured job</text></g><g id="job"><rect x="410" y="225" width="335" height="105" rx="12" fill="#132034" stroke="#b394ff"/><rect x="410" y="240" width="4" height="75" rx="2" fill="#b394ff"/><text x="429" y="262" fill="#f5f8ff" font-size="18" font-weight="600">Event-created AshOban</text><text x="429" y="292" fill="#aebbd0" font-size="13">No poll; frozen source + generation</text></g><g id="fences"><rect x="785" y="225" width="335" height="105" rx="12" fill="#132034" stroke="#f0b75d"/><rect x="785" y="240" width="4" height="75" rx="2" fill="#f0b75d"/><text x="804" y="262" fill="#f5f8ff" font-size="18" font-weight="600">Locked revalidation</text><text x="804" y="292" fill="#aebbd0" font-size="13">Task → decision → policy state</text></g><g id="ledger"><rect x="785" y="415" width="335" height="105" rx="12" fill="#132034" stroke="#57c9be"/><rect x="785" y="430" width="4" height="75" rx="2" fill="#57c9be"/><text x="804" y="452" fill="#f5f8ff" font-size="18" font-weight="600">Append-only ledger</text><text x="804" y="482" fill="#aebbd0" font-size="13">PR/day + CI budgets; unique answer</text></g><g id="answer"><rect x="410" y="415" width="335" height="105" rx="12" fill="#132034" stroke="#80aaff"/><rect x="410" y="430" width="4" height="75" rx="2" fill="#80aaff"/><text x="429" y="452" fill="#f5f8ff" font-size="18" font-weight="600">Canonical answer delivery</text><text x="429" y="482" fill="#aebbd0" font-size="13">Answer + inbox + event + frozen wake</text></g><g id="human"><rect x="35" y="415" width="335" height="105" rx="12" fill="#132034" stroke="#a4cf75"/><rect x="35" y="430" width="4" height="75" rx="2" fill="#a4cf75"/><text x="54" y="452" fill="#f5f8ff" font-size="18" font-weight="600">Captain attention</text><text x="54" y="482" fill="#aebbd0" font-size="13">Escalations stay open; push unavailable</text></g></svg></div></main></body></html>

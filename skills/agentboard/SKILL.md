@@ -273,6 +273,10 @@ Use the appropriate kind: approval (default), merge, policy, credential,
 scope, ask_user_gate, blocked_decision or other. Non-gates may omit gate and
 findings; ask_user_gate MUST provide a stable --gate and a regular bounded
 UTF-8 --findings-file containing the findings verbatim. Never include secrets.
+Write `CAPTAIN-ONLY` in the question, options or findings when the captain must
+answer personally. Generic `on_behalf_of: captain` routing is not that marker.
+For a CI-run authorization request, include exact `--ci-runs N` on a schema41
+server; a policy will not infer a numeric grant from prose.
 Do not substitute a pane, chat question or task note for a filed decision.
 Notify with its returned ID, heartbeat on the task, then stop dependent work.
 
