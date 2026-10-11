@@ -3,7 +3,10 @@
 Status: **unregistered, fixture-tested candidate**, not a live worker adapter.
 The code lives in `internal/nativequeue/codex/`. No serve, worker host, installer,
 configuration allowlist or wake/admission path imports or activates it. It has
-no executable entrypoint and starts no native process. The existing exclusive
+no executable entrypoint and starts no native process. An adjacent
+[connect-only RPC candidate](worker-codex-rpc-client.md) now supplies bounded
+WebSocket-over-UDS framing; it is also unregistered and requires a trusted
+owner evidence provider that is not shipped. The existing exclusive
 `codex-app-server-v1` bridge remains unchanged, pinned to 0.160.1 and ephemeral
 threads. This candidate profile is separately named `codex-native-queue-v1`.
 
@@ -21,7 +24,7 @@ Release-pinned source:
 - [Queue processor](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/app-server/src/request_processors/thread_queue_processor.rs): list uses decimal offset cursors and can shift as other clients edit the queue; native admission rejects ephemeral and certain subagent targets. This library conservatively accepts only explicitly verified persistent top-level recipients.
 - [Queue service](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/ext/queue/src/service.rs): adding is effectful and can wake an idle loaded thread. It starts a turn before deleting an item, leaving a crash interval. Queue absence is never a received/handled receipt.
 - [Queue storage](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/state/src/runtime/queued_items.rs): every enqueue creates a new UUID; client message IDs are correlation, not native deduplication.
-- [CLI queue path](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/tui/src/session_queue_commands.rs): queueing uses shared-server discovery. This library neither invokes the CLI nor implements discovery or fallback.
+- [CLI queue path](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/tui/src/session_queue_commands.rs): queueing uses shared-server discovery. This transport core never invokes the CLI or performs discovery/fallback; the adjacent connect-only client implements read-only discovery with no fallback.
 
 No exactly-once delivery or execution claim is made.
 
@@ -29,7 +32,8 @@ No exactly-once delivery or execution claim is made.
 
 `createCodexQueueTransport` accepts `{client, endpoint, recipient, journalDir}`.
 The caller must already have negotiated and explicitly verified the real
-endpoint. This module supplies no production client. The trusted client must:
+endpoint. This transport module does not activate a client. The adjacent connect-only
+candidate remains gated on owner proof and live conformance. The trusted client must:
 
 - Provide synchronous `identity()` returning exactly `{endpoint, recipient}`.
 - Send a frozen `{id, method, params}` once via `request(request)` and return the

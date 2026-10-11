@@ -1,5 +1,19 @@
-# Unregistered source library: only the isolated fixture may depend on it.
+# Unregistered source library: only the isolated fixtures may depend on it.
 exports_files(
-    ["transport.mjs", "journal.mjs"],
+    ["transport.mjs", "journal.mjs", "rpc-client.mjs", "socket-discovery.mjs", "rpc-wire.mjs"],
+    visibility = ["//build/integration:__pkg__"],
+)
+
+filegroup(
+    name = "rpc_client_sources",
+    srcs = [
+        "rpc-client.mjs",
+        "socket-discovery.mjs",
+        "rpc-wire.mjs",
+        "transport.mjs",
+        "journal.mjs",
+        "package.json",
+        "package-lock.json",
+    ],
     visibility = ["//build/integration:__pkg__"],
 )

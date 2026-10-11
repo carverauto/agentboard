@@ -7,7 +7,10 @@ on:
       - internal/nativequeue/codex/**
       - build/integration/*native*
       - build/integration/codex_queue_test.*
+      - build/integration/codex_rpc_client_test.*
+      - build/integration/codex_rpc_socket_test.mjs
       - build/integration/BUILD.bazel
+      - BUILD.bazel
       - MODULE.bazel
       - .github/workflows/native-fixtures.yml
   push:
@@ -17,7 +20,10 @@ on:
       - internal/nativequeue/codex/**
       - build/integration/*native*
       - build/integration/codex_queue_test.*
+      - build/integration/codex_rpc_client_test.*
+      - build/integration/codex_rpc_socket_test.mjs
       - build/integration/BUILD.bazel
+      - BUILD.bazel
       - MODULE.bazel
       - .github/workflows/native-fixtures.yml
   workflow_dispatch:
@@ -40,6 +46,9 @@ jobs:
       # Match the worker_node_linux_x64 archive in MODULE.bazel.
       NODE_VERSION: 22.23.2
       NODE_SHA256: d60acfe00a2932254bb0ad20e01b0d74397a0875595de719654b214f4b03f307
+      # Match @codex_rpc_ws and internal/nativequeue/codex/package-lock.json.
+      CODEX_RPC_WS_VERSION: 8.22.0
+      CODEX_RPC_WS_SHA256: ca9b3798b2e11ce8fac6713f50ef0501aa12b09b330623c1dc409dff94e7abc8
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -74,3 +83,14 @@ jobs:
           set -euo pipefail
           node build/integration/codex_queue_test.mjs \
             "${GITHUB_WORKSPACE}/internal/nativequeue/codex/transport.mjs"
+      - name: Test Codex RPC client with checksum-pinned ws
+        env:
+          CODEX_RPC_TEST_UNIX: "1"
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/ws-${CODEX_RPC_WS_VERSION}.tgz"
+          curl -fsSL "https://registry.npmjs.org/ws/-/ws-${CODEX_RPC_WS_VERSION}.tgz" -o "$archive"
+          echo "${CODEX_RPC_WS_SHA256}  ${archive}" | sha256sum -c -
+          bash build/integration/codex_rpc_client_test.sh \
+            "${GITHUB_WORKSPACE}/internal/nativequeue/codex/rpc-client.mjs" \
+            "$(command -v node)" "$archive"
