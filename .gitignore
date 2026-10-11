@@ -39,6 +39,7 @@ npm-debug.log
 /assets/node_modules/
 /web/assets/node_modules/
 /web/node_modules/
+/internal/nativequeue/codex/node_modules/
 
 # Editors / OS
 .DS_Store
