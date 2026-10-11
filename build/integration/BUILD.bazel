@@ -705,3 +705,22 @@ sh_test(
     size = "medium",
     timeout = "long",
 )
+
+sh_test(
+    name = "decision_policy_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "decision_policy_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["decision_policy_test.py", "liveview_client.py", "//:docs/examples/decision-policy.json", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "large",
+    timeout = "long",
+)
+
+sh_test(
+    name = "decision_policy_upgrade_test",
+    srcs = ["decision_policy_upgrade_test.sh"],
+    data = ["postgres_fixture.sh", ":postgres_runtime", "//web:release"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)"],
+    size = "medium",
+    timeout = "long",
+)

@@ -230,7 +230,7 @@ defmodule Agentboard.Coordinator do
     %{rows: rows} =
       Repo.statement!(
         """
-        SELECT jsonb_build_object('decision',to_jsonb(d),'item',jsonb_build_object(
+        SELECT jsonb_build_object('decision',to_jsonb(d),'policy_task',jsonb_build_object('id',t.id,'revision',t.revision,'assignee_id',t.assignee_id,'status',t.status,'pr_url',t.pr_url),'item',jsonb_build_object(
           'id',d.id,'version',v.version,'source_kind','decision_request',
           'status',d.status,'kind',d.kind,'created_at',d.created_at,'updated_at',d.updated_at,
           'task_id',t.id,'task_revision',t.revision,'task_owner_id',t.assignee_id,
@@ -255,7 +255,11 @@ defmodule Agentboard.Coordinator do
         args
       )
 
-    Enum.map(rows, &hd/1)
+    Enum.map(rows, fn [source] ->
+      {task, source} = Map.pop(source, "policy_task")
+      policy = Agentboard.DecisionPolicy.attention(source["decision"], task)
+      update_in(source, ["item"], &Map.put(&1, "policy_evaluation", policy))
+    end)
   end
 
   defp current!(principal) do

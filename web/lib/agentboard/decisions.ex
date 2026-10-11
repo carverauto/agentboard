@@ -76,6 +76,7 @@ defmodule Agentboard.Decisions do
         question: data["question"],
         findings: data["findings"],
         options: data["options"],
+        requested_ci_runs: data["requested_ci_runs"],
         status: "open",
         question_key: key,
         normalization_version: if(key, do: 1),
@@ -99,6 +100,7 @@ defmodule Agentboard.Decisions do
         )
 
       event(blocked, task, r, "decision_requested", actor, stamp, data["question"])
+      Agentboard.DecisionPolicy.enqueue(r, blocked)
       envelope(r)
     end
   end
@@ -347,60 +349,7 @@ defmodule Agentboard.Decisions do
     if r.requester_id == actor["agent"],
       do: Ops.reject("forbidden", "Requesters cannot answer their own request")
 
-    cond do
-      r.status in ~w(answered applied) ->
-        unless r.answer == data["answer"] and r.answered_by == actor["agent"],
-          do: Ops.reject("conflict", "A different answer is already retained")
-
-        envelope(r)
-
-      r.status != "open" ->
-        Ops.reject("conflict", "Only open requests can be answered")
-
-      true ->
-        unless task.assignee_id == r.requester_id and
-                 task.status in ~w(in_progress blocked review),
-               do: Ops.reject("conflict", "Request ownership no longer matches its task")
-
-        message =
-          Ops.send_message(
-            actor,
-            %{
-              "to" => r.requester_id,
-              "task" => task.id,
-              "body" =>
-                "Decision " <>
-                  r.id <>
-                  " answered on behalf of captain. Read agentboard decision show " <>
-                  r.id <>
-                  " and apply the retained answer before ack.\n\nQuestion (verbatim):\n" <>
-                  r.question <> "\n\nAnswer (verbatim):\n" <> data["answer"]
-            },
-            stamp,
-            false
-          )
-
-        changed =
-          Ops.update(
-            r,
-            :change,
-            %{
-              status: "answered",
-              answer: data["answer"],
-              answered_by: actor["agent"],
-              answered_at: stamp,
-              on_behalf_of: "captain",
-              message_id: message.id,
-              updated_at: stamp
-            },
-            actor
-          )
-
-        event_id = event(task, task, changed, "decision_answered", actor, stamp, data["answer"])
-        changed = Ops.update(changed, :change, %{event_id: event_id}, actor)
-        capture_wake(task, changed, actor, stamp)
-        envelope(changed)
-    end
+    answer_locked(task, r, actor, data, stamp)
   end
 
   defp disposition(task, r, "ack", actor, _data, stamp) do
@@ -465,6 +414,75 @@ defmodule Agentboard.Decisions do
     else
       Enum.each(outstanding, &close(task, &1, "superseded", actor, data["reason"], stamp))
       envelope(Ops.fetch!(Request, r.id, "Decision request not found"))
+    end
+  end
+
+  # Private application boundary: no HTTP action accepts this actor or method.
+  # Policy owns task/request/state locks and eligibility before reaching here.
+  @doc false
+  def answer_policy_locked(task, request, answer, stamp) do
+    unless Repo.in_transaction?() and request.status == "open",
+      do: Ops.reject("conflict", "Policy answers require the locked open decision transaction")
+
+    actor = Agentboard.DecisionPolicy.system_actor()
+    Ops.identity!(actor)
+    answer_locked(task, request, actor, %{"answer" => answer}, stamp)
+  end
+
+  defp answer_locked(task, r, actor, data, stamp) do
+    cond do
+      r.status in ~w(answered applied) ->
+        unless r.answer == data["answer"] and r.answered_by == actor["agent"],
+          do: Ops.reject("conflict", "A different answer is already retained")
+
+        envelope(r)
+
+      r.status != "open" ->
+        Ops.reject("conflict", "Only open requests can be answered")
+
+      true ->
+        unless task.assignee_id == r.requester_id and
+                 task.status in ~w(in_progress blocked review),
+               do: Ops.reject("conflict", "Request ownership no longer matches its task")
+
+        message =
+          Ops.send_message(
+            actor,
+            %{
+              "to" => r.requester_id,
+              "task" => task.id,
+              "body" =>
+                "Decision " <>
+                  r.id <>
+                  " answered on behalf of captain. Read agentboard decision show " <>
+                  r.id <>
+                  " and apply the retained answer before ack.\n\nQuestion (verbatim):\n" <>
+                  r.question <> "\n\nAnswer (verbatim):\n" <> data["answer"]
+            },
+            stamp,
+            false
+          )
+
+        changed =
+          Ops.update(
+            r,
+            :change,
+            %{
+              status: "answered",
+              answer: data["answer"],
+              answered_by: actor["agent"],
+              answered_at: stamp,
+              on_behalf_of: "captain",
+              message_id: message.id,
+              updated_at: stamp
+            },
+            actor
+          )
+
+        event_id = event(task, task, changed, "decision_answered", actor, stamp, data["answer"])
+        changed = Ops.update(changed, :change, %{event_id: event_id}, actor)
+        capture_wake(task, changed, actor, stamp)
+        envelope(changed)
     end
   end
 
@@ -825,8 +843,10 @@ defmodule Agentboard.Decisions do
 
     if Enum.all?(
          Map.keys(data),
-         &(&1 in ~w(task kind gate question findings options new request_key expires_in))
+         &(&1 in ~w(task kind gate question findings options new request_key expires_in requested_ci_runs))
        ) and
+         (not Map.has_key?(data, "requested_ci_runs") or
+            (is_integer(data["requested_ci_runs"]) and data["requested_ci_runs"] in 0..100)) and
          Input.slug?(data["task"]) and data["kind"] in @kinds and
          (is_nil(gate) or bounded?(gate, 512)) and bounded?(data["question"], 8192) and
          is_binary(data["findings"]) and String.valid?(data["findings"]) and
@@ -925,7 +945,8 @@ defmodule Agentboard.Decisions do
           do: question_key(r.question) == question_key(data["question"]),
           else: r.question == data["question"]
         ) and r.findings == data["findings"] and
-        r.options == Map.get(data, "options", []) and r.expires_in == data["expires_in"]
+        r.options == Map.get(data, "options", []) and r.expires_in == data["expires_in"] and
+        r.requested_ci_runs == data["requested_ci_runs"]
 
   defp event(task, prior, r, kind, actor, stamp, body),
     do:

@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Server-owned captain decision policy",
+    "viewBox": [
+      1160,
+      560
+    ],
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "captain",
+      "type": "security",
+      "label": "Captain capability",
+      "sublabel": "Approve exact digest; CAS active version",
+      "pos": [
+        35,
+        35
+      ],
+      "size": [
+        335,
+        105
+      ]
+    },
+    {
+      "id": "versions",
+      "type": "database",
+      "label": "Immutable policy versions",
+      "sublabel": "New edit = new draft + reapproval",
+      "pos": [
+        410,
+        35
+      ],
+      "size": [
+        335,
+        105
+      ]
+    },
+    {
+      "id": "state",
+      "type": "security",
+      "label": "Active pointer + modes",
+      "sublabel": "Document apply AND global apply",
+      "pos": [
+        785,
+        35
+      ],
+      "size": [
+        335,
+        105
+      ]
+    },
+    {
+      "id": "intake",
+      "type": "backend",
+      "label": "Canonical decision intake",
+      "sublabel": "Request + blocked revision + captured job",
+      "pos": [
+        35,
+        225
+      ],
+      "size": [
+        335,
+        105
+      ]
+    },
+    {
+      "id": "job",
+      "type": "messagebus",
+      "label": "Event-created AshOban",
+      "sublabel": "No poll; frozen source + generation",
+      "pos": [
+        410,
+        225
+      ],
+      "size": [
+        335,
+        105
+      ]
+    },
+    {
+      "id": "fences",
+      "type": "security",
+      "label": "Locked revalidation",
+      "sublabel": "Task \u2192 decision \u2192 policy state",
+      "pos": [
+        785,
+        225
+      ],
+      "size": [
+        335,
+        105
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "Append-only ledger",
+      "sublabel": "PR/day + CI budgets; unique answer",
+      "pos": [
+        785,
+        415
+      ],
+      "size": [
+        335,
+        105
+      ]
+    },
+    {
+      "id": "answer",
+      "type": "backend",
+      "label": "Canonical answer delivery",
+      "sublabel": "Answer + inbox + event + frozen wake",
+      "pos": [
+        410,
+        415
+      ],
+      "size": [
+        335,
+        105
+      ]
+    },
+    {
+      "id": "human",
+      "type": "frontend",
+      "label": "Captain attention",
+      "sublabel": "Escalations stay open; push unavailable",
+      "pos": [
+        35,
+        415
+      ],
+      "size": [
+        335,
+        105
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "approve",
+      "from": "captain",
+      "to": "versions",
+      "label": "Digest-bound approval"
+    },
+    {
+      "id": "activate",
+      "from": "versions",
+      "to": "state",
+      "label": "Explicit activation"
+    },
+    {
+      "id": "created",
+      "from": "intake",
+      "to": "job",
+      "label": "One transaction"
+    },
+    {
+      "id": "work",
+      "from": "job",
+      "to": "fences",
+      "label": "Captured snapshot"
+    },
+    {
+      "id": "policy",
+      "from": "state",
+      "to": "fences",
+      "label": "Current generation"
+    },
+    {
+      "id": "budget",
+      "from": "fences",
+      "to": "ledger",
+      "label": "One UTC clock"
+    },
+    {
+      "id": "commit",
+      "from": "ledger",
+      "to": "answer",
+      "label": "Atomic commit"
+    },
+    {
+      "id": "escalate",
+      "from": "fences",
+      "to": "human",
+      "label": "No match / unsafe / over budget"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "One authoritative evaluator",
+      "items": [
+        "Human plan/explain are read-only. Coordinators hold no captain token.",
+        "No source, policy generation or budget may change between eligibility and commit."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Activation and cutover are separate",
+      "items": [
+        "Defaults are dry-run; no migration seeds an approved or active policy.",
+        "Signed human escalation push is absent; retain the existing decision poll until authorized live cutover."
+      ]
+    }
+  ]
+}

@@ -347,3 +347,13 @@ configuration, exact non-consuming `msg show`/`msg triage` reads and
 `--triage-state` filtering are documented in
 [coordinator inbox triage](coordinator-inbox-triage.md). These never acknowledge
 messages or prove routing, native acceptance or coordinator handling.
+
+## Server decision policy (schema 41)
+
+The `decision_policy_protocol_revision: 1` meta capability exposes strict policy
+validation, read-only plan/explain, captain-only draft/approve/activate/deactivate,
+exact-plan apply and append-only ledger reads under `/api/v1/decisions/policy`.
+See [the policy contract](decision-policy.md) for JSON schema limits, execution
+gates, UTC budgets, page cursors, authorization and deliberately deferred rollout.
+Canonical decision request accepts optional integer `requested_ci_runs` (0–100);
+omission preserves the existing intake contract.

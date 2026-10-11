@@ -13,6 +13,7 @@ defmodule AgentboardWeb.MetaController do
       required_decision_intake_version: 1,
       decision_conversation_supported: true,
       coordinator_protocol_revision: 1,
+      decision_policy_protocol_revision: 1,
       message_transport: Agentboard.MessageMode.status(),
       schema_version: current,
       required_schema_version: Agentboard.SchemaVersion.required()

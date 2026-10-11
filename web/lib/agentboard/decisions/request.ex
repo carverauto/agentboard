@@ -42,6 +42,7 @@ defmodule Agentboard.Decisions.Request do
         :question,
         :findings,
         :options,
+        :requested_ci_runs,
         :status,
         :recommendation,
         :recommended_by,
@@ -121,6 +122,7 @@ defmodule Agentboard.Decisions.Request do
       constraints: [trim?: false, allow_empty?: true]
     )
 
+    attribute(:requested_ci_runs, :integer, public?: true)
     attribute(:question_key, :string, public?: true)
     attribute(:normalization_version, :integer, public?: true)
     attribute(:retry_key, :string, public?: true, constraints: [trim?: false])

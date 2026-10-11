@@ -131,9 +131,14 @@ defmodule AgentboardWeb.Plugs.AgentAuth do
       # Existing board operations require a registered audit identity. Like the
       # captain UI, administrative writes ensure this one fixed identity.
       result =
-        if conn.method in ["GET", "HEAD"],
-          do: {:ok, nil},
-          else: Agentboard.Board.register(actor, %{"name" => "Captain"})
+        if conn.method in ["GET", "HEAD"] or
+             match?(
+               %{plug: AgentboardWeb.DecisionPolicyController, plug_opts: action}
+               when action in [:validate, :plan, :explain],
+               info
+             ),
+           do: {:ok, nil},
+           else: Agentboard.Board.register(actor, %{"name" => "Captain"})
 
       case result do
         {:ok, _} -> conn |> assign(:api_auth_kind, :captain) |> assign(:trusted_actor, actor)
@@ -238,6 +243,12 @@ defmodule AgentboardWeb.Plugs.AgentAuth do
 
   defp route_info(conn),
     do: Phoenix.Router.route_info(AgentboardWeb.Router, conn.method, conn.path_info, conn.host)
+
+  # These POST routes are pure reads, not mutation attempts. Preserve zero-write
+  # policy planning in observe mode just as for GET reads.
+  defp ordinary?(%{plug: AgentboardWeb.DecisionPolicyController, plug_opts: action})
+       when action in [:validate, :plan, :explain],
+       do: false
 
   defp ordinary?(%{plug: controller}),
     do:

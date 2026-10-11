@@ -1,0 +1,94 @@
+{
+  "apiVersion": "agentboard/v1alpha1",
+  "kind": "CaptainDecisionPolicy",
+  "metadata": {
+    "name": "example-team-policy",
+    "version": 1,
+    "status": "draft"
+  },
+  "engine": {
+    "default_mode": "dry_run",
+    "server_mode": "dry_run",
+    "timezone": "UTC",
+    "captain_marker": {
+      "explicit_markers": [
+        "CAPTAIN-ONLY"
+      ]
+    },
+    "answer": {
+      "prefix": "Auto-answered under captain policy v{version}, rule {rule_id} (source: {source.ruling}, {source.date})."
+    },
+    "limits": {
+      "max_auto_answers_per_pr_per_day": 3,
+      "max_auto_ci_runs_per_decision": 1
+    }
+  },
+  "escalate_always": [
+    {
+      "id": "merge",
+      "keywords": [
+        "may i merge",
+        "please merge",
+        "self-merge"
+      ]
+    },
+    {
+      "id": "secrets",
+      "keywords": [
+        "secret",
+        "credential",
+        "api key",
+        "password"
+      ]
+    },
+    {
+      "id": "destructive",
+      "keywords": [
+        "force-push",
+        "reset --hard",
+        "delete branch",
+        "drop table"
+      ]
+    },
+    {
+      "id": "production",
+      "keywords": [
+        "deploy to",
+        "rollout to",
+        "rollback",
+        "in production"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "regenerate-evidence",
+      "match": {
+        "kinds": [
+          "ask_user_gate"
+        ],
+        "gate_steps": [
+          "document",
+          "review"
+        ],
+        "keywords_any": [
+          "evidence",
+          "stale",
+          "regenerat"
+        ],
+        "option_match": "(?i)^\\s*FIX"
+      },
+      "conditions": [
+        {
+          "type": "obligation",
+          "text": "Use already-installed tools; do not download tools."
+        }
+      ],
+      "answer": "FIX: regenerate the evidence through the pipeline; never waive it.",
+      "source": {
+        "ruling": "Invented example: regenerate evidence instead of waiving it",
+        "date": "2026-01-01"
+      }
+    }
+  ]
+}
