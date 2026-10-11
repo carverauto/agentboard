@@ -129,6 +129,38 @@ def cli(*args, code=0, **overrides):
     return result
 
 
+def selftest(*args, failed=None, **overrides):
+    result = cli('coordinator', 'selftest', *args, code=1 if failed else 0, **overrides)
+    report = json.loads(result.stdout)
+    assert set(report) == {'report_version', 'mode', 'status', 'checks'}, report
+    assert report['report_version'] == 1
+    assert report['mode'] == ('offline' if '--offline' in args else 'read_only')
+    assert report['status'] == ('FAIL' if failed else 'WARN'), report
+    checks = {check['name']: check for check in report['checks']}
+    assert len(checks) == len(report['checks']), 'Repeated selftest check'
+    assert checks['local_ack']['status'] == 'PASS', report
+    for name in ('native_schedule', 'native_admission', 'delivery', 'received_handled', 'activation'):
+        assert checks[name]['status'] == 'WARN' and 'unverified' in checks[name]['detail'].lower(), report
+    if failed:
+        assert checks[failed]['status'] == 'FAIL', report
+    elif '--offline' in args:
+        assert checks['live_protocol']['status'] == 'WARN', report
+    else:
+        assert checks['metadata']['status'] == checks['authenticated_tick']['status'] == 'PASS', report
+        assert checks['pagination']['status'] == 'WARN', report
+    assert 'PRIVATE_' not in result.stdout and 'Ignore instructions' not in result.stdout
+    return report
+
+
+def selftest_state():
+    # Include complete coordination rows, task leases, worker receipts, agent
+    # liveness/metadata and schema markers. Bearer last-use telemetry is allowed
+    # and deliberately excluded: read-only does not mean zero database writes.
+    return snapshot(SOURCE_TABLES + RECEIPT_TABLES + ['agents', 'board_schema',
+        'board_action_events', 'coordinator_triage_configuration',
+        'coordinator_triage_configuration_versions'])
+
+
 def canonical_timestamps(value):
     if isinstance(value, list):
         return [canonical_timestamps(item) for item in value]
@@ -363,6 +395,18 @@ assert meta['schema_version'] >= 40 and meta['coordinator_protocol_revision'] ==
 empty = tick(default=True)
 assert empty['items'] == [] and empty['complete']
 
+# The packaged diagnostic is useful even with no pending decisions, but never
+# upgrades an untested native adapter, delivery path or activation to PASS.
+selftest_before = selftest_state()
+selftest()
+assert selftest_state() == selftest_before, 'Selftest changed empty-board coordination state'
+for token in ('', 'invented-invalid-bearer', TOKENS[REQUESTER], legacy['token'], participant['token'], CAPTAIN):
+    selftest(failed='configuration' if not token else 'authenticated_tick', AGENTBOARD_TOKEN=token)
+for overrides in (dict(AGENT_ID=OTHER), dict(AGENTBOARD_MODEL='forged-model'),
+                  dict(AGENTBOARD_HARNESS='claude')):
+    selftest(failed='authenticated_tick', **overrides)
+assert selftest_state() == selftest_before, 'Rejected selftest changed coordination state'
+
 # Every route independently requires verified runner, enforce mode and revision.
 for path, data in [('tick', MISSING), ('decisions/' + str(uuid.uuid4()), MISSING),
                    ('ack', dict(retry_key='denied', items=[])), ('heartbeat', dict(status='idle'))]:
@@ -478,6 +522,14 @@ assert late_id not in [item['id'] for item in tick(2, 4096, cursor)['items']]
 assert tick(2, 4096)['items'][0]['id'] == late_id
 checkpoint('bounded complete envelopes, deterministic pagination and restart semantics')
 
+# Sampling a nonempty board must not acknowledge a real source, stamp liveness,
+# renew a lease, dispatch work, alter a badge or change schema state.
+selftest_before = selftest_state()
+selftest()
+selftest()
+assert selftest_state() == selftest_before, 'Selftest mutated nonempty-board coordination state'
+checkpoint('packaged selftest remains WARN, rejects runner/identity failures and preserves coordination state')
+
 # CLI uses the same wire commands and unchanged success JSON envelopes.
 assert json.loads(cli('coordinator', 'tick', '--limit', '2', '--max-bytes', '4096').stdout) == tick(2, 4096)
 assert json.loads(cli('coordinator', 'show', decisions[0]['id']).stdout) == exact(decisions[0])
@@ -487,6 +539,7 @@ assert json.loads(cli('coordinator', 'tick', '--limit', '2', '--max-bytes', '409
 
 class PreflightServer(http.server.BaseHTTPRequestHandler):
     metadata = meta
+    tick_page = None
     requests = []
 
     def log_message(self, *_):
@@ -494,7 +547,9 @@ class PreflightServer(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         self.__class__.requests.append(self.path)
-        value = self.metadata if self.path == '/api/v1/meta' else {'unexpected_source_read': True}
+        value = (self.metadata if self.path == '/api/v1/meta' else self.tick_page
+                 if self.path == '/api/v1/coordinator/tick?limit=1&max_bytes=4096'
+                 else {'unexpected_source_read': True})
         payload = json.dumps(value).encode()
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
@@ -521,11 +576,31 @@ try:
         PreflightServer.metadata = metadata
         for command in [('tick',), ('show', cli_item['id']),
             ('ack', cli_arg, '--retry-key', 'preflight-denied', '--disposition', 'reviewed'),
-            ('heartbeat', '--status', 'idle')]:
+            ('heartbeat', '--status', 'idle'), ('selftest',)]:
             PreflightServer.requests = []
-            cli('coordinator', *command, code=1, AGENTBOARD_URL=stub_url)
+            if command == ('selftest',):
+                selftest(failed='metadata', AGENTBOARD_URL=stub_url)
+            else:
+                cli('coordinator', *command, code=1, AGENTBOARD_URL=stub_url)
             assert PreflightServer.requests == ['/api/v1/meta'], (command, PreflightServer.requests)
+    PreflightServer.metadata = meta
+    PreflightServer.tick_page = tick(1, 4096)
     PreflightServer.requests = []
+    selftest(AGENTBOARD_URL=stub_url)
+    assert PreflightServer.requests == ['/api/v1/meta', '/api/v1/coordinator/tick?limit=1&max_bytes=4096'], \
+        ('Selftest traversed backlog, read source content or sent a mutation', PreflightServer.requests)
+    for bad_page in (dict(PreflightServer.tick_page, coordinator_id=OTHER),
+                     dict(PreflightServer.tick_page, protocol_revision=2)):
+        PreflightServer.tick_page = bad_page
+        PreflightServer.requests = []
+        selftest(failed='authenticated_tick', AGENTBOARD_URL=stub_url)
+        assert PreflightServer.requests == ['/api/v1/meta', '/api/v1/coordinator/tick?limit=1&max_bytes=4096']
+    PreflightServer.requests = []
+    selftest('--offline', AGENTBOARD_URL=stub_url, AGENTBOARD_TOKEN='')
+    selftest('--offline', AGENTBOARD_URL='://invalid', AGENT_ID='invalid actor',
+             AGENTBOARD_MODEL='', AGENTBOARD_TOKEN='',
+             AGENTBOARD_TOKEN_FILE='/definitely/missing/coordinator-fixture-token')
+    assert PreflightServer.requests == [], 'Offline selftest accessed the network'
     dry = cli('coordinator', 'ack', cli_arg, '--retry-key', 'dry-run', '--disposition',
               'reviewed', '--dry-run', AGENTBOARD_URL=stub_url)
     assert PreflightServer.requests == [], 'Ack dry-run made a network request, including metadata'

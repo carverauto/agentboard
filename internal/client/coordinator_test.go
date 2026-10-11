@@ -108,3 +108,97 @@ func TestCoordinatorTransportRejectsWrongCapabilitiesAndOperations(t *testing.T)
 		t.Fatalf("rejected input made %d requests", calls.Load())
 	}
 }
+
+func TestCoordinatorSelftestWireBudgetsBeforeRedaction(t *testing.T) {
+	const bearer = "synthetic-secret-that-would-shrink-after-redaction-0123456789"
+	for _, path := range []string{"meta", "coordinator/tick"} {
+		budget := 16384
+		if path == "coordinator/tick" {
+			budget = 4096
+		}
+		for _, extra := range []int{0, 1} {
+			t.Run(fmt.Sprintf("%s/extra-%d", path, extra), func(t *testing.T) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != http.MethodGet || r.URL.Path != "/api/v1/"+path || r.Header.Get("Authorization") != "Bearer "+bearer {
+						t.Error("unexpected diagnostic request")
+					}
+					if path == "coordinator/tick" && (r.URL.RawQuery != "limit=1&max_bytes=4096" || r.Header.Get("X-Agentboard-Coordinator-Protocol") != "1") {
+						t.Error("missing diagnostic bounds/protocol")
+					}
+					if path == "meta" && (r.URL.RawQuery != "" || r.Header.Get("X-Agentboard-Coordinator-Protocol") != "") {
+						t.Error("metadata bootstrap changed")
+					}
+					body := `{"data":"` + strings.Repeat(bearer, (budget-12)/len(bearer)) + `"}`
+					body += strings.Repeat(" ", budget+extra-len(body))
+					fmt.Fprint(w, body)
+				}))
+				defer server.Close()
+				c, err := client.New(config.Config{URL: server.URL, Token: bearer})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer c.Close()
+				raw, err := c.CoordinatorSelftestRead(context.Background(), path)
+				if extra == 0 && (err == nil || len(raw) != 0 || !strings.Contains(err.Error(), "reflected credentials")) {
+					t.Fatalf("credential reflection not rejected: %v", err)
+				}
+				if extra == 1 && (err == nil || len(raw) != 0 || !strings.Contains(err.Error(), "wire budget")) {
+					t.Fatal("oversized wire response accepted after redaction")
+				}
+			})
+		}
+	}
+}
+
+func TestCoordinatorSelftestClosedOperations(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+	defer server.Close()
+	const token = "synthetic-selftest-bearer-0123456789"
+	cfg := config.Config{URL: server.URL, Token: token}
+	c, err := client.New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	for _, path := range []string{"coordinator/ack", "coordinator/heartbeat", "coordinator/decisions/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "tasks", "meta?token=secret", "/meta"} {
+		if _, err := c.CoordinatorSelftestRead(context.Background(), path); err == nil {
+			t.Fatal("unsupported diagnostic operation accepted")
+		}
+	}
+	for _, constructor := range []func() (*client.Client, error){func() (*client.Client, error) { return client.New(config.Config{URL: server.URL}) }, func() (*client.Client, error) { return client.NewCaptain(cfg, token) }, func() (*client.Client, error) { return client.NewRuntime(cfg, token) }} {
+		other, err := constructor()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer other.Close()
+		for _, path := range []string{"meta", "coordinator/tick"} {
+			if _, err := other.CoordinatorSelftestRead(context.Background(), path); err == nil {
+				t.Fatal("unsupported authority accepted")
+			}
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatal("invalid operation reached server")
+	}
+}
+
+func TestCoordinatorSelftestCleanWireBoundary(t *testing.T) {
+	for _, path := range []string{"meta", "coordinator/tick"} {
+		budget := 16384
+		if path == "coordinator/tick" {
+			budget = 4096
+		}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "{}"+strings.Repeat(" ", budget-2)) }))
+		defer server.Close()
+		c, err := client.New(config.Config{URL: server.URL, Token: "fixture-runner-token"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer c.Close()
+		raw, err := c.CoordinatorSelftestRead(context.Background(), path)
+		if err != nil || len(raw) != budget {
+			t.Fatalf("clean boundary rejected: %v", err)
+		}
+	}
+}

@@ -98,10 +98,9 @@ func (c *commands) coordinatorCommands() *cobra.Command {
 					request.Items = append(request.Items, coordinatorAckItem{ID: id, Version: version, Disposition: disposition})
 				}
 			}
-			if err := validateCoordinatorItems(request.Items); err != nil {
+			if err := normalizeCoordinatorItems(request.Items); err != nil {
 				return err
 			}
-			sort.Slice(request.Items, func(i, j int) bool { return request.Items[i].ID < request.Items[j].ID })
 			if dryRun {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(request)
 			}
@@ -132,7 +131,7 @@ func (c *commands) coordinatorCommands() *cobra.Command {
 	}
 	heartbeat.Flags().StringVar(&status, "status", "", "Own liveness status: idle or busy (required)")
 	heartbeat.Flags().StringVar(&task, "task", "", "Currently owned task ID, at most 128 bytes")
-	group.AddCommand(tick, show, ack, heartbeat)
+	group.AddCommand(tick, show, ack, heartbeat, c.coordinatorSelftest())
 	return group
 }
 
@@ -180,6 +179,15 @@ func validateCoordinatorItems(items []coordinatorAckItem) error {
 		}
 		seen[item.ID] = true
 	}
+	return nil
+}
+
+// normalizeCoordinatorItems is shared by ack and its local selftest fixtures.
+func normalizeCoordinatorItems(items []coordinatorAckItem) error {
+	if err := validateCoordinatorItems(items); err != nil {
+		return err
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 	return nil
 }
 
