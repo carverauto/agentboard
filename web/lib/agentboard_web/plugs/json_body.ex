@@ -12,7 +12,7 @@ defmodule AgentboardWeb.Plugs.JSONBody do
 
   def call(conn, options) do
     options =
-      if coordinator?(conn),
+      if bounded_protocol?(conn),
         do:
           Plug.Parsers.init(
             parsers: [:json],
@@ -37,7 +37,7 @@ defmodule AgentboardWeb.Plugs.JSONBody do
           error: %{
             code: "invalid_input",
             message:
-              if(coordinator?(conn),
+              if(bounded_protocol?(conn),
                 do: "Request must be unambiguous JSON no larger than 16 KiB",
                 else: "Request must be valid JSON no larger than 5 MiB"
               )
@@ -47,6 +47,10 @@ defmodule AgentboardWeb.Plugs.JSONBody do
       |> halt()
   end
 
-  defp coordinator?(%{path_info: ["api", "v1", "coordinator" | _]}), do: true
-  defp coordinator?(_), do: false
+  defp bounded_protocol?(%{path_info: ["api", "v1", "coordinator" | _]}), do: true
+
+  defp bounded_protocol?(%{path_info: ["api", "v1", "workers", _, operation]})
+       when operation in ["native-approval", "native-retire"], do: true
+
+  defp bounded_protocol?(_), do: false
 end

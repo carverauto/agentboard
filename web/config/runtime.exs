@@ -282,6 +282,12 @@ config :agentboard,
        :cooperation_enabled,
        System.get_env("AGENTBOARD_COOPERATION_ENABLED") == "true"
 
+# Approval records alone never activate native connection authority. No deployed
+# configuration is changed here; fixture tests enable only their isolated server.
+config :agentboard,
+       :native_authority_enabled,
+       System.get_env("AGENTBOARD_NATIVE_AUTHORITY_ENABLED", "false") == "true"
+
 # Preserve invalid entries so policy classification fails closed instead of applying defaults.
 ci_policies =
   case Jason.decode(System.get_env("AGENTBOARD_CI_POLICIES") || "{}") do

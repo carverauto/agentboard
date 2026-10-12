@@ -1,0 +1,324 @@
+[
+  {
+    "attributes": [
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "id",
+        "references": null,
+        "primary_key?": true,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "0",
+        "size": null,
+        "type": "bigint",
+        "source": "native_authority_revision",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "native_approval_id",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "native_retire_key",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "bigint",
+        "source": "native_retire_expected_revision",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "bigint",
+        "source": "native_retire_revision",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "bigint",
+        "source": "epoch",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "bigint",
+        "source": "generation",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "session_id",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "pane_id",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "adapter",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "adapter_version",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "map",
+        "source": "capabilities",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "connector_state",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "adapter_state",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "reason",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "uuid",
+        "source": "active_attempt_id",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "utc_datetime_usec",
+        "source": "updated_at",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "utc_datetime_usec",
+        "source": "reported_at",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": true,
+        "generated?": false
+      }
+    ],
+    "table": "cooperation_bindings",
+    "hash": "31EC5B69734BE25D4EC568DC622C0D832A2CA5FE03916284E6171557E97F38E9",
+    "repo": "Elixir.Agentboard.Repo",
+    "schema": null,
+    "check_constraints": [],
+    "base_filter": null,
+    "custom_indexes": [],
+    "custom_statements": [],
+    "multitenancy": {
+      "global": null,
+      "attribute": null,
+      "strategy": null
+    },
+    "identities": [],
+    "create_table_options": null,
+    "has_create_action": false,
+    "temporal": null
+  },
+  {
+    "attributes": [
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "id",
+        "references": null,
+        "primary_key?": true,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "worker_id",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "bigint",
+        "source": "expected_authority_revision",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "bigint",
+        "source": "authority_revision",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "idempotency_key",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "map",
+        "source": "manifest",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "manifest_sha256",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "text",
+        "source": "approved_by",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      },
+      {
+        "default": "nil",
+        "size": null,
+        "type": "utc_datetime_usec",
+        "source": "approved_at",
+        "references": null,
+        "primary_key?": false,
+        "allow_nil?": false,
+        "generated?": false
+      }
+    ],
+    "table": "cooperation_native_approvals",
+    "hash": "2E12E835EBB9B79A9994F94C45C842292CAA725055682676F18CE98C5CC08507",
+    "repo": "Elixir.Agentboard.Repo",
+    "schema": null,
+    "check_constraints": [],
+    "base_filter": null,
+    "custom_indexes": [],
+    "custom_statements": [],
+    "multitenancy": {
+      "global": null,
+      "attribute": null,
+      "strategy": null
+    },
+    "identities": [],
+    "create_table_options": null,
+    "has_create_action": false,
+    "temporal": null
+  }
+]

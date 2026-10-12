@@ -733,6 +733,7 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Mattermost.ConversationCoverage,
              Agentboard.Cooperation.Subscription,
              Agentboard.Cooperation.Binding,
+             Agentboard.Cooperation.NativeApproval,
              Agentboard.Cooperation.Event,
              Agentboard.Cooperation.Delivery,
              Agentboard.Cooperation.Batch,

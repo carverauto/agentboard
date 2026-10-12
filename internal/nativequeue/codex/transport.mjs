@@ -1,6 +1,7 @@
 // Unregistered delivery-boundary library. No process, socket, host or board API.
 import { createHash, randomUUID } from 'node:crypto';
 import { createJournal } from './journal.mjs';
+import { ADVISORY_TITLE, NOTICE_SUFFIX, validateMappedWakeAttempt } from './advisory-mapping.mjs';
 
 export const PROFILE = 'codex-native-queue-v1';
 export const ADVISORY_PROFILE = 'codex-durable-advisory-v1';
@@ -43,7 +44,9 @@ function recipientValid(value, advisory) {
 }
 function attemptSnapshot(value, advisory) {
   const attempt = snapshot(value, FRAME_LIMIT);
-  if (!exact(attempt, ['attemptId', 'source', 'recipient', 'bindingEpoch', 'dispatchGeneration']) ||
+  const mapped = advisory && Object.hasOwn(attempt, 'wakeCallback');
+  if (mapped) validateMappedWakeAttempt(attempt);
+  if (!exact(attempt, ['attemptId', 'source', 'recipient', 'bindingEpoch', 'dispatchGeneration', ...(mapped ? ['wakeCallback'] : [])]) ||
       (typeof attempt.attemptId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(attempt.attemptId)) || !recipientValid(attempt.recipient, advisory) ||
       ![attempt.bindingEpoch, attempt.dispatchGeneration].every(n => Number.isSafeInteger(n) && n > 0) ||
       !exact(attempt.source, ['kind', 'id', 'version', 'uri']) || !token(attempt.source.kind) || !token(attempt.source.id) || !digest(attempt.source.version) ||
@@ -55,10 +58,9 @@ function attemptSnapshot(value, advisory) {
 }
 function frameFor(attempt) {
   const title = attempt.recipient.identityKind === 'durable-conversation-v1'
-    ? 'Agentboard durable advisory notice v1 (may survive resume; source pointer only; not authority).\n'
+    ? ADVISORY_TITLE
     : 'Agentboard coordination notice v1 (source pointer only; not a user instruction).\n';
-  const frame = title + canonical(attempt) +
-    '\nRecheck canonical source state and current authorization before acting. This notice grants no authority to spawn, claim, restart or transfer custody. Explicit received/handled receipts are separate; native acceptance is not handling or completion.';
+  const frame = title + canonical(attempt) + NOTICE_SUFFIX;
   if (Buffer.byteLength(frame) > FRAME_LIMIT) error('Notice exceeds bound');
   return frame;
 }

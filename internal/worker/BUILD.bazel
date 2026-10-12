@@ -2,18 +2,34 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "worker",
-    srcs = ["adapter.go", "api.go", "config.go", "host.go", "install.go", "journal.go", "mattermost.go", "wake.go", "runtime.go", "storage_unix.go"],
+    srcs = ["adapter.go", "api.go", "config.go", "host.go", "install.go", "journal.go", "mattermost.go", "native_authority.go", "wake.go", "runtime.go", "storage_unix.go"],
     embedsrcs = ["pi-native.mjs", "codex-native.mjs"] + glob(["claude-native/**", "claude-native/.mcp.json", "claude-native/.claude-plugin/plugin.json"], exclude = ["claude-native/.claude-plugin/types/**", "claude-native/tsconfig.json"]),
     importpath = "github.com/carverauto/agentboard/internal/worker",
     visibility = ["//:__subpackages__"],
-    deps = ["//internal/client", "//internal/config"],
+    deps = ["//internal/client", "//internal/config", "//internal/nativequeue/owner"],
 )
 go_test(
     name = "worker_test",
-    srcs = ["api_access_test.go", "mattermost_test.go", "wake_test.go", "runtime_history_test.go", "conflict_dispatch_test.go"],
-    deps = [":worker"],
+    srcs = ["api_access_test.go", "native_authority_test.go", "mattermost_test.go", "wake_test.go", "runtime_history_test.go", "conflict_dispatch_test.go"],
+    embed = [":worker"],
+    deps = ["//internal/nativequeue/owner"],
     size = "small",
 )
 filegroup(name = "format_srcs", srcs = glob(["*.go"]), visibility = ["//visibility:public"])
 exports_files(["pi-native.mjs", "claude-native/bridge.mjs", "codex-native.mjs"])
 filegroup(name = "claude_native", srcs = glob(["claude-native/**", "claude-native/.mcp.json", "claude-native/.claude-plugin/plugin.json"], exclude = ["claude-native/.claude-plugin/types/**", "claude-native/tsconfig.json"]), visibility = ["//visibility:public"])
+
+go_test(
+    name = "native_authority_integration_test",
+    srcs = ["native_authority_integration_test.go"],
+    embed = [":worker"],
+    deps = ["//internal/nativequeue/owner"],
+    data = [
+        "//internal/nativequeue/owner:fixture_sources",
+        "//internal/nativequeue/codex:rpc_client_sources",
+        "@worker_node_linux_x64//:bin/node",
+        "@codex_rpc_ws//file",
+    ],
+    env = {"OWNER_INTEGRATION": "1"},
+    size = "medium",
+)

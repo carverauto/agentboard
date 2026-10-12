@@ -66,7 +66,17 @@ defmodule Agentboard.Auth.APIAuthPolicy do
   def boundary(%{plug: WorkflowHookController, plug_opts: :create}), do: :independent
 
   def boundary(%{plug: WorkerController, plug_opts: action})
-      when action in [:provision, :resolve_attempt, :responsibility, :revoke, :operate],
+      when action in [
+             :provision,
+             :resolve_attempt,
+             :responsibility,
+             :revoke,
+             :operate,
+             :wake,
+             :native_approval,
+             :native_retire,
+             :native_authority
+           ],
       do: :independent
 
   def boundary(%{plug: AgentboardWeb.DecisionPolicyController, plug_opts: action})

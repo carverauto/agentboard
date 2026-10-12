@@ -21,3 +21,10 @@ go_test(
     size = "small",
 )
 filegroup(name = "format_srcs", srcs = glob(["*.go"]), visibility = ["//visibility:public"])
+
+# Invented peer/client programs reused by the authority-to-FD conformance target.
+filegroup(
+    name = "fixture_sources",
+    srcs = glob(["testdata/*.mjs"]),
+    visibility = ["//internal/worker:__pkg__"],
+)

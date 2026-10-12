@@ -69,7 +69,10 @@ Go package: `internal/nativequeue/owner`.
    journal. The caller still owns the one canonical reservation and source gate.
 6. Invoke `owner.Retire()` when server authorization changes or its authoritative
    feed disconnects. Cancellation and the absolute approval expiry also retire.
-   No real server authority feed is provisioned by this package.
+   This package provisions no server feed. The separate
+   [bounded server authority bridge](worker-native-authority.md) supplies
+   authenticated snapshots and fixed-deadline serial polling; it is default-off
+   and is not registered with a live host.
 
 The child must receive an explicit sanitized environment. Allowed keys are
 PATH, LANG, LC_ALL, TZ, WS_NO_BUFFER_UTIL and WS_NO_UTF_8_VALIDATE. The last two
@@ -157,8 +160,9 @@ creation by EPERM, including the reviewed sandbox escalation. This is **not a
 passing native integration result**. No other host was used to evade the limit.
 
 Before live use: prove real packaged owner/FD interoperability on an authorized
-fixture runner; implement/verify the server authority producer and receiving
-source-resolution gate; verify installed 0.162.0 binary/exported experimental
+fixture runner; integrate/verify the server authority producer and receiving
+source-resolution gate described in [the authority contract](worker-native-authority.md);
+verify installed 0.162.0 binary/exported experimental
 schema/profile; approve native initialization side effects; and separately
 approve enrollment, wake-owner election and canary activation. Linux fixture
 success would not imply Darwin or existing Muse idle-wake support.

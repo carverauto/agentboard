@@ -15,7 +15,7 @@ exports_files(["postgres_fixture.sh", "postgres.MODULE.bazel"])
 sh_test(
     name = "codex_queue_test",
     srcs = ["codex_queue_test.sh"],
-    data = ["codex_queue_test.mjs", "//internal/nativequeue/codex:transport.mjs", "//internal/nativequeue/codex:journal.mjs", "@worker_node_linux_x64//:bin/node"],
+    data = ["codex_queue_test.mjs", "//internal/nativequeue/codex:transport.mjs", "//internal/nativequeue/codex:advisory-mapping.mjs", "//internal/nativequeue/codex:journal.mjs", "@worker_node_linux_x64//:bin/node"],
     args = ["$(rlocationpath //internal/nativequeue/codex:transport.mjs)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
     size = "small",
 )
@@ -27,6 +27,7 @@ sh_test(
     data = [
         "codex_rpc_client_test.mjs",
         "codex_owner_control_test.mjs",
+        "codex_advisory_mapping_test.mjs",
         "codex_rpc_socket_test.mjs",
         "//internal/nativequeue/codex:rpc-client.mjs",
         "//internal/nativequeue/codex:rpc_client_sources",
@@ -595,13 +596,24 @@ sh_test(
     timeout = "long",
 )
 
+# Captain inventory, host-only bounded authority, and lifecycle fencing.
+sh_test(
+    name = "native_authority_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "native_authority_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["native_authority_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "large",
+    timeout = "long",
+)
+
 # Authenticated canonical source material is separate from frozen wake notices.
 sh_test(
     name = "wake_source_resolution_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "wake_source_resolution_test.py"},
     srcs = ["board_api_test.sh"],
-    data = ["wake_source_resolution_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
-    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    data = ["wake_source_resolution_test.py", "native_mapping_fixture.mjs", "//internal/nativequeue/codex:advisory-mapping.mjs", "@worker_node_linux_x64//:bin/node", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)", "$(rlocationpath :native_mapping_fixture.mjs)", "$(rlocationpath @worker_node_linux_x64//:bin/node)"],
     size = "large",
     timeout = "long",
 )
@@ -731,6 +743,15 @@ sh_test(
 sh_test(
     name = "decision_policy_upgrade_test",
     srcs = ["decision_policy_upgrade_test.sh"],
+    data = ["postgres_fixture.sh", ":postgres_runtime", "//web:release"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)"],
+    size = "medium",
+    timeout = "long",
+)
+
+sh_test(
+    name = "native_authority_upgrade_test",
+    srcs = ["native_authority_upgrade_test.sh"],
     data = ["postgres_fixture.sh", ":postgres_runtime", "//web:release"],
     args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)"],
     size = "medium",
