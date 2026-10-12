@@ -3,15 +3,15 @@
   "ok": true,
   "command": "deliver",
   "type": "architecture",
-  "input": "/Volumes/Build/agentboard-agensh-worker-runtime/docs/architecture/agensh-worker-runtime.architecture.json",
-  "output": "/Volumes/Build/agentboard-agensh-worker-runtime/docs/architecture/agensh-worker-runtime.html",
+  "input": "/Volumes/Build/agentboard-seats-v3/.treehouse/agentboard-115218/13/agentboard/docs/architecture/agensh-worker-runtime.architecture.json",
+  "output": "/Volumes/Build/agentboard-seats-v3/.treehouse/agentboard-115218/13/agentboard/docs/architecture/agensh-worker-runtime.html",
   "specification": {
-    "sha256": "9c565f588302da429a80530f14fed7c6656211ac4dee1c15791c2aeb0333a2ab",
-    "bytes": 1758
+    "sha256": "46e236be65eb85ad13879694e889a9eecf109a2649d193c4af1c615281154182",
+    "bytes": 8460
   },
   "artifact": {
-    "sha256": "537674e7d00bbceb83ee5db2dcee7554d24458e2a77096204cec3774eb2b6d55",
-    "bytes": 707300
+    "sha256": "48bbf5426e5491ce3e231aa6cf76db9810fb981ba4c588edd7bfdc553f01b7a8",
+    "bytes": 716057
   },
   "validation": {
     "checksPassed": 9,
@@ -20,5 +20,11 @@
     "compositionStatus": "pass",
     "errors": 0,
     "warnings": 0
+  },
+  "evidence": {
+    "verified": true,
+    "repository": "https://github.com/carverauto/agentboard",
+    "revision": "56a5a74f5948159766809d240bb124b193e1ad5f",
+    "references": 16
   }
 }

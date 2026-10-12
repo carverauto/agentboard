@@ -224,7 +224,7 @@ at the migration timestamp; runtime enrollment audits start with new writes.
 Observation defaults off through `AGENTBOARD_PR_OBSERVATION_ENABLED`, separate
 from inventory catch-up. This stage supplies internal bounded reservation and
 failure-backoff actions only; it installs no provider scheduler, CI verdict,
-repair task or session notification. Keep the switch off until later acceptance.
+repair task or session notification. See [current-head observations](github-ci-observation.md) for the enablement state.
 
 Retain the additive schema during an image rollback. Old schema-7 writers do
 not enroll polling rows. Reconciliation of missing canonical inventory is
@@ -242,8 +242,7 @@ is harmless. Readiness requires at least schema 9 and that table.
 
 `AGENTBOARD_PR_OBSERVATION_ENABLED` still defaults to false. Enabling it at
 boot installs the scheduler; this schema adds no provider collector, CI
-verdict, repair task, session notification or public route. Keep it off until
-the later observation/delivery acceptance gate.
+verdict, repair task, session notification or public route. See [current-head observations](github-ci-observation.md) for the enablement state.
 
 Roll back by deploying an older compatible image and retaining schema 9,
 jobs, evidence and budgets. Do not drop the additive table or run a down
