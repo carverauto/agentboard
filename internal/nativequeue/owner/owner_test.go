@@ -228,7 +228,7 @@ func integrationFiles(t *testing.T) (string, string) {
 	if err = os.Mkdir(modules, 0700); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"rpc-wire.mjs", "inherited-client.mjs", "owner-control.mjs", "transport.mjs", "journal.mjs"} {
+	for _, name := range []string{"rpc-wire.mjs", "inherited-client.mjs", "owner-control.mjs", "transport.mjs", "advisory-mapping.mjs", "journal.mjs"} {
 		body, e := os.ReadFile(filepath.Join(root, "internal", "nativequeue", "codex", name))
 		if e != nil {
 			t.Fatal(e)

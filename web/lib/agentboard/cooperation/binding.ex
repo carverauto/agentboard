@@ -27,6 +27,11 @@ defmodule Agentboard.Cooperation.Binding do
     create :record do
       accept([
         :id,
+        :native_authority_revision,
+        :native_approval_id,
+        :native_retire_key,
+        :native_retire_expected_revision,
+        :native_retire_revision,
         :epoch,
         :generation,
         :session_id,
@@ -59,6 +64,11 @@ defmodule Agentboard.Cooperation.Binding do
 
     update :change do
       accept([
+        :native_authority_revision,
+        :native_approval_id,
+        :native_retire_key,
+        :native_retire_expected_revision,
+        :native_retire_revision,
         :epoch,
         :generation,
         :session_id,
@@ -83,6 +93,11 @@ defmodule Agentboard.Cooperation.Binding do
       constraints: [trim?: false, allow_empty?: true]
     )
 
+    attribute(:native_authority_revision, :integer, allow_nil?: false, default: 0)
+    attribute(:native_approval_id, :string, constraints: [trim?: false])
+    attribute(:native_retire_key, :string, constraints: [trim?: false])
+    attribute(:native_retire_expected_revision, :integer)
+    attribute(:native_retire_revision, :integer)
     attribute(:epoch, :integer, allow_nil?: false)
     attribute(:generation, :integer, allow_nil?: false)
     attribute(:session_id, :string, constraints: [trim?: false, allow_empty?: true])

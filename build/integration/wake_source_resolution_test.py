@@ -135,6 +135,36 @@ def callback(reserved):
             ['attempt_id', 'intent_id', 'reason_hash', 'payload_hash', 'recipient']}
 
 
+def mapped_callback(reserved):
+    # Exercise the actual exported native mapper with the server's immutable
+    # public reservation. This is invented approved fixture metadata, not proof
+    # of a live daemon, native enrollment or installed-build approval.
+    frozen = callback(reserved)
+    r = frozen['recipient']
+    manifest = {'manifest_version': 1, 'worker_id': r['agent_id'],
+        'host_id': r['host_id'], 'enrollment_revision': r['enrollment_revision'],
+        'binding_epoch': r['binding_epoch'], 'session_id': r['session_id'],
+        'pane_id': r['adapter_generation'], 'initialize_approved': True,
+        'endpoint': {'profile': 'codex-durable-advisory-v1'},
+        'recipient': {'threadId': '11111111-1111-4111-8111-111111111111',
+            'identityKind': 'durable-conversation-v1', 'persistent': True, 'topLevel': True,
+            'enrollmentRevision': r['enrollment_revision'], 'bindingEpoch': r['binding_epoch']}}
+    root = pathlib.Path(__file__).resolve().parents[2]
+    result = subprocess.run([os.environ['FIXTURE_RENDERED_NODE'],
+        str(root / 'build/integration/native_mapping_fixture.mjs'),
+        str(root / 'internal/nativequeue/codex')], input=json.dumps({
+            'reservation': reserved['reservation'], 'batch': reserved['batch'],
+            'manifest': manifest, 'serverOrigin': 'https://agentboard.example.com'}),
+        capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    mapped = json.loads(result.stdout)
+    assert mapped['callback'] == frozen
+    assert mapped['notice']['wakeCallback'] == frozen
+    assert 'incarnation' not in mapped['notice']['recipient']
+    assert len(mapped['frame'].encode()) <= 4096
+    return mapped['callback']
+
+
 def receipt_data(reserved, kind='received', key='received'):
     batch = reserved['batch']
     data = {key: batch[key] for key in
@@ -280,6 +310,26 @@ resolved = resolve(owner, reserved)
 assert resolved['source']['message']['id'] == source['id']
 assert resolved['source']['message']['body'] == source['body']
 assert resolve(owner, reserved, token=owner['receipt']) == resolved
+before_mapping = snapshot()
+assert api(owner['path'] + '/resolve', mapped_callback(reserved), token=owner['receipt']) == resolved
+assert snapshot() == before_mapping, 'Native mapped callback resolution mutated server state'
+# The wake route owns its existing host/receipt authentication, including when
+# ordinary board agent-token enforcement is enabled. Headers grant no fallback.
+rpc('Application.put_env(:agentboard,:agent_auth_mode,"enforce")')
+try:
+    before_enforced = snapshot()
+    assert api(owner['path'] + '/resolve', callback(reserved), token=owner['host']) == resolved
+    assert api(owner['path'] + '/resolve', callback(reserved), token=owner['receipt']) == resolved
+    api(owner['path'] + '/resolve', callback(reserved), status=401)
+    api(owner['path'] + '/resolve', callback(reserved), captain=True, status=401)
+    api(owner['path'] + '/resolve', callback(reserved), token='invented-nonworker-token', status=401)
+    api('hosts/foreign-host/wake-intents/' + owner['id'] + '/resolve', callback(reserved),
+        token=owner['receipt'], status=403)
+    api('hosts/' + expiring['host_id'] + '/wake-intents/' + expiring['id'] + '/resolve',
+        callback(reserved), token=owner['receipt'], status=401)
+    assert snapshot() == before_enforced, 'Enforced resolver authentication changed canonical state'
+finally:
+    rpc('Application.put_env(:agentboard,:agent_auth_mode,"off")')
 cli_resolve(owner, reserved, resolved)
 # A lost HTTP response is retried byte-for-byte, with no received receipt hidden
 # in a successful source fetch and no canonical read mutation.

@@ -15,6 +15,26 @@ defmodule AgentboardWeb.WorkerController do
 
   def revoke(conn, %{"worker_id" => id}), do: captain(conn, fn -> Runtime.revoke(id) end)
 
+  def native_approval(conn, %{"worker_id" => id}),
+    do: captain(conn, fn -> Agentboard.NativeAuthority.approve(id, conn.body_params) end)
+
+  def native_retire(conn, %{"worker_id" => id}),
+    do: captain(conn, fn -> Agentboard.NativeAuthority.retire(id, conn.body_params) end)
+
+  def native_authority(conn, %{"worker_id" => id, "host_id" => host_id}) do
+    token =
+      case get_req_header(conn, "authorization") do
+        ["Bearer " <> value] -> value
+        _ -> nil
+      end
+
+    conn = put_resp_header(conn, "cache-control", "no-store")
+
+    protocol(conn, fn ->
+      Runtime.native_authority(id, host_id, token, fetch_query_params(conn).query_params)
+    end)
+  end
+
   def wake(conn, params) do
     operation =
       case {conn.method, params["operation"]} do

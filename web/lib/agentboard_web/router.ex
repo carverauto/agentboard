@@ -113,6 +113,15 @@ defmodule AgentboardWeb.Router do
     post("/workers/:worker_id/resolve_attempt", WorkerController, :resolve_attempt)
     post("/obligations/:id/responsibility", WorkerController, :responsibility)
     post("/workers/:worker_id/revoke", WorkerController, :revoke)
+    post("/workers/:worker_id/native-approval", WorkerController, :native_approval)
+    post("/workers/:worker_id/native-retire", WorkerController, :native_retire)
+
+    get(
+      "/hosts/:host_id/workers/:worker_id/native-authority",
+      WorkerController,
+      :native_authority
+    )
+
     get("/workers/:worker_id/:operation", WorkerController, :operate)
     post("/workers/:worker_id/attempts/:attempt_id/:operation", WorkerController, :operate)
     post("/workers/:worker_id/:operation", WorkerController, :operate)

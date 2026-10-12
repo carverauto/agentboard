@@ -62,6 +62,7 @@ type Client struct {
 	coordinatorProtocol string
 	captain             bool
 	workerCaptain       bool
+	noRetry             bool
 }
 
 // NewRuntime uses the existing HTTPS/redirect/retry transport with scoped auth.
@@ -104,13 +105,15 @@ func (c *Client) WorkerControl(ctx context.Context, operation, workerID string, 
 	switch {
 	case operation == "provision" && workerID == "":
 		path = "workers/provision"
-	case operation == "revoke" && config.ValidID(workerID):
-		path = "workers/" + workerID + "/revoke"
+	case (operation == "revoke" || operation == "native-approval" || operation == "native-retire") && config.ValidID(workerID):
+		path = "workers/" + workerID + "/" + operation
 	default:
 		return nil, errors.New("unsupported worker captain operation")
 	}
 	request := *c
 	request.workerCaptain = true
+	// Native authority writes are explicit and never replayed, even on 429.
+	request.noRetry = operation == "native-approval" || operation == "native-retire"
 	return request.JSON(ctx, http.MethodPost, path, nil, payload)
 }
 
@@ -165,6 +168,14 @@ func New(cfg config.Config) (*Client, error) {
 }
 
 func (c *Client) Close() { c.http.CloseIdleConnections() }
+
+// JSONOnce retains the protected transport and redaction, but never retries a
+// failed or rate-limited authority read. A feed gap must retire its consumer.
+func (c *Client) JSONOnce(ctx context.Context, method, path string, query url.Values, payload any) (json.RawMessage, error) {
+	request := *c
+	request.noRetry = true
+	return request.JSON(ctx, method, path, query, payload)
+}
 
 func (c *Client) JSON(ctx context.Context, method, path string, query url.Values, payload any) (json.RawMessage, error) {
 	ctx, cancel := context.WithTimeout(ctx, requestBudget)
@@ -273,7 +284,7 @@ func (c *Client) open(ctx context.Context, method, path string, query url.Values
 			}
 			return nil, failure("connection_failed", uncertain(method, "API connection failed; check reachability and HTTPS trust"))
 		}
-		if resp.StatusCode != http.StatusTooManyRequests {
+		if resp.StatusCode != http.StatusTooManyRequests || c.noRetry {
 			return resp, nil
 		}
 		delay := retryDelay(resp.Header.Get("Retry-After"), attempt, time.Now())

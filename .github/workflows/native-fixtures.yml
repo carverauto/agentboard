@@ -11,6 +11,7 @@ on:
       - build/integration/codex_rpc_client_test.*
       - build/integration/codex_rpc_socket_test.mjs
       - build/integration/codex_owner_control_test.mjs
+      - build/integration/codex_advisory_mapping_test.mjs
       - build/integration/BUILD.bazel
       - BUILD.bazel
       - MODULE.bazel
@@ -26,6 +27,7 @@ on:
       - build/integration/codex_rpc_client_test.*
       - build/integration/codex_rpc_socket_test.mjs
       - build/integration/codex_owner_control_test.mjs
+      - build/integration/codex_advisory_mapping_test.mjs
       - build/integration/BUILD.bazel
       - BUILD.bazel
       - MODULE.bazel
@@ -112,6 +114,7 @@ jobs:
           export OWNER_NODE="$(command -v node)"
           export OWNER_WS_ARCHIVE="${RUNNER_TEMP}/ws-${CODEX_RPC_WS_VERSION}.tgz"
           "${RUNNER_TEMP}/go/bin/go" test -count=10 -race -v ./internal/nativequeue/owner
+          "${RUNNER_TEMP}/go/bin/go" test -count=1 -race ./internal/worker -run '^TestNativeAuthority(DiagnosticBuffer|OwnerIntegration)$' -v
           GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 "${RUNNER_TEMP}/go/bin/go" test -c \
             -o "${RUNNER_TEMP}/owner-darwin-arm64.test" ./internal/nativequeue/owner
           GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 "${RUNNER_TEMP}/go/bin/go" test -c \

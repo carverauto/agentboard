@@ -101,6 +101,8 @@ defmodule Agentboard.Cooperation.Runtime do
           updated_at: stamp
         })
 
+    if prior_subscription, do: Agentboard.NativeAuthority.invalidate(get(Binding, id))
+
     token = new_credential(id, "host", nil, data["idempotency_key"])
     bootstrap(s)
     Agentboard.Wake.Reconcile.enqueue(id)
@@ -116,7 +118,11 @@ defmodule Agentboard.Cooperation.Runtime do
     Ops.transaction(fn ->
       lock_worker(id)
       s = Ops.fetch!(Subscription, id, "Worker not enrolled")
-      change(s, %{revoked: true, paused: true})
+
+      unless s.revoked do
+        Agentboard.NativeAuthority.invalidate(Ops.fetch!(Binding, id, "Worker binding not found"))
+        change(s, %{revoked: true, paused: true})
+      end
 
       %{rows: rows} =
         Repo.statement!(
@@ -154,6 +160,33 @@ defmodule Agentboard.Cooperation.Runtime do
 
       %{attempt: Ops.public(a), possible_duplicate_accepted: true}
     end)
+  end
+
+  def native_authority(id, host_id, token, data) do
+    if not Input.slug?(id) or not is_binary(host_id) or not is_binary(token) or
+         byte_size(token) > 256 do
+      {:error, "unauthorized", "Host runtime capability required"}
+    else
+      Ops.transaction(fn ->
+        credential!(id, token)
+        Agentboard.Availability.lock_admission()
+        lock_worker(id)
+        c = credential!(id, token)
+        s = Ops.fetch!(Subscription, id, "Worker not enrolled")
+        b = Ops.fetch!(Binding, id, "Worker binding not found")
+
+        if c.scope != "host",
+          do: Ops.reject("forbidden", "Host capability required for native authority")
+
+        if s.revoked, do: Ops.reject("unauthorized", "Runtime capability revoked")
+        if host_id != s.host_id, do: Ops.reject("forbidden", "Host does not own this enrollment")
+
+        if data != %{},
+          do: Ops.reject("invalid_input", "Native authority takes no query parameters")
+
+        Agentboard.NativeAuthority.snapshot(s, b)
+      end)
+    end
   end
 
   def request(id, token, operation, data, host_id \\ nil) do
@@ -367,20 +400,23 @@ defmodule Agentboard.Cooperation.Runtime do
         end
 
         changed =
-          change(b, %{
-            epoch: b.epoch + 1,
-            generation: b.generation + 1,
-            session_id: data["session_id"],
-            pane_id: data["pane_id"],
-            adapter: data["adapter"],
-            adapter_version: data["adapter_version"],
-            capabilities: data["capabilities"],
-            adapter_state: "unknown",
-            connector_state: "unknown",
-            reported_at: nil,
-            reason: nil,
-            updated_at: Ops.now()
-          })
+          change(
+            b,
+            Map.merge(Agentboard.NativeAuthority.advance(b), %{
+              epoch: b.epoch + 1,
+              generation: b.generation + 1,
+              session_id: data["session_id"],
+              pane_id: data["pane_id"],
+              adapter: data["adapter"],
+              adapter_version: data["adapter_version"],
+              capabilities: data["capabilities"],
+              adapter_state: "unknown",
+              connector_state: "unknown",
+              reported_at: nil,
+              reason: nil,
+              updated_at: Ops.now()
+            })
+          )
 
         token = new_credential(s.id, "receipt", changed.epoch, data["idempotency_key"])
         %{binding: binding_record(changed), receipt_token: token, idempotent: false}
@@ -435,17 +471,22 @@ defmodule Agentboard.Cooperation.Runtime do
           do: change(a, %{status: "uncertain", reason: "unbound", updated_at: Ops.now()})
       end
 
-      change(b, %{
-        epoch: b.epoch + 1,
-        generation: b.generation + 1,
-        session_id: nil,
-        pane_id: nil,
-        adapter_state: "unbound",
-        updated_at: Ops.now()
-      })
+      change(
+        b,
+        Map.merge(Agentboard.NativeAuthority.advance(b), %{
+          epoch: b.epoch + 1,
+          generation: b.generation + 1,
+          session_id: nil,
+          pane_id: nil,
+          adapter_state: "unbound",
+          updated_at: Ops.now()
+        })
+      )
+    else
+      if s.paused != (op != "resume"), do: change(b, Agentboard.NativeAuthority.advance(b, false))
     end
 
-    change(s, %{paused: op != "resume"})
+    if s.paused != (op != "resume"), do: change(s, %{paused: op != "resume"})
     state(get(Subscription, s.id), get(Binding, b.id))
   end
 
@@ -1417,7 +1458,7 @@ defmodule Agentboard.Cooperation.Runtime do
     token
   end
 
-  defp lock_worker(id) do
+  def lock_worker(id) do
     lock("worker:" <> id)
     Repo.statement!("SELECT id FROM cooperation_subscriptions WHERE id=$1 FOR UPDATE", [id])
   end

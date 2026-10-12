@@ -9,6 +9,7 @@ defmodule Agentboard.Cooperation do
   resources do
     resource(Agentboard.Cooperation.Subscription)
     resource(Agentboard.Cooperation.Binding)
+    resource(Agentboard.Cooperation.NativeApproval)
     resource(Agentboard.Cooperation.Credential)
     resource(Agentboard.Cooperation.Event)
     resource(Agentboard.Cooperation.Delivery)

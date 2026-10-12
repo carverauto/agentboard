@@ -8,8 +8,9 @@ go_library(
 )
 go_test(
     name = "client_test",
-    srcs = ["access_service_token_test.go", "client_test.go", "coordinator_test.go"],
-    deps = [":client", "//internal/config"],
+    srcs = ["access_service_token_test.go", "client_test.go", "coordinator_test.go", "native_authority_test.go"],
+    embed = [":client"],
+    deps = ["//internal/config"],
     size = "small",
 )
 

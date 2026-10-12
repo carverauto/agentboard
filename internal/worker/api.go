@@ -48,9 +48,18 @@ func (b Batch) Fences() map[string]any {
 	return map[string]any{"binding_epoch": b.Epoch, "dispatch_generation": b.Generation, "payload_hash": b.Hash}
 }
 
+type apiClient interface {
+	JSON(context.Context, string, string, url.Values, any) (json.RawMessage, error)
+	JSONOnce(context.Context, string, string, url.Values, any) (json.RawMessage, error)
+	Close()
+}
+
 type API struct {
-	client *client.Client
-	agent  string
+	client  apiClient
+	agent   string
+	host    string
+	receipt bool
+	baseURL string
 }
 
 func OpenAPI(cfg Config, b Binding, receipt bool) (*API, error) {
@@ -74,7 +83,7 @@ func OpenAPI(cfg Config, b Binding, receipt bool) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &API{c, b.Agent}, nil
+	return &API{client: c, agent: b.Agent, host: b.Host, receipt: receipt, baseURL: cfg.URL}, nil
 }
 
 func (a *API) Close() { a.client.Close() }

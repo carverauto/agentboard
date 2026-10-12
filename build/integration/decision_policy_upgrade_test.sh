@@ -46,7 +46,7 @@ for marker in 40 9000; do (
       esac
       if [[ -n "$change" ]]; then fixture_psql "UPDATE agents SET $change WHERE id='system-decision-policy'" >/dev/null; fi
       collision="$(fixture_psql "SELECT to_jsonb(a) FROM agents a WHERE id='system-decision-policy'")"
-      if "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()' >"$root/collision-$mismatch.log" 2>&1; then
+      if "$release_root/bin/agentboard" eval 'Application.load(:agentboard); {:ok, _, _} = Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, :up, to: 20261008004100) end)' >"$root/collision-$mismatch.log" 2>&1; then
         echo "Policy migration adopted pre-existing $mismatch identity" >&2; exit 1
       fi
       grep -q 'Reserved system-decision-policy identity conflicts' "$root/collision-$mismatch.log"
@@ -63,7 +63,7 @@ for marker in 40 9000; do (
   history="$(fixture_psql "SELECT 'SELECT jsonb_object_agg(name,rows ORDER BY name) FROM (' || string_agg(format('SELECT %L AS name, COALESCE(jsonb_agg(to_jsonb(t)-''requested_ci_runs'' ORDER BY to_jsonb(t)::text),''[]''::jsonb) AS rows FROM %I.%I t%s',tablename,schemaname,tablename,CASE WHEN tablename='agents' THEN ' WHERE id<>''system-decision-policy''' ELSE '' END),' UNION ALL ' ORDER BY tablename) || ') preserved' FROM pg_tables WHERE schemaname='public' AND tablename NOT IN ('board_schema','schema_migrations')")"
   fixture_psql "$history" >"$root/before.json"
   for run in first repeated; do
-    "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()' >"$root/$run.log" 2>&1 || { cat "$root/$run.log"; exit 1; }
+    "$release_root/bin/agentboard" eval 'Application.load(:agentboard); {:ok, _, _} = Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, :up, to: 20261008004100) end)' >"$root/$run.log" 2>&1 || { cat "$root/$run.log"; exit 1; }
     if [[ "$run" == first ]]; then
       seeded="$(fixture_psql "SELECT to_jsonb(a) FROM agents a WHERE id='system-decision-policy'")"
     else
