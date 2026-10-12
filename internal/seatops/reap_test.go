@@ -211,6 +211,27 @@ func TestReapKeepsRetiredPausedPane(t *testing.T) {
 	}
 }
 
+func TestReapKeepsRetiredDeniedPane(t *testing.T) {
+	cwd := gitCheckout(t, true)
+	old := seatAgent("old", "codex")
+	old.RetiredAt = &t0
+	board := &fakeBoard{agents: []BoardAgent{old}}
+	a := pane("w1:p1", "old", "codex", "idle", "sess-1")
+	a.Cwd = cwd
+	host := &fakeHost{agents: []HostAgent{a}}
+	cfg := testConfig(t)
+	cfg.Deny = []string{"old"}
+	report := reapTwice(t, board, host, nil, cfg)
+	if len(host.closed) != 0 {
+		t.Fatalf("closed a retired denied pane: %v", host.closed)
+	}
+	for _, action := range report.Actions {
+		if action.Kind == "close_pane" && action.Done {
+			t.Fatalf("closed a retired denied pane: %+v", report.Actions)
+		}
+	}
+}
+
 func TestReapDryRunChangesNothing(t *testing.T) {
 	board, host := finishedSeat(t)
 	cfg := testConfig(t)

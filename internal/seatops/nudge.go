@@ -333,12 +333,12 @@ func DiscoverSeats(panes []HostAgent, agents []BoardAgent, cfg Config) ([]Seat, 
 			why = "pane name is not a board agent"
 		case len(group) != 1:
 			why = fmt.Sprintf("%d panes share this name", len(group))
-		case agent.RetiredAt != nil:
-			why = "identity retired"
 		case group[0].Kind != agent.Harness:
 			why = fmt.Sprintf("pane runs %q, identity harness is %q", group[0].Kind, agent.Harness)
-		default:
+		case cfg.excluded(name, group[0].Workspace) != "":
 			why = cfg.excluded(name, group[0].Workspace)
+		case agent.RetiredAt != nil:
+			why = "identity retired"
 		}
 		if why != "" {
 			skipped = append(skipped, Skipped{Agent: name, Pane: group[0].Pane, Reason: why})
