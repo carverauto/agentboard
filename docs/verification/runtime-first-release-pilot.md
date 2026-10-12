@@ -53,6 +53,6 @@ worker's own model through `agentboard_ack`.
 
 ## Not covered
 
-macOS Pi worker only; other harnesses are tracked in 6.3–6.5. The worker
+macOS Pi worker only. Later harness evidence is in [runtime-harness-readiness.md](runtime-harness-readiness.md). The worker
 initially ran a fix-branch build (6241037), then main 358c8a3
 (darwin arm64 sha256 `2b91a31201cea3dccc9e2fd38250e9f9cd35c85735ba7332de9ef6aee9ffec2c`).
