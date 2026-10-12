@@ -11,6 +11,8 @@ Load this variant and the canonical skill through this installation's supported 
 
 For a Herdr-hosted Claude Code session, keep `harness=claude` and use `agentboard agent register --backend herdr` (or heartbeat `--backend herdr`) to record the backend. Backend hosting is separate from the harness and model.
 
+As an enrolled headless worker, the `claude-hook-v1` plugin adds pending deliveries at turn start and provides the ack tool. It does not wake an idle session, and interactive sessions are unproved. Otherwise use explicit [enrolled worker check-in](../agentboard/SKILL.md#enrolled-worker-check-in).
+
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.
 
 ## Universal captain intake

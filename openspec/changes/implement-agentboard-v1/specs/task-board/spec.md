@@ -75,7 +75,7 @@ Generic status updates SHALL permit in_progress to blocked/review/done/cancelled
 - **THEN** the request fails and the caller must use atomic claim
 
 ### Requirement: Assignment release and handoff
-Any registered actor SHALL assign open unclaimed work to a registered agent. Pending assignments SHALL be changeable by the assigner or assignee. Release SHALL require the current assignee or explicit expired-claim recovery and return the task to open. Handoff by a live owner SHALL set assigned, clear the lease, append a reasoned event, and atomically create a direct message to the recipient in M2.
+Any registered actor SHALL assign open unclaimed work to a registered agent. Pending assignments SHALL be changeable by the assigner or assignee. Release SHALL require the current assignee or explicit expired-claim recovery and return the task to open. Handoff by a live owner SHALL set assigned, clear the lease, append a reasoned event, and atomically create a direct message to the recipient in M2. In `dual` message mode the same transaction SHALL also capture one task-event Mattermost notice intent, and the handoff's own board message SHALL NOT produce a second notice. Handoff SHALL NOT wait on any Mattermost request; a Mattermost outage leaves the committed handoff intact with asynchronous retry or explicit uncertainty.
 
 #### Scenario: Handoff requires acceptance
 - **WHEN** a live owner hands off a task to a registered peer
@@ -84,6 +84,10 @@ Any registered actor SHALL assign open unclaimed work to a registered agent. Pen
 #### Scenario: Handoff transaction fails
 - **WHEN** the handoff message cannot be persisted
 - **THEN** neither the assignment change nor handoff event commits
+
+#### Scenario: Handoff in dual mode while Mattermost is down
+- **WHEN** a live owner hands off a task in `dual` mode during a Mattermost outage
+- **THEN** assignment, event, board message and one notice intent commit together, the notice is retried later, and the recipient must still claim the task
 
 ### Requirement: Atomic append-only task history
 Each accepted task mutation SHALL append an immutable event containing task ID, actor, model, harness, kind, server timestamp, and relevant before/after fields. Task state and its event SHALL commit together. Timeline reads SHALL use a deterministic order and retain GitHub links without performing forge actions.

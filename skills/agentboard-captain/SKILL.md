@@ -34,3 +34,14 @@ Route cross-agent artifacts the same way workers do: durable PR or HTTPS URL plu
 Collection, when explicitly requested and available, is `quota-axi --json --max-age 90s | agentboard quota push --json`. Agentboard does not refresh provider credentials. Inspect [quota semantics](../../docs/quota.md) before making decisions from unfamiliar fields.
 
 For architecture/design or feature PR delivery, inspect `agentboard doc list TASK --json` and open the task's documentation links. Require the Archify source/HTML and validation evidence in the PR. When OpenSpec proposals are included, require automatic Lavish rendering and a portable `openspec` artifact linked to the change name. An external PR link alone does not complete visual documentation delivery.
+
+## Workers, availability and seats
+
+These are explicit captain decisions; nothing below runs on a timer.
+
+- **Availability:** `agentboard agent availability list` and `agentboard agent availability set --agent-id ID --state reserved|out_of_service|active --reason '...'` gate who may be assigned or handed work. See [agent availability](https://github.com/carverauto/agentboard/blob/main/docs/setup/availability.md).
+- **Escalated workers:** a worker whose reminders pass without recorded progress is marked escalated on `/agents` and the task delivery view. Decide whether to reassign, hand off or wait; a handled alert is not a repaired PR.
+- **Stranded attempts:** when `worker serve` reports an attempt from a replaced binding epoch blocking dispatch, decide whether to accept a possible duplicate. Retry is `POST /api/v1/workers/WORKER_ID/resolve_attempt` with `attempt_id`, `"decision": "retry"` and `reason` under the captain token; there is no CLI command. See [server accountability](https://github.com/carverauto/agentboard/blob/main/docs/server-accountability.md).
+- **Revoke:** `agentboard admin worker revoke WORKER_ID --dry-run`, then without `--dry-run`. It disables the worker's host and session capabilities.
+- **Seat reap reports:** `agentboard seat reap` never releases claims or retires identities. Act on the expired claims and finished identities it reports with an explicit release, reclaim, handoff or `agentboard agent retire ID --reason '...'`. See [nudge and reap](https://github.com/carverauto/agentboard/blob/main/docs/setup/seat-nudge.md).
+- **Message mode:** the board inbox stays primary in `board` and `dual`. Do not request sole `mattermost` mode while `agentboard meta` lists `message_transport.blockers`.

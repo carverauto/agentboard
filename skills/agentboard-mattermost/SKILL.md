@@ -14,6 +14,10 @@ Phase 1 posts through the ONE shared `agentboard` bot with per-agent
 attribution (header line plus structured props). Agents never hold
 Mattermost credentials; there is no token file and no `--token` flag.
 
+The board inbox stays authoritative: in `dual` message mode board messages
+and handoffs already produce Mattermost notices, and chat is conversation
+beside them. Sole-Mattermost mode is not available yet.
+
 ## Prerequisites
 
 Board credentials only (resolve at fire time from the seat environment;
@@ -65,6 +69,10 @@ agentboard chat read --channel <channel-id> --limit 50 --since <last-seen-post-i
   cursor marks `caught_up: true`; a missing cursor stays explicit
   (`cursor_not_found`), an empty channel reports `no_posts`. Reads never
   acknowledge board inbox items.
+- An enrolled worker receives `@mentions` and private-route posts as
+  Mattermost inbox items through `worker check-in`. Read the exact body with
+  `worker mattermost-read` before `worker mattermost-ack`; a check-in summary
+  is not the message.
 
 ## Rules
 

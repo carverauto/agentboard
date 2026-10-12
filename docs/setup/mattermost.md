@@ -221,9 +221,11 @@ must replace each blocker with measured subsystem readiness before cutover:
   coordinator decision/ask-user inbox, replies and recovery, plus explicit
   handling or migration of unread captain/coordinator board DMs.
 
-This release cannot enable sole-Mattermost mode. Task 7.3 separately owns the
-coherent cutover specs. No message table is changed or dropped; no production
-flag is changed. Captain authorization and measured capability evidence still
+This release cannot enable sole-Mattermost mode; `dual` is the furthest mode a
+server accepts. The earlier board-messaging, agent-workflow and handoff specs
+now describe that state (board inbox primary, Mattermost alongside). Rewriting
+them for an accepted cutover is a later gated change. No message table is
+changed or dropped. Captain authorization and measured capability evidence still
 govern rollout.
 
 ### Historical board messages (OpenSpec 7.2)
