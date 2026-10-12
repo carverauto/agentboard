@@ -71,10 +71,15 @@ configMapGenerator:
       # Captain-approved 2026-10-08: coordinator attribution for decision
       # recommend/answer/supersede (still requires the verified captain capability).
       - AGENTBOARD_COORDINATOR_ID=grok-serviceradar-oss
+      # Maintainer-approved 2026-10-12 for OpenSpec 5.4: dual message mode with
+      # shared-bot inbound and private recipient routes. Rollback: board/false.
+      - AGENTBOARD_MESSAGE_MODE=dual
+      - AGENTBOARD_MATTERMOST_INBOUND_ENABLED=true
+      - AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED=true
 generatorOptions:
   disableNameSuffixHash: true
 images:
   # Operator-managed immutable release pin; see docs/deploy/reference-farm01.md.
   - name: registry.carverauto.dev/agentboard/dashboard
-    # Published from merged main c39b9c7 (PR214-PR218: wake source resolution, native FD owner, recipient authority, seat nudge/reap; schema 42).
-    digest: sha256:fe37c5a11418020b910acef974e4108177d6937c9cf7c1e947cd01371935dc81
+    # Published from merged main 358c8a3 (PR219-PR227: shared context, private routes + chat spool, message history, idle continuation, worker handled guidance; schema 44).
+    digest: sha256:5fb1093224553621c3398da79f99a6410b8398296116280e83be5fb014df6560

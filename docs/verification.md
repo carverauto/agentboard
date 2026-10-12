@@ -400,5 +400,20 @@ through Job `agentboard-migrate-c39b9c7`, upgrading schema 41 to 42 with no
 pre-migration backup (maintainer decision; farm01 has no CNPG object store).
 Verification was public HTTPS only. Full results are in the
 [rollout receipt](verification/farm01-c39b9c7-rollout.json). The
-[current rollout record](deploy/reference-farm01.md#worker-runtime-pilot-image-rollout-c39b9c7)
+[c39b9c7 rollout record](deploy/reference-farm01.md#worker-runtime-pilot-image-rollout-c39b9c7)
+is in the operator runbook.
+
+## Dual message mode rollout (358c8a3, 2026-10-12 UTC)
+
+Merged main `358c8a3` (PR219-PR227) rolled the dashboard to
+`sha256:5fb1093224553621c3398da79f99a6410b8398296116280e83be5fb014df6560`
+through Job `agentboard-migrate-358c8a3`, upgrading schema 42 to 44 with no
+pre-migration backup (maintainer decision; pre-release development data).
+The overlay and live ConfigMap now set `AGENTBOARD_MESSAGE_MODE=dual` with
+shared-bot inbound and private recipient routes enabled; the pre-existing
+overlay/live drift is deliberately unchanged. Verification was public HTTPS
+plus the worker API (health/`/`/`/prs`/meta 200, effective `dual`, worker
+healthy/ready with inbox enabled). Full results are in the
+[rollout receipt](verification/farm01-358c8a3-rollout.json). The
+[current rollout record](deploy/reference-farm01.md#dual-message-mode-rollout-358c8a3)
 is in the operator runbook.
