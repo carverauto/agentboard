@@ -12,7 +12,7 @@ Actual Pi0.99.2 isolated RPC model runs are recorded in `worker-pi-live.json` an
 
 Installed Herdr0.9.0 protocol22 lacks expected occupant/composer guard fields; automatic prompt is disabled. The named conformance server was inspected and stopped without input. This snapshot treated installed Codex/Claude/Grok/Muse/AGY sessions as manual/unsupported and made no universal automatic claims. Current per-harness readiness is [runtime-harness-readiness.md](runtime-harness-readiness.md).
 
-Packaged Phoenix plus host interoperability is proved separately; the controlled failed-PR → reminder → connector/session restart → repaired qualifying head proof for OpenSpec 3.2/3.3 is recorded in `runtime-first-release-pilot.md` (tasks.md owns the checklist). Production gate 3.4 remains open. Merge order is collector → server → worker. Captain/coordinator owns rollout.
+Packaged Phoenix plus host interoperability is proved separately; the controlled failed-PR → reminder → connector/session restart → repaired qualifying head proof for OpenSpec 3.2/3.3 is recorded in `runtime-first-release-pilot.md`. Production task 3.4 is recorded on the align-agensh-worker-runtime checklist (`openspec/changes/align-agensh-worker-runtime/tasks.md`). Merge order is collector → server → worker. Captain/coordinator owns rollout.
 
 ## Maintainability review
 
@@ -26,4 +26,4 @@ Archify source, standalone HTML, delivery receipt, light/dark browser captures a
 
 [Fresh packaged API/host proof and named isolated Pi evidence](worker-packaged-api.md)
 close the host acceptance gap after the server shipped. The live Pi model proof
-and real packaged API proof remain distinct. Captain-gated production enrollment (3.4) remains open; the controlled failed-PR/reminder/repaired-head demonstration (3.2/3.3) is proved in `runtime-first-release-pilot.md`.
+and real packaged API proof remain distinct. Production enrollment (3.4) is recorded on the align-agensh-worker-runtime checklist; the controlled failed-PR/reminder/repaired-head demonstration (3.2/3.3) is proved in `runtime-first-release-pilot.md`.

@@ -176,9 +176,10 @@ any new native dispatch; acknowledging a source does not permit replay.
 
 The packaged fixture exercises HTTP/WebSocket capture through actual worker
 reservation and both receipt paths, including failed transactions and stale
-capabilities. Its manual adapter is protocol evidence only. Two real workers'
-headless send/receive/handling and reconnect acceptance (OpenSpec 5.4), explicit
-production enrollment and sole-Mattermost cutover remain separate gates.
+capabilities. Its manual adapter is protocol evidence only. OpenSpec 5.4 and
+production enrollment are recorded on the
+[align-agensh-worker-runtime checklist](../openspec/changes/align-agensh-worker-runtime/tasks.md).
+Sole-Mattermost cutover remains a separate gate.
 
 ## Verification and rollback
 

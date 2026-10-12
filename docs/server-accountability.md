@@ -103,7 +103,8 @@ additive tables, pending/uncertain attempts, exact receipts, obligations, task a
 Context history. Do not rewind a numeric cursor, auto-reclaim tasks or clear
 uncertainty. Keep merge order collector → server → worker and use no-mistakes for
 PR delivery. Production activation and the controlled failed-PR/restart/recovery
-proof are coordinator-owned release gates.
+proof are recorded on the
+[align-agensh-worker-runtime checklist](../openspec/changes/align-agensh-worker-runtime/tasks.md).
 
 ## Verification scope
 
@@ -134,7 +135,7 @@ deployed bridge `20261007000300`; repeated schema-10 upgrade preserves immutable
 snapshot, current projection, inventory, history and provider-budget bytes. The
 passing constraint rejects absent JSON fields as well as unverified/merge-ref evidence.
 Final native host-to-packaged-API proof and controlled live failed-PR/restart/recovery
-remain explicit host/coordinator release gates. Cooperation stays default-off.
+are recorded on the align-agensh-worker-runtime checklist. Cooperation stays default-off.
 
 ## Review cards and relative ages
 
