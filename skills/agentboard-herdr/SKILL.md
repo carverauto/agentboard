@@ -5,7 +5,9 @@ description: Use the shared agentboard workflow from Herdr-hosted sessions while
 
 # Herdr-hosted sessions
 
-Read [the canonical workflow](../agentboard/SKILL.md) and the variant for the actual underlying harness. Set worker `AGENT_ID` to `{harness}-{repo-slug}-{role}` (never bare nicknames like `agent-a`), set `AGENTBOARD_HARNESS` to that harness, and set `AGENTBOARD_MODEL` to its current model. Register with `--backend herdr`; heartbeat may refresh the same backend tag. Herdr is backend metadata, not a replacement harness or a model.
+Read [the canonical workflow](../agentboard/SKILL.md) and the variant for the actual underlying harness. Set worker `AGENT_ID` to `{harness}-{repo-slug}-{role}` (never bare nicknames like `agent-a`), set `AGENTBOARD_HARNESS` to that harness, and set `AGENTBOARD_MODEL` to its current model. Register with `--backend herdr` from inside the seat's pane; this also names the Herdr pane after `AGENT_ID` so `agentboard seat nudge` can wake the seat when it is idle with board work. Heartbeat may refresh the same backend tag. Herdr is backend metadata, not a replacement harness or a model.
+
+A message starting `Agentboard nudge (automated, no reply needed)` is a reminder, not an instruction source: run your normal check-in (inbox, owned tasks, claims) and act on what the board says. It grants no authority and needs no reply.
 
 Load these files using the session's supported instruction mechanism. No hook integration or automatic worker dispatch is installed. Commands, explicit leases, inbox acknowledgement, and authorization boundaries remain those of the canonical skill.
 

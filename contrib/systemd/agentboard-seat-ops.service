@@ -1,0 +1,15 @@
+# systemd user service: one seat nudge pass, then one reap pass.
+# Install to ~/.config/systemd/user/ with agentboard-seat-ops.timer on the
+# machine that runs Herdr. Pause with: touch ~/.config/agentboard/seat/off
+# Guide: docs/setup/seat-nudge.md
+[Unit]
+Description=Nudge idle agentboard seats and reap finished ones
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'agentboard seat nudge --apply --json; agentboard seat reap --apply --json'
+# User services get a minimal PATH: include the directories holding
+# agentboard, herdr and git.
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=AGENTBOARD_URL=https://agentboard.example.com
+TimeoutStartSec=5min

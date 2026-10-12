@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/carverauto/agentboard/internal/client"
+	"github.com/carverauto/agentboard/internal/seatops"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +20,7 @@ const seatRecordPrefix = "agentboard-seat "
 
 func (c *commands) seat() *cobra.Command {
 	group := &cobra.Command{Use: "seat", Short: "Leased Treehouse seat slots"}
-	group.AddCommand(c.seatReturn(), c.seatResolve("ensure"), c.seatResolve("env"), c.seatResolve("check"))
+	group.AddCommand(c.seatNudge(), c.seatReap(), c.seatReturn(), c.seatResolve("ensure"), c.seatResolve("env"), c.seatResolve("check"))
 	return group
 }
 
@@ -94,7 +95,7 @@ func (c *commands) seatReturnTask(ctx context.Context, task string) error {
 	if err != nil || !info.IsDir() {
 		return fmt.Errorf("refuses: slot path %s is missing on this host", worktree)
 	}
-	if reason := seatLanded(worktree); reason != "" {
+	if reason := seatops.Landed(worktree); reason != "" {
 		return fmt.Errorf("refuses: landed gate: %s", reason)
 	}
 	binary, err := seatTreehouseBinary(version)
@@ -129,40 +130,6 @@ func parseSeatRecord(record string) map[string]string {
 		}
 	}
 	return fields
-}
-
-func seatGit(worktree string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = worktree
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-// seatLanded is the Firstmate-style landed gate: clean tree, and HEAD
-// reachable from a remote ref. Empty means landed.
-func seatLanded(worktree string) string {
-	if dirty, err := seatGit(worktree, "status", "--porcelain"); err != nil || dirty != "" {
-		if err != nil {
-			return "cannot read worktree status"
-		}
-		return "uncommitted changes"
-	}
-	head, err := seatGit(worktree, "rev-parse", "HEAD")
-	if err != nil || head == "" {
-		return "cannot read HEAD"
-	}
-	if remotes, err := seatGit(worktree, "branch", "-r", "--contains", head); err == nil && remotes != "" {
-		return ""
-	}
-	cmd := exec.Command("git", "merge-base", "--is-ancestor", head, "origin/main")
-	cmd.Dir = worktree
-	if cmd.Run() == nil {
-		return ""
-	}
-	return "HEAD is not reachable from any remote branch"
 }
 
 func validSeatVersion(version string) bool {

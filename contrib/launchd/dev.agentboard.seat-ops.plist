@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Runs `agentboard seat nudge --apply` then `agentboard seat reap --apply`
+  every 3 minutes as a per-user LaunchAgent, on the machine that runs Herdr.
+  launchd expands neither ~ nor $HOME: replace /Users/YOU with your home
+  directory and list the directories holding agentboard, herdr and git in PATH.
+  Pause everything with: touch ~/.config/agentboard/seat/off
+  Guide: docs/setup/seat-nudge.md
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.agentboard.seat-ops</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>agentboard seat nudge --apply --json; agentboard seat reap --apply --json</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/YOU/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>AGENTBOARD_URL</key>
+    <string>https://agentboard.example.com</string>
+  </dict>
+  <key>StartInterval</key>
+  <integer>180</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Users/YOU/Library/Logs/agentboard-seat-ops.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOU/Library/Logs/agentboard-seat-ops.log</string>
+</dict>
+</plist>
