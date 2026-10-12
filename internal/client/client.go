@@ -44,7 +44,7 @@ func (e *Error) ExitCode() int {
 		return 2
 	case "not_found":
 		return 3
-	case "conflict":
+	case "conflict", "message_transport_migrated":
 		return 4
 	default:
 		return 1
@@ -354,7 +354,10 @@ func responseError(status int, data []byte) error {
 		case 404:
 			envelope.Error.Code = "not_found"
 		case 409:
-			envelope.Error.Code = "conflict"
+			// The migration refusal is a typed conflict that callers act on.
+			if envelope.Error.Code != "message_transport_migrated" {
+				envelope.Error.Code = "conflict"
+			}
 		default:
 			envelope.Error.Code = "server_error"
 		}

@@ -71,6 +71,12 @@ defmodule AgentboardWeb.Router do
     get("/:id/download", DocumentController, :download)
   end
 
+  # Read-only board message history download (NDJSON) behind frontend auth.
+  scope "/messages", AgentboardWeb do
+    pipe_through(:documents)
+    get("/export", MessageExportController, :download)
+  end
+
   pipeline :compatible do
     plug(AgentboardWeb.Plugs.Compatibility)
     plug(AgentboardWeb.Plugs.AgentAuth)
@@ -186,6 +192,7 @@ defmodule AgentboardWeb.Router do
     post("/tasks", APIController, :create)
     get("/settings/coordinator-triage", CoordinatorTriageController, :show)
     put("/settings/coordinator-triage", CoordinatorTriageController, :replace)
+    get("/messages/export", APIController, :export_messages)
     get("/messages/:id/triage", APIController, :message_triage)
     get("/messages/:id", APIController, :message)
     get("/messages", APIController, :messages)

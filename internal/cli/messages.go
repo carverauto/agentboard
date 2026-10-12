@@ -1,12 +1,15 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 
+	"github.com/carverauto/agentboard/internal/client"
 	"github.com/spf13/cobra"
 )
 
@@ -123,8 +126,95 @@ func (c *commands) messages() *cobra.Command {
 		}
 		return c.request(cmd, http.MethodPost, "messages/"+strconv.FormatInt(id, 10)+"/read", nil, map[string]any{})
 	}}
-	group.AddCommand(c.broadcastOrders(), send, list, show, triageRead, read, c.watchCommand("messages", []string{"to", "task"}))
+	group.AddCommand(c.broadcastOrders(), send, list, show, triageRead, read, c.messageExport(), c.watchCommand("messages", []string{"to", "task"}))
 	return group
+}
+
+// messageExport writes read-only board message history as NDJSON: one API
+// message object per line in created_at/id order, fetched in bounded pages.
+// Exporting never acknowledges. A failed page exits non-zero and names the
+// cursor to resume from, so a partial file is never reported as complete.
+func (c *commands) messageExport() *cobra.Command {
+	to, task, cursor, pageSize := "", "", "", 100
+	cmd := &cobra.Command{Use: "export", Short: "Export read-only board message history as NDJSON (one message per line)", Args: cobra.NoArgs}
+	cmd.Flags().StringVar(&to, "to", "", "Only messages addressed to this recipient")
+	cmd.Flags().StringVar(&task, "task", "", "Only this task thread")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Resume from a next_cursor reported by an interrupted export with the same filters")
+	cmd.Flags().IntVar(&pageSize, "page-size", pageSize, "Messages per bounded API page (1-1000)")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if pageSize < 1 || pageSize > 1000 {
+			return errors.New("--page-size must be 1-1000")
+		}
+		api, err := client.New(c.cfg)
+		if err != nil {
+			return err
+		}
+		defer api.Close()
+		raw, err := api.JSON(cmd.Context(), http.MethodGet, "meta", nil, nil)
+		if err != nil {
+			return err
+		}
+		var meta struct {
+			API     int `json:"api_version"`
+			History struct {
+				Export bool `json:"export_supported"`
+			} `json:"message_history"`
+		}
+		if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || !meta.History.Export {
+			return &client.Error{Code: "schema_unavailable", Message: "Server does not advertise board message export; upgrade to a compatible Agentboard release"}
+		}
+		out := cmd.OutOrStdout()
+		for {
+			query := url.Values{"limit": {strconv.Itoa(pageSize)}}
+			if to != "" {
+				query.Set("to", to)
+			}
+			if task != "" {
+				query.Set("task", task)
+			}
+			if cursor != "" {
+				query.Set("cursor", cursor)
+			}
+			raw, err = api.JSON(cmd.Context(), http.MethodGet, "messages/export", query, nil)
+			if err != nil {
+				return exportIncomplete(err, cursor)
+			}
+			var page struct {
+				Messages []json.RawMessage `json:"messages"`
+				Next     *string           `json:"next_cursor"`
+			}
+			if err = json.Unmarshal(raw, &page); err != nil {
+				return exportIncomplete(err, cursor)
+			}
+			var lines bytes.Buffer
+			for _, record := range page.Messages {
+				if err = json.Compact(&lines, record); err != nil {
+					return exportIncomplete(err, cursor)
+				}
+				lines.WriteByte('\n')
+			}
+			if _, err = out.Write(lines.Bytes()); err != nil {
+				return err
+			}
+			if page.Next == nil || *page.Next == "" {
+				return nil
+			}
+			cursor = *page.Next
+		}
+	}
+	return cmd
+}
+
+func exportIncomplete(err error, cursor string) error {
+	if cursor == "" {
+		return err
+	}
+	resume := "; export incomplete, resume with --cursor " + cursor
+	var apiErr *client.Error
+	if errors.As(err, &apiErr) {
+		return &client.Error{Code: apiErr.Code, Message: apiErr.Message + resume, Status: apiErr.Status, RetryAfter: apiErr.RetryAfter}
+	}
+	return errors.New(err.Error() + resume)
 }
 
 func (c *commands) messageRead(use, short, suffix string) *cobra.Command {

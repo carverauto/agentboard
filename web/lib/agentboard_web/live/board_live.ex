@@ -549,6 +549,7 @@ defmodule AgentboardWeb.BoardLive do
        Map.merge(task, %{
          "messages" => messages["messages"],
          "message_cursor" => messages["next_cursor"],
+         "history" => Agentboard.MessageHistory.navigation(filters["id"]),
          "roster" => Map.new(agents["agents"], &{&1["id"], &1})
        })}
     end
@@ -578,12 +579,14 @@ defmodule AgentboardWeb.BoardLive do
     end
   end
 
-  defp load(:messages, filters),
-    do:
-      Board.page(
-        "messages",
-        Map.take(filters, ~w(to task unread triage_state cursor)) |> Map.put("limit", "100")
-      )
+  defp load(:messages, filters) do
+    with {:ok, page} <-
+           Board.page(
+             "messages",
+             Map.take(filters, ~w(to task unread triage_state cursor)) |> Map.put("limit", "100")
+           ),
+         do: {:ok, Map.put(page, "history", Agentboard.MessageHistory.navigation())}
+  end
 
   defp load(:quota, filters),
     do:
@@ -772,6 +775,7 @@ defmodule AgentboardWeb.BoardLive do
             </section>
             <.shared_context task_id={@data["task"]["id"]} page={@shared_context} error={@context_error} />
             <section class="timeline"><h2>Task thread</h2><p :if={@data["messages"]==[]} class="empty">No messages on this task.</p>
+              <.thread_history history={history_for(@data)} task_id={@data["task"]["id"]} />
               <.message :for={message <- @data["messages"]} message={message} />
               <a :if={@data["message_cursor"]} href={page_link(:task,@filters,@data["message_cursor"],"message_cursor")}>Next messages</a>
             </section>
@@ -795,6 +799,7 @@ defmodule AgentboardWeb.BoardLive do
             <.scope_modal :if={@scope_form != nil and Agentboard.Captain.authorized?(@captain)} form={@scope_form} error={@scope_error} />
             <a :if={@data["next_cursor"]} href={page_link(:agents,@filters,@data["next_cursor"])}>Next agents</a>
           <% :messages -> %>
+            <.message_history history={history_for(@data)} filters={@filters} />
             <form action="/messages" method="get" class="filters"><label>Recipient <input name="to" value={@filters["to"]} placeholder="All recipients" /></label><label>Task <input name="task" value={@filters["task"]} placeholder="All threads" /></label><label class="check"><input type="checkbox" name="unread" value="true" checked={@filters["unread"]=="true"} /> Unread only</label><label>Triage <select name="triage_state"><option value="">All messages</option><option :for={state <- Agentboard.CoordinatorTriage.states()} value={state} selected={@filters["triage_state"] == state}>{label(state)}</option></select></label><button type="submit">Filter messages</button><a href="/messages">Clear filters</a></form>
             <p :if={@data["messages"]==[]} class="empty">No messages match these filters.</p>
             <section class="timeline"><.message :for={message <- @data["messages"]} message={message} /></section>
@@ -1023,6 +1028,38 @@ defmodule AgentboardWeb.BoardLive do
   defp message(assigns) do
     ~H"""
     <article class="message"><div class="event-heading"><strong>{@message["sender_id"]} to {@message["recipient_id"] || "task thread"}</strong><time>{@message["created_at"]}</time></div><p class="attribution">{@message["model"]} / {@message["harness"]}<span :if={@message["recipient_id"]}> / {if @message["read_at"],do: "Read",else: "Unread"}</span> <a :if={@message["task_id"]} href={"/tasks/"<>@message["task_id"]}>{@message["task_id"]}</a></p><p :if={@message["triage"]} class="notice" data-triage-message={@message["id"]}>Shadow triage: {label(@message["triage"]["classification"])} / {label(@message["triage"]["state"])} ({label(@message["triage"]["reason_code"])}). No delivery or handling implied.</p><p class="description">{@message["body"]}</p></article>
+    """
+  end
+
+  # Data assembled without a mode read (e.g. a retained earlier page) renders
+  # the board-mode archive rather than guessing a cutover.
+  defp history_for(data),
+    do: data["history"] || %{migrated: false, mattermost_url: nil, thread_url: nil}
+
+  attr(:history, :map, required: true)
+  attr(:filters, :map, required: true)
+
+  # Board messages are read-only history in every mode; sends and recipient
+  # acknowledgement stay CLI/API operations.
+  defp message_history(assigns) do
+    ~H"""
+    <section id="message-history" class={["notice min-w-0 wrap-anywhere", @history.migrated && "warning"]} aria-label="Board message history">
+      <p :if={@history.migrated} id="message-history-migrated">New conversation happens in Mattermost<span :if={@history.mattermost_url}>: <a href={@history.mattermost_url} target="_blank" rel="noopener noreferrer">Open Mattermost</a></span>. These board messages are a read-only historical archive; legacy <code>agentboard msg send</code> returns a migration error pointing to <code>agentboard chat send</code>. Pending direct messages stay individually acknowledgeable with <code>agentboard msg read ID</code>: <a href="/messages?unread=true">pending legacy direct messages</a>.</p>
+      <p :if={!@history.migrated} class="context">Board messages are retained as read-only history. Viewing or exporting never acknowledges a message.</p>
+      <div class="links"><a id="message-export" href={Agentboard.MessageHistory.download_path(@filters)} download>Export NDJSON</a></div>
+    </section>
+    """
+  end
+
+  attr(:history, :map, required: true)
+  attr(:task_id, :string, required: true)
+
+  defp thread_history(assigns) do
+    ~H"""
+    <div id="task-thread-history" class="min-w-0 wrap-anywhere">
+      <p :if={@history.migrated} id="task-thread-migrated" class="notice warning">This task's conversation continues in Mattermost. <a :if={@history.thread_url} id="task-thread-mattermost" href={@history.thread_url} target="_blank" rel="noopener noreferrer">Open Mattermost thread</a><span :if={!@history.thread_url}>No Mattermost thread is mapped yet<span :if={@history.mattermost_url}>; <a id="task-thread-mattermost" href={@history.mattermost_url} target="_blank" rel="noopener noreferrer">open Mattermost</a></span>.</span> Board messages below are read-only history.</p>
+      <div class="links"><a id="task-thread-export" href={Agentboard.MessageHistory.download_path(%{"task" => @task_id})} download>Export thread NDJSON</a></div>
+    </div>
     """
   end
 end

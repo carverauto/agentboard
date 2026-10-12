@@ -109,6 +109,13 @@ defmodule AgentboardWeb.APIController do
     do: reply(conn, Board.restore(id, privileged_actor(conn), conn.body_params))
 
   def send_message(conn, _) do
+    case Agentboard.MessageHistory.authorize_legacy_send() do
+      :ok -> send_board_message(conn)
+      refusal -> reply(conn, refusal)
+    end
+  end
+
+  defp send_board_message(conn) do
     authentication =
       cond do
         conn.assigns[:api_auth_kind] == :captain ->
@@ -165,6 +172,33 @@ defmodule AgentboardWeb.APIController do
     end
   end
 
+  # Read-only bounded history pages for `msg export`; available in every mode.
+  def export_messages(conn, _) do
+    conn = fetch_query_params(conn) |> put_resp_header("cache-control", "no-store")
+    params = conn.query_params
+
+    result =
+      case conn.assigns[:authenticated_agent] do
+        %{scope: scope, agent_id: id} when scope in ~w(coordinator coordinator_participant) ->
+          if params["to"] == id and not Map.has_key?(params, "task"),
+            do: Agentboard.MessageHistory.export_page(params),
+            else: {:error, "forbidden", "Coordinator exports require their own recipient"}
+
+        _ ->
+          Agentboard.MessageHistory.export_page(params)
+      end
+
+    case result do
+      {:ok, page} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Agentboard.MessageHistory.encode(page))
+
+      error ->
+        reply(conn, error)
+    end
+  end
+
   def messages(conn, _) do
     conn = fetch_query_params(conn)
 
@@ -212,17 +246,21 @@ defmodule AgentboardWeb.APIController do
 
   def reply(conn, {:ok, value}), do: json(conn, value)
 
-  def reply(conn, {:error, code, message}) do
+  def reply(conn, {:error, code, message}), do: reply(conn, {:error, code, message, %{}})
+
+  def reply(conn, {:error, code, message, details}) when is_map(details) do
     status =
       case code do
         c when c in ~w(invalid_input invalid_context) -> 422
         "not_found" -> 404
-        c when c in ~w(conflict stale_order) -> 409
+        c when c in ~w(conflict stale_order message_transport_migrated) -> 409
         "forbidden" -> 403
         "unauthorized" -> 401
         _ -> 503
       end
 
-    conn |> put_status(status) |> json(%{error: %{code: code, message: message}})
+    conn
+    |> put_status(status)
+    |> json(%{error: Map.merge(details, %{code: code, message: message})})
   end
 end

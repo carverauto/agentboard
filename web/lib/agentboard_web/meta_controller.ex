@@ -17,6 +17,7 @@ defmodule AgentboardWeb.MetaController do
       native_authority_live_enabled: Agentboard.NativeAuthority.enabled?(),
       decision_policy_protocol_revision: 1,
       message_transport: Agentboard.MessageMode.status(),
+      message_history: Agentboard.MessageHistory.status(),
       schema_version: current,
       required_schema_version: Agentboard.SchemaVersion.required()
     })

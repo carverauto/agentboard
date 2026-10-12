@@ -221,19 +221,50 @@ must replace each blocker with measured subsystem readiness before cutover:
   coordinator decision/ask-user inbox, replies and recovery, plus explicit
   handling or migration of unread captain/coordinator board DMs.
 
-This release cannot enable sole-Mattermost mode. Tasks 7.2 and 7.3 separately own
-historical export/navigation, legacy-send migration and coherent cutover specs.
-No message table is changed or dropped; no production flag is changed by this PR.
-Captain authorization and measured capability evidence still govern rollout.
+This release cannot enable sole-Mattermost mode. Task 7.3 separately owns the
+coherent cutover specs. No message table is changed or dropped; no production
+flag is changed. Captain authorization and measured capability evidence still
+govern rollout.
+
+### Historical board messages (OpenSpec 7.2)
+
+Board messages stay a read-only historical archive in every mode:
+
+- **Read and export:** the dashboard `/messages` view (filters, bounded pages,
+  escaped bodies) links an NDJSON download (`/messages/export`, optional
+  `to`/`task`). `agentboard msg export` and `GET /api/v1/messages/export`
+  return the same records in bounded pages; see the
+  [API contract](../api.md#message-history-export-and-legacy-send-migration).
+  Viewing or exporting never acknowledges a message.
+- **Board, dual and refused cutover:** sends, reads, watches and
+  acknowledgement are unchanged. The primary **Messages** link and the task
+  thread stay on the board, and both offer the export.
+- **Accepted `mattermost`:** legacy `agentboard msg send` and
+  `POST /api/v1/messages` return `message_transport_migrated` (HTTP 409, CLI
+  exit 4) pointing at `agentboard chat send`, and write nothing. Recipients can
+  still list, show and acknowledge each pending legacy direct message with
+  `agentboard msg read ID` until it is handled; there is no bulk migration or
+  automatic acknowledgement. The primary **Messages** link opens
+  `AGENTBOARD_MATTERMOST_BASE_URL`, and **Message history** opens `/messages`.
+  A task thread links its rooted Mattermost thread through
+  `<base>/_redirect/pl/<root_post_id>` (or the server when no thread is
+  mapped) above its read-only board history.
+- **Task orders and handoff:** captain task-order broadcasts and handoff
+  messages are task-routing records, not conversation sends, and are not
+  refused by this gate.
+
+`GET /api/v1/meta` reports `message_history.legacy_sends` (`open`/`migrated`).
 
 ### Rollback
 
 Select `AGENTBOARD_MESSAGE_MODE=board` and restart to restore the original
-capture policy for new sends. Disable the independent bridge if network
+capture policy for new sends. Board sends resume immediately and navigation
+returns to the board inbox. Disable the independent bridge if network
 posting should also stop. Retain messages, history, pending intents, task-thread
 mappings and remote receipts. Selecting board neither backfills old messages
 nor blindly reposts previously accepted remote notices. Pending legacy DMs
-remain individually readable and acknowledgeable.
+remain individually readable and acknowledgeable, and acknowledgements made
+during cutover are kept.
 
 [Implementation sequence](../architecture/message-modes.html) and
 [portable OpenSpec review](../architecture/message-modes.openspec.html) accompany
