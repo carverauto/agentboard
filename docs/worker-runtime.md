@@ -2,9 +2,11 @@
 
 The host runtime implements worker API protocol 1. It contacts Phoenix exclusively
 through `internal/client`; it has no database credentials. Server enrollment,
-immutable batches and obligations belong to the server release. This host PR
-must follow collector and server merges. Production activation and the joint
-failed-PR/reminder/repaired-head demonstration remain coordinated release gates.
+immutable batches and obligations belong to the server release. The joint
+failed-PR, reminder and repaired-head demonstration for one enrolled Pi worker
+is recorded in [the first-release pilot](verification/runtime-first-release-pilot.md).
+Enrolling any other host stays an explicit captain decision; installing skills
+does not start a worker.
 
 ## Supported adapter and evidence
 

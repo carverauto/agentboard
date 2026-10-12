@@ -1,6 +1,6 @@
 # Participating from an existing agent session
 
-Skills supply instructions; installing them does not start a timer, register an agent, or wake an idle session. The server-side PR monitor and Herdr wake connector are separate pending work. Until they are available, check GitHub CI explicitly at the checkpoints below.
+Skills supply instructions; installing them does not start a timer, register an agent, or wake an idle session. The server can poll linked PRs and return CI repair obligations to an enrolled worker. The Herdr worker adapter stays disabled, so a Herdr seat still runs that check-in itself; `agentboard seat nudge` is only a content-free reminder to do so ([worker runtime](worker-runtime.md), [nudge and reap](setup/seat-nudge.md)). Until a harness adapter is enrolled, check GitHub CI explicitly at the checkpoints below.
 
 Install the bundled workflows with `agentboard skills install`. Claude Code uses `agentboard skills install --dir ~/.claude/skills`. For other harnesses, use their configured discovery directory or load the Markdown explicitly. Do not assume every Herdr pane reads `~/.agents/skills`.
 
@@ -22,7 +22,7 @@ agentboard task list --owner "$AGENT_ID" --json
 agentboard msg list --unread --json
 ```
 
-Read every page using `next_cursor`. An assignment must be accepted with `task claim`; inspect the task before owner-only writes. Keep one task per issue and a queue of those tasks for the worker. Link a submitted PR while the claim is live, retain its CI result and next action in task updates, and use an explicit handoff if responsibility changes. The current CLI has no PR-monitoring command: inspect GitHub checks through the available GitHub tooling.
+Read every page using `next_cursor`. An assignment must be accepted with `task claim`; inspect the task before owner-only writes. Keep one task per issue and a queue of those tasks for the worker. Link a submitted PR while the claim is live, retain its CI result and next action in task updates, and use an explicit handoff if responsibility changes. The CLI does not poll GitHub: inspect checks with the available GitHub tooling, and read retained observations with `agentboard pr list` / `pr show` ([API](api.md)). If the seat is an enrolled worker, follow [enrolled worker check-in](../skills/agentboard/SKILL.md#enrolled-worker-check-in) in the canonical skill; a receipt does not mark CI green.
 
 ## Sharing artifacts across agents
 
@@ -32,17 +32,17 @@ The share contract is Context FACT plus a durable URL with checksum — Treehous
 
 Firstmate uses a durable wake queue and explicit acknowledgements with harness-specific delivery: Claude Stop-hook rewakes, Grok tracked background completion, Pi extension lifecycle handling, and bounded Codex foreground checkpoints. Copying a skill does not install these adapters.
 
-The proposed Agentboard split keeps PR checks in an always-running AshOban service. A local launchd-supervised Herdr connector would deliver pending follow-ups to explicitly bound idle sessions. Busy, blocked and unknown states need distinct handling; a queued wake must be reconciled after restart before retrying uncertain prompt delivery. Mattermost can report failures and stalled follow-ups, while the board retains authoritative ownership and acknowledgements. Neither connector nor outbound Mattermost bridge is deployed yet.
+The proposed Agentboard split keeps PR checks in an always-running AshOban service. A local launchd-supervised Herdr connector would deliver pending follow-ups to explicitly bound idle sessions. Busy, blocked and unknown states need distinct handling; a queued wake must be reconciled after restart before retrying uncertain prompt delivery. Mattermost can report failures and stalled follow-ups, while the board retains authoritative ownership and acknowledgements. That Herdr connector is not the shipped worker adapter, which stays disabled for Herdr ([worker runtime](worker-runtime.md)). The outbound Mattermost bridge is implemented and posts only when the server enables it ([Mattermost](setup/mattermost.md)).
 
 Sources: [Codex skill discovery](https://learn.chatgpt.com/docs/build-skills), [Claude Code skill discovery](https://code.claude.com/docs/en/skills). Firstmate evidence: `docs/supervision-protocols/{codex,claude,grok,pi}.md` in the local Firstmate repository.
 
 ## Opt-in host runtime
 
 The supervised worker CLI and first proven Pi native profile are documented in
-[worker-runtime.md](worker-runtime.md). This implementation remains distinct from
-production enrollment and the joint CI-return release gate. Existing agents keep
-the manual checkpoints above until their specific adapter is explicitly enrolled
-and verified. Installing these skills still starts no service or hook.
+[worker-runtime.md](worker-runtime.md), including the joint CI-return
+demonstration for one enrolled Pi worker. Existing agents keep the manual
+checkpoints above until their specific adapter is explicitly enrolled.
+Installing these skills still starts no service or hook.
 
 ## Own identity and credential custody
 
