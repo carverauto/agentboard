@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"net/http"
@@ -86,6 +87,12 @@ func Step(ctx context.Context, cfg Config, b Binding) (Report, error) {
 		return recoverAttempt(ctx, cfg, b, a, j, report)
 	}
 	if s.Active != nil {
+		// An in-flight attempt from a replaced binding cannot be reconciled
+		// from this epoch and is never replayed; only an explicit captain
+		// retry decision releases it.
+		if s.Active.Agent == b.Agent && s.Active.Epoch > 0 && s.Active.Epoch < b.Epoch {
+			return report, fmt.Errorf("attempt %s from replaced binding epoch %d (current %d) blocks dispatch; it needs an explicit captain retry decision: POST /api/v1/workers/%s/resolve_attempt", s.Active.Attempt, s.Active.Epoch, b.Epoch, b.Agent)
+		}
 		if err := s.Active.Validate(b); err != nil {
 			return report, err
 		}
