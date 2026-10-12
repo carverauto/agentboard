@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# PILOT (do not merge): deliberate shellcheck SC2086 failure for the align-agensh-worker-runtime 3.2 controlled red-CI proof.
-echo $AGENTBOARD_PILOT_UNQUOTED >/dev/null
 # quota-push.sh: collect one quota-axi report, validate it, and push it to
 # agentboard. Meant to run every ~5 minutes from launchd, a systemd timer, or
 # cron. Guide: docs/setup/quota-producer.md
