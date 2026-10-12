@@ -1,6 +1,6 @@
 # Current-head GitHub observations
 
-This stage implements runtime task 1.3. It collects sampled **head-only** CI evidence through the existing Ash poll action. Observation remains default-off; a live CI repair loop is not deployed. Configured head-policy recovery, repair obligations and scoped worker delivery are implemented separately in the opt-in server runtime; see [server accountability](server-accountability.md). Verified merge/test refs, BuildBuddy correlation and richer Actions diagnostics remain their separate approved gates.
+This stage implements runtime task 1.3. It collects sampled **head-only** CI evidence through the existing Ash poll action. Observation remains default-off; the live CI repair loop is enabled on farm01 (see the [first-release pilot](verification/runtime-first-release-pilot.md)). Configured head-policy recovery, repair obligations and scoped worker delivery are implemented separately in the opt-in server runtime; see [server accountability](server-accountability.md). Verified merge/test refs, BuildBuddy correlation and richer Actions diagnostics remain their separate approved gates.
 
 ## Collection and interpretation
 
@@ -24,13 +24,13 @@ Provider errors append no successful snapshot and retain last-known evidence wit
 
 ## Configuration and source safety
 
-`AGENTBOARD_PR_OBSERVATION_ENABLED=false` is still the default. Keep it off until the first-release live proof. `GITHUB_TOKEN` is server-only, loaded from a namespace Secret at rollout; the CLI receives neither it nor database credentials. The collector reads PR metadata, Checks and commit statuses, so the eventual credential must have repository access and read scopes for those endpoints. Real entitlement and Agentboard acceptance-check publication are still rollout gates.
+`AGENTBOARD_PR_OBSERVATION_ENABLED=false` is still the repository default; farm01 enables it explicitly, with cooperation and the outbound bridge also enabled (server main c39b9c7; see `docs/verification/farm01-c39b9c7-rollout.json`). `GITHUB_TOKEN` is server-only, loaded from a namespace Secret at rollout; the CLI receives neither it nor database credentials. The collector reads PR metadata, Checks and commit statuses, so the eventual credential must have repository access and read scopes for those endpoints. Real entitlement and Agentboard acceptance-check publication are still rollout gates.
 
 `AGENTBOARD_GITHUB_API_URL` defaults to `https://api.github.com`; only an explicit HTTPS origin without userinfo/query/fragment/path is accepted. `AGENTBOARD_GITHUB_CA_FILE` can supply an operator CA bundle; the default is the pinned CAStore bundle. Provider text cannot choose the authenticated destination. Next-page links are checked against that configured origin/path/page, then the next URL is constructed locally. Advertised details/log URLs are never fetched. Bounded query-free HTTPS GitHub/BuildBuddy source links are retained; other links are omitted. Stored names containing the configured token are rejected, and raw provider bodies, credentials and request headers are not error/audit output. No log excerpts or model interpretation are delivered here.
 
 ## Verification and remaining scope
 
-The primary remote fixture drives the packaged release's public Ash poll action against invented HTTPS provider data and real TLS PostgreSQL. It owns wire pagination/revision/attempt truth, bounds and shared HTTP cooldown; sibling fixtures own scheduling, reservations and legacy board behavior. Live provider entitlement, old-image rollback and a real failed PR returning to a worker remain first-release acceptance, not claims derived from fixture success.
+The primary remote fixture drives the packaged release's public Ash poll action against invented HTTPS provider data and real TLS PostgreSQL. It owns wire pagination/revision/attempt truth, bounds and shared HTTP cooldown; sibling fixtures own scheduling, reservations and legacy board behavior. The controlled failed-PR-to-worker proof ran on farm01 on 2026-10-12; see the [first-release pilot](verification/runtime-first-release-pilot.md). Live provider entitlement and old-image rollback remain rollout gates, not claims derived from fixture success.
 
 The quality scan reports module growth in PollState/Polling, six pagination accumulator parameters and a small DateTime parser idiom shared with quota. They retain the resource/action, reservation and pagination boundaries rather than exporting a quota helper or splitting modules to satisfy a length metric. Dynamic Ash actions/migration callbacks marked as unused are exercised remotely. This is a recorded tradeoff, not a claim of a clean quality scan.
 
