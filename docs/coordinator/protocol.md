@@ -5,6 +5,9 @@ This decision-only foundation implements the portable tick/ack boundary from
 the same HTTPS contract; the CLI is a thin client. It does not complete #161's
 server-automation prerequisites or establish a live adapter's conformance.
 
+A [safe selftest](selftest.md) checks a read-only protocol sample and synthetic
+local ack fixtures without activating a runner or certifying live delivery.
+
 ## Authentication and identity
 
 All four operations require an actually presented, verified agent bearer with

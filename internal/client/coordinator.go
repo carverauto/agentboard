@@ -1,9 +1,11 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -29,4 +31,48 @@ func (c *Client) CoordinatorJSON(ctx context.Context, method, path string, query
 	request := *c
 	request.coordinatorProtocol = "1"
 	return request.JSON(ctx, method, path, query, payload)
+}
+
+// CoordinatorSelftestRead is a closed, read-only diagnostic transport. Wire
+// budgets are enforced before redaction, including on error responses.
+func (c *Client) CoordinatorSelftestRead(ctx context.Context, path string) (json.RawMessage, error) {
+	if c.token == "" || c.captain || c.workerCaptain || c.workerProtocol != "" {
+		return nil, errors.New("coordinator selftest requires an ordinary runner bearer")
+	}
+	request := *c
+	var query url.Values
+	maxBytes := 16384
+	switch path {
+	case "meta":
+	case "coordinator/tick":
+		request.coordinatorProtocol = "1"
+		maxBytes = 4096
+		query = url.Values{"limit": {"1"}, "max_bytes": {"4096"}}
+	default:
+		return nil, errors.New("unsupported coordinator selftest read")
+	}
+	ctx, cancel := context.WithTimeout(ctx, requestBudget)
+	defer cancel()
+	resp, err := request.open(ctx, http.MethodGet, path, query, nil, "application/json")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, int64(maxBytes+1)))
+	if err != nil || len(data) > maxBytes {
+		return nil, failure("response_failed", "Coordinator selftest response exceeds its wire budget or could not be read")
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, &Error{Code: "selftest_request_failed", Message: "Coordinator selftest request failed", Status: resp.StatusCode}
+	}
+	if !json.Valid(data) {
+		return nil, failure("invalid_response", "Coordinator selftest response is not JSON")
+	}
+	// A diagnostic never needs reflected credentials. Reject instead of
+	// accepting redaction's JSON re-encoding, which can repair malformed Unicode.
+	redacted := c.redactData(data)
+	if !bytes.Equal(data, redacted) {
+		return nil, failure("invalid_response", "Coordinator selftest response contains reflected credentials")
+	}
+	return json.RawMessage(data), nil
 }
