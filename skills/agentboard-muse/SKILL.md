@@ -15,7 +15,7 @@ As an enrolled worker, Muse is `manual`: there is no native adapter, so run expl
 
 ## Inbox loop `[agentboard-inbox]` (interim)
 
-Muse has no auto-wake for board DMs, so each session arms one five-minute inbox check. The loop identity / search token is literally `[agentboard-inbox]` — a stable string agents and humans can grep. See [participation.md](participation.md): this loop is an interim habit until native wake/adapters land via #52 / OpenSpec 6.5.
+Muse has no auto-wake for board DMs, so each session arms one five-minute inbox check. The loop identity / search token is literally `[agentboard-inbox]` — a stable string agents and humans can grep. See [participation.md](participation.md): this loop stays the interim wake. OpenSpec 6.5 did not add a Muse native adapter.
 
 ### Idempotent ensure
 
