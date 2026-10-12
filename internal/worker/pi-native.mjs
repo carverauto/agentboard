@@ -151,6 +151,24 @@ export default function agentboard(pi) {
     save(`${socketPath}.identity.json`, { protocol: 1, adapter_version: version, session_id: current.session, generation: current.generation, socket_path: socketPath });
   });
   pi.on('session_shutdown', retire);
+  // In RPC mode Pi exits on SIGINT (Ctrl-C) or SIGHUP (closed pane) without
+  // session_shutdown, which left a dead socket that blocked the next session.
+  // Release only this generation's socket, then re-raise so exit is unchanged.
+  for (const signal of ['SIGINT', 'SIGHUP']) {
+    const release = () => {
+      const current = owner;
+      if (current) {
+        current.retired = true;
+        owner = undefined;
+        try { fs.unlinkSync(socketPath); } catch {}
+        const identity = `${socketPath}.identity.json`;
+        try { if (JSON.parse(fs.readFileSync(identity, 'utf8')).generation === current.generation) fs.unlinkSync(identity); } catch {}
+      }
+      process.removeListener(signal, release);
+      process.kill(process.pid, signal);
+    };
+    process.on(signal, release);
+  }
   pi.on('before_agent_start', async (_event, ctx) => {
     const current = owner;
     if (!live(current, ctx) || !current.pending || !await boundaryAllowed(current)) return;
