@@ -179,7 +179,7 @@ defmodule Agentboard.Cooperation.Runtime do
 
           if credential.scope == "receipt" and
                (credential.epoch != b.epoch or
-                  operation not in ~w(state pending responsibilities obligations doctor receipts reconcile mattermost_inbox mattermost_read mattermost_ack wake_intents wake_reconcile)),
+                  operation not in ~w(state pending responsibilities obligations doctor receipts reconcile mattermost_inbox mattermost_read mattermost_ack wake_intents wake_reconcile wake_resolve)),
              do: Ops.reject("forbidden", "Capability does not authorize this operation")
 
           execute(operation, data, s, b, credential, context)
@@ -225,7 +225,7 @@ defmodule Agentboard.Cooperation.Runtime do
         {rows, _limit} = Agentboard.Wake.Reads.selection(Ash.get!(Subscription, id), data)
         rows
       else
-        Agentboard.Wake.Transport.occurrence(id, operation, data)
+        Agentboard.Wake.Transport.occurrences(id, operation, data)
       end
 
     Agentboard.Delivery.ConflictConsumer.lock(id, deliveries, wakes)
@@ -276,6 +276,9 @@ defmodule Agentboard.Cooperation.Runtime do
     )
   end
 
+  defp execute("wake_resolve", data, s, b, _c, context),
+    do: Agentboard.Wake.Transport.resolve(data, s, b, context)
+
   defp execute("wake_reconcile", data, s, b, c, context),
     do:
       Agentboard.Wake.Transport.reconcile(data, s, b, &execute("reconcile", &1, s, b, c, context))
@@ -290,7 +293,7 @@ defmodule Agentboard.Cooperation.Runtime do
         delivery = Ash.get!(Delivery, id)
 
         Map.put(
-          Agentboard.Delivery.ConflictConsumer.delivery_state(delivery, context),
+          Agentboard.Wake.Transport.canonical_delivery_state(delivery, context),
           :delivery_id,
           id
         )
@@ -721,9 +724,12 @@ defmodule Agentboard.Cooperation.Runtime do
       # A terminal attempt can still receive exact evidence after a newer
       # generation starts. Validate its scope, but do not apply that evidence to
       # deliveries or canonical sources now owned by the newer attempt.
-      if historical,
-        do: Enum.each(ids, &receipt_delivery!(&1, s)),
-        else: Enum.each(ids, &apply_current_receipt(&1, data["kind"], s, stamp, context))
+      if historical do
+        Enum.each(ids, &receipt_delivery!(&1, s))
+      else
+        Agentboard.Wake.Transport.validate_receipt!(a, batch, s, b, context)
+        Enum.each(ids, &apply_current_receipt(&1, data["kind"], s, stamp, context))
+      end
 
       r =
         create(Receipt, %{

@@ -18,20 +18,15 @@ import (
 // Host delivery is shadow-only until #150 supplies its shared native admission
 // and the captain separately elects a wake owner. It never calls an adapter.
 type WakeReference struct {
-	ID          string `json:"intent_id"`
-	Revision    int64  `json:"intent_revision"`
-	Reason      string `json:"reason"`
-	Hash        string `json:"reason_hash"`
-	Agent       string `json:"recipient_id"`
-	Repo        string `json:"repo"`
-	Disposition string `json:"disposition"`
-	Source      struct {
-		Kind    string `json:"kind"`
-		ID      string `json:"id"`
-		Version string `json:"version"`
-		Task    string `json:"task_id"`
-	} `json:"source"`
-	Reasons []string `json:"reason_codes"`
+	ID          string     `json:"intent_id"`
+	Revision    int64      `json:"intent_revision"`
+	Reason      string     `json:"reason"`
+	Hash        string     `json:"reason_hash"`
+	Agent       string     `json:"recipient_id"`
+	Repo        string     `json:"repo"`
+	Disposition string     `json:"disposition"`
+	Source      WakeSource `json:"source"`
+	Reasons     []string   `json:"reason_codes"`
 }
 
 type WakeInspection struct {

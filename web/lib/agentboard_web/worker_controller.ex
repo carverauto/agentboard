@@ -19,7 +19,7 @@ defmodule AgentboardWeb.WorkerController do
     operation =
       case {conn.method, params["operation"]} do
         {"GET", nil} -> "wake_intents"
-        {"POST", op} when op in ~w(reserve result reconcile) -> "wake_" <> op
+        {"POST", op} when op in ~w(reserve result reconcile resolve) -> "wake_" <> op
         _ -> "wake_unknown"
       end
 

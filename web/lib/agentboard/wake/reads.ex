@@ -114,7 +114,8 @@ defmodule Agentboard.Wake.Reads do
       if message && message.task_id, do: Ash.get!(Task, message.task_id, not_found_error?: false)
 
     cond do
-      is_nil(task) or Agentboard.WakeIntents.canonical_repo(task.repo) != row.repo ->
+      is_nil(task) or task.id != row.task_id or
+          Agentboard.WakeIntents.canonical_repo(task.repo) != row.repo ->
         "suppressed"
 
       is_nil(message) or message.recipient_id != row.recipient_id or
@@ -137,7 +138,7 @@ defmodule Agentboard.Wake.Reads do
     end
   end
 
-  def canonical_state(%{source_kind: "decision_wake"} = row, _stamp) do
+  def canonical_state(%{source_kind: "decision_wake"} = row, stamp) do
     wake = Ash.get!(Agentboard.Decisions.Wake, row.source_id, not_found_error?: false)
 
     request =
@@ -153,9 +154,15 @@ defmodule Agentboard.Wake.Reads do
       request.status == "applied" ->
         "handled"
 
-      request.status != "answered" or Agentboard.WakeIntents.canonical_repo(task.repo) != row.repo or
+      request.status != "answered" or request.id != row.source_ref["request_id"] or
+        request.task_id != task.id or task.id != row.task_id or
+        request.requester_id != row.recipient_id or
+        request.answered_at != wake.answered_at or
+        Agentboard.WakeIntents.canonical_repo(task.repo) != row.repo or
         task.assignee_id != row.recipient_id or
-          wake.requester_id != row.recipient_id ->
+        wake.requester_id != row.recipient_id or
+        task.status not in ~w(in_progress blocked review) or is_nil(task.claim_expires_at) or
+          DateTime.compare(task.claim_expires_at, stamp) != :gt ->
         "suppressed"
 
       wake.status in ~w(reserved accepted uncertain) ->
@@ -178,7 +185,8 @@ defmodule Agentboard.Wake.Reads do
   def canonical_state(%{source_kind: "task_claim"} = row, stamp) do
     task = Ash.get!(Task, row.source_id, not_found_error?: false)
 
-    if (((task && Agentboard.WakeIntents.canonical_repo(task.repo) == row.repo &&
+    if (((task && task.id == row.task_id &&
+            Agentboard.WakeIntents.canonical_repo(task.repo) == row.repo &&
             task.assignee_id == row.recipient_id) and
            task.status in ~w(in_progress blocked review) and
            task.claim_expires_at) && DateTime.compare(task.claim_expires_at, stamp) == :gt) and
@@ -190,7 +198,8 @@ defmodule Agentboard.Wake.Reads do
   def canonical_state(%{source_kind: "task_assignment"} = row, _stamp) do
     task = Ash.get!(Task, row.source_id, not_found_error?: false)
 
-    if (task && Agentboard.WakeIntents.canonical_repo(task.repo) == row.repo &&
+    if (task && task.id == row.task_id &&
+          Agentboard.WakeIntents.canonical_repo(task.repo) == row.repo &&
           task.assignee_id == row.recipient_id) and task.status == "assigned" and
          task.assignment_authorized do
       %{rows: versions} =
@@ -199,7 +208,10 @@ defmodule Agentboard.Wake.Reads do
           [task.id]
         )
 
-      if versions == [[row.source_ref["assignment_revision"]]], do: "pending", else: "suppressed"
+      if versions == [[row.source_ref["assignment_revision"]]] and
+           row.source_version == to_string(row.source_ref["assignment_revision"]),
+         do: "pending",
+         else: "suppressed"
     else
       "suppressed"
     end

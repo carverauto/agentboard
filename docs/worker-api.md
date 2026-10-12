@@ -8,7 +8,9 @@ only. Successful state/bind records include `binding.binding_epoch` (also `epoch
 Reconcile includes `resolved` for all handled/suppressed batch members.
 All responses include `protocol_revision: 1`; send
 `x-agentboard-worker-protocol: 1` on requests. No watch is required: poll every
-30 seconds and reread after reconnect. Reads never acknowledge or renew tasks.
+30 seconds and reread after reconnect. Reads never acknowledge or renew tasks. `GET /state` can expire a reserved
+attempt to retained uncertainty; it is not the non-mutating source-resolution
+operation described below.
 
 ## Credentials and scope
 
@@ -115,6 +117,75 @@ Context handling atomically inserts the existing Context receipt; existing CLI
 Context receipts suppress runtime pending work. Notification handling never
 marks a repair task done or resolves failing CI. Reconcile before acting on an
 old source frame.
+
+## Exact-attempt wake source resolution
+
+`POST /api/v1/hosts/:host_id/wake-intents/:worker_id/resolve` is the
+receiving-side, non-consuming gate for a frozen wake notice. It uses existing
+host or current-epoch receipt credentials and worker protocol revision 1.
+The body is exactly the five immutable fields copied from the reservation:
+`attempt_id`, `intent_id`, `reason_hash`, `payload_hash`, and `recipient`.
+The recipient contains the original agent, host, repository, enrollment revision,
+binding epoch, session ID, and adapter generation. Do not reconstruct a new
+recipient from the latest binding or substitute a newer attempt.
+
+The response contains `actionable`, `reason_codes`, the immutable `reservation`,
+and `source`. Only `actionable: true` contains canonical source material:
+`kind`, `id`, `version`, `task_id`, and the current `message`, `decision`, or
+`task` record. A denied currentness check returns `source: null`; malformed or
+mismatched immutable references and unauthorized scopes return protocol errors.
+A source-resolution read never marks a message read, acknowledges a decision,
+renews or claims a task, writes a delivery receipt, expires an attempt, clears a
+binding, or authorizes native replay. Retrying a lost response repeats that read.
+
+| Exact attempt state | Resolve current source? |
+| --- | --- |
+| Active `reserved` | Yes, if all remaining fences pass; receipt may race result recording |
+| Active `submitted` | Yes, if all remaining fences pass |
+| Active `uncertain` | Yes, if all remaining fences pass; never permission to replay |
+| `not_submitted`, `handled`, inactive, expired, or replaced | No |
+
+Every allowed response rechecks current enrollment, host, binding epoch,
+session/generation, active cooperation attempt, the immutable batch and source,
+recipient availability and receipt capability. Pause, revocation and replacement
+block actionable material. Both the wake and batch leases must still be valid.
+The existing transport lease is 120 seconds: this is the receiving authorization
+window for this notice, not a deadline to complete its task. `handled` records
+handling of the notification, not task completion, decision application or a
+native delivery guarantee. After that window, a receiver must leave the old
+attempt inert and use a fresh canonical check-in to discover current work under
+its separately authorized task claim and source APIs. Neither retrying the old
+reference nor a previous `received` receipt renews this window. This gate adds
+no automatic authorization renewal; pre-existing non-wake receipts retain their
+existing lease semantics.
+
+Task claim warnings require the exact unexpired claim; answered decisions also
+require the current assignee's live claim; assignments require the latest
+captain-authorized assign/handoff revision. Message sources require their exact
+recipient, canonical task/repository, unread state and source version. Typed
+conflict orders also use the existing current-order/default-tip custody checks.
+Unsupported source kinds fail closed.
+
+Canonical source locks precede worker custody. Mixed ordinary/typed batches
+share the existing sorted task-lock tier after branch/PR/policy locks. New
+current `received` and `handled` receipts for wake-backed deliveries recheck the
+same currentness conditions atomically, including batches reserved through the
+generic worker endpoint. An exact previously committed receipt can still be
+retrieved idempotently after its source changes. Eligible same-epoch historical
+terminal receipts remain evidence only and cannot mutate current deliveries;
+old-epoch writes remain rejected. Explicit source handling and explicit delivery
+receipts remain separate actions. Record notification handling before a separate
+decision acknowledgement or task transition invalidates its canonical source;
+a later new notification receipt will then fail closed. An expired active
+attempt can remain unresolved for the existing explicit captain/rebind paths.
+
+For a durable conversation adapter, the conversation identifies where an
+advisory is queued; it is not a loaded runtime incarnation. A stale queued
+notice can still start a turn and incur cost. This server gate prevents that
+notice from obtaining actionable current source material or recording new
+current handling after replacement; it cannot retract the native queue or
+prevent that turn. This API adds no native profile activation or delivery proof,
+and does not mint native incarnation authority.
 
 ## Bootstrap, recovery and errors
 

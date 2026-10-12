@@ -9,7 +9,10 @@ defmodule Agentboard.Delivery.ConflictConsumer do
     descriptors =
       Enum.map(deliveries, &delivery_source/1) ++ Enum.map(List.wrap(wake), &wake_source/1)
 
-    ConflictCurrentness.lock(Enum.reject(descriptors, &is_nil/1), recipient)
+    # Ordinary wake tasks share the same sorted task-lock tier as repair tasks.
+    # Locking them after the typed prefix can deadlock mixed frozen batches.
+    tasks = List.wrap(wake) |> Enum.map(& &1.task_id) |> Enum.reject(&is_nil/1)
+    ConflictCurrentness.lock(Enum.reject(descriptors, &is_nil/1), recipient, tasks)
   end
 
   def admitted_deliveries(deliveries, context, suppress) do

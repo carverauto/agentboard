@@ -16,9 +16,15 @@ defmodule Agentboard.Wake.Transport do
   # Called inside Runtime.request after credential authentication and availability,
   # before its worker lock. No provider I/O is performed in this transaction.
   def lock_sources(id, operation, data)
-      when operation in ~w(wake_reserve wake_result wake_reconcile) do
-    row = occurrence(id, operation, data)
+      when operation in ~w(wake_reserve wake_result wake_reconcile wake_resolve receipts dispatch) do
+    occurrences(id, operation, data)
+    |> Enum.sort_by(&{&1.task_id || "", &1.source_kind, &1.source_id, &1.id})
+    |> Enum.each(&lock_source/1)
+  end
 
+  def lock_sources(_, _, _), do: :ok
+
+  defp lock_source(row) do
     if row.task_id, do: Ops.lock_task(row.task_id)
 
     case row.source_kind do
@@ -48,10 +54,8 @@ defmodule Agentboard.Wake.Transport do
     Repo.statement!("SELECT pg_advisory_xact_lock($1)", [key])
   end
 
-  def lock_sources(_, _, _), do: :ok
-
   def occurrence(id, operation, data)
-      when operation in ~w(wake_reserve wake_result wake_reconcile) do
+      when operation in ~w(wake_reserve wake_result wake_reconcile wake_resolve) do
     if operation == "wake_reserve" do
       fetch_intent!(id, data["intent_id"])
     else
@@ -61,6 +65,25 @@ defmodule Agentboard.Wake.Transport do
   end
 
   def occurrence(_, _, _), do: nil
+
+  # Generic receipts/dispatch also carry canonical wakes. Derive them from the
+  # immutable batch, never from caller-provided source IDs, before worker custody.
+  def occurrences(id, operation, data) when operation in ~w(receipts dispatch) do
+    attempt = Ops.fetch!(Agentboard.Cooperation.Attempt, data["attempt_id"], "Attempt not found")
+    if attempt.worker_id != id, do: Ops.reject("forbidden", "Foreign attempt")
+    batch = Ash.get!(Agentboard.Cooperation.Batch, attempt.batch_id)
+    ids = batch.delivery_ids
+    events = Enum.map(ids, &Ash.get!(Agentboard.Cooperation.Delivery, &1).event_id)
+
+    Intent
+    |> Ash.Query.filter(
+      recipient_id == ^id and
+        (delivery_id in ^ids or cooperation_event_id in ^events)
+    )
+    |> Ash.read!()
+  end
+
+  def occurrences(id, operation, data), do: List.wrap(occurrence(id, operation, data))
 
   def reserve(data, s, b, reserve_batch, context) do
     exact_keys!(
@@ -341,6 +364,192 @@ defmodule Agentboard.Wake.Transport do
       attempt: Ops.public(attempt),
       idempotent: false
     }
+  end
+
+  # Receiving-side read: no expiration transition, receipt, source ACK, replay
+  # permission or native invocation is produced by this operation.
+  def resolve(data, s, b, context) do
+    exact_keys!(data, ~w(attempt_id intent_id reason_hash payload_hash recipient))
+    attempt = matching_attempt!(data, s)
+    row = fetch_intent!(s.id, attempt.intent_id)
+    reasons = resolution_reasons(attempt, row, s, b, context)
+
+    %{
+      actionable: reasons == [],
+      reason_codes: reasons,
+      reservation: public_reservation(attempt),
+      source: if(reasons == [], do: materialize(row), else: nil)
+    }
+  end
+
+  # Called only for a new current receipt. Historical evidence and exact receipt
+  # retries remain retained, but cannot change a later occurrence's source state.
+  def validate_receipt!(attempt, batch, s, b, context) do
+    wake = Ash.get!(Attempt, attempt.id, not_found_error?: false)
+
+    reasons =
+      if wake do
+        row = fetch_intent!(s.id, wake.intent_id)
+        resolution_reasons(wake, row, s, b, context)
+      else
+        rows = occurrences(s.id, "receipts", %{"attempt_id" => attempt.id})
+
+        if rows == [] do
+          []
+        else
+          source_reasons =
+            Enum.flat_map(rows, fn row ->
+              scope!(row, s)
+              source_reasons(row, context)
+            end)
+
+          recipient_reasons(s, b)
+          |> reason(
+            b.active_attempt_id != attempt.id or
+              attempt.status not in ~w(reserved submitted uncertain),
+            "attempt_not_current"
+          )
+          |> reason(DateTime.compare(batch.lease_expires_at, Ops.now()) != :gt, "attempt_expired")
+          |> reason(
+            DateTime.compare(attempt.created_at, s.enrolled_at) == :lt,
+            "historical_recipient"
+          )
+          |> Kernel.++(source_reasons)
+        end
+      end
+
+    # batch is passed from Runtime's existing exact immutable receipt fence.
+    if wake &&
+         batch.delivery_ids != Enum.map(wake.reservation["source_refs"], & &1["delivery_id"]),
+       do: Ops.reject("conflict", "Wake batch source fence changed")
+
+    if reasons != [],
+      do:
+        Ops.reject(
+          "conflict",
+          "Wake source resolution refused: " <> Enum.join(Enum.uniq(reasons), ",")
+        )
+  end
+
+  def canonical_delivery_state(delivery, context) do
+    rows =
+      Intent
+      |> Ash.Query.filter(
+        recipient_id == ^delivery.worker_id and
+          (delivery_id == ^delivery.id or cooperation_event_id == ^delivery.event_id)
+      )
+      |> Ash.read!()
+
+    case Enum.find_value(rows, fn row ->
+           case source_reasons(row, context) do
+             [] -> nil
+             [reason | _] -> reason
+           end
+         end) do
+      nil -> Agentboard.Delivery.ConflictConsumer.delivery_state(delivery, context)
+      reason -> %{state: String.replace_prefix(reason, "source_", "")}
+    end
+  end
+
+  defp resolution_reasons(a, row, s, b, context) do
+    scope!(row, s)
+    cooperative = Ash.get!(Agentboard.Cooperation.Attempt, a.cooperation_attempt_id)
+    batch = Ash.get!(Agentboard.Cooperation.Batch, cooperative.batch_id)
+    frozen = a.reservation
+    source = frozen["source"]
+    refs = frozen["source_refs"]
+    stamp = Ops.now()
+
+    recipient_reasons(s, b)
+    |> reason(
+      a.enrollment_revision != enrollment_revision(s) or a.host_id != s.host_id or
+        a.binding_epoch != b.epoch or a.session_id != b.session_id or
+        a.adapter_generation != b.pane_id,
+      "historical_recipient"
+    )
+    |> reason(
+      not current_attempt?(a, b) or b.active_attempt_id != a.cooperation_attempt_id or
+        cooperative.status not in ~w(reserved submitted uncertain) or
+        a.state not in ~w(reserved submitted uncertain),
+      "attempt_not_current"
+    )
+    |> reason(
+      DateTime.compare(a.expires_at, stamp) != :gt or
+        DateTime.compare(batch.lease_expires_at, stamp) != :gt,
+      "attempt_expired"
+    )
+    |> reason(
+      frozen["intent_id"] != row.id or frozen["reason_hash"] != row.reason_hash or
+        source["kind"] != row.source_kind or source["id"] != row.source_id or
+        source["version"] != row.source_version or source["task_id"] != row.task_id or
+        Enum.map(refs, & &1["delivery_id"]) != [row.delivery_id] or
+        batch.delivery_ids != [row.delivery_id] or
+        cooperative.worker_id != s.id or cooperative.epoch != a.binding_epoch or
+        cooperative.generation != frozen["cooperation_fences"]["dispatch_generation"] or
+        batch.payload_hash != frozen["cooperation_fences"]["payload_hash"],
+      "source_fence_changed"
+    )
+    |> reason(
+      Enum.any?(batch.delivery_ids, fn id ->
+        Ash.get!(Agentboard.Cooperation.Delivery, id).state not in ~w(pending received)
+      end),
+      "delivery_resolved"
+    )
+    |> Kernel.++(source_reasons(row, context))
+    |> Enum.uniq()
+  end
+
+  defp recipient_reasons(s, b) do
+    agent = Availability.admission_agent(s.id)
+
+    []
+    |> reason(not Runtime.enabled?(s), "cooperation_disabled")
+    |> reason(s.paused, "paused")
+    |> reason(
+      not is_nil(agent.retired_at) or not Availability.active?(agent),
+      "agent_unavailable"
+    )
+    |> reason(is_nil(b.session_id) or b.epoch < 1, "unbound")
+    |> reason(get_in(b.capabilities, ["receipt", "supported"]) != true, "receipt_unsupported")
+  end
+
+  defp source_reasons(row, context) do
+    state = Reads.canonical_state(row, Ops.now(), context)
+    if state == "pending", do: [], else: ["source_" <> state]
+  end
+
+  defp materialize(row) do
+    source = %{
+      kind: row.source_kind,
+      id: row.source_id,
+      version: row.source_version,
+      task_id: row.task_id
+    }
+
+    case row.source_kind do
+      "board_message" ->
+        Map.put(
+          source,
+          :message,
+          Ops.public(
+            Ash.get!(Agentboard.Board.Resources.Message, String.to_integer(row.source_id))
+          )
+        )
+
+      "decision_wake" ->
+        Map.put(
+          source,
+          :decision,
+          Ops.public(Ash.get!(Agentboard.Decisions.Request, row.source_ref["request_id"]))
+        )
+
+      kind when kind in ~w(task_claim task_assignment) ->
+        Map.put(
+          source,
+          :task,
+          Ops.public(Ash.get!(Agentboard.Board.Resources.Task, row.source_id))
+        )
+    end
   end
 
   def result(data, s, b, commit_result) do
