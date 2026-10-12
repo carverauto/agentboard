@@ -509,7 +509,7 @@ native FD owner, recipient authority, seat nudge/reap; schema 42) was rolled
 to farm01 using dashboard digest
 `sha256:fe37c5a11418020b910acef974e4108177d6937c9cf7c1e947cd01371935dc81`
 from [Container images run 38229284989](https://github.com/carverauto/agentboard/actions/runs/38229284989).
-This is the current operator image pin. The overlay pin it replaced
+This was the operator image pin before 358c8a3 (below). The overlay pin it replaced
 (`4f8821d`, schema 22) was stale relative to the live `ec33c10`/schema 41
 deployment recorded in the receipt.
 
@@ -529,6 +529,36 @@ permitted to the verifying agent. No rollback was performed. See the
 [rollout receipt](../verification/farm01-c39b9c7-rollout.json). Follow the
 [rollback procedure](#rollback) if an earlier image must be restored, keeping the
 additive schema.
+
+## Dual message mode rollout (358c8a3)
+
+On 2026-10-12 UTC, merged main `358c8a3` (PR219-PR227: shared context,
+private routes + chat spool, message history, idle continuation, worker
+handled guidance; schema 44) was rolled to farm01 using dashboard digest
+`sha256:5fb1093224553621c3398da79f99a6410b8398296116280e83be5fb014df6560`
+from [Container images run 38280047187](https://github.com/carverauto/agentboard/actions/runs/38280047187).
+This is the current operator image pin.
+
+No pre-migration database backup was taken, by explicit maintainer decision
+(pre-release development data). The maintainer applied migration Job
+`agentboard-migrate-358c8a3` on the same digest and rolled the Deployment with
+`kubectl set image` (rollout status successful 2026-10-12T18:25:26Z); the
+migration succeeded and meta reports schema 44/API 1/required 44.
+
+The overlay adds three literals matching the targeted live ConfigMap patch:
+`AGENTBOARD_MESSAGE_MODE=dual`, `AGENTBOARD_MATTERMOST_INBOUND_ENABLED=true`
+and `AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED=true`. The pre-existing
+overlay/live drift (`AGENTBOARD_AUTH` live-only,
+`AGENTBOARD_WORKFLOW_REPOSITORIES` overlay-only) is deliberately unchanged.
+No new secret is required.
+
+Verification was public HTTPS plus the worker API (`/health/live`,
+`/health/ready`, `/`, `/prs` and `/api/v1/meta` return 200; transport
+requested and effective `dual`); worker `agentboard-farm01-1` reported
+healthy/ready at epoch 3 with its Mattermost inbox enabled. No rollback was
+performed. See the [rollout receipt](../verification/farm01-358c8a3-rollout.json).
+Roll back by patching `AGENTBOARD_MESSAGE_MODE=board` and both flags to
+`false` with a restart, keeping the additive schema 44.
 
 ## Coordinator attribution
 
