@@ -112,3 +112,60 @@ view.close()
 result=subprocess.run([os.environ['AB_BINARY'],'context','ack',str(fixed['id'])],env=env,capture_output=True,text=True,timeout=15)
 assert result.returncode==0 and 'acknowledged' in result.stdout and str(fixed['id']) in result.stdout
 print('Connected context dashboard escaping, relationship display, browsing, ranked search and readable acknowledgement passed')
+
+# Task detail Shared context: task-linked across repositories, newest 20, escaped,
+# read-only, and a Context failure leaves the task readable. Pages are exported for
+# real-browser inspection.
+from liveview_client import export_page
+def task_page(task,filename):
+    view=LiveView(base,'/tasks/'+task)
+    try:return export_page(base,'/tasks/'+task,filename,view.initial)
+    finally:view.close()
+def section(page):
+    return page.split('id="task-shared-context"',1)[1].split('</section>',1)[0]
+ab('task','create','--id','context-empty','--title','No findings yet')
+page=task_page('context-empty','task-context-empty.html')
+shared=section(page)
+assert 'No shared context linked to this task.' in shared and 'href="/context?task=context-empty"' in shared
+assert 'id="task-context-' not in shared and 'role="alert"' not in shared
+assert page.index('<h2>Task history</h2>')<page.index('<h2>Documentation</h2>')<page.index('id="task-shared-context"')<page.index('<h2>Task thread</h2>')
+assert 'No documentation attached.' in page and 'Rendered HTML artifacts' in page
+ab('task','create','--id','context-busy','--title','Many findings')
+sql("INSERT INTO context_entries(entry_key,repo,task_id,kind,summary,source_agent_id,model,harness,digest) SELECT 'busy-'||n,'carverauto/agentboard','context-busy','OBSERVED','Busy finding '||n||'.','alpha','model-a','codex',repeat('c',64) FROM generate_series(1,21) n")
+ab('context','publish','--key','busy-other-repo','--repo','other/repo','--task','context-busy','--kind','CLAIM','--summary','Cross-repository finding')
+hostile='<img src=x onerror=window.contextExecuted=true> & café'
+ab('context','publish','--key','busy-hostile','--repo',repo,'--task','context-busy','--kind','FAIL','--summary',hostile)
+long_summary='L'*600
+ab('context','publish','--key','busy-long','--repo',repo,'--task','context-busy','--kind','FACT','--summary',long_summary)
+receipts=sql('SELECT count(*) FROM context_receipts')
+feed_before=ab('context','feed','--repo',repo,actor='beta')
+page=task_page('context-busy','task-context-busy.html')
+shared=section(page)
+assert shared.count('id="task-context-')==20,shared.count('id="task-context-')
+assert '&lt;img src=x onerror=window.contextExecuted=true&gt; &amp; café' in shared and '<img src=x' not in page
+assert long_summary in shared and re.search(r'\.wrap-anywhere\{overflow-wrap:anywhere',page)
+assert 'Cross-repository finding' in shared and 'other/repo' in shared and '>CLAIM<' in shared
+assert 'alpha / model-a / codex · carverauto/agentboard' in shared
+# Newest 20 of 24 task entries: the four oldest seeded ones stay in Context.
+assert 'Busy finding 5.' in shared and 'Busy finding 4.' not in shared and 'Busy finding 1.' not in shared
+assert 'Older findings are retained in Context.' in shared and 'href="/context?task=context-busy"' in shared
+assert 'TLS certificate failed' not in shared and 'History finding' not in shared
+assert 'No documentation attached.' in page and '<h2>Documentation</h2>' in page
+view=LiveView(base,'/context?task=context-busy')
+for text in ['Busy finding 1.','Cross-repository finding','other/repo','across repositories']:
+    assert contains(view.initial,text),text
+assert not contains(view.initial,'TLS certificate failed') and not contains(view.initial,'History finding')
+view.close()
+# Neither the task section nor the filtered Context page records a receipt.
+assert sql('SELECT count(*) FROM context_receipts')==receipts
+assert ab('context','feed','--repo',repo,actor='beta')==feed_before
+# A failed Context read is a bounded section error; the task stays readable.
+sql('REVOKE SELECT ON context_entries FROM CURRENT_USER')
+try:page=task_page('context-busy','task-context-failure.html')
+finally:sql('GRANT SELECT ON context_entries TO CURRENT_USER')
+shared=section(page)
+assert 'Shared context unavailable: Context storage unavailable.' in shared and 'role="alert"' in shared
+assert 'id="task-context-' not in shared and 'href="/context?task=context-busy"' in shared
+assert '<h2>Many findings</h2>' in page and '<h2>Task history</h2>' in page and 'Board unavailable' not in page
+assert task_page('context-busy','task-context-recovered.html').count('id="task-context-')==20
+print('Task Shared context bounding, cross-repository task scope, escaping, filtered link, read-without-receipt and independent failure passed')

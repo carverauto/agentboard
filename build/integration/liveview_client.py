@@ -3,13 +3,16 @@ import base64
 import hashlib
 import json
 import os
+import re
 import socket
+import subprocess
 import struct
 import time
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 from http.cookies import SimpleCookie
+from pathlib import Path
 
 class Page(HTMLParser):
     def __init__(self):super().__init__();self.root=None;self.csrf=None
@@ -136,3 +139,51 @@ class RenderedView:
 
     def close(self):
         self.live.close()
+
+
+class _ScriptStripper(HTMLParser):
+    # A real parser, so variants like `</script >` cannot slip through a regexp.
+    def __init__(self):
+        super().__init__(convert_charrefs=False);self.parts=[];self.depth=0
+    def handle_starttag(self,tag,attrs):
+        if tag.lower()=='script':self.depth+=1
+        elif self.depth==0:self.parts.append(self.get_starttag_text())
+    def handle_startendtag(self,tag,attrs):
+        if tag.lower()!='script' and self.depth==0:self.parts.append(self.get_starttag_text())
+    def handle_endtag(self,tag):
+        if tag.lower()=='script':self.depth=max(0,self.depth-1)
+        elif self.depth==0:self.parts.append('</'+tag+'>')
+    def handle_data(self,data):
+        if self.depth==0:self.parts.append(data)
+    def handle_comment(self,data):
+        if self.depth==0:self.parts.append('<!--'+data+'-->')
+    def handle_decl(self,decl):
+        if self.depth==0:self.parts.append('<!'+decl+'>')
+
+
+def export_page(base,path,filename,rendered):
+    """Save the packaged page with its fingerprinted CSS inlined and scripts removed.
+
+    The connected render replaces `<main>` through the release's own Phoenix diff
+    renderer, so the saved file is the exact HTML a browser would show. It lands in
+    TEST_UNDECLARED_OUTPUTS_DIR for separate real-browser inspection.
+    """
+    page=urllib.request.urlopen(base+path,timeout=10).read().decode()
+    stylesheet=re.search(r'<link rel="stylesheet"[^>]*href="([^"]+)"',page).group(1)
+    css=urllib.request.urlopen(base+stylesheet,timeout=10).read().decode()
+    page=re.sub(r'<link rel="stylesheet"[^>]+>',lambda _:'<style>'+css+'</style>',page)
+    stripper=_ScriptStripper();stripper.feed(page);page=''.join(stripper.parts)
+    encoded=base64.b64encode(json.dumps(rendered).encode()).decode()
+    expression=('normalize = fn walk, node ->\n  cond do\n    is_map(node) -> Map.new(node, fn {key, value} ->\n'
+        '      mapped = case Integer.parse(key) do\n        {number, ""} -> number\n        _ -> String.to_existing_atom(key)\n      end\n'
+        '      {mapped, walk.(walk, value)}\n    end)\n    is_list(node) -> Enum.map(node, &walk.(walk, &1))\n    true -> node\n  end\nend;\n'
+        'diff = Base.decode64!("'+encoded+'") |> Jason.decode!();\n'
+        'html = Phoenix.LiveView.Diff.to_iodata(normalize.(normalize, diff)) |> IO.iodata_to_binary();\n'
+        'IO.puts("FRAME_HTML:" <> Base.encode64(html))')
+    result=subprocess.run([os.environ['AGENTBOARD_BIN'],'rpc',expression],capture_output=True,text=True,timeout=30)
+    assert result.returncode==0,(result.stdout,result.stderr)
+    html=base64.b64decode(result.stdout.split('FRAME_HTML:',1)[1].strip()).decode()
+    page=re.sub(r'<main\b[^>]*>.*?</main>',lambda _:html,page,count=1,flags=re.S)
+    output=Path(os.environ['TEST_UNDECLARED_OUTPUTS_DIR']);output.mkdir(exist_ok=True)
+    (output/filename).write_text(page)
+    return page

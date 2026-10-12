@@ -122,8 +122,13 @@ defmodule Agentboard.Context do
     end
   end
 
+  @doc """
+  Newest-first page of entry metadata, scoped to a repository or, when no
+  repository is given, to every entry linked to a task (across repositories).
+  Reading never records a receipt.
+  """
   def recent(params) do
-    with {:ok, filters} <- filters(params, ~w(repo task kind limit cursor)),
+    with {:ok, filters} <- filters(params, ~w(repo task kind limit cursor), :repo_or_task),
          {:ok, cursor} <- if(params["cursor"], do: positive(params["cursor"]), else: {:ok, nil}) do
       query = scoped(filters) |> Ash.Query.sort(id: :desc) |> Ash.Query.limit(filters.limit + 1)
       query = if cursor, do: Ash.Query.filter(query, id < ^cursor), else: query
@@ -142,6 +147,9 @@ defmodule Agentboard.Context do
           failure(error)
       end
     end
+  rescue
+    _ in [Postgrex.Error, DBConnection.ConnectionError] ->
+      {:error, "unavailable", "Context storage unavailable"}
   end
 
   def repos do
@@ -320,16 +328,22 @@ defmodule Agentboard.Context do
       |> Ash.read_one()
 
   defp scoped(filters) do
-    query = Entry |> Ash.Query.select(@metadata) |> Ash.Query.filter(repo == ^filters.repo)
+    query = Entry |> Ash.Query.select(@metadata)
+    query = if filters.repo, do: Ash.Query.filter(query, repo == ^filters.repo), else: query
     query = if filters.task, do: Ash.Query.filter(query, task_id == ^filters.task), else: query
     if filters.kind, do: Ash.Query.filter(query, kind == ^filters.kind), else: query
   end
 
-  defp filters(params, allowed) do
+  # Every read is repository-scoped; `:repo_or_task` also admits a task-only
+  # scope, which the task_id index bounds the same way.
+  defp filters(params, allowed, scope \\ :repo) do
     limit = params["limit"] || "50"
 
     with true <- Enum.all?(Map.keys(params), &(&1 in allowed)),
-         true <- repo?(params["repo"]),
+         true <-
+           repo?(params["repo"]) or
+             (scope == :repo_or_task and is_nil(params["repo"]) and
+                Agentboard.Input.slug?(params["task"])),
          true <- optional?(params["task"], &Agentboard.Input.slug?/1),
          true <- optional?(params["kind"], &(&1 in @kinds)),
          {limit, ""} when limit in 1..100 <- Integer.parse(to_string(limit)) do

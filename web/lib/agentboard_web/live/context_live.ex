@@ -63,6 +63,11 @@ defmodule AgentboardWeb.ContextLive do
         socket.assigns.live_action == :entry ->
           Context.show(filters["id"])
 
+        # A task's own link browses its entries across repositories.
+        filters["repo"] in [nil, ""] and filters["task"] not in [nil, ""] and
+            filters["q"] in [nil, ""] ->
+          Context.recent(Map.take(filters, ~w(task kind cursor)) |> Map.put("limit", "50"))
+
         filters["repo"] in [nil, ""] ->
           {:ok, nil}
 
@@ -188,6 +193,7 @@ defmodule AgentboardWeb.ContextLive do
           <button type="submit">Find context</button>
         </form>
         <p :if={@loaded && !@data && !@error && !@param_error}>Choose a repository to browse its latest findings or search with BM25.</p>
+        <p :if={@data && !@filters["repo"] && @filters["task"]} class="context">Findings linked to task <a href={"/tasks/#{@filters["task"]}"}>{@filters["task"]}</a> across repositories. Choose a repository to search them.</p>
         <div :if={@data}>
           <p :if={@data[:backend]} class="context">Ranked with {@data.backend}; at most 100 results. Refine the query for a smaller result set.</p>
           <p :if={@data.entries == []}>No matching findings.</p>
@@ -197,6 +203,7 @@ defmodule AgentboardWeb.ContextLive do
             <p class="attribution">{entry.source_agent_id} · {entry.model} · {entry.harness} · {entry.created_at}</p>
             <p :if={entry[:score]}>BM25 score: {Float.round(entry.score, 4)}</p>
             <p :if={entry.task_id}>Task: <a href={"/tasks/#{entry.task_id}"}>{entry.task_id}</a></p>
+            <p :if={!@filters["repo"]}>Repository: <a href={"/context?" <> URI.encode_query(%{"repo" => entry.repo})}>{entry.repo}</a></p>
           </article>
           <a :if={@data[:next_cursor]} class="more" href={next_path(@filters, @data.next_cursor)}>Older findings</a>
         </div>

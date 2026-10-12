@@ -17,6 +17,8 @@ defmodule AgentboardWeb.BoardLive do
           "next_cursor" => nil
         },
         decision_unavailable: false,
+        shared_context: nil,
+        context_error: nil,
         workers: %{},
         review_ci: %{},
         ci_unavailable: false,
@@ -427,9 +429,21 @@ defmodule AgentboardWeb.BoardLive do
         health = load_health(data)
         ci = load_review_ci(data)
         decisions = load_decisions(socket.assigns.live_action, socket.assigns.filters)
+        shared_context = load_shared_context(socket.assigns.live_action, socket.assigns.filters)
 
         assign(socket,
           data: data,
+          # The section reports its own failure; the task detail stays readable.
+          shared_context:
+            case shared_context do
+              {:ok, page} -> page
+              _ -> nil
+            end,
+          context_error:
+            case shared_context do
+              {:ok, _} -> nil
+              {:error, _code, message} -> message
+            end,
           decisions:
             case decisions do
               {:ok, records} -> records
@@ -470,6 +484,12 @@ defmodule AgentboardWeb.BoardLive do
   end
 
   defp load_decisions(_, _), do: {:ok, %{"decisions" => [], "next_cursor" => nil}}
+
+  # Task-linked findings across repositories; reading records no receipt.
+  defp load_shared_context(:task, filters),
+    do: Agentboard.Context.recent(%{"task" => filters["id"], "limit" => "20"})
+
+  defp load_shared_context(_, _), do: {:ok, nil}
 
   defp load(view, filters, column_pages) when view in [:board, :archive] do
     selected =
@@ -743,13 +763,14 @@ defmodule AgentboardWeb.BoardLive do
             <AgentboardWeb.ConflictOrderNotice.notice projection={get_in(@review_ci, [@data["task"]["pr_url"], :conflict_order])} unavailable={@ci_unavailable || @unavailable} />
             <AgentboardWeb.DecisionPanel.waiting records={@decisions["decisions"]} answered={@decisions["answered"]} total={@decisions["total"]} answered_total={@decisions["answered_total"]} captain={@captain} unavailable={@decision_unavailable} />
             <a :if={@decisions["next_cursor"]} href={page_link(:task,@filters,@decisions["next_cursor"],"decision_cursor")}>Next waiting decisions</a>
-            <section class="timeline"><h2>Task history</h2>
+            <section class="timeline"><h2>Task history</h2><p class="context">Ownership and status events recorded on this task.</p>
               <article :for={event <- @data["events"]}><div class="event-heading"><strong>{label(event["kind"])}</strong><time>{event["created_at"]}</time></div><p class="attribution">{event["actor_id"]} / {event["model"]} / {event["harness"]} / revision {event["new_revision"]}</p><p :if={event["body"]} class="description">{event["body"]}</p></article>
               <a :if={@data["next_cursor"]} href={page_link(:task,@filters,@data["next_cursor"])}>Next history page</a>
             </section>
-            <section class="timeline"><h2>Documentation</h2><p :if={@data["documents"]==[]} class="empty">No documentation attached.</p>
+            <section class="timeline"><h2>Documentation</h2><p class="context">Rendered HTML artifacts attached to this task.</p><p :if={@data["documents"]==[]} class="empty">No documentation attached.</p>
               <article :for={document <- @data["documents"]} class="event"><h3><a href={document["viewer_url"]}>{document["title"]}</a></h3><p>{document["kind"]} · {document["source_agent_id"]} · {document["model"]} / {document["harness"]}</p><p :if={document["proposal_name"]}>OpenSpec: {document["proposal_name"]}</p><p :if={document["source_revision"]}>Commit: {document["source_revision"]}</p><div class="links"><a href={document["download_url"]}>Download HTML</a><a :if={document["pr_url"]} href={document["pr_url"]} target="_blank" rel="noopener noreferrer">Pull request</a></div></article>
             </section>
+            <.shared_context task_id={@data["task"]["id"]} page={@shared_context} error={@context_error} />
             <section class="timeline"><h2>Task thread</h2><p :if={@data["messages"]==[]} class="empty">No messages on this task.</p>
               <.message :for={message <- @data["messages"]} message={message} />
               <a :if={@data["message_cursor"]} href={page_link(:task,@filters,@data["message_cursor"],"message_cursor")}>Next messages</a>
@@ -971,6 +992,30 @@ defmodule AgentboardWeb.BoardLive do
       _ ->
         "Unknown"
     end
+  end
+
+  attr(:task_id, :string, required: true)
+  attr(:page, :map, default: nil)
+  attr(:error, :string, default: nil)
+
+  # Read-only findings linked to the task. Kept apart from documents (rendered
+  # artifacts) and history (task events); viewing never acknowledges entries.
+  defp shared_context(assigns) do
+    ~H"""
+    <section id="task-shared-context" class="timeline min-w-0" aria-labelledby="task-shared-context-heading">
+      <h2 id="task-shared-context-heading">Shared context</h2>
+      <p class="context">Up to 20 recent findings linked to this task. Entries are worker assertions; viewing them acknowledges nothing.</p>
+      <p :if={@error} id="task-shared-context-error" class="notice danger" role="alert">Shared context unavailable: {@error}. The task details above remain current.</p>
+      <p :if={@page && @page.entries == []} class="empty">No shared context linked to this task.</p>
+      <article :for={entry <- (@page && @page.entries) || []} id={"task-context-#{entry.id}"} class="min-w-0 wrap-anywhere">
+        <div class="event-heading"><span class="flag">{entry.kind}</span><time datetime={to_string(entry.created_at)}>{entry.created_at}</time></div>
+        <h3 class="mt-2"><a href={"/context/#{entry.id}"}>{entry.summary}</a></h3>
+        <p class="attribution">{entry.source_agent_id} / {entry.model} / {entry.harness} · {entry.repo}</p>
+      </article>
+      <p :if={@page && @page.next_cursor} class="context mt-3">Older findings are retained in Context.</p>
+      <div class="links"><a href={"/context?" <> URI.encode_query(%{"task" => @task_id})}>All shared context for this task</a></div>
+    </section>
+    """
   end
 
   attr(:message, :map, required: true)
