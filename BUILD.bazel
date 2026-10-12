@@ -28,6 +28,7 @@ test_suite(
         "//internal/client:client_test",
         "//internal/config:config_test",
         "//internal/worker:worker_test",
+        "//internal/nativequeue/owner:owner_test",
         "//internal/cli:cli_test",
         "//build/integration:worker_runtime_test",
         "//build/integration:worker_packaged_api_test",

@@ -37,10 +37,10 @@ trap 'rm -rf "$runtime"' EXIT
 library="$runtime/internal/nativequeue/codex"
 mkdir -p "$runtime/node_modules/ws" "$runtime/build/integration" "$library"
 tar -xzf "$archive" --strip-components=1 -C "$runtime/node_modules/ws"
-for source in rpc-client.mjs socket-discovery.mjs rpc-wire.mjs transport.mjs journal.mjs; do
+for source in rpc-client.mjs socket-discovery.mjs rpc-wire.mjs inherited-client.mjs owner-control.mjs transport.mjs journal.mjs; do
   cp "$sources/$source" "$library/$source"
 done
-for fixture in codex_rpc_client_test.mjs codex_rpc_socket_test.mjs; do
+for fixture in codex_rpc_client_test.mjs codex_rpc_socket_test.mjs codex_owner_control_test.mjs; do
   cp "$fixtures/$fixture" "$runtime/build/integration/$fixture"
 done
 
@@ -49,3 +49,5 @@ export WS_NO_BUFFER_UTIL=1 WS_NO_UTF_8_VALIDATE=1
 export PATH="$(dirname "$node"):$PATH"
 "$node" "$runtime/build/integration/codex_rpc_client_test.mjs" "$library/rpc-client.mjs"
 "$node" "$runtime/build/integration/codex_rpc_socket_test.mjs" "$library/rpc-client.mjs"
+
+"$node" "$runtime/build/integration/codex_owner_control_test.mjs" "$library/rpc-client.mjs"

@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "owner",
+    srcs = ["owner.go", "peer_linux.go", "peer_unsupported.go"],
+    importpath = "github.com/carverauto/agentboard/internal/nativequeue/owner",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "owner_test",
+    srcs = ["owner_test.go"],
+    embed = [":owner"],
+    embedsrcs = glob(["testdata/*.mjs"]),
+    data = [
+        "//internal/nativequeue/codex:rpc_client_sources",
+        "@worker_node_linux_x64//:bin/node",
+        "@codex_rpc_ws//file",
+    ],
+    env = {"OWNER_INTEGRATION": "1"},
+    size = "small",
+)
+filegroup(name = "format_srcs", srcs = glob(["*.go"]), visibility = ["//visibility:public"])

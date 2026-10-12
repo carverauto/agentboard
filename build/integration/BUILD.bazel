@@ -26,6 +26,7 @@ sh_test(
     srcs = ["codex_rpc_client_test.sh"],
     data = [
         "codex_rpc_client_test.mjs",
+        "codex_owner_control_test.mjs",
         "codex_rpc_socket_test.mjs",
         "//internal/nativequeue/codex:rpc-client.mjs",
         "//internal/nativequeue/codex:rpc_client_sources",

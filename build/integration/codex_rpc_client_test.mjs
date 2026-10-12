@@ -13,8 +13,8 @@ import { pathToFileURL } from 'node:url';
 const modulePath = path.resolve(process.argv[2]);
 const require = createRequire(modulePath);
 const { WebSocketServer, WebSocket } = require('ws');
-const { openCodexRpcWire } = await import(pathToFileURL(path.join(path.dirname(modulePath), 'rpc-wire.mjs')));
-const { createCodexQueueTransport } = await import(pathToFileURL(path.join(path.dirname(modulePath), 'transport.mjs')));
+const { openCodexRpcWire, openCodexAdvisoryRpcWire, requireEvidence } = await import(pathToFileURL(path.join(path.dirname(modulePath), 'rpc-wire.mjs')));
+const { createCodexQueueTransport, createCodexAdvisoryTransport } = await import(pathToFileURL(path.join(path.dirname(modulePath), 'transport.mjs')));
 const { createJournal } = await import(pathToFileURL(path.join(path.dirname(modulePath), 'journal.mjs')));
 const { connectCodexRpcClient } = await import(pathToFileURL(modulePath));
 
@@ -187,7 +187,7 @@ function fixture(options = {}) {
     return clientSocket;
   };
   f.open = overrides => {
-    const promise = openCodexRpcWire({ connect, boundary, evidence, timeoutMs: options.timeoutMs ?? 250, lifetimeMs: options.lifetimeMs ?? 10000, ...overrides });
+    const promise = (options.advisory ? openCodexAdvisoryRpcWire : openCodexRpcWire)({ connect, boundary, evidence, timeoutMs: options.timeoutMs ?? 250, lifetimeMs: options.lifetimeMs ?? 10000, ...overrides });
     // Attach immediately so intentional rejection races never cause an
     // unhandled rejection before the test checks the recorded result.
     promise.catch(() => {});
@@ -759,6 +759,33 @@ try {
     assert.equal(next.calls.length, 1);
     original.close(); next.close();
   });
+  await check('durable advisory profile is distinct, epoch-fenced, journaled and retired', async () => {
+    const dir = path.join(temporary, 'durable-advisory'); fs.mkdirSync(dir, { mode: 0o700 });
+    const f = fixture({ advisory: true, onRequest(request, current) {
+      current.respond(request, { queuedSubmission: { id: randomUUID(), input: request.params.input, clientUserMessageId: request.params.clientUserMessageId } });
+    } });
+    f.identity.endpoint.profile = 'codex-durable-advisory-v1';
+    f.identity.recipient = { threadId: recipient.threadId, identityKind: 'durable-conversation-v1', enrollmentRevision: 42, bindingEpoch: 3, persistent: true, topLevel: true };
+    assert.throws(() => requireEvidence(f.evidence));
+    await f.open();
+    assert.throws(() => createCodexQueueTransport({ client: f.client, ...f.identity, journalDir: dir }));
+    const transport = createCodexAdvisoryTransport({ client: f.client, ...f.identity, journalDir: dir });
+    const attempt = { attemptId: 'advisory', source: { kind: 'wake', id: 'source', version: 'b'.repeat(64), uri: 'https://agentboard.example.com/source' }, recipient: clone(f.identity.recipient), bindingEpoch: 3, dispatchGeneration: 1 };
+    await assert.rejects(transport.submit({ ...attempt, bindingEpoch: 2 }));
+    assert.equal(f.calls.length, 0);
+    assert.equal((await transport.submit(attempt)).outcome, 'accepted');
+    assert.match(f.calls[0].params.input[0].text, /durable advisory notice v1/);
+    f.revoke(); assert.equal(f.client.identity(), null);
+    assert.equal((await transport.submit(attempt)).historical, true);
+    assert.equal(f.calls.length, 1); f.close();
+  });
+  for (const invalid of ['strict-recipient', 'zero-epoch', 'fake-incarnation']) {
+    await check('advisory wire refuses ' + invalid + ' before connect', async () => {
+      const f = fixture({ advisory: true }); f.identity.endpoint.profile = 'codex-durable-advisory-v1';
+      if (invalid !== 'strict-recipient') f.identity.recipient = { threadId: recipient.threadId, identityKind: 'durable-conversation-v1', enrollmentRevision: 42, bindingEpoch: invalid === 'zero-epoch' ? 0 : 3, persistent: true, topLevel: true, ...(invalid === 'fake-incarnation' ? { incarnation: 'pretend' } : {}) };
+      await refused(() => f.open()); assert.equal(f.connections, 0); f.close();
+    });
+  }
   console.log('passed ' + count + ' synthetic Codex RPC client cases');
 } finally {
   for (const f of [...fixtures]) f.close();
