@@ -449,6 +449,36 @@ rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, true)')
 assert 'mattermost_inbound_repo_invalid' in transport_blockers()
 web_log = Path(os.environ['TEST_TMPDIR']) / 'web.log'
 wait(lambda: b'not subscribed: mattermost_inbound_repo_invalid' in web_log.read_bytes())
+# The same missing scope is not an operator blocker while inbound is off.
+rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
+wait(lambda: sql("SELECT reason FROM mattermost_inbound_runs") == 'disabled')
+assert not any(b.startswith('mattermost_inbound_') for b in transport_blockers()), transport_blockers()
+# A valid repository with a bad history cutoff is a different blocker, still local, still unsubscribed.
+rpc('Application.put_env(:agentboard, :mattermost_inbound_repo, "fixture/repo")')
+rpc('Application.put_env(:agentboard, :mattermost_inbound_history_start_ms, -1)')
+rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, true)')
+assert 'mattermost_inbound_history_start_invalid' in transport_blockers(), transport_blockers()
+wait(lambda: b'not subscribed: mattermost_inbound_history_start_invalid' in web_log.read_bytes())
+time.sleep(6)
+assert sql("SELECT reason FROM mattermost_inbound_runs") == 'disabled', 'owner must not subscribe with an invalid history cutoff'
+# Repo and history are usable, but the bot credential is gone.
+rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
+wait(lambda: sql("SELECT reason FROM mattermost_inbound_runs") == 'disabled')
+rpc('Application.delete_env(:agentboard, :mattermost_inbound_history_start_ms)')
+rpc('Application.delete_env(:agentboard, :mattermost_bot_token)')
+rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, true)')
+assert 'mattermost_inbound_bot_unconfigured' in transport_blockers(), transport_blockers()
+wait(lambda: b'not subscribed: mattermost_inbound_bot_unconfigured' in web_log.read_bytes())
+time.sleep(6)
+assert sql("SELECT reason FROM mattermost_inbound_runs") == 'disabled', 'owner must not subscribe without a bot credential'
+# Return to the pilot gap: bot present, repository missing, history at the enrollment default.
+rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
+wait(lambda: sql("SELECT reason FROM mattermost_inbound_runs") == 'disabled')
+rpc('Application.put_env(:agentboard, :mattermost_bot_token, ' + json.dumps(TOKEN) + ')')
+rpc('Application.delete_env(:agentboard, :mattermost_inbound_repo)')
+rpc('Application.delete_env(:agentboard, :mattermost_inbound_history_start_ms)')
+rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, true)')
+assert 'mattermost_inbound_repo_invalid' in transport_blockers(), transport_blockers()
 with LOCK:
     POSTS['board-note'] = dict(post('board-note', '[worker-a \u00b7 fixture-task]\n@worker-b note sent while inbound was unsubscribed',
                                     user='shared-bot', channel='board',

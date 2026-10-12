@@ -188,11 +188,12 @@ cooperation API, existing conversations and worker runtime. Invented fixtures
 cover subscribe-before-history, equal-time pages/live arrivals, edits, trusted
 root/plain mention routing, echo suppression, new DM discovery, downtime,
 missing/revoked sources, exact scoped handling and retained first receipts.
-The fixture returns Mattermost-shaped pages whose `posts` include thread roots
-outside `order`. It also proves that an existing threaded channel's peer note,
-posted while the owner was enabled without a repository scope, reaches its
-enrolled recipient after the scope is fixed. While the scope is missing, the
-meta blocker and log stay visible.
+[Threaded catch-up acceptance](https://carverauto.buildbuddy.io/invocation/8d2a68b6-be32-4624-845a-cdcc2815eed3)
+uses Mattermost-shaped pages whose `posts` include thread roots outside
+`order`. It proves that an existing threaded channel's peer note, posted while
+the owner was enabled without a repository scope, reaches its enrolled
+recipient after the scope is fixed. While the scope is missing, the meta
+blocker and log stay visible.
 This is controlled protocol evidence, not production enablement or live fleet
 parity. The startup regression used zero against BEAM's potentially negative
 monotonic clock; the repaired owner initializes deadlines to `now()`.

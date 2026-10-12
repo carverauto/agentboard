@@ -31,19 +31,26 @@ has no send tool; receipt and handling were done by each recipient's own model.
 | Exact handling receipt | Yes |
 | Reconnect recovery (connector down) | Yes |
 | Body read before handling | Not observed: both models handled the notice from the check-in summary without calling `agentboard_mattermost_read` |
-| Catch-up of a post made while inbound was unsubscribed, in an already-joined channel | **No**: the 18:37:25 board-channel mention to worker 2 was never captured, while the same-minute private-route post in a newly discovered channel was. Coverage did not report a gap |
+| Catch-up of a post made while inbound was unsubscribed, in an already-joined channel | **No** on this image: the 18:37:25 board-channel mention to worker 2 was never captured. The same-minute private-route post in a newly discovered channel was. Board coverage stayed incomplete with `invalid_history_page` |
 
 Other harnesses are tracked in 6.3–6.5.
 
 ## Findings
 
-1. Catch-up gap (5.3): a post in an existing bot-joined channel that arrived
-   while the inbound owner was not subscribed was not recovered after the owner
-   subscribed, and coverage did not expose `catch_up_incomplete`.
+1. On this image, a post in an existing bot-joined channel that arrived while
+   the inbound owner was not subscribed was not recovered after the owner
+   subscribed. The packaged fixture reproduces the cause: the history scan
+   rejected threaded board pages as `invalid_history_page`, so the channel was
+   never caught up. Its coverage was not read on farm01.
 2. The Pi wake guidance does not ask the model to read Mattermost bodies before
    handling them.
-3. Rollout: dual mode with inbound needs `AGENTBOARD_MATTERMOST_INBOUND_REPO`;
-   without it the owner never subscribes and nothing reports that clearly.
+3. On this image, dual mode with inbound and no
+   `AGENTBOARD_MATTERMOST_INBOUND_REPO` never subscribed, and nothing reported
+   that clearly.
+
+Findings 1 and 3 describe image `358c8a3`. The repaired history scan and the
+operator-visible subscription blockers are in
+[shared-bot inbox catch-up](../mattermost-inbox.md).
 
 ## Mattermost outage (OpenSpec 4.3)
 
