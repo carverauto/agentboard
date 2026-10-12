@@ -136,6 +136,59 @@ func TestReapDoesNotCloseAPaneThatChangedSinceItWasJudged(t *testing.T) {
 	}
 }
 
+func TestReapKeepsUnknownWorkingDirectory(t *testing.T) {
+	board, host := finishedSeat(t)
+	host.agents[0].Cwd = ""
+	report := reapTwice(t, board, host, nil, testConfig(t))
+	if len(host.closed) != 0 {
+		t.Fatalf("closed a seat with unknown checkout: %v", host.closed)
+	}
+	kept := ""
+	for _, k := range report.Kept {
+		kept += k.Reason + "\n"
+	}
+	if !strings.Contains(kept, "unknown working directory") {
+		t.Fatalf("kept = %+v", report.Kept)
+	}
+}
+
+func TestReapDoesNotClosePaneThatBecameBusyBeforeClose(t *testing.T) {
+	board, host := finishedSeat(t)
+	host.readFunc = func(_ string, call int) (string, bool) {
+		if call >= 3 {
+			return "Working (5s \u2022 esc to interrupt)", true
+		}
+		return "", true
+	}
+	report := reapTwice(t, board, host, nil, testConfig(t))
+	if len(host.closed) != 0 {
+		t.Fatalf("closed a pane that became busy: %v", host.closed)
+	}
+	if len(report.Actions) == 0 || report.Actions[0].Done || !strings.Contains(report.Actions[0].Reason, "busy") {
+		t.Fatalf("actions = %+v", report.Actions)
+	}
+}
+
+func TestReapHonoursAvailabilityAndKeepsTheLease(t *testing.T) {
+	board, host := finishedSeat(t)
+	board.agents[0].Availability.State = "paused"
+	landed := host.agents[0].Cwd
+	leases := &fakeLeases{leases: map[string][]Lease{"/pool": {{Path: landed, Holder: "codex-a"}}}}
+	cfg := testConfig(t)
+	cfg.TreehouseRoots = []string{"/pool"}
+	report := reapTwice(t, board, host, leases, cfg)
+	if len(host.closed) != 0 || len(leases.returned) != 0 {
+		t.Fatalf("closed = %v returned = %v", host.closed, leases.returned)
+	}
+	kept := ""
+	for _, k := range report.Kept {
+		kept += k.Agent + ": " + k.Reason + "\n"
+	}
+	if !strings.Contains(kept, "codex-a: availability paused") {
+		t.Fatalf("kept = %+v", report.Kept)
+	}
+}
+
 func TestReapDryRunChangesNothing(t *testing.T) {
 	board, host := finishedSeat(t)
 	cfg := testConfig(t)

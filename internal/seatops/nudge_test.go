@@ -21,6 +21,8 @@ type fakeHost struct {
 	afterList  func(*HostAgent)
 	promptErr  error
 	listCalled int
+	readCalls  int
+	readFunc   func(pane string, call int) (string, bool)
 }
 
 func (h *fakeHost) Agents(context.Context) ([]HostAgent, error) {
@@ -41,6 +43,12 @@ func (h *fakeHost) Agent(_ context.Context, pane string) (HostAgent, error) {
 }
 
 func (h *fakeHost) Read(_ context.Context, pane string, _ int) (string, error) {
+	h.readCalls++
+	if h.readFunc != nil {
+		if s, ok := h.readFunc(pane, h.readCalls); ok {
+			return s, nil
+		}
+	}
 	return h.tails[pane], nil
 }
 
@@ -413,6 +421,47 @@ func TestPickCard(t *testing.T) {
 				t.Fatalf("picked %q, want %q", id, c.want)
 			}
 		})
+	}
+}
+
+func TestNudgeGenericQuestionLineStillSurfacesAssignedWork(t *testing.T) {
+	board := &fakeBoard{
+		agents: []BoardAgent{seatAgent("codex-a", "codex")},
+		tasks:  map[string][]Task{"codex-a": {{ID: "urgent", Status: "assigned", Priority: p(0), CreatedAt: t0.Add(-time.Hour)}}},
+	}
+	host := &fakeHost{
+		agents: []HostAgent{pane("w1:p1", "codex-a", "codex", "idle", "sess-1")},
+		tails:   map[string]string{"w1:p1": "Continue with the next step in the plan?"},
+	}
+	report, err := Nudge(context.Background(), board, host, testConfig(t), t0, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(host.prompts) != 1 || !strings.Contains(host.prompts[0], "urgent (P0): claim it") {
+		t.Fatalf("prompts = %q, decision = %+v", host.prompts, report.Decisions[0])
+	}
+	if report.Decisions[0].Mode != "work" {
+		t.Fatalf("mode = %q, want work", report.Decisions[0].Mode)
+	}
+}
+
+func TestNudgeQuestionWithoutWaitingTasksUsesNeutralAnswerPrompt(t *testing.T) {
+	view := SeatView{
+		Agent:   seatAgent("codex-a", "codex"),
+		Host:    pane("w1:p1", "codex-a", "codex", "idle", "sess-1"),
+		Tail:    "Shall I proceed with the migration?",
+		Unread:  []Message{{ID: 7, CreatedAt: t0.Add(-time.Minute)}},
+		Waiting: map[string]time.Time{},
+	}
+	d := Decide(view, t0, Config{})
+	if d.State != "waiting" || d.Mode != "answer" {
+		t.Fatalf("decision = %+v", d)
+	}
+	if strings.Contains(d.Prompt, "waiting on the captain") || strings.Contains(d.Prompt, "stay parked") {
+		t.Fatalf("answer prompt claims captain wait: %q", d.Prompt)
+	}
+	if !strings.Contains(d.Prompt, "you asked a question") || !strings.Contains(d.Prompt, "7") {
+		t.Fatalf("neutral prompt = %q", d.Prompt)
 	}
 }
 

@@ -152,6 +152,8 @@ func Reap(ctx context.Context, board Board, host Host, leases Leases, cfg Config
 		}
 		why := ""
 		switch {
+		case seat.Agent.Availability.State != "" && seat.Agent.Availability.State != "active":
+			why = "availability " + seat.Agent.Availability.State
 		case now.Sub(prev.IdleSince) < cfg.ReapAfter.Duration:
 			why = "idle less than " + cfg.ReapAfter.String()
 		case len(owned) > 0:
@@ -159,7 +161,9 @@ func Reap(ctx context.Context, board Board, host Host, leases Leases, cfg Config
 		case len(unread) > 0:
 			why = "has unread messages"
 		default:
-			if seat.Host.Cwd != "" {
+			if seat.Host.Cwd == "" {
+				why = "unknown working directory"
+			} else {
 				why = Landed(seat.Host.Cwd)
 			}
 		}
@@ -175,21 +179,35 @@ func Reap(ctx context.Context, board Board, host Host, leases Leases, cfg Config
 			switch {
 			case err != nil:
 				action.Reason = "recheck failed: " + err.Error()
-			case current.Name != id || current.Session.Value != seat.Host.Session.Value || current.StateChangeSeq != seat.Host.StateChangeSeq:
+			case current.Name != id || current.Session.Value != seat.Host.Session.Value || current.Kind != seat.Host.Kind || current.StateChangeSeq != seat.Host.StateChangeSeq:
 				action.Reason = "pane changed before close"
+			case current.Status != "idle" && current.Status != "done":
+				action.Reason = "pane state changed before close"
 			default:
-				if err := host.ClosePane(ctx, seat.Host.Pane); err != nil {
-					action.Reason = "close failed: " + err.Error()
-				} else {
-					action.Done = true
-					delete(live, id)
-					delete(state.Seats, id)
+				tail, err := host.Read(ctx, seat.Host.Pane, 20)
+				switch {
+				case err != nil:
+					action.Reason = "recheck failed: " + err.Error()
+				case busyText.MatchString(lastLines(tail, 20)):
+					action.Reason = "pane became busy before close"
+				default:
+					if err := host.ClosePane(ctx, seat.Host.Pane); err != nil {
+						action.Reason = "close failed: " + err.Error()
+					} else {
+						action.Done = true
+						delete(live, id)
+						delete(state.Seats, id)
+					}
 				}
 			}
 		}
 		report.Actions = append(report.Actions, action)
 	}
 	if leases != nil {
+		avail := map[string]string{}
+		for _, a := range agents {
+			avail[a.ID] = a.Availability.State
+		}
 		for _, root := range cfg.TreehouseRoots {
 			listed, err := leases.List(ctx, root)
 			if err != nil {
@@ -204,6 +222,8 @@ func Reap(ctx context.Context, board Board, host Host, leases Leases, cfg Config
 					why = "lease has no recorded holder"
 				case cfg.excluded(lease.Holder, "") != "":
 					why = cfg.excluded(lease.Holder, "")
+				case avail[lease.Holder] != "" && avail[lease.Holder] != "active":
+					why = "availability " + avail[lease.Holder]
 				case live[lease.Holder]:
 					why = "holder still has a live session"
 				case len(lease.Processes) > 0:

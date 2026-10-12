@@ -77,7 +77,7 @@ func Decide(v SeatView, now time.Time, cfg Config) Decision {
 	question := ""
 	if v.Host.Status != "blocked" {
 		for _, line := range meaningfulTail(v.Tail, 6) {
-			if paneQuestion.MatchString(line) || (strings.HasSuffix(line, "?") && len(line) > 15) {
+			if paneQuestion.MatchString(line) {
 				question = line
 			}
 		}
@@ -117,11 +117,12 @@ func Decide(v SeatView, now time.Time, cfg Config) Decision {
 		sort.Strings(answers)
 		d.Mode = "answer"
 		sig = append([]string{"ans"}, answers...)
-		waitingOn := strings.Join(d.Waiting, ", ")
-		if waitingOn == "" {
-			waitingOn = "your open question"
+		if len(d.Waiting) == 0 {
+			d.Prompt = fmt.Sprintf("Agentboard nudge (automated, no reply needed): you asked a question; new message(s) %s may answer it: read them (agentboard msg list --unread). If answered, resume your work; otherwise continue your agentboard check-in.", strings.Join(answers, ", "))
+		} else {
+			waitingOn := strings.Join(d.Waiting, ", ")
+			d.Prompt = fmt.Sprintf("Agentboard nudge (automated, no reply needed): you are waiting on the captain/coordinator (%s). New message(s) %s may answer it: read them (agentboard msg list --unread). If answered, resume that task; if not, stay parked and do not pick up new work.", waitingOn, strings.Join(answers, ", "))
 		}
-		d.Prompt = fmt.Sprintf("Agentboard nudge (automated, no reply needed): you are waiting on the captain/coordinator (%s). New message(s) %s may answer it: read them (agentboard msg list --unread). If answered, resume that task; if not, stay parked and do not pick up new work.", waitingOn, strings.Join(answers, ", "))
 	} else {
 		if len(v.Unread) > 0 {
 			ids := make([]string, 0, len(v.Unread))
