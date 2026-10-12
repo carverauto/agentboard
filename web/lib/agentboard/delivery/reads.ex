@@ -165,7 +165,8 @@ defmodule Agentboard.Delivery.Reads do
         oldest_pending_at: oldest,
         connector_fresh:
           not is_nil(binding.reported_at) and DateTime.diff(Ops.now(), binding.reported_at) <= 90,
-        uncertainty: !!attempt and (attempt.status == "uncertain" or expired)
+        uncertainty: !!attempt and (attempt.status == "uncertain" or expired),
+        continuation: Agentboard.Cooperation.IdleContinuation.notes(id)
       }
     end
   end

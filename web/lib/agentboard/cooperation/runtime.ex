@@ -212,7 +212,7 @@ defmodule Agentboard.Cooperation.Runtime do
 
           if credential.scope == "receipt" and
                (credential.epoch != b.epoch or
-                  operation not in ~w(state pending responsibilities obligations doctor receipts reconcile mattermost_inbox mattermost_read mattermost_ack wake_intents wake_reconcile wake_resolve)),
+                  operation not in ~w(state pending responsibilities obligations doctor receipts reconcile mattermost_inbox mattermost_read mattermost_ack wake_intents wake_reconcile wake_resolve continuation continuation_disposition)),
              do: Ops.reject("forbidden", "Capability does not authorize this operation")
 
           execute(operation, data, s, b, credential, context)
@@ -585,6 +585,13 @@ defmodule Agentboard.Cooperation.Runtime do
   end
 
   defp execute("receipts", data, s, b, _c, context), do: receipt(data, s, b, context)
+
+  defp execute("continuation", _data, s, b, _c, _context),
+    do: Agentboard.Cooperation.IdleContinuation.status(s, b)
+
+  defp execute("continuation_disposition", data, s, b, _c, _context),
+    do: Agentboard.Cooperation.IdleContinuation.dispose(s, b, data)
+
   defp execute(_, _, _, _, _, _), do: Ops.reject("not_found", "Worker operation not found")
 
   defp reserve(data, s, b, selected, context) do

@@ -59,7 +59,13 @@ defmodule AgentboardWeb.WorkerController do
 
   def operate(conn, params) do
     operation = params["operation"]
-    operation = if operation == "state" and conn.method == "POST", do: "report", else: operation
+
+    operation =
+      case {operation, conn.method} do
+        {"state", "POST"} -> "report"
+        {"continuation", "POST"} -> "continuation_disposition"
+        _ -> operation
+      end
 
     token =
       case get_req_header(conn, "authorization") do

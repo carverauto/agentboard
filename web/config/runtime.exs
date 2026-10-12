@@ -51,7 +51,9 @@ config :agentboard, :conflict_routing_mode, conflict_mode
 
 for {key, variable, default, range} <- [
       {:queue_limit, "AGENTBOARD_QUEUE_LIMIT", "2", 1..100},
-      {:conflict_deadline_seconds, "AGENTBOARD_CONFLICT_DEADLINE_SECONDS", "2700", 60..86400}
+      {:conflict_deadline_seconds, "AGENTBOARD_CONFLICT_DEADLINE_SECONDS", "2700", 60..86400},
+      {:idle_continuation_delay_seconds, "AGENTBOARD_IDLE_CONTINUATION_DELAY_SECONDS", "600",
+       60..86400}
     ] do
   case Integer.parse(System.get_env(variable, default)) do
     {value, ""} ->
@@ -300,6 +302,12 @@ end
 config :agentboard,
        :cooperation_enabled,
        System.get_env("AGENTBOARD_COOPERATION_ENABLED") == "true"
+
+# Idle/no-findings continuation is a separate opt-in on top of cooperation;
+# enabling cooperation alone never starts continuation reminders.
+config :agentboard,
+       :idle_continuation_enabled,
+       System.get_env("AGENTBOARD_IDLE_CONTINUATION_ENABLED", "false") == "true"
 
 # Approval records alone never activate native connection authority. No deployed
 # configuration is changed here; fixture tests enable only their isolated server.

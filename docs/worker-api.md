@@ -46,6 +46,8 @@ reserve, change scope, choose recipients or rebind. Revocation disables both.
 | `POST /receipts` | Exact `received` or `handled` delivery IDs |
 | `POST /pause`, `POST /resume`, `POST /unbind` | Durable desired state, epoch fenced |
 | `GET /doctor` | Protocol/scope, connector, binding/adapter and receipt-path health |
+| `GET /continuation` | Idle continuation eligibility, suppression reasons, cooldown and limits (read-only) |
+| `POST /continuation` | Explicit `no_new_finding` or outage disposition; never acknowledges a delivery |
 
 Bind body: `idempotency_key`, `expected_epoch` (0 initially), `host_id`,
 `session_id`, `pane_id` (opaque handle), `adapter`, `adapter_version`,
@@ -186,6 +188,75 @@ notice from obtaining actionable current source material or recording new
 current handling after replacement; it cannot retract the native queue or
 prevent that turn. This API adds no native profile activation or delivery proof,
 and does not mint native incarnation authority.
+
+## Idle continuation (schema 44)
+
+Default off. `AGENTBOARD_IDLE_CONTINUATION_ENABLED=true` enables it, and it also
+needs `AGENTBOARD_COOPERATION_ENABLED=true`. Enabling cooperation alone schedules
+nothing. `AGENTBOARD_IDLE_CONTINUATION_DELAY_SECONDS` (60–86400, default 600)
+sets the idle delay. The existing one-minute cooperation scheduler runs the sweep.
+It checks at most 100 due workers per run, each in its own short transaction.
+
+A reminder is an ordinary recipient-pinned cooperation event of kind
+`idle_continuation` (priority 2, the responsibility's task and repository). It
+travels the same reservation, frame and exact-receipt path as any other delivery.
+Turn completion, idle state and a disposition never acknowledge it. It grants no
+authority and never asks the worker to start unrelated work.
+
+A worker is eligible only when every one of these holds:
+
+- it is enrolled, not revoked, and not durably paused;
+- its availability is `active` (captain-recorded quota exhaustion or
+  out-of-service suppresses it) and it is not retired;
+- it is bound, with `adapter_state: ready`, a healthy connector reported within
+  90 seconds, and a last heartbeat of `idle`;
+- it has no active attempt to reconcile and no `uncertain`/`not_submitted`
+  attempt in the last 15 minutes (adapter failure cooldown);
+- its adapter is not `blocked` on an approval and it has no open captain decision;
+- it has an unresolved scoped responsibility: an `in_progress`/`review` task, an
+  authorized `assigned` task, or an unresolved repair obligation with no recorded
+  blocker;
+- its previous reminder is handled or suppressed (at most one outstanding per binding);
+- the idle delay has passed since its last observed progress or reminder, or
+  since a check last found it busy.
+
+Progress means the worker's own attributed `update`, `link`, `edit`, `handoff` or
+document (`note`) task events, or a Context entry it published. Claims, renewals
+and receipts are not progress. The first observation adopts existing history as
+the baseline, so enrollment never triggers an immediate reminder.
+
+After new task progress without a Context entry, the first reminder invites a
+useful finding or an explicit `no_new_finding` disposition. At most one such
+finding check is sent per progress, and it never requires a publication.
+Following reminders only ask the worker to reconcile and continue, record a
+blocker or handoff, or record a disposition. Two reminders without new progress
+enter a `repeated_no_progress` cooldown of one hour, doubling per repetition up
+to four hours. The worker then shows as escalated to the captain on the
+existing agent and task delivery views until new progress. The server never
+publishes, completes or reassigns anything for the worker.
+
+`GET /continuation` (host or receipt capability) returns `continuation.enabled`,
+`eligible`, `reason_codes`, `state` (the stored row), `no_new_finding_active`,
+`cooldown_active`, `escalated` and `limits`. Reason codes include
+`idle_continuation_disabled`, `paused`, `agent_unavailable`, `approval_blocked`,
+`captain_decision_pending`, `agent_not_idle`, `adapter_failure_cooldown`,
+`repeated_no_progress_cooldown`, `<cause>_cooldown`, `no_new_finding`,
+`no_unresolved_responsibilities`, `reminder_outstanding`, `idle_delay` and the
+binding health codes used by `/state`.
+
+`POST /continuation` takes exactly `disposition`, `reason` (1–512 bytes, not
+blank) and `idempotency_key` (1–128 bytes). Retrying the latest key with the same
+content returns `idempotent: true`. Different content under that key is 409.
+
+| Disposition | Effect |
+| --- | --- |
+| `no_new_finding` | Suppresses all continuation reminders until new progress is observed |
+| `provider_outage`, `model_outage`, `quota_exhausted` | Visible `<cause>_cooldown`: 15 minutes, doubling per consecutive report, capped at four hours |
+
+New progress clears outage and no-progress cooldowns, an active
+`no_new_finding` disposition and the escalation. When the feature is disabled,
+`POST` returns 409. Durable pause and revocation skip the sweep entirely.
+Pending reminders stay visible and unacknowledged.
 
 ## Bootstrap, recovery and errors
 

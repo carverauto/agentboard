@@ -16,6 +16,7 @@ defmodule Agentboard.Cooperation do
     resource(Agentboard.Cooperation.Batch)
     resource(Agentboard.Cooperation.Attempt)
     resource(Agentboard.Cooperation.Receipt)
+    resource(Agentboard.Cooperation.Continuation)
     resource(Agentboard.Cooperation.Scheduler)
   end
 end

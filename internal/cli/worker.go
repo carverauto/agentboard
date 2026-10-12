@@ -47,6 +47,7 @@ func (c *commands) workerCommands() *cobra.Command {
 	output := func(cmd *cobra.Command, value any) error { return json.NewEncoder(cmd.OutOrStdout()).Encode(value) }
 	group.AddCommand(workerMattermostCommands(load, output)...)
 	group.AddCommand(workerWakeResolve(load, output))
+	group.AddCommand(workerContinuation(load, output))
 	group.AddCommand(workerNativeApprovalCommands(&id, output, c.openNativeCaptain))
 	group.AddCommand(workerNativeAuthorityCommand(load, output))
 	group.AddCommand(&cobra.Command{Use: "serve", Short: "Serve independent bindings; stdout is bounded JSON health", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {

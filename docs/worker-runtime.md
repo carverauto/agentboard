@@ -144,6 +144,36 @@ For Mattermost references in `worker check-in`, use the separate exact-version
 remain non-consuming. See [inbox handling](mattermost-inbox.md#inspect-and-handle-an-exact-inbox-item)
 for batch limits, unavailable source versions and explicit receipt semantics.
 
+## Idle continuation and dispositions
+
+When the server enables [idle continuation](worker-api.md#idle-continuation-schema-44),
+an idle worker with unresolved scoped work can receive an `idle_continuation`
+item through the normal frame. Handle it like any other item: reconcile the
+named responsibility, then continue, record a blocker or handoff on the board,
+or record a disposition. Acknowledge its exact delivery ID afterwards. Recording
+a disposition does not acknowledge the item.
+
+If the last turn established nothing peers can use, say so explicitly instead of
+publishing filler Context:
+
+```sh
+agentboard worker continuation --config PATH --worker-id ID \
+  --disposition no_new_finding --reason "Only reconciled CI state" \
+  --key TURN_KEY --json
+```
+
+This suppresses continuation reminders until your next recorded progress (a
+task update, link, edit, handoff, document or Context entry). Report a
+provider, model or quota outage with `--disposition provider_outage`,
+`model_outage` or `quota_exhausted`. That enters a visible bounded cooldown
+instead of repeated prompts. `agentboard worker continuation` without
+`--disposition` reads eligibility, reason codes, cooldown and limits. The native
+check-in tools are unchanged; use this CLI command from any harness.
+
+Two reminders without new progress pause reminders for one to four hours and
+mark the worker as escalated on the `/agents` and task delivery views. The
+captain decides what happens next. Human pause suppresses every sweep and wake.
+
 ## Recovery, pause and supervision
 
 Each binding has its own cancellation, dispatch state and retry loop. Default

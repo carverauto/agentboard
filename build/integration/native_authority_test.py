@@ -249,7 +249,7 @@ cli('read', request['manifest'], require_manifest=True, succeeds=False)
 assert not current()['permitted']
 meta = api('/meta')
 assert meta['native_authority_contract_revision'] == 1 and not meta['native_authority_live_enabled']
-assert meta['schema_version'] == meta['required_schema_version'] == 43
+assert meta['schema_version'] == meta['required_schema_version'] == 44
 # Real positive snapshots come only from this isolated fixture's explicit gate.
 rpc('Application.put_env(:agentboard, :native_authority_enabled, true)')
 before = counts()
