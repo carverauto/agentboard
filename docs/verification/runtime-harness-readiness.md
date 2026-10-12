@@ -131,7 +131,8 @@ from the worker enrollment. AGY round 2 was not frozen and has no receipts.
 - **Isolation leak.** With `--setting-sources ""`, the claude.ai connector MCP
   servers (Gmail, Drive, Docs and others) still loaded in the session. The
   permission mode denied them; only the plugin tools were allowed.
-- **Codex native on Darwin.** The verified-FD owner is Linux-only
+- **Codex native on Darwin.** The Codex native owner is pending: unregistered
+  and live-disabled, and unsupported on macOS
   ([Codex owner](../worker-codex-owner.md)). Darwin is unsupported before dial,
   and cross-compilation is not runtime proof.
 - **Grok, Muse, AGY have no native adapter.** The worker config admits only
