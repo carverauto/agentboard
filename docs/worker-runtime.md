@@ -107,6 +107,18 @@ provisioning scope do not authorize unrelated work, reclaim, merge or deployment
 
 ## Check-in, receipts and CI responsibility
 
+A delivery attempt stays open until every member delivery is `handled`;
+`received` only records that the frame reached the session, and an open
+attempt is never re-woken. The Pi wake text and `agentboard_ack` tool say this
+explicitly. When a binding is replaced (new session, explicit rebind) while an
+attempt is in flight, the server marks it `uncertain` with reason
+`binding_replaced` and keeps it as the active attempt. The new epoch cannot
+reconcile or replay it, so `worker serve` reports the attempt ID and stays
+degraded until the captain records an explicit retry decision with
+`POST /api/v1/workers/WORKER_ID/resolve_attempt`
+(`{"attempt_id":..., "decision":"retry", "reason":...}`), which accepts a
+possible duplicate and releases dispatch.
+
 `worker check-in --config PATH --worker-id ID --json` traverses responsibilities,
 unresolved obligations and pending pages and rereads binding state. It does not
 consume anything or renew task leases. Repeated cursors, page-budget or output
