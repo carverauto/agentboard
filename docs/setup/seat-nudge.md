@@ -18,8 +18,10 @@ agentboard agent register --backend herdr --json
 herdr agent rename "$HERDR_PANE_ID" "$AGENT_ID"
 ```
 
-Unnamed panes, duplicate names, retired identities and harness mismatches are
-listed as skipped and never touched.
+Panes with no name are ignored. Duplicate names, harness mismatches and
+allow/deny scope exclusions are listed as skipped and never touched. Retired
+identities are skipped by the nudge; reap may still close the pane a retired
+identity still occupies when it is otherwise finished.
 
 ## Nudge
 
@@ -30,7 +32,7 @@ seat, and only with a reason:
 | Seat | Prompted when |
 | --- | --- |
 | Idle | It has unread messages, an expired claim on in-progress work, a higher-priority task than its current work, or it has idled past `idle_after` (default 20m) with in-progress work |
-| Waiting on the captain/coordinator (an owned blocked/review task whose last note says so, or a question on screen) | A message arrived after it started waiting. It is never pointed at new work |
+| Waiting on the captain/coordinator (an owned blocked/review task whose last note says so, or a matching question on screen) | A message arrived after it started waiting. It is never pointed at new work |
 | Busy, approval prompt open, unknown status, or availability not `active` | Never |
 
 The prompt names the reason and asks the seat to run its agentboard check-in. It
@@ -54,9 +56,13 @@ Reap closes a seat's Herdr pane only when all of these hold:
 - it owns no assigned, open, in-progress, blocked or review task
 - it has no unread message
 - its working directory has landed: a clean Git tree whose HEAD is on a remote
-  branch or `origin/main`
+  branch or `origin/main` (an unknown working directory counts as not landed)
+- its availability is unset or `active`; any other availability state keeps
+  the pane, and keeps its lease
 
-It re-reads the pane before closing and leaves it alone if the session changed.
+It re-reads the pane before closing and leaves it alone if the pane name,
+native session, agent kind, state sequence or idle/done status changed, or its
+screen turned busy.
 With `treehouse_roots` configured it also returns Treehouse leases whose holder
 has no live pane, owns no open task, has no process in the worktree, and whose
 work has landed. Without `treehouse_roots`, pools are never read; any Git

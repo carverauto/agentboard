@@ -431,7 +431,7 @@ func TestNudgeGenericQuestionLineStillSurfacesAssignedWork(t *testing.T) {
 	}
 	host := &fakeHost{
 		agents: []HostAgent{pane("w1:p1", "codex-a", "codex", "idle", "sess-1")},
-		tails:   map[string]string{"w1:p1": "Continue with the next step in the plan?"},
+		tails:  map[string]string{"w1:p1": "Continue with the next step in the plan?"},
 	}
 	report, err := Nudge(context.Background(), board, host, testConfig(t), t0, true)
 	if err != nil {
