@@ -389,5 +389,16 @@ dashboard to `sha256:cc19bca4d46a894139cbe2139cb07115d3c4f63d0e144b9ee661ad44e89
 through Job `agentboard-migrate-4f8821d`, upgrading schema 15 to 22 after a full
 pre-migration `pg_dump`. Full results are in the
 [rollout receipt](verification/farm01-4f8821d-rollout.json). The
-[current rollout record](deploy/reference-farm01.md#decisions-inbox-catch-up-and-agent-bot-image-rollout-4f8821d)
+[4f8821d rollout record](deploy/reference-farm01.md#decisions-inbox-catch-up-and-agent-bot-image-rollout-4f8821d)
+is in the operator runbook.
+
+## Worker-runtime pilot rollout (c39b9c7, 2026-10-12 UTC)
+
+Merged main `c39b9c7` (PR214-PR218) rolled the dashboard to
+`sha256:fe37c5a11418020b910acef974e4108177d6937c9cf7c1e947cd01371935dc81`
+through Job `agentboard-migrate-c39b9c7`, upgrading schema 41 to 42 with no
+pre-migration backup (maintainer decision; farm01 has no CNPG object store).
+Verification was public HTTPS only. Full results are in the
+[rollout receipt](verification/farm01-c39b9c7-rollout.json). The
+[current rollout record](deploy/reference-farm01.md#worker-runtime-pilot-image-rollout-c39b9c7)
 is in the operator runbook.

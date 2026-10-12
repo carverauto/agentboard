@@ -472,7 +472,7 @@ elastic per-agent bots, PR121 column pagination, PR117 terminal CI obligations)
 was rolled to farm01 using dashboard digest
 `sha256:cc19bca4d46a894139cbe2139cb07115d3c4f63d0e144b9ee661ad44e89fca40`
 from [Container images run 37742789560](https://github.com/carverauto/agentboard/actions/runs/37742789560).
-This is the current operator image pin. PR130 (`e3bef1b`) was docs-only and
+This was the operator image pin before c39b9c7 (below). PR130 (`e3bef1b`) was docs-only and
 published no image. Container images runs for `6ead87f`, `21e907c` and
 `302f63b` failed and published nothing; `4f8821d` is the first green build
 after them.
@@ -501,6 +501,34 @@ roll. See the [rollout receipt](../verification/farm01-4f8821d-rollout.json).
 Keep schema 22 if an older image must be restored. The migrations' `down`
 raises, and images before 4f8821d accept schema 22 (they require 15 or lower
 and check `>=`), so the 1bf92ae image can be restored without a schema change.
+
+## Worker-runtime pilot image rollout (c39b9c7)
+
+On 2026-10-12 UTC, merged main `c39b9c7` (PR214-PR218: wake source resolution,
+native FD owner, recipient authority, seat nudge/reap; schema 42) was rolled
+to farm01 using dashboard digest
+`sha256:fe37c5a11418020b910acef974e4108177d6937c9cf7c1e947cd01371935dc81`
+from [Container images run 38229284989](https://github.com/carverauto/agentboard/actions/runs/38229284989).
+This is the current operator image pin. The overlay pin it replaced
+(`4f8821d`, schema 22) was stale relative to the live `ec33c10`/schema 41
+deployment recorded in the receipt.
+
+No pre-migration database backup was taken, by explicit maintainer decision
+(pre-release development data; farm01 has no CNPG object store, so the admin
+rollout CNPG Backup step failed before any change). The maintainer applied
+migration Job `agentboard-migrate-c39b9c7` on the same digest (unrelated
+feature flags forced false in the Job) and rolled the Deployment with
+`kubectl set image`; the migration succeeded and meta reports schema 42/API
+1/required 42. The ConfigMap was unchanged: discovery, observation,
+cooperation and the outbound bridge stay enabled, and shared-bot inbound stays
+off by default. No new secret is required.
+
+Verification was public HTTPS only (`/health/live`, `/health/ready`, `/`,
+`/prs` and `/api/v1/meta` return 200); pod and image-ID reads were not
+permitted to the verifying agent. No rollback was performed. See the
+[rollout receipt](../verification/farm01-c39b9c7-rollout.json). Follow the
+[rollback procedure](#rollback) if an earlier image must be restored, keeping the
+additive schema.
 
 ## Coordinator attribution
 
