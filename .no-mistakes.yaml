@@ -20,6 +20,12 @@ commands:
   test: test -f .bazelrc.remote
 pr:
   base_branch: main
+# Running Bazel on the operator's Mac rewrites MODULE.bazel.lock usagesDigest
+# values that differ from the Linux CI hosts. Pipeline steps must never commit
+# that churn; a real dependency change edits the lockfile in the author's own
+# commit, where this rule does not apply.
+protected_paths:
+  - MODULE.bazel.lock
 # Shared remote-only rule for every step that may edit or verify code. This
 # machine is a shared, overloaded laptop: Bazel stays on BuildBuddy RBE.
 document:
