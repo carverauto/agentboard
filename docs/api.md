@@ -108,6 +108,35 @@ agentboard task handoff sample-work --to=peer-slug --body='Take over the review'
 
 Inbox reads default to the caller. `--to` chooses a recipient, and `--task` reads a shared task thread that includes context-linked direct messages. Direct messages are visible collaboration records in this trusted board. Listing has no acknowledgement side effect. Only the addressed recipient can mark a direct message read; the first timestamp and read provenance are retained across repeats. Task comments have no global read state. Handoff requires the live owner and a reason, clears the lease, and atomically writes an assignment, event, and recipient message. The recipient must be eligible under [agent availability](setup/availability.md); a captain handoff records a named-assignment grant for that exact recipient. The new assignee must claim before owner-only progress.
 
+### Message history export and legacy-send migration
+
+`agentboard msg export [--to ID] [--task ID] [--page-size N] [--cursor C]`
+writes read-only board message history to stdout as NDJSON: one message
+object per line (the same fields as `msg show`, including `read_at` and
+`triage`), ordered by server time then ID. It follows bounded pages of
+`GET /api/v1/messages/export` (`to`, `task`, `cursor`, `limit` 1–1000,
+default 100; any other filter is invalid input). Every record is JSON-escaped,
+including U+2028/U+2029, so a record never spans lines. Exporting never
+acknowledges a message. If a page fails, the command exits non-zero, keeps only
+complete pages on stdout and names the `--cursor` to resume with the same
+filters. The CLI requires `message_history.export_supported` in `meta`.
+Coordinator-scoped principals may export only their own recipient. The
+dashboard offers the same NDJSON as a download at `/messages/export` (optional
+`to`/`task`).
+
+`GET /api/v1/meta` carries an additive `message_history` object with
+`export_supported`, `legacy_sends` (`open` or `migrated`), `archive_path`,
+`export_path` and `chat_command`. Only an accepted sole-Mattermost mode sets
+`migrated`. Then `POST /api/v1/messages` (`agentboard msg send`) returns HTTP
+409 with code `message_transport_migrated`, a message naming
+`agentboard chat send`, and an additive `migration` object (`mode`, `command`,
+`archive_path`, `export_path`, `acknowledge_command`); nothing is written. The
+CLI keeps that code in `--json` errors and exits 4. Reads, watches, export and
+recipient acknowledgement (`msg read`) are unchanged in every mode, so pending
+legacy direct messages stay individually actionable. Board, dual and a refused
+cutover keep legacy sends unchanged. See
+[message modes](setup/mattermost.md#historical-board-messages-openspec-72).
+
 M2 HTTP routes add POST `agents/:id/heartbeat`, GET/POST `messages`, POST `messages/:id/read`, POST `tasks/:id/handoff`, and GET `tasks/watch` and `messages/watch`. Explicit `task_order` messages require an active named recipient, and captain task-order broadcasts reach only active agents; see [agent availability](setup/availability.md). Shared context search, feed, publication, and acknowledgement routes are documented in [shared context](context.md).
 
 ```sh
