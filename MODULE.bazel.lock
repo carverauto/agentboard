@@ -263,7 +263,7 @@
     "@@rules_elixir+//bzlmod:extensions.bzl%elixir_config": {
       "general": {
         "bzlTransitiveDigest": "WbShFnh2LhnhtiMhC4il2oiux1Uls62kQKSDaOxiVY4=",
-        "usagesDigest": "lV2Reo5UyGZiWYJBs/jXWuP5+6yVyvCNA0ARLOQ8U9o=",
+        "usagesDigest": "DXpW12vev5t7PhTOr40biMAPMyfPoK1N0bDr8RshRjk=",
         "recordedInputs": [
           "REPO_MAPPING:rules_elixir+,bazel_tools bazel_tools",
           "REPO_MAPPING:rules_elixir+,rules_erlang rules_erlang+"
@@ -296,7 +296,7 @@
     "@@rules_erlang+//bzlmod:extensions.bzl%erlang_config": {
       "general": {
         "bzlTransitiveDigest": "s2Ps4azDRHa4AiHziyBtXV++UkmJr/OulTeht13HzwM=",
-        "usagesDigest": "qYKpgzD3AIR0d97dTwOCSMmkuyCKZP0NHxYFnz3y4mg=",
+        "usagesDigest": "9KJMgKOUobyjG5jZFldM0KIh0vbtofZz96t6hNKaKsY=",
         "recordedInputs": [
           "REPO_MAPPING:rules_erlang+,bazel_skylib bazel_skylib+",
           "REPO_MAPPING:rules_erlang+,bazel_tools bazel_tools"
@@ -594,7 +594,7 @@
     "@@toolchains_buildbuddy+//:extensions.bzl%buildbuddy": {
       "general": {
         "bzlTransitiveDigest": "YThiSErJv+jiCHJzZIEyk0yegQRS/x+T/ce309eGTvA=",
-        "usagesDigest": "Ven6UHtHJgeDYqyzmgBmZEZyopYUdjjdbeSihGVJnCM=",
+        "usagesDigest": "3VBtw5vJz5nRLvTGRu7Mb+RboEXyIJa7Mvn232Te7Xs=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "buildbuddy_toolchain": {

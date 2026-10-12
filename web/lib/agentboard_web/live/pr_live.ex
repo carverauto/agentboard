@@ -465,7 +465,7 @@ defmodule AgentboardWeb.PRLive do
     <div :if={@worker} class="delivery-summary">
       <p>{cond do @worker.revoked -> "Revoked"; not @worker.enabled -> "Disabled"; @worker.paused -> "Paused"; true -> "Enabled" end} · connector {@worker.binding["connector_state"]} / {if @worker.connector_fresh, do: "fresh", else: "stale"}</p>
       <p>Adapter {@worker.binding["adapter_state"]} · {@worker.binding["adapter"] || "Unknown"} {@worker.binding["adapter_version"]}</p>
-      <p>Pending {@worker.pending} · received {@worker.received} · handled {@worker.handled}</p><p :if={@worker.uncertainty} class="flag warning">Submission uncertain; reconciliation required</p><p>{@worker.binding["reason"]}</p>
+      <p>Pending {@worker.pending} · received {@worker.received} · handled {@worker.handled}</p><p :if={@worker.uncertainty} class="flag warning">Submission uncertain; reconciliation required</p><p :for={note <- @worker[:continuation] || []} class="flag warning">{note}</p><p>{@worker.binding["reason"]}</p>
       <details><summary>Declared adapter capabilities</summary><p :for={{name, value} <- @worker.binding["capabilities"]}>{name}: {if value["supported"], do: "supported", else: "unsupported"} · {value["reason"]}</p></details>
     </div><span :if={!@worker}>Worker not enrolled</span>
     """

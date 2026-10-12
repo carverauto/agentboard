@@ -746,6 +746,7 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Cooperation.Batch,
              Agentboard.Cooperation.Attempt,
              Agentboard.Cooperation.Receipt,
+             Agentboard.Cooperation.Continuation,
              Agentboard.Delivery.Obligation,
              Agentboard.Delivery.BaseWatch,
              Agentboard.Delivery.RepositoryMetadata,

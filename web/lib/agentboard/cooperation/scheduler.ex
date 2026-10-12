@@ -33,7 +33,8 @@ defmodule Agentboard.Cooperation.Scheduler do
                    Agentboard.Cooperation.Runtime.route()
                  end),
                {:ok, reminders} <- Agentboard.Delivery.Accountability.tick(),
-               do: {:ok, Map.merge(routing, reminders)}
+               {:ok, continuation} <- Agentboard.Cooperation.IdleContinuation.tick(),
+               do: {:ok, routing |> Map.merge(reminders) |> Map.merge(continuation)}
         else
           {:error, AshOban.Errors.SnoozeJob.exception(snooze_for: 60)}
         end
