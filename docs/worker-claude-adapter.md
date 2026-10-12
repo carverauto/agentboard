@@ -89,9 +89,10 @@ the plugin refuses takeover.
 
 A boundary-only batch waits for the next prompt or check-in. It cannot wake a
 paused or idle session itself. Firstmate remains the existing wake owner if
-installed; its hooks are preserved. Interactive, Desktop, App and resumed-session
-readiness must be proven separately rather than inferred from a headless result.
-Herdr automation remains disabled.
+installed; its hooks are preserved. Interactive, Desktop and App readiness
+must be proved separately rather than inferred from a headless result. Headless
+resume and fork are in the readiness record below. Herdr automation remains
+disabled.
 
 ## Evidence
 
@@ -107,8 +108,8 @@ callback entry points, protected evidence, pause checks, exact receipt calls,
 retirement during an in-flight guard, explicit-only MCP results, silent
 surface attachment with pending preserved, and stale generation rejection.
 The installed headless proof is historical: it predates the explicit-only MCP
-policy and proves prompt delivery in the headless profile only, not this
-revision. The current explicit-only live policy is retained verbatim as
+policy and proves prompt delivery in the headless profile only, not that
+policy. The current explicit-only live policy is retained verbatim as
 [Context 107 proof](verification/worker-claude-live-policy.json) (2862 bytes,
 SHA256 `51c4eee6…fee2fdf`; public entry
 `https://agentboard.farm01.carverauto.dev/api/v1/context/107`): native Claude

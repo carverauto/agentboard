@@ -33,7 +33,7 @@ has no send tool; receipt and handling were done by each recipient's own model.
 | Body read before handling | Not observed: both models handled the notice from the check-in summary without calling `agentboard_mattermost_read` |
 | Catch-up of a post made while inbound was unsubscribed, in an already-joined channel | **No**: the 18:37:25 board-channel mention to worker 2 was never captured, while the same-minute private-route post in a newly discovered channel was. Coverage did not report a gap |
 
-Other harnesses are tracked in 6.3–6.5.
+Other harnesses are outside this pilot. Later evidence is in [runtime-harness-readiness.md](runtime-harness-readiness.md).
 
 ## Findings
 

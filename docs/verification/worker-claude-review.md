@@ -19,7 +19,9 @@ surfaces invalidate automatic submit/take/inspect while the same live
 binding keeps exact explicit check-in and ack; only end, replacement, or
 stale identity retire. Bridge bind failures after identity creation retire
 the fresh identity in a finally step. Tool-return automatic delivery is
-reported unsupported with an explicit-only reason. A fresh isolated live
-attempt could not load the adapter (profile not logged in); the historical
-installed proof is not new-revision validation. Verified clear retirement
-remains pending fresh verified rebind proof; full 6.3/6.4/6.5 stay open.
+reported unsupported with an explicit-only reason. An earlier isolated
+attempt could not load the adapter (profile not logged in); that historical
+installed proof is not validation of the later revision. Headless resume,
+fork, pause and stale-generation refusal are in
+[per-harness readiness](runtime-harness-readiness.md). Clear retirement is
+not in that record.
