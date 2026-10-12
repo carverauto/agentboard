@@ -48,10 +48,22 @@ defmodule Agentboard.Mattermost.InboundHTTP do
     if segment?(id), do: get(cfg, "/api/v4/posts/#{id}"), else: {:error, :invalid_id}
   end
 
+  # Mattermost's `posts` map also carries the thread roots of page replies (and,
+  # without skipFetchThreads, whole threads) that are absent from `order`.
+  # Rejecting such pages left every threaded channel unscanned. Only the ordered
+  # page entries are history, so the extras are dropped here.
   def page(cfg, channel, page) do
-    if segment?(channel),
-      do: get(cfg, "/api/v4/channels/#{channel}/posts?page=#{page}&per_page=60"),
-      else: {:error, :invalid_id}
+    if segment?(channel) do
+      case get(cfg, "/api/v4/channels/#{channel}/posts?page=#{page}&per_page=60&skipFetchThreads=true") do
+        {:ok, %{"order" => order, "posts" => posts} = body} when is_list(order) and is_map(posts) ->
+          {:ok, %{body | "posts" => Map.take(posts, order)}}
+
+        other ->
+          other
+      end
+    else
+      {:error, :invalid_id}
+    end
   end
 
   # A typed decision intent admits exactly one request. Mint neither follows

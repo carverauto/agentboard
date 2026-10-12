@@ -22,6 +22,15 @@ non-negative epoch cutoff for operator-approved historical bootstrap. Invalid
 scope/cutoff/bot identity prevents subscription. There is no implicit fleet
 activation or permission to act on source text.
 
+Enabled with a missing or invalid repository scope, history cutoff or bot
+configuration, the owner never subscribes, so no channel is captured or caught
+up. That state is not silent: `/api/v1/meta` `message_transport.blockers`
+lists `mattermost_inbound_repo_invalid`, `mattermost_inbound_history_start_invalid`
+or `mattermost_inbound_bot_unconfigured`, and the server logs one error per
+transition. Fixing the configuration subscribes the owner, whose catch-up then
+recovers posts made in the meantime that fall inside each recipient's bootstrap
+window.
+
 ## Routing and recovery
 
 The owner acquires a database lease before verifying the bot and opening the
@@ -43,6 +52,11 @@ recipients or block processing other posts.
 
 Recovery persists unfinished page diagnostics and rereads from page zero after
 restart, rather than trusting unstable offset pagination or a timestamp cursor.
+Every authorized channel, already-known or newly discovered, gets the same full
+overlapping scan. History pages request `skipFetchThreads=true`; Mattermost
+still adds the thread roots of page replies to `posts`, and those extras are
+ignored rather than treated as an invalid page, so busy threaded channels such
+as the board channel are scanned like any other.
 A 30-second owner lease fences metadata commits across replicas. A superseded
 owner aborts cleanly with an explicit owner failure instead of persisting rows
 or releasing another run lease. Transient store failures on the lease,
@@ -174,6 +188,12 @@ cooperation API, existing conversations and worker runtime. Invented fixtures
 cover subscribe-before-history, equal-time pages/live arrivals, edits, trusted
 root/plain mention routing, echo suppression, new DM discovery, downtime,
 missing/revoked sources, exact scoped handling and retained first receipts.
+[Threaded catch-up acceptance](https://carverauto.buildbuddy.io/invocation/8d2a68b6-be32-4624-845a-cdcc2815eed3)
+uses Mattermost-shaped pages whose `posts` include thread roots outside
+`order`. It proves that an existing threaded channel's peer note, posted while
+the owner was enabled without a repository scope, reaches its enrolled
+recipient after the scope is fixed. While the scope is missing, the meta
+blocker and log stay visible.
 This is controlled protocol evidence, not production enablement or live fleet
 parity. The startup regression used zero against BEAM's potentially negative
 monotonic clock; the repaired owner initializes deadlines to `now()`.
