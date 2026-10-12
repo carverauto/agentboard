@@ -42,7 +42,8 @@ a prompt that arrives late or twice costs one turn and nothing else.
 The same reason set is never sent twice, and one seat is prompted at most once
 per `min_gap` (default 15m). Immediately before sending, the nudge re-reads the
 pane and aborts if the pane name, native session ID, agent kind or Herdr state
-sequence changed since it decided. Herdr 0.9.0 has no conditional prompt, so a
+sequence changed since it decided, if the seat left idle/done, or if its
+screen turned busy. Herdr 0.9.0 has no conditional prompt, so a
 small window remains between that recheck and the prompt; the content-free
 prompt is what keeps losing that race harmless. A send whose outcome is unknown
 is recorded and not replayed.
