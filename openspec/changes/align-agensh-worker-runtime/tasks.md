@@ -6,25 +6,19 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 
 ## Next Agent Prompt
 
-Status 2026-10-12: 3.2/3.3 are in docs/verification/runtime-first-release-pilot.md.
-farm01's current pin is 358c8a3 (schema 44); see docs/deploy/reference-farm01.md.
-5.4 and 4.3 are in docs/verification/runtime-dual-mode-pilot.md. 3.5 is in PR #232.
-Pilot worker `worker-agentboard-farm01-1` stays enrolled, bound at epoch 3 and
-supervised by its LaunchAgent on `arrakis`.
+Status 2026-10-12: v0.3.0 is published as a pre-release. 3.4 and 6.3–6.5 are done.
+3.2/3.3 are in docs/verification/runtime-first-release-pilot.md. farm01's current
+pin is 358c8a3 (schema 44); see docs/deploy/reference-farm01.md. 5.4 and 4.3 are
+in docs/verification/runtime-dual-mode-pilot.md. 3.5 is in PR #232. Pilot workers
+`worker-agentboard-farm01-1` and `worker-agentboard-farm01-2` are paused, with
+their LaunchAgents stopped and their Herdr sessions closed; they keep their
+enrollment and pending work. Harness-proof workers are revoked.
 
 Priority order:
-1. 3.4 is still open. The 358c8a3 dual-mode roll and
-   `AGENTBOARD_MATTERMOST_INBOUND_REPO` are already on the overlay; do not repeat
-   that roll. Publishing a tagged CLI release (v0.3.0) remains a separate
-   maintainer decision.
-2. 6.3–6.5 per-harness live proofs (each needs a live session started by the
-   maintainer).
-3. 7.3 docs/skills/OpenSpec reconcile after 5.4; then 8.1–8.3. 5.1b's remote
-   proof belongs to `mm-elastic-agent-bots` task 7; 8.2 stays with
-   `adopt-ash-and-monitor-pr-ci`.
-
-Open finding: stopping the Pi session with Ctrl-C leaves its socket and blocks
-the next session's adapter until a stale-owner inspection.
+1. Async-journal fix (in flight).
+2. 7.3 docs/skills/OpenSpec reconcile (in flight).
+3. 8.1 fresh acceptance and 8.3 final artifacts. 5.1b's remote proof belongs to
+   `mm-elastic-agent-bots` task 7; 8.2 stays with `adopt-ash-and-monitor-pr-ci`.
 
 ## 1. Server observes CI after the owner moves on
 
@@ -49,7 +43,7 @@ the next session's adapter until a stale-owner inspection.
 - [x] 3.1 Add obligation reminder/escalation scheduling with defaults from design D9; verify acknowledgement without progress, progress postponement, blocker, pause, duplicate reminder jobs, four-per-hour bound and new failure episodes remotely, and document the captain escalation path.
 - [x] 3.2 Run a controlled live PR failure after its recorded owner starts another issue; measure detection/eligible-boundary delivery, inspect failed-head/job links, record an exact receipt and show the still-red obligation in the dashboard. Then leave it without progress to prove bounded reminder/escalation. Proved live on farm01 2026-10-12 with PR #224 and `worker-agentboard-farm01-1`: failure to unresolved obligation and pending alert in ~75 s, idle native wake, exact `handled` receipts, four reminders then captain escalation at 17:00:00Z. See docs/verification/runtime-first-release-pilot.md. The pilot found and PR #226 fixed missing handled guidance.
 - [x] 3.3 Restart the host connector and selected agent session during the same controlled obligation; verify pending recovery, stale-generation rejection, no automatic lease recovery and retained repair responsibility. Repair/rerun CI and verify canonical current-head recovery without silent follow-up task completion. Proved in the same run: two explicit rebinds (epochs 2 and 3) with connector and session restarts, captain `resolve_attempt` decisions for replaced attempts, stale-epoch ack refused, no lease recovery, `degraded` (never green) while required checks were missing, and current-head resolution at 17:26:22Z with the repair task still assigned.
-- [x] 3.4 Publish remote-built immutable service/CLI assets, enroll the selected worker explicitly and enable observation/delivery only after the proof; verify production service health/pause/rollback and update participation skills with actual check-in/repair/receipt commands. Record unsupported agents separately. Published v0.3.0 (pre-release, remote-built, `SHA256SUMS`, dashboard `sha256:d356c8b9…`) from the #238 merge; `worker-agentboard-farm01-1` enrolled and enabled only after the 3.2/3.3 proof; live health, pause/resume and rollback plan recorded in docs/verification/runtime-first-release-pilot.md and the farm01 rollout records; skills carry the check-in/ack/repair commands; unsupported harnesses are recorded separately in docs/verification/runtime-harness-readiness.md.
+- [x] 3.4 Publish remote-built immutable service/CLI assets, enroll the selected worker explicitly and enable observation/delivery only after the proof; verify production service health/pause/rollback and update participation skills with actual check-in/repair/receipt commands. Record unsupported agents separately. Published v0.3.0 (pre-release, remote-built, `SHA256SUMS`, dashboard `sha256:d356c8b9…`) from the #238 merge. `worker-agentboard-farm01-1` was enrolled on 2026-10-08, and farm01 already had observation, cooperation and the bridge enabled before this proof, so the enable-after-proof ordering was not followed literally; the proof ran on that already-enabled deployment. Live pause/resume was verified in docs/verification/runtime-first-release-pilot.md. Rollback steps are documented in the farm01 rollout records (docs/verification/farm01-c39b9c7-rollout.json, docs/verification/farm01-358c8a3-rollout.json) and were not exercised. Skills carry the check-in/ack/repair commands. Unsupported harnesses are recorded separately in docs/verification/runtime-harness-readiness.md.
 - [x] 3.5 Deliver this first release's Archify JSON/HTML and portable Lavish proposal with separate deterministic/browser/perceptual evidence; upload from the live claimed task, link the PR and verify the sandboxed viewers. Keep the broader implementation checklist open. Delivered in PR #232: Archify architecture (board document 207) and portable OpenSpec review (document 208), uploaded from the live claimed task with separate deterministic, browser and perceptual evidence.
 
 ## 4. Outbound Mattermost bridge, independent of CI wake delivery
@@ -214,4 +208,4 @@ Five focused remote suites passed; actual Pi0.99.2 exclusive-RPC idle wake and b
 dedicated-tool-return passed with exact receipts and generation replacement.
 Disposable launchd/systemd files were inspected without service activation.
 Herdr unsafe prompt/TUI and universal harness parity remain unsupported.
-Production task3.4 stays captain-gated; controlled joint tasks3.2–3.3 remain open.
+When this packaged acceptance was recorded, production task 3.4 was still captain-gated and controlled joint tasks 3.2–3.3 were still open.
