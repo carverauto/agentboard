@@ -4,6 +4,18 @@ Unchecked boxes describe remaining implementation. Each group lands its own focu
 
 The **first release gate is group 3**, an actual failed PR returning to its responsible running worker. Groups 4–8 must not delay that release. Existing Ash/CI tasks remain authoritative for provider truth, diagnostics and completion gates; completing a subset here does not mark their larger tasks complete without all required evidence.
 
+## Next Agent Prompt
+
+Status 2026-10-12: farm01 runs main c39b9c7 at schema 42 with PR observation, cooperation and the outbound bridge enabled (PR #220 records the rollout; no pre-migration backup by maintainer decision). Pilot worker `worker-agentboard-farm01-1` (Pi 0.99.2 exclusive RPC, xAI grok-4.3, host `arrakis`) is enrolled but paused at a stale epoch-1 binding; its protected config is `~/.config/agentboard/worker/config.json` and `worker install --apply` has written the owned adapter files and an unloaded LaunchAgent.
+
+In flight: 6.2 Shared context (PR #219, card `agentboard-runtime-6-2-shared-context`), 5.1 private DM route + 5.2 outbound spool (schema 43, card `agentboard-runtime-5-1-dm-spool`), 6.6 idle continuation (schema 44, card `agentboard-runtime-6-6-idle-continuation`).
+
+Priority order:
+1. First-release gate 3.2 → 3.3 → 3.4 on the pilot worker: start the Pi session, rebind (epoch 2), doctor, resume, load the service; controlled failing PR owned by the worker after it moves on; receipt; reminder/escalation; connector + session restart; repair to green. Live steps that persist services or change farm01 need the maintainer at the keyboard.
+2. 7.2 archive/export after 6.2 merges (shares `board_live.ex`/`layouts.ex`); refresh `MessageMode` blockers after 5.1/5.2.
+3. 5.4 live dual-mode pair after 5.1/5.2 and 3.4; 6.3–6.5 per-harness live proofs; 4.3 outage demo.
+4. 7.3 docs/skills/OpenSpec reconcile, then 8.1–8.3. 5.1b's remote proof belongs to `mm-elastic-agent-bots` task 7. 8.2 stays owned by `adopt-ash-and-monitor-pr-ci`.
+
 ## 1. Server observes CI after the owner moves on
 
 - [x] 1.1 Extend `Agentboard.Delivery` with due-PR reservation/generation and additive observation state (existing Ash/CI 1.3, 4.2–4.4); verify fresh/repeat/schema-7 upgrade preservation and two concurrent poll reservations remotely, and document the observation cutoff/default-off switch.
@@ -32,8 +44,8 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 
 ## 4. Outbound Mattermost bridge, independent of CI wake delivery
 
-- [ ] 4.1 Add additive lifecycle outbox/task-thread mappings and transactional board source capture; verify rollback, duplicate jobs, pinned fan-out continuation, late commits and multi-pod contention remotely, and document the independent queue/runtime fence.
-- [ ] 4.2 Implement bounded Mattermost posts, thread roots and event-marker reconciliation outside transactions; verify accepted-post/lost-response, unresolved uncertainty, 429, timeout and duplicate-root reporting remotely against controlled HTTP fixtures, and document actual receiver idempotency limits.
+- [x] 4.1 Add additive lifecycle outbox/task-thread mappings and transactional board source capture; verify rollback, duplicate jobs, pinned fan-out continuation, late commits and multi-pod contention remotely, and document the independent queue/runtime fence. Shipped in PR #61 (`Agentboard.Mattermost` outbox/task threads/bridge capture); [remote bridge acceptance](https://carverauto.buildbuddy.io/invocation/fbab4c30-853b-498d-af07-a8f5da8d0f86), live on farm01 since the 4f8821d rollout.
+- [x] 4.2 Implement bounded Mattermost posts, thread roots and event-marker reconciliation outside transactions; verify accepted-post/lost-response, unresolved uncertainty, 429, timeout and duplicate-root reporting remotely against controlled HTTP fixtures, and document actual receiver idempotency limits. Shipped in PR #61 (`mattermost/delivery.ex`: HTTP outside transactions, generation fence, marker adoption or parking); same `mattermost_bridge_test` evidence covers lost response, uncertainty, 429, timeout and duplicate roots.
 - [ ] 4.3 Prepare the existing Mattermost service bot/channels/Secret references and validate member scopes without exposing tokens; run a controlled lifecycle/handoff outage-and-recovery demonstration, verify board/CI delivery remains available, and document rotation/rollback.
 
 ## 5. Worker identities and real peer inboxes
@@ -42,12 +54,12 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 - [ ] 5.1b Phase 2 elastic per-agent bots (GH #82, board task agentboard-mm-elastic-agent-bots): lazy bot per agent on first `agent register`, AshCloak-encrypted tokens in Postgres, roster-GC retirement. Explicitly NOT blocking `dual` mode; the phase 1/2 swap stays transparent to agents.
 - [ ] 5.2 Add `agentboard chat send/read` over the Agentboard API with protected server-side outbound spool and source references; verify exact retry keys, uncertain sends, own-send/bridge echo suppression by `props.agent_id` plus `msg_id`, and machine-readable output remotely, and preserve legacy `msg` contracts until cutover.
 - [x] 5.3 Implement shared-bot server WebSocket plus paginated REST catch-up with a per-worker metadata inbox and persisted coverage/version ledger; verify equal-time posts, edits, concurrent page/live arrival, newly discovered DM channels, outage, retention gap and deleted posts remotely, and expose incomplete coverage explicitly.
-- [ ] 5.3a Connect exact inbound inbox versions to recipient-scoped, body-free Cooperation notifications; prove atomic capture, frozen reservation, version isolation and two-way receipt reconciliation in packaged HTTP/WS acceptance. This does not close the separate live-worker gate below.
+- [x] 5.3a Connect exact inbound inbox versions to recipient-scoped, body-free Cooperation notifications; prove atomic capture, frozen reservation, version isolation and two-way receipt reconciliation in packaged HTTP/WS acceptance. This does not close the separate live-worker gate below. Shipped in PR #189 (`Cooperation.Runtime.recover_mattermost/1`, `InboundStore` notification capture); [6/6 remote runs](https://carverauto.buildbuddy.io/invocation/d389db57-498b-4979-86b1-3f0113bbe66d) after fixing a non-UTF-8 log decode flake in `mattermost_inbox_test`.
 - [ ] 5.4 Run two real workers through headless channel/urgent-DM send/receive/handling and reconnect recovery in `dual` mode; phase 1 shared-bot routing with per-agent attribution satisfies dual-mode parity. Document the measured capability matrix.
 
 ## 6. Context and native boundary adapters
 
-- [ ] 6.1 Wire scoped Context source intents/priority frames and atomic existing Context receipts; verify receipt rollback, own-entry suppression, task-independent repository findings, bounded/fair backlog and late commits remotely, and document findings versus chat/ownership.
+- [x] 6.1 Wire scoped Context source intents/priority frames and atomic existing Context receipts; verify receipt rollback, own-entry suppression, task-independent repository findings, bounded/fair backlog and late commits remotely, and document findings versus chat/ownership. Source intents, own-entry suppression, repository scope and atomic Context receipts shipped with 2.1–2.3 (`Runtime.capture_context`); [remote cooperation acceptance](https://carverauto.buildbuddy.io/invocation/90667998-b1c9-490b-8bbf-68dc3b7fb7b8); findings versus chat/ownership documented in docs/context.md.
 - [ ] 6.2 Add the 20-entry task Shared context section through `Agentboard.Context.recent`, filtered link and independent error handling; verify empty/long/escaped entries, read-without-ack and section failure remotely and in a real browser, keeping documents/timeline separate.
 - [ ] 6.3 Add generation-aware Claude hook integration and Pi extension integration, reusing the first-release adapter where applicable; verify session/new/resume/fork, one wake owner, pause, foreign-hook preservation and tool-result preservation in remote conformance plus isolated live harness sessions.
 - [ ] 6.4 Add Codex checkpoint/dedicated infrastructure-tool boundary integration and Grok supported completion integration only against installed capability evidence; verify cancellation, compaction, correct-session callback and absence of detached shell watchers, and document App/CLI and headless limitations.
