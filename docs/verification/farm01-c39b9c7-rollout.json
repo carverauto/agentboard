@@ -1,0 +1,61 @@
+{
+ "commit": "c39b9c7",
+ "image": "registry.carverauto.dev/agentboard/dashboard@sha256:fe37c5a11418020b910acef974e4108177d6937c9cf7c1e947cd01371935dc81",
+ "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:643af0aff6bdff10ae9669a66f71f2c7fa379fb205ade255d08006a9243d60c1",
+ "previous_commit": "ec33c10",
+ "source_prs": [
+  "https://github.com/carverauto/agentboard/pull/214",
+  "https://github.com/carverauto/agentboard/pull/215",
+  "https://github.com/carverauto/agentboard/pull/216",
+  "https://github.com/carverauto/agentboard/pull/217",
+  "https://github.com/carverauto/agentboard/pull/218"
+ ],
+ "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/38229284989",
+ "schema": {
+  "before": 41,
+  "after": 42,
+  "api_version": 1,
+  "required_schema_version": 42
+ },
+ "pre_migration_backup": "none: maintainer decision 2026-10-12 (pre-release development data; farm01 has no CNPG object store, so the admin rollout CNPG Backup agentboard-manual-1791797168 failed before any change)",
+ "migration": {
+  "job": "agentboard-migrate-c39b9c7",
+  "image": "same digest",
+  "succeeded": true,
+  "literal_env_overrides": {
+   "PHX_SERVER": "false",
+   "AGENTBOARD_PR_DISCOVERY_ENABLED": "false",
+   "AGENTBOARD_PR_OBSERVATION_ENABLED": "false",
+   "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "false",
+   "AGENTBOARD_COOPERATION_ENABLED": "false",
+   "AGENTBOARD_MATTERMOST_INBOUND_ENABLED": "false"
+  },
+  "applied_by": "maintainer (kubectl apply + wait, condition met)"
+ },
+ "roll": "maintainer kubectl set image deploy/agentboard-dashboard dashboard=<image>; image updated",
+ "configmap_changed": false,
+ "flags_unchanged": {
+  "AGENTBOARD_PR_DISCOVERY_ENABLED": "true",
+  "AGENTBOARD_PR_OBSERVATION_ENABLED": "true",
+  "AGENTBOARD_COOPERATION_ENABLED": "true",
+  "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "true",
+  "AGENTBOARD_MATTERMOST_INBOUND_ENABLED": "unset (default false)"
+ },
+ "http": {
+  "/health/live": 200,
+  "/health/ready": 200,
+  "/": 200,
+  "/prs": 200,
+  "/api/v1/meta": 200
+ },
+ "meta": {
+  "schema_version": 42,
+  "required_schema_version": 42,
+  "message_transport_effective": "board"
+ },
+ "verified_at": "2026-10-12T09:41:47Z",
+ "verified_by": "claude-agentboard-herdr-nudge (public HTTPS only; pod/image_id not read: cluster reads were not permitted to the agent)",
+ "rollback_performed": false,
+ "rollout_operator": "maintainer, prepared by claude-agentboard-herdr-nudge",
+ "new_secrets_required": []
+}
