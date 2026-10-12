@@ -1,5 +1,9 @@
 # Codex native queue transport core
 
+A separate explicit [durable-advisory owner bridge](worker-codex-owner.md) is now
+available as an unregistered candidate. It does not weaken the strict identity
+contract below or establish live/installed/Darwin readiness.
+
 Status: **unregistered, fixture-tested candidate**, not a live worker adapter.
 The code lives in `internal/nativequeue/codex/`. No serve, worker host, installer,
 configuration allowlist or wake/admission path imports or activates it. It has

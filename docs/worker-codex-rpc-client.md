@@ -1,5 +1,9 @@
 # Codex connect-only RPC candidate
 
+A separate explicit [durable-advisory owner bridge](worker-codex-owner.md) is now
+available as an unregistered candidate. It does not weaken the strict identity
+contract below or establish live/installed/Darwin readiness.
+
 Status: **unregistered and live-disabled pending owner evidence**. This adds an
 actual WebSocket-over-Unix-socket implementation beside the fixture-tested queue
 core, not a worker adapter. Nothing in serve, runtime, election, admission,

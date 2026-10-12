@@ -5,10 +5,12 @@ on:
     paths:
       - internal/worker/**
       - internal/nativequeue/codex/**
+      - internal/nativequeue/owner/**
       - build/integration/*native*
       - build/integration/codex_queue_test.*
       - build/integration/codex_rpc_client_test.*
       - build/integration/codex_rpc_socket_test.mjs
+      - build/integration/codex_owner_control_test.mjs
       - build/integration/BUILD.bazel
       - BUILD.bazel
       - MODULE.bazel
@@ -18,10 +20,12 @@ on:
     paths:
       - internal/worker/**
       - internal/nativequeue/codex/**
+      - internal/nativequeue/owner/**
       - build/integration/*native*
       - build/integration/codex_queue_test.*
       - build/integration/codex_rpc_client_test.*
       - build/integration/codex_rpc_socket_test.mjs
+      - build/integration/codex_owner_control_test.mjs
       - build/integration/BUILD.bazel
       - BUILD.bazel
       - MODULE.bazel
@@ -44,6 +48,8 @@ jobs:
         shell: bash
     env:
       # Match the worker_node_linux_x64 archive in MODULE.bazel.
+      GO_VERSION: 1.24.2
+      GO_SHA256: 68097bd680839cbc9d464a0edce4f7c333975e27a90246890e9f1078c7e702ad
       NODE_VERSION: 22.23.2
       NODE_SHA256: d60acfe00a2932254bb0ad20e01b0d74397a0875595de719654b214f4b03f307
       # Match @codex_rpc_ws and internal/nativequeue/codex/package-lock.json.
@@ -94,3 +100,19 @@ jobs:
           bash build/integration/codex_rpc_client_test.sh \
             "${GITHUB_WORKSPACE}/internal/nativequeue/codex/rpc-client.mjs" \
             "$(command -v node)" "$archive"
+
+      - name: Test Go owner with real inherited native socket and owner pipes
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/go${GO_VERSION}.linux-amd64.tar.gz"
+          curl -fsSL "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz" -o "$archive"
+          echo "${GO_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C "${RUNNER_TEMP}"
+          export OWNER_INTEGRATION=1
+          export OWNER_NODE="$(command -v node)"
+          export OWNER_WS_ARCHIVE="${RUNNER_TEMP}/ws-${CODEX_RPC_WS_VERSION}.tgz"
+          "${RUNNER_TEMP}/go/bin/go" test -count=1 -race ./internal/nativequeue/owner
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 "${RUNNER_TEMP}/go/bin/go" test -c \
+            -o "${RUNNER_TEMP}/owner-darwin-arm64.test" ./internal/nativequeue/owner
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 "${RUNNER_TEMP}/go/bin/go" test -c \
+            -o "${RUNNER_TEMP}/owner-darwin-amd64.test" ./internal/nativequeue/owner

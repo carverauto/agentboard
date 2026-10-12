@@ -1,13 +1,15 @@
 # Unregistered source library: only the isolated fixtures may depend on it.
 exports_files(
-    ["transport.mjs", "journal.mjs", "rpc-client.mjs", "socket-discovery.mjs", "rpc-wire.mjs"],
-    visibility = ["//build/integration:__pkg__"],
+    ["transport.mjs", "journal.mjs", "rpc-client.mjs", "socket-discovery.mjs", "rpc-wire.mjs", "inherited-client.mjs", "owner-control.mjs"],
+    visibility = ["//build/integration:__pkg__", "//internal/nativequeue/owner:__pkg__"],
 )
 
 filegroup(
     name = "rpc_client_sources",
     srcs = [
         "rpc-client.mjs",
+        "inherited-client.mjs",
+        "owner-control.mjs",
         "socket-discovery.mjs",
         "rpc-wire.mjs",
         "transport.mjs",
@@ -15,5 +17,5 @@ filegroup(
         "package.json",
         "package-lock.json",
     ],
-    visibility = ["//build/integration:__pkg__"],
+    visibility = ["//build/integration:__pkg__", "//internal/nativequeue/owner:__pkg__"],
 )

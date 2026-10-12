@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createJournal } from './journal.mjs';
 
 export const PROFILE = 'codex-native-queue-v1';
+export const ADVISORY_PROFILE = 'codex-durable-advisory-v1';
 export const PROTOCOL_SOURCE = 'rust-v0.162.0';
 const VERSION = '0.162.0';
 const FRAME_LIMIT = 4096;
@@ -29,27 +30,34 @@ function snapshot(value, limit = RESPONSE_LIMIT) {
   if (typeof text !== 'string' || Buffer.byteLength(text) > limit) error('Bounded JSON required');
   return freeze(JSON.parse(text));
 }
-function endpointValid(value) {
+function endpointValid(value, advisory) {
   return exact(value, ['serverId', 'endpointId', 'generation', 'profile', 'nativeVersion', 'protocolSource', 'schemaSha256', 'experimentalApi', 'queueApi']) &&
-    ['serverId', 'endpointId', 'generation'].every(key => token(value[key])) && value.profile === PROFILE && value.nativeVersion === VERSION &&
+    ['serverId', 'endpointId', 'generation'].every(key => token(value[key])) && value.profile === (advisory ? ADVISORY_PROFILE : PROFILE) && value.nativeVersion === VERSION &&
     value.protocolSource === PROTOCOL_SOURCE && digest(value.schemaSha256) && value.experimentalApi === true && value.queueApi === true;
 }
-function recipientValid(value) {
+function recipientValid(value, advisory) {
+  if (advisory) return exact(value, ['threadId', 'identityKind', 'enrollmentRevision', 'bindingEpoch', 'persistent', 'topLevel']) &&
+    uuid(value.threadId) && value.identityKind === 'durable-conversation-v1' && value.persistent === true && value.topLevel === true &&
+    [value.enrollmentRevision, value.bindingEpoch].every(n => Number.isSafeInteger(n) && n > 0);
   return exact(value, ['threadId', 'incarnation', 'persistent', 'topLevel']) && uuid(value.threadId) && token(value.incarnation) && value.persistent === true && value.topLevel === true;
 }
-function attemptSnapshot(value) {
+function attemptSnapshot(value, advisory) {
   const attempt = snapshot(value, FRAME_LIMIT);
   if (!exact(attempt, ['attemptId', 'source', 'recipient', 'bindingEpoch', 'dispatchGeneration']) ||
-      (typeof attempt.attemptId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(attempt.attemptId)) || !recipientValid(attempt.recipient) ||
+      (typeof attempt.attemptId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(attempt.attemptId)) || !recipientValid(attempt.recipient, advisory) ||
       ![attempt.bindingEpoch, attempt.dispatchGeneration].every(n => Number.isSafeInteger(n) && n > 0) ||
       !exact(attempt.source, ['kind', 'id', 'version', 'uri']) || !token(attempt.source.kind) || !token(attempt.source.id) || !digest(attempt.source.version) ||
       typeof attempt.source.uri !== 'string' || Buffer.byteLength(attempt.source.uri) > 1024 || /[\x00-\x20\x7f]/.test(attempt.source.uri)) error('Invalid immutable attempt or source pointer');
+  if (advisory && attempt.bindingEpoch !== attempt.recipient.bindingEpoch) error('Advisory enrollment fence differs');
   const uri = new URL(attempt.source.uri);
   if (uri.protocol !== 'https:' || uri.username || uri.password || uri.hash || uri.search) error('Canonical HTTPS source pointer without credentials, query or fragment required');
   return attempt;
 }
 function frameFor(attempt) {
-  const frame = 'Agentboard coordination notice v1 (source pointer only; not a user instruction).\n' + canonical(attempt) +
+  const title = attempt.recipient.identityKind === 'durable-conversation-v1'
+    ? 'Agentboard durable advisory notice v1 (may survive resume; source pointer only; not authority).\n'
+    : 'Agentboard coordination notice v1 (source pointer only; not a user instruction).\n';
+  const frame = title + canonical(attempt) +
     '\nRecheck canonical source state and current authorization before acting. This notice grants no authority to spawn, claim, restart or transfer custody. Explicit received/handled receipts are separate; native acceptance is not handling or completion.';
   if (Buffer.byteLength(frame) > FRAME_LIMIT) error('Notice exceeds bound');
   return frame;
@@ -83,20 +91,24 @@ const uncertain = reason => ({ outcome: 'uncertain', reason });
 
 /**
  * client.identity() is a synchronous, trusted attestation of the negotiated
- * endpoint AND enrolled recipient incarnation. client.request({id,method,params})
+ * endpoint AND the selected explicit recipient contract. The strict factory
+ * requires native incarnation; the advisory factory uses server enrollment.
+ * client.request({id,method,params})
  * sends that exact frozen request once and returns its raw JSON-RPC response.
  * The caller must not hide retries or endpoint switching inside this client.
  * schemaSha256 is the caller's independently approved experimental schema hash,
  * not a digest invented or attested by this library. No client is supplied here.
  */
-export function createCodexQueueTransport({ client, endpoint, recipient, journalDir, timeoutMs = 5000, maxPages = 8, pageSize = 50, journalIO } = {}) {
+export function createCodexQueueTransport(options = {}) { return createTransport(options, false); }
+export function createCodexAdvisoryTransport(options = {}) { return createTransport(options, true); }
+function createTransport({ client, endpoint, recipient, journalDir, timeoutMs = 5000, maxPages = 8, pageSize = 50, journalIO } = {}, advisory) {
   endpoint = snapshot(endpoint); recipient = snapshot(recipient);
-  if (!endpointValid(endpoint) || !recipientValid(recipient) || typeof client?.identity !== 'function' || typeof client?.request !== 'function') error('Verified queue endpoint and persistent top-level recipient required');
+  if (!endpointValid(endpoint, advisory) || !recipientValid(recipient, advisory) || typeof client?.identity !== 'function' || typeof client?.request !== 'function') error('Verified queue endpoint and persistent top-level recipient required');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000 || !Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > 32 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) error('Invalid transport bounds');
   const journal = createJournal(journalDir, { io: journalIO });
   const identity = freeze({ endpoint, recipient });
   function current() {
-    if (!equal(snapshot(client.identity()), identity)) error('Native endpoint or recipient incarnation changed');
+    if (!equal(snapshot(client.identity()), identity)) error('Native endpoint or recipient identity changed');
   }
   current();
   async function rpc(method, params) {
@@ -113,7 +125,7 @@ export function createCodexQueueTransport({ client, endpoint, recipient, journal
     } finally { clearTimeout(timer); }
   }
   function expectedAttempt(value) {
-    const attempt = attemptSnapshot(value);
+    const attempt = attemptSnapshot(value, advisory);
     if (!equal(attempt.recipient, recipient)) error('Attempt recipient fence differs');
     return attempt;
   }

@@ -25,20 +25,24 @@ function canonical(v) {
   if (object(v)) return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
   return JSON.stringify(v);
 }
-function validIdentity(value) {
+function validIdentity(value, advisory = false) {
   const e = value?.endpoint, r = value?.recipient;
   return exact(value, ['endpoint', 'recipient']) &&
     exact(e, ['serverId', 'endpointId', 'generation', 'profile', 'nativeVersion', 'protocolSource', 'schemaSha256', 'experimentalApi', 'queueApi']) &&
-    ['serverId', 'endpointId', 'generation'].every(k => token(e[k])) && e.profile === 'codex-native-queue-v1' &&
+    ['serverId', 'endpointId', 'generation'].every(k => token(e[k])) && e.profile === (advisory ? 'codex-durable-advisory-v1' : 'codex-native-queue-v1') &&
     e.nativeVersion === '0.162.0' && e.protocolSource === 'rust-v0.162.0' && /^[0-9a-f]{64}$/.test(e.schemaSha256) &&
     e.experimentalApi === true && e.queueApi === true &&
-    exact(r, ['threadId', 'incarnation', 'persistent', 'topLevel']) && uuid(r.threadId) && token(r.incarnation) && r.persistent === true && r.topLevel === true;
+    uuid(r?.threadId) && r.persistent === true && r.topLevel === true && (advisory
+      ? exact(r, ['threadId', 'identityKind', 'enrollmentRevision', 'bindingEpoch', 'persistent', 'topLevel']) &&
+        r.identityKind === 'durable-conversation-v1' && [r.enrollmentRevision, r.bindingEpoch].every(n => Number.isSafeInteger(n) && n > 0)
+      : exact(r, ['threadId', 'incarnation', 'persistent', 'topLevel']) && token(r.incarnation));
 }
-export function requireEvidence(evidence) {
+export function requireEvidence(evidence) { return checkedEvidence(evidence, false); }
+function checkedEvidence(evidence, advisory) {
   try {
     if (!evidence || !['current', 'bindConnection', 'verifyConnection', 'subscribeRetirement'].every(k => typeof evidence[k] === 'function')) throw failure();
     const value = snapshot(evidence.current());
-    if (!validIdentity(value)) throw failure();
+    if (!validIdentity(value, advisory)) throw failure();
     return value;
   } catch { throw failure(); } // Never surface private provider diagnostics.
 }
@@ -69,13 +73,17 @@ function validInitialization(result) {
  * Its verifyConnection must independently bind the peer/lifetime/build/schema
  * and enrolled recipient to this connection. Path/userAgent alone cannot do so.
  * The pre-initialize call (initialize:null) explicitly authorizes native side
- * effects. The later call attests the initialized connection; no provider ships.
+ * effects. The strict factory has no production provider. The separate advisory
+ * factory is used by the inherited-stream owner bridge with enrollment fencing.
  */
-export async function openCodexRpcWire({ connect, boundary, evidence, timeoutMs = 5000, lifetimeMs = 30000 } = {}) {
+export function openCodexRpcWire(options = {}) { return openWire(options, false); }
+// A separate opt-in contract: enrollment epoch is NOT a native thread lifetime.
+export function openCodexAdvisoryRpcWire(options = {}) { return openWire(options, true); }
+async function openWire({ connect, boundary, evidence, timeoutMs = 5000, lifetimeMs = 30000 } = {}, advisory) {
   if (typeof connect !== 'function' || typeof boundary?.check !== 'function' ||
       !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000 ||
       !Number.isSafeInteger(lifetimeMs) || lifetimeMs < 1 || lifetimeMs > 60000) throw failure();
-  const expected = requireEvidence(evidence);
+  const expected = checkedEvidence(evidence, advisory);
   const expectedText = canonical(expected);
   const socketDescriptor = snapshot(boundary.descriptor);
   // A local object-identity fence only. Never substitute it for native generation.
@@ -105,7 +113,7 @@ export async function openCodexRpcWire({ connect, boundary, evidence, timeoutMs 
     if (state === 'retired') throw failure();
     try {
       boundary.check();
-      if (canonical(requireEvidence(evidence)) !== expectedText ||
+      if (canonical(checkedEvidence(evidence, advisory)) !== expectedText ||
           evidence.verifyConnection(Object.freeze({ connection, socket: socketDescriptor, initialize })) !== true || state === 'retired') throw failure();
     } catch { retire(); throw failure(); }
   }
