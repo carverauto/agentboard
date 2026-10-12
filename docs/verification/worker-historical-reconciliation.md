@@ -37,5 +37,4 @@ does not add an adapter or activate a service.
 
 [Fresh packaged host/server acceptance](worker-packaged-api.md) now passes after
 the server shipped.
-The controlled failed-PR, reminder, restart and repaired-head release proof remains
-open. No local build or user-session prompting was performed for this correction.
+The controlled failed-PR, reminder, restart and repaired-head release proof for 3.2/3.3 is recorded in `runtime-first-release-pilot.md`. No local build or user-session prompting was performed for this correction.

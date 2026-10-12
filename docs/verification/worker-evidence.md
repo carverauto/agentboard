@@ -12,7 +12,7 @@ Actual Pi0.99.2 isolated RPC model runs are recorded in `worker-pi-live.json` an
 
 Installed Herdr0.9.0 protocol22 lacks expected occupant/composer guard fields; automatic prompt is disabled. The named conformance server was inspected and stopped without input. Installed Codex/Claude/Grok/Muse/AGY sessions are manual/unsupported for this runtime; no universal automatic claims are made.
 
-Packaged Phoenix plus host interoperability and controlled failed-PR → reminder → connector/session restart → repaired qualifying head proof remain separate release gates. OpenSpec joint tasks3.2–3.4 remain open. Merge order is collector → server → worker. Captain/coordinator owns rollout.
+Packaged Phoenix plus host interoperability is proved separately; the controlled failed-PR → reminder → connector/session restart → repaired qualifying head proof for OpenSpec 3.2/3.3 is recorded in `runtime-first-release-pilot.md` (tasks.md owns the checklist). Production gate 3.4 remains open. Merge order is collector → server → worker. Captain/coordinator owns rollout.
 
 ## Maintainability review
 
@@ -26,5 +26,4 @@ Archify source, standalone HTML, delivery receipt, light/dark browser captures a
 
 [Fresh packaged API/host proof and named isolated Pi evidence](worker-packaged-api.md)
 close the host acceptance gap after the server shipped. The live Pi model proof
-and real packaged API proof remain distinct. Captain-gated production enrollment
-and the controlled failed-PR/reminder/repaired-head demonstration remain open.
+and real packaged API proof remain distinct. Captain-gated production enrollment (3.4) remains open; the controlled failed-PR/reminder/repaired-head demonstration (3.2/3.3) is proved in `runtime-first-release-pilot.md`.
