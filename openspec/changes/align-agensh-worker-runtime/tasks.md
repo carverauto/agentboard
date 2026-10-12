@@ -6,20 +6,20 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 
 ## Next Agent Prompt
 
-Status 2026-10-12 ~17:30Z: the first release gate (3.2/3.3) is proven live; see
-docs/verification/runtime-first-release-pilot.md. farm01 runs c39b9c7 at schema
-42; main is 358c8a3 (schema 44). Pilot worker `worker-agentboard-farm01-1` stays
-enrolled, bound at epoch 3 and supervised by its LaunchAgent on `arrakis`.
+Status 2026-10-12: 3.2/3.3 are in docs/verification/runtime-first-release-pilot.md.
+farm01's current pin is 358c8a3 (schema 44); see docs/deploy/reference-farm01.md.
+5.4 and 4.3 are in docs/verification/runtime-dual-mode-pilot.md. 3.5 is in PR #232.
+Pilot worker `worker-agentboard-farm01-1` stays enrolled, bound at epoch 3 and
+supervised by its LaunchAgent on `arrakis`.
 
 Priority order:
-1. 3.4: farm01 roll to main with `AGENTBOARD_MESSAGE_MODE=dual`, Mattermost inbound
-   and private routes (maintainer-authorized; script prepared, maintainer runs
-   it), then record health/pause/rollback. Publishing a tagged CLI release
-   (v0.3.0) is a separate maintainer decision.
-2. 5.4: second worker plus two-worker dual-mode send/receive/reconnect proof.
-3. 4.3 outage demo; 6.3–6.5 per-harness live proofs (each needs a live session
-   started by the maintainer).
-4. 7.3 docs/skills/OpenSpec reconcile after 5.4; then 8.1–8.3. 5.1b's remote
+1. 3.4 is still open. The 358c8a3 dual-mode roll and
+   `AGENTBOARD_MATTERMOST_INBOUND_REPO` are already on the overlay; do not repeat
+   that roll. Publishing a tagged CLI release (v0.3.0) remains a separate
+   maintainer decision.
+2. 6.3–6.5 per-harness live proofs (each needs a live session started by the
+   maintainer).
+3. 7.3 docs/skills/OpenSpec reconcile after 5.4; then 8.1–8.3. 5.1b's remote
    proof belongs to `mm-elastic-agent-bots` task 7; 8.2 stays with
    `adopt-ash-and-monitor-pr-ci`.
 
