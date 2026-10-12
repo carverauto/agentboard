@@ -32,7 +32,7 @@ type chatUnresolved struct{ state, msgID string }
 func (e *chatUnresolved) Error() string {
 	return fmt.Sprintf("send %s is %s; inspect with `agentboard chat status --msg-id %s` and resolve explicitly", e.msgID, e.state, e.msgID)
 }
-func (e *chatUnresolved) ExitCode() int { return 5 }
+func (e *chatUnresolved) ExitCode() int     { return 5 }
 func (e *chatUnresolved) ErrorCode() string { return "send_unresolved" }
 
 // printReceipt prints a send receipt and maps unresolved states to exit 5.
