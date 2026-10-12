@@ -181,3 +181,131 @@ func TestChatReadFetchesThroughAPI(t *testing.T) {
 		t.Fatalf("expected two API reads, got %d", f.reads.Load())
 	}
 }
+
+// spoolBoard stands in for a schema-43 server with spooled sends and private
+// recipient routes. It records exactly what the CLI asked for.
+type spoolBoard struct {
+	server   *httptest.Server
+	lastSend map[string]any
+	lastRead string
+	resolved map[string]any
+	state    string
+}
+
+func newSpoolBoard(t *testing.T, schema int) *spoolBoard {
+	t.Helper()
+	f := &spoolBoard{state: "uncertain"}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"api_version": 1, "schema_version": schema})
+	})
+	mux.HandleFunc("POST /api/v1/conversations/send", func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&f.lastSend)
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{
+			"duplicate": false, "post": nil, "msg_id": "msg-9", "state": f.state,
+			"reason": "post_not_observed", "spool": map[string]any{"msg_id": "msg-9", "state": f.state},
+		})
+	})
+	mux.HandleFunc("GET /api/v1/conversations/reads", func(w http.ResponseWriter, r *http.Request) {
+		f.lastRead = r.URL.RawQuery
+		json.NewEncoder(w).Encode(map[string]any{"channel_id": "route-1", "posts": []any{}, "caught_up": false, "incomplete_reason": "no_posts"})
+	})
+	mux.HandleFunc("GET /api/v1/conversations/sends/{id}", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"send": map[string]any{"msg_id": r.PathValue("id"), "state": "sent", "post_id": "post-4"}})
+	})
+	mux.HandleFunc("POST /api/v1/conversations/sends/{id}/resolve", func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&f.resolved)
+		json.NewEncoder(w).Encode(map[string]any{"msg_id": r.PathValue("id"), "state": "abandoned", "duplicate": false})
+	})
+	f.server = httptest.NewServer(mux)
+	t.Cleanup(f.server.Close)
+	return f
+}
+
+func spoolEnv(t *testing.T, url string) {
+	t.Setenv("AGENTBOARD_URL", url)
+	t.Setenv("AGENT_ID", "worker-a")
+	t.Setenv("AGENTBOARD_MODEL", "fixture")
+	t.Setenv("AGENTBOARD_HARNESS", "test")
+}
+
+func TestChatSendUnresolvedReceiptExitsFive(t *testing.T) {
+	f := newSpoolBoard(t, 43)
+	spoolEnv(t, f.server.URL)
+	out, _, err := runChatCommand(t, "chat", "send", "--to", "worker-b", "--body", "private", "--retry-key", "k-1", "--json")
+	if cli.ExitCode(err) != 5 {
+		t.Fatalf("uncertain receipt must exit 5, got %v (%d)", err, cli.ExitCode(err))
+	}
+	var receipt map[string]any
+	if json.Unmarshal([]byte(out), &receipt) != nil || receipt["state"] != "uncertain" || receipt["msg_id"] != "msg-9" {
+		t.Fatalf("receipt must still print machine-readably: %q", out)
+	}
+	if f.lastSend["to"] != "worker-b" || f.lastSend["channel_id"] != nil {
+		t.Fatalf("--to must address the recipient, never a channel: %v", f.lastSend)
+	}
+	var stderr bytes.Buffer
+	root := cli.NewRoot()
+	if err := root.PersistentFlags().Set("json", "true"); err != nil {
+		t.Fatal(err)
+	}
+	cli.PrintError(root, &stderr, err)
+	if !strings.Contains(stderr.String(), `"send_unresolved"`) {
+		t.Fatalf("stderr must carry the send_unresolved code: %q", stderr.String())
+	}
+	f.state = "sent"
+	if _, _, err := runChatCommand(t, "chat", "send", "--to", "worker-b", "--body", "private", "--json"); err != nil {
+		t.Fatalf("a verified receipt exits 0: %v", err)
+	}
+}
+
+func TestChatSendRequiresExactlyOneDestination(t *testing.T) {
+	f := newSpoolBoard(t, 43)
+	spoolEnv(t, f.server.URL)
+	if _, _, err := runChatCommand(t, "chat", "send", "--channel", "c", "--to", "worker-b", "--body", "x"); err == nil {
+		t.Fatal("--channel with --to must be rejected")
+	}
+	if _, _, err := runChatCommand(t, "chat", "read", "--channel", "c", "--inbox"); err == nil {
+		t.Fatal("--channel with --inbox must be rejected")
+	}
+	if f.lastSend != nil || f.lastRead != "" {
+		t.Fatal("invalid flags must not reach the API")
+	}
+}
+
+func TestChatPrivateRouteNeedsSchema43(t *testing.T) {
+	f := newSpoolBoard(t, 42)
+	spoolEnv(t, f.server.URL)
+	_, _, err := runChatCommand(t, "chat", "send", "--to", "worker-b", "--body", "x")
+	if err == nil || !strings.Contains(err.Error(), "incompatible") {
+		t.Fatalf("schema 42 server must refuse --to before sending: %v", err)
+	}
+	if _, _, err := runChatCommand(t, "chat", "read", "--inbox"); err == nil {
+		t.Fatal("schema 42 server must refuse --inbox")
+	}
+	if f.lastSend != nil || f.lastRead != "" {
+		t.Fatal("refused commands must not reach the API")
+	}
+}
+
+func TestChatInboxStatusAndResolve(t *testing.T) {
+	f := newSpoolBoard(t, 43)
+	spoolEnv(t, f.server.URL)
+	if _, _, err := runChatCommand(t, "chat", "read", "--inbox", "--json"); err != nil {
+		t.Fatal(err)
+	}
+	if f.lastRead != "inbox=true&limit=50" {
+		t.Fatalf("inbox read must not name a channel: %q", f.lastRead)
+	}
+	out, _, err := runChatCommand(t, "chat", "status", "--msg-id", "msg-4", "--json")
+	if err != nil || !strings.Contains(out, `"post_id":"post-4"`) {
+		t.Fatalf("status must print the receipt: %q %v", out, err)
+	}
+	if _, _, err := runChatCommand(t, "chat", "resolve", "--msg-id", "msg-4", "--action", "drop"); err == nil {
+		t.Fatal("unknown resolve actions are rejected locally")
+	}
+	out, _, err = runChatCommand(t, "chat", "resolve", "--msg-id", "msg-4", "--action", "abandon", "--json")
+	if err != nil || f.resolved["action"] != "abandon" || !strings.Contains(out, `"abandoned"`) {
+		t.Fatalf("resolve must send the explicit action: %q %v %v", out, err, f.resolved)
+	}
+}

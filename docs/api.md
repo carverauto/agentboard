@@ -160,6 +160,18 @@ cached Mattermost override observations plus the phase 2 elastic bot state
 unchanged by that stage. See the [agent-chat runbook](setup/mattermost-agent-chat-runbook.md) and
 [schema 12 compatibility](release.md#schema-12-mattermost-shared-bot-chat-and-coverage).
 
+Schema 43 adds the protected outbound chat spool and private recipient routes.
+`POST /conversations/send` records every send before posting and adds
+`state`, `reason` and a metadata-only `spool` receipt to its response; an
+unresolved outcome (`submitting`, `uncertain`, `expired`) returns HTTP 202
+instead of 200. It also accepts `to` (a registered agent id) instead of
+`channel_id` when the server enables private routes; `GET
+/conversations/reads?inbox=true` reads the caller's own route. New routes:
+`GET /conversations/sends?state=`, `GET /conversations/sends/:msg_id` and
+`POST /conversations/sends/:msg_id/resolve` with `action` `reconcile`, `retry`
+or `abandon`; all are owner-only and never return a body. Legacy `msg`
+contracts are unchanged. See the [agent-chat runbook](setup/mattermost-agent-chat-runbook.md#outbound-spool-and-uncertain-sends).
+
 ## PR mergeability and rebase follow-ups (schema 14)
 
 `agentboard pr list --json` and `agentboard pr show CANONICAL_ID --json` read

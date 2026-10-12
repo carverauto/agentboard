@@ -12,6 +12,7 @@ import os
 import subprocess
 import threading
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 TOKEN = 'fixture-bot-token'
@@ -24,6 +25,10 @@ state = {
     'overrides': True,
     'bots': {},
     'token_owner': {},
+    'channels': {},
+    'post_modes': [],
+    'create_modes': [],
+    'hidden': set(),
     'lock': threading.Lock(),
 }
 
@@ -121,6 +126,21 @@ class Stub(BaseHTTPRequestHandler):
             return self._json(400, {'message': 'bad membership'})
         if not self._authed():
             return self._json(401, {'message': 'invalid credentials'})
+        # Private channel creation by the shared bot (phase 1 recipient routes).
+        if parts == ['api', 'v4', 'channels']:
+            with state['lock']:
+                mode = state['create_modes'].pop(0) if state['create_modes'] else 'ok'
+                name = payload.get('name')
+                if any(c['name'] == name for c in state['channels'].values()):
+                    return self._json(400, {'id': 'store.sql_channel.save_channel.exists.app_error'})
+                cid = f"route-{len(state['channels']) + 1}"
+                channel = {'id': cid, 'name': name, 'type': payload.get('type'),
+                           'team_id': payload.get('team_id'), 'creator_id': 'shared-bot',
+                           'display_name': payload.get('display_name')}
+                state['channels'][cid] = channel
+            if mode == 'lost':
+                return self._json(500, {'message': 'response lost after create'})
+            return self._json(201, channel)
         # /api/v4/posts
         if parts == ['api', 'v4', 'posts']:
             bearer = self._bearer()
@@ -131,6 +151,10 @@ class Stub(BaseHTTPRequestHandler):
                 if owner is not None and state['bots'][owner]['disabled']:
                     return self._json(403, {'message': 'bot disabled'})
                 sender = owner or 'shared-bot'
+            with state['lock']:
+                mode = state['post_modes'].pop(0) if state['post_modes'] else 'ok'
+            if mode == 'drop_500':
+                return self._json(500, {'message': 'rejected before storing'})
             pid = f"post-{len(state['order']) + 1}"
             post = {
                 'id': pid,
@@ -150,6 +174,10 @@ class Stub(BaseHTTPRequestHandler):
                     post.pop('override_icon_url', None)
                 state['posts'][pid] = post
                 state['order'].append(pid)
+            if mode == 'accept_500':
+                return self._json(500, {'message': 'stored, response lost'})
+            if mode == 'accept_hang':
+                time.sleep(3)
             return self._json(201, post)
         return self._json(404, {'message': 'unknown fixture path'})
 
@@ -171,8 +199,9 @@ class Stub(BaseHTTPRequestHandler):
             page = int(query.get('page', ['0'])[0])
             per_page = int(query.get('per_page', ['60'])[0])
             with state['lock']:
+                hidden = parts[3] in state['hidden']
                 channel_posts = [p for p in (state['posts'][i] for i in state['order'])
-                                 if p['channel_id'] == parts[3]]
+                                 if p['channel_id'] == parts[3] and not hidden]
             channel_posts.sort(key=lambda p: p['create_at'], reverse=True)
             window = channel_posts[page * per_page:(page + 1) * per_page]
             return self._json(200, {
@@ -181,6 +210,16 @@ class Stub(BaseHTTPRequestHandler):
             })
         if parts == ['api', 'v4', 'system', 'ping']:
             return self._json(200, {'status': 'ok'})
+        if parts == ['api', 'v4', 'users', 'me']:
+            if self._bearer() != TOKEN:
+                return self._json(403, {'message': 'not the shared bot'})
+            return self._json(200, {'id': 'shared-bot', 'is_bot': True, 'roles': 'system_user'})
+        # /api/v4/teams/<team>/channels/name/<name>
+        if len(parts) == 7 and parts[:3] == ['api', 'v4', 'teams'] and parts[4:6] == ['channels', 'name']:
+            with state['lock']:
+                match = next((c for c in state['channels'].values()
+                              if c['name'] == parts[6] and c['team_id'] == parts[3]), None)
+            return self._json(200, match) if match else self._json(404, {'message': 'no channel'})
         return self._json(404, {'message': 'unknown fixture path'})
 
 
@@ -423,6 +462,293 @@ assert diag['overrides']['icon_source'] == 'unobserved', diag
 status, _ = api('GET', '/api/v1/conversations/diagnostics', None, GHOST)
 assert status == 422, status
 print('Phase 1 shared-bot chat: API send with props/header/override, retry-key adoption, echo-suppressed reads, explicit coverage and override diagnostics passed')
+
+# ---------------------------------------------------------------------------
+# 5.2 protected outbound spool. Every send is recorded before the network
+# call; an accepted-post/lost-response reconciles by props.msg_id; ambiguity
+# parks visibly as uncertain and needs explicit resolution. Overrides are on.
+# ---------------------------------------------------------------------------
+rpc("Application.put_env(:agentboard, :mattermost_override_ttl_s, 3600)")
+SEND = '/api/v1/conversations/send'
+
+
+def post_count():
+    with state['lock']:
+        return len(state['order'])
+
+
+def ab_raw(*args, agent_id=None):
+    env = dict(cli_env)
+    if agent_id is not None:
+        env['AGENT_ID'] = agent_id
+    result = subprocess.run([os.environ['AB_BINARY'], '--json', *args], env=env,
+                            capture_output=True, text=True, timeout=40)
+    return result.returncode, result.stdout, result.stderr
+
+
+def spool(msg_id, column):
+    return sql(f"SELECT {column} FROM conversation_spool WHERE msg_id='{msg_id}'")
+
+
+# A verified send keeps metadata only: the body is dropped once Mattermost
+# holds it, and the receipt never echoes it.
+status, sent = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'spool body alpha',
+                                  'task_id': 'task-9', 'retry_key': 'spool-1'}, WA)
+assert status == 200 and sent['state'] == 'sent' and sent['duplicate'] is False, (status, sent)
+assert sent['spool']['body_retained'] is False and sent['spool']['post_id'] == sent['post']['id'], sent
+assert 'spool body alpha' not in json.dumps(sent['spool']), sent
+assert spool(sent['msg_id'], "state||','||(body IS NULL)::text||','||retry_key") == 'sent,true,spool-1'
+# Exact retry keys: the same key from another agent is a different message,
+# the same agent's repeat adopts without posting, another channel conflicts.
+before = post_count()
+status, peer = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'peer body', 'retry_key': 'spool-1'}, WB)
+assert status == 200 and peer['duplicate'] is False and peer['msg_id'] != sent['msg_id'], peer
+assert post_count() == before + 1
+status, again = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'spool body alpha', 'retry_key': 'spool-1'}, WA)
+assert status == 200 and again['duplicate'] is True and again['msg_id'] == sent['msg_id'], again
+assert again['post']['id'] == sent['post']['id'] and post_count() == before + 1, again
+status, other = api('POST', SEND, {'channel_id': 'chan-2', 'body': 'x', 'retry_key': 'spool-1'}, WA)
+assert status == 409 and other['error']['code'] == 'conflict', (status, other)
+
+# Accepted-post/lost-response (5xx after storing, and a timeout after
+# storing): the same request reconciles by msg_id and reports the one post.
+for mode in ('accept_500', 'accept_hang'):
+    with state['lock']:
+        state['post_modes'].append(mode)
+    before = post_count()
+    status, body = api('POST', SEND, {'channel_id': 'chan-1', 'body': f'lost {mode}', 'retry_key': f'lost-{mode}'}, WA)
+    assert status == 200 and body['state'] == 'sent' and body['duplicate'] is False, (mode, status, body)
+    assert body['spool']['resolution'] == 'reconciled' and post_count() == before + 1, (mode, body)
+    with state['lock']:
+        stored = state['posts'][body['post']['id']]
+    assert stored['props']['msg_id'] == body['msg_id'] and stored['props']['agent_id'] == 'worker-a', stored
+
+# Unresolved ambiguity: nothing was stored and history cannot prove it, so
+# the send parks as uncertain (202) with its body retained for a decision.
+with state['lock']:
+    state['post_modes'].append('drop_500')
+before = post_count()
+status, unsure = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'maybe posted', 'retry_key': 'unsure-1'}, WA)
+assert status == 202 and unsure['state'] == 'uncertain' and unsure['reason'] == 'post_not_observed', (status, unsure)
+assert unsure['post'] is None and unsure['spool']['body_retained'] is True, unsure
+assert spool(unsure['msg_id'], 'body') == 'maybe posted'
+# The same retry key reconciles again; it never blindly posts.
+status, still = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'maybe posted', 'retry_key': 'unsure-1'}, WA)
+assert status == 202 and still['state'] == 'uncertain' and still['msg_id'] == unsure['msg_id'], still
+assert post_count() == before
+# Machine-readable CLI: status prints the receipt and exits 5 while unresolved.
+code, out, err = ab_raw('chat', 'status', '--msg-id', unsure['msg_id'])
+assert code == 5 and json.loads(out)['send']['state'] == 'uncertain', (code, out, err)
+assert json.loads(err)['error']['code'] == 'send_unresolved', err
+assert 'maybe posted' not in out
+# Other agents cannot see or resolve it; the list is metadata of own sends.
+status, _ = api('GET', f"/api/v1/conversations/sends/{unsure['msg_id']}", None, WB)
+assert status == 404, status
+status, _ = api('POST', f"/api/v1/conversations/sends/{unsure['msg_id']}/resolve", {'action': 'retry'}, WB)
+assert status == 404, status
+status, listing = api('GET', '/api/v1/conversations/sends?state=uncertain', None, WA)
+assert status == 200 and [s['msg_id'] for s in listing['sends']] == [unsure['msg_id']], listing
+assert 'maybe posted' not in json.dumps(listing)
+# Explicit manual retry records the possible duplicate, then posts once.
+code, out, err = ab_raw('chat', 'resolve', '--msg-id', unsure['msg_id'], '--action', 'retry')
+assert code == 0, (code, out, err)
+retried = json.loads(out)
+assert retried['state'] == 'sent' and retried['spool']['resolution'] == 'manual_retry_possible_duplicate', retried
+assert retried['spool']['attempts'] == 2 and post_count() == before + 1, retried
+assert spool(unsure['msg_id'], 'body IS NULL') == 't'
+
+# Accepted but invisible: history later shows it, so a repeat adopts it.
+with state['lock']:
+    state['post_modes'].append('accept_500')
+    state['hidden'].add('chan-1')
+before = post_count()
+status, hidden = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'hidden once', 'retry_key': 'hidden-1'}, WA)
+assert status == 202 and hidden['state'] == 'uncertain', (status, hidden)
+assert post_count() == before + 1
+with state['lock']:
+    state['hidden'].discard('chan-1')
+status, adopted = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'hidden once', 'retry_key': 'hidden-1'}, WA)
+assert status == 200 and adopted['duplicate'] is True and adopted['spool']['resolution'] == 'reconciled', adopted
+assert post_count() == before + 1
+
+# Duplicates are flagged, not hidden: two remote copies of one msg_id.
+with state['lock']:
+    state['post_modes'].append('accept_500')
+    state['hidden'].add('chan-1')
+status, twice = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'twice', 'retry_key': 'twice-1'}, WA)
+assert status == 202, (status, twice)
+with state['lock']:
+    original = state['posts'][state['order'][-1]]
+    copy_id = f"post-{len(state['order']) + 1}"
+    state['posts'][copy_id] = dict(original, id=copy_id, create_at=original['create_at'] + 50)
+    state['order'].append(copy_id)
+    state['hidden'].discard('chan-1')
+status, flagged = api('POST', f"/api/v1/conversations/sends/{twice['msg_id']}/resolve", {'action': 'reconcile'}, WA)
+assert status == 200 and flagged['state'] == 'sent', (status, flagged)
+assert flagged['spool']['resolution'] == 'reconciled_duplicate' and flagged['spool']['duplicate_post_ids'] == [copy_id], flagged
+
+# Abandon is explicit and retires the key.
+with state['lock']:
+    state['post_modes'].append('drop_500')
+status, gone = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'abandon me', 'retry_key': 'gone-1'}, WA)
+assert status == 202, (status, gone)
+code, out, _ = ab_raw('chat', 'resolve', '--msg-id', gone['msg_id'], '--action', 'abandon')
+assert code == 0 and json.loads(out)['state'] == 'abandoned', (code, out)
+assert spool(gone['msg_id'], 'body IS NULL') == 't'
+status, refused = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'abandon me', 'retry_key': 'gone-1'}, WA)
+assert status == 409, (status, refused)
+
+# Configurable expiry purges bodies: unresolved rows become body-free
+# `expired` markers that still block a blind replay; terminal rows go.
+rpc('Application.put_env(:agentboard, :chat_spool_ttl_s, 1)')
+with state['lock']:
+    state['post_modes'].append('drop_500')
+status, short = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'short lived', 'retry_key': 'short-1'}, WA)
+assert status == 202 and spool(short['msg_id'], 'body') == 'short lived', (status, short)
+status, brief = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'brief sent', 'retry_key': 'brief-1'}, WA)
+assert status == 200, (status, brief)
+time.sleep(2)
+purged = rpc('input = Ash.ActionInput.for_action(Agentboard.Mattermost.Router, :purge_chat_spool, %{}, actor: %{role: :system}); IO.inspect(Ash.run_action(input))')
+assert 'expired' in purged, purged
+assert spool(short['msg_id'], "state||','||(body IS NULL)::text") == 'expired,true'
+assert sql(f"SELECT count(*) FROM conversation_spool WHERE msg_id='{brief['msg_id']}'") == '0'
+status, late = api('POST', f"/api/v1/conversations/sends/{short['msg_id']}/resolve", {'action': 'retry'}, WA)
+assert status == 409 and 'expired' in late['error']['message'], (status, late)
+before = post_count()
+status, replay = api('POST', SEND, {'channel_id': 'chan-1', 'body': 'short lived', 'retry_key': 'short-1'}, WA)
+assert status == 202 and replay['state'] == 'expired' and post_count() == before, (status, replay)
+rpc('Application.put_env(:agentboard, :chat_spool_ttl_s, 86400)')
+
+# Protected storage: no PUBLIC grant, no BM25/search index, and no spooled
+# body anywhere but the bounded unresolved rows.
+assert sql("SELECT has_table_privilege('public', 'conversation_spool', 'SELECT')") == 'f'
+assert sql("SELECT count(*) FROM pg_indexes WHERE tablename='conversation_spool' AND indexdef ILIKE '%bm25%'") == '0'
+assert sql("SELECT count(*) FROM conversation_spool WHERE body IS NOT NULL AND state <> 'uncertain'") == '0'
+
+# Own-send suppression needs props.agent_id plus msg_id: a post that merely
+# names worker-a without a server msg_id still reaches worker-a.
+with state['lock']:
+    forged_id = f"post-{len(state['order']) + 1}"
+    state['posts'][forged_id] = {'id': forged_id, 'channel_id': 'chan-1', 'user_id': 'human-1',
+                                 'message': 'forged attribution', 'root_id': None,
+                                 'props': {'agent_id': 'worker-a'}, 'create_at': 9000}
+    state['order'].append(forged_id)
+status, body = api('GET', '/api/v1/conversations/reads?channel_id=chan-1&limit=200', None, WA)
+seen = [p['id'] for p in body['posts']]
+assert forged_id in seen and sent['post']['id'] not in seen, seen
+assert peer['post']['id'] in seen, seen
+print('5.2 spool: exact retry keys, accepted-then-500/timeout reconciliation, parked uncertainty, explicit retry/abandon, duplicate flagging, expiry, protection and own-send suppression passed')
+
+# ---------------------------------------------------------------------------
+# 5.1 private recipient routes through the shared bot. Off by default: a
+# private notice captured while off stays parked and is never replayed.
+# ---------------------------------------------------------------------------
+def transport():
+    with urllib.request.urlopen(os.environ['AGENTBOARD_URL'] + '/api/v1/meta') as response:
+        return json.load(response)['message_transport']
+
+
+blockers = set(transport()['blockers'])
+assert 'private_recipient_routes_disabled' in blockers, blockers
+assert not blockers & {'peer_identities_unavailable_5_1', 'headless_send_read_unavailable_5_2'}, blockers
+assert 'inbox_catch_up_unavailable_5_3' in blockers, blockers
+status, body = api('POST', SEND, {'to': 'worker-b', 'body': 'routes off'}, WA)
+assert status == 422 and body['error']['code'] == 'invalid_context', (status, body)
+rpc('Application.put_env(:agentboard, :message_mode, "dual")')
+parked = ab('msg', 'send', '--to', 'worker-b', '--body', 'Parked before routes')['message']
+assert sql(f"SELECT routing_revision||','||last_error FROM mattermost_outbox WHERE source_key='message:{parked['id']}'") == '1,recipient_route_unavailable'
+
+rpc('Application.put_env(:agentboard, :mattermost_private_routes_enabled, true)')
+assert 'private_recipient_routes_disabled' not in transport()['blockers']
+# A lost create response is recovered by adopting the bot's own channel.
+with state['lock']:
+    state['create_modes'].append('lost')
+status, body = api('POST', SEND, {'to': 'worker-b', 'body': 'first private', 'task_id': 'task-9', 'retry_key': 'dm-1'}, WA)
+assert status == 503 and 'route' in body['error']['message'], (status, body)
+assert sql("SELECT count(*) FROM mattermost_agent_routes") == '0'
+code, out, err = ab_raw('chat', 'send', '--to', 'worker-b', '--body', 'first private', '--task', 'task-9', '--retry-key', 'dm-1')
+assert code == 0, (code, out, err)
+dm = json.loads(out)
+route = sql("SELECT channel_id FROM mattermost_agent_routes WHERE agent_id='worker-b'")
+with state['lock']:
+    assert len(state['channels']) == 1 and state['channels'][route]['type'] == 'P', state['channels']
+    dm_post = state['posts'][dm['post']['id']]
+assert dm_post['channel_id'] == route and dm_post['user_id'] == 'shared-bot', dm_post
+assert dm_post['message'] == '[worker-a · task-9]\n@worker-b first private', dm_post['message']
+assert dm_post['override_username'] == 'worker-a', dm_post
+assert dm_post['props']['agent_id'] == 'worker-a' and dm_post['props']['recipient_id'] == 'worker-b', dm_post
+assert dm_post['props']['msg_id'] == dm['msg_id'] and dm['spool']['recipient_id'] == 'worker-b', dm
+# Only the recipient reads the route; nobody addresses it by channel id.
+out = ab('chat', 'read', '--inbox', agent_id='worker-b')
+assert [p['id'] for p in out['posts']] == [dm['post']['id']], out
+assert out['posts'][0]['props']['agent_id'] == 'worker-a' and out['channel_id'] == route, out
+status, body = api('GET', f'/api/v1/conversations/reads?channel_id={route}', None, WA)
+assert status == 403, (status, body)
+status, body = api('POST', SEND, {'channel_id': route, 'body': 'sneak'}, WA)
+assert status == 403, (status, body)
+status, body = api('POST', SEND, {'to': 'ghost', 'body': 'nobody'}, WA)
+assert status == 422, (status, body)
+# A foreign channel holding a route name is never adopted.
+foreign = rpc('IO.puts(Agentboard.Mattermost.AgentRoutes.channel_name("worker-c"))').strip()
+with state['lock']:
+    state['channels']['foreign-1'] = {'id': 'foreign-1', 'name': foreign, 'type': 'P', 'team_id': 'fixture-team',
+                                      'creator_id': 'someone-else', 'display_name': 'x'}
+ab('agent', 'register', agent_id='worker-c')
+before = post_count()
+status, body = api('POST', SEND, {'to': 'worker-c', 'body': 'collide'}, WA)
+assert status == 503 and 'route_name_collision' in body['error']['message'], (status, body)
+assert post_count() == before
+
+# Dual-mode board DMs now deliver a body-free, attributed notice to the
+# recipient's route; the legacy board inbox contract is unchanged.
+private = ab('msg', 'send', '--to', 'worker-b', '--body', 'Secret board body')['message']
+wait_rows = f"SELECT state||','||routing_revision FROM mattermost_outbox WHERE source_key='message:{private['id']}'"
+for _ in range(60):
+    if sql(wait_rows) == 'sent,2':
+        break
+    time.sleep(1)
+assert sql(wait_rows) == 'sent,2', sql(wait_rows)
+notice_id = sql(f"SELECT remote_post_id FROM mattermost_outbox WHERE source_key='message:{private['id']}'")
+marker = sql(f"SELECT event_marker FROM mattermost_outbox WHERE source_key='message:{private['id']}'")
+with state['lock']:
+    notice = state['posts'][notice_id]
+assert notice['channel_id'] == route and notice['user_id'] == 'shared-bot', notice
+assert notice['message'].startswith('[worker-a · general]\n@worker-b private board message #%s from worker-a' % private['id']), notice['message']
+assert 'Secret board body' not in notice['message'], notice['message']
+assert notice['override_username'] == 'worker-a', notice
+assert notice['props']['agent_id'] == 'worker-a' and notice['props']['msg_id'] == marker, notice['props']
+assert notice['props']['agentboard_event_marker'] == marker and notice['props']['recipient_id'] == 'worker-b', notice['props']
+assert private['id'] in [m['id'] for m in ab('msg', 'list', '--unread', agent_id='worker-b')['messages']]
+assert sql(f"SELECT routing_revision||','||state||','||last_error FROM mattermost_outbox WHERE source_key='message:{parked['id']}'") == '1,pending,recipient_route_unavailable'
+# Overrides off: header plus props still carry identity.
+state['overrides'] = False
+rpc("Application.put_env(:agentboard, :mattermost_override_ttl_s, 0)")
+quiet = ab('msg', 'send', '--to', 'worker-b', '--body', 'Quiet override')['message']
+wait_rows = f"SELECT state FROM mattermost_outbox WHERE source_key='message:{quiet['id']}'"
+for _ in range(60):
+    if sql(wait_rows) == 'sent':
+        break
+    time.sleep(1)
+quiet_post = sql(f"SELECT remote_post_id FROM mattermost_outbox WHERE source_key='message:{quiet['id']}'")
+with state['lock']:
+    stored = state['posts'][quiet_post]
+assert stored.get('override_username') is None and stored['message'].startswith('[worker-a · general]\n@worker-b'), stored
+assert stored['props']['agent_id'] == 'worker-a', stored
+state['overrides'] = True
+rpc("Application.put_env(:agentboard, :mattermost_override_ttl_s, 3600)")
+# Accepted notice whose response is lost: reconciled by marker, one post.
+with state['lock']:
+    state['post_modes'].append('accept_500')
+before = post_count()
+lost = ab('msg', 'send', '--to', 'worker-b', '--body', 'Lost notice')['message']
+wait_rows = f"SELECT state FROM mattermost_outbox WHERE source_key='message:{lost['id']}'"
+for _ in range(60):
+    if sql(wait_rows) == 'sent':
+        break
+    time.sleep(1)
+assert sql(wait_rows) == 'sent' and post_count() == before + 1, (sql(wait_rows), post_count(), before)
+rpc('Application.put_env(:agentboard, :mattermost_private_routes_enabled, false); Application.put_env(:agentboard, :message_mode, "board")')
+print('5.1 private routes: default-off parking, lost-create adoption, foreign-name refusal, owner-only inbox, attributed body-free dual notices with override on/off and lost-response reconciliation passed')
 
 # Phase 2 elastic per-agent bots. The release boots with a fixture cloak
 # key and provisioner token (BUILD env); the stub mimics the bot admin

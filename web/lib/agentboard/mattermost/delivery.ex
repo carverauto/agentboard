@@ -5,7 +5,7 @@ defmodule Agentboard.Mattermost.Delivery do
   or duplicate worker cannot overwrite a newer outcome.
   """
   alias Agentboard.Board.Operations
-  alias Agentboard.Mattermost.{Bridge, Outbox, TaskThread, Transport}
+  alias Agentboard.Mattermost.{AgentRoutes, Bridge, Conversations, Outbox, TaskThread, Transport}
   alias Agentboard.Repo
 
   @max_attempts 8
@@ -13,16 +13,9 @@ defmodule Agentboard.Mattermost.Delivery do
 
   def send_intent(id) when is_binary(id) do
     if Bridge.enabled?() do
-      with {:ok, cfg} <- config(),
-           %Outbox{state: "claimed"} = intent <- fetch_intent(id),
-           true <- Bridge.thread_destination?(intent.destination, intent.task_id) do
-        thread = Operations.fetch!(TaskThread, intent.task_id, "Task thread not found")
-        deliver(cfg, intent, thread)
-      else
+      case fetch_intent(id) do
+        %Outbox{state: "claimed"} = intent -> route_intent(intent)
         %Outbox{} -> {:ok, %{skipped: true}}
-        false -> {:ok, %{skipped: true, reason: "recipient_route_unavailable"}}
-        {:error, code, message} -> {:error, "#{code}: #{message}"}
-        {:error, code} -> {:error, code}
       end
     else
       snooze()
@@ -30,6 +23,26 @@ defmodule Agentboard.Mattermost.Delivery do
   end
 
   def send_intent(_), do: {:error, "invalid_input"}
+
+  defp route_intent(intent) do
+    cond do
+      intent.routing_revision == Bridge.routing_revision() and
+          Bridge.thread_destination?(intent.destination, intent.task_id) ->
+        with {:ok, cfg} <- config() do
+          thread = Operations.fetch!(TaskThread, intent.task_id, "Task thread not found")
+          deliver(cfg, intent, thread)
+        end
+
+      Bridge.private_destination?(intent.destination, intent.routing_revision) ->
+        case bot_config() do
+          {:ok, cfg} -> deliver_private(cfg, intent)
+          {:error, code, message} -> {:error, "#{code}: #{message}"}
+        end
+
+      true ->
+        {:ok, %{skipped: true, reason: "recipient_route_unavailable"}}
+    end
+  end
 
   # Secret reference only: file-backed token preferred, environment fallback.
   # The value never enters logs, errors or job args.
@@ -166,6 +179,110 @@ defmodule Agentboard.Mattermost.Delivery do
     end
   end
 
+  # Private recipient notice through the recipient's route channel. The
+  # notice is body-free: it names the board message and sender, carries the
+  # same props/header attribution as agent posts plus the event marker used
+  # for reconciliation and inbound echo suppression, and never acknowledges.
+  defp deliver_private(cfg, intent) do
+    recipient = AgentRoutes.recipient(intent.destination)
+
+    case AgentRoutes.resolve(cfg, recipient) do
+      {:ok, channel_id} ->
+        post_private(cfg, intent, recipient, channel_id)
+
+      {:error, :definitive, reason} ->
+        park_failed(intent, "route_unavailable:" <> reason)
+
+      {:error, :retry, reason} ->
+        if intent.attempts >= @max_attempts,
+          do: park_failed(intent, "route_unavailable:" <> reason),
+          else: defer_intent(intent, @retry_delays.unreachable, "route_unavailable:" <> reason)
+    end
+  end
+
+  defp post_private(cfg, intent, recipient, channel_id) do
+    payload = intent.payload || %{}
+    sender = payload["actor"] || "unknown"
+    task_id = intent.task_id || "general"
+
+    props = %{
+      "agent_id" => sender,
+      "task_id" => task_id,
+      "kind" => "note",
+      "msg_id" => intent.event_marker,
+      "recipient_id" => recipient,
+      "agentboard_event_marker" => intent.event_marker
+    }
+
+    message = private_message(payload, sender, recipient, intent.task_id)
+
+    case Conversations.post_shared(cfg, sender, channel_id, message, props) do
+      {:ok, 201, %{"id" => post_id}} ->
+        commit_sent(intent, post_id, nil)
+
+      {:ok, status, body} when status in [401, 403] ->
+        AgentRoutes.forget(recipient, channel_id)
+        park_failed(intent, "unauthorized:#{status}:#{error_hint(body)}")
+
+      {:ok, 404, _} ->
+        AgentRoutes.forget(recipient, channel_id)
+        defer_intent(intent, @retry_delays.unreachable, "route_missing")
+
+      {:ok, 429, %{"_retry_after" => seconds}} ->
+        defer_rate_limited(intent, seconds)
+
+      {:ok, 400, body} ->
+        park_failed(intent, "rejected:400:#{error_hint(body)}")
+
+      {:ok, _status, _} ->
+        reconcile_private(cfg, intent, recipient, channel_id)
+
+      {:error, reason} when reason in [:forbidden_destination, :unreachable] ->
+        defer_intent(intent, @retry_delays.unreachable, "unreachable")
+
+      {:error, _} ->
+        reconcile_private(cfg, intent, recipient, channel_id)
+    end
+  end
+
+  defp private_message(payload, sender, recipient, task_id) do
+    header = "[#{sender} · #{task_id || "general"}]"
+    via = "#{payload["harness"] || "unknown"}/#{payload["model"] || "unknown"}"
+
+    text =
+      "#{header}\n@#{recipient} private board message ##{payload["message_id"]} from #{sender} (#{via}). " <>
+        "Read it in the board inbox (agentboard msg list --unread). " <>
+        "This notice carries no message body and does not acknowledge it."
+
+    case {Application.get_env(:agentboard, :public_board_url), task_id} do
+      {base, task} when is_binary(base) and base != "" and is_binary(task) ->
+        text <> "\nboard: #{String.trim_trailing(base, "/")}/tasks/#{task}"
+
+      _ ->
+        text
+    end
+  end
+
+  defp reconcile_private(cfg, intent, recipient, channel_id) do
+    case Transport.find_by_marker(cfg, channel_id, intent.event_marker) do
+      {:ok, %{"id" => post_id}} ->
+        commit_sent(intent, post_id, nil)
+
+      {:ok, nil} ->
+        retry_or_park(intent, nil)
+
+      {:error, :unauthorized} ->
+        park_failed(intent, "unauthorized")
+
+      {:error, :not_found} ->
+        AgentRoutes.forget(recipient, channel_id)
+        defer_intent(intent, @retry_delays.unreachable, "route_missing")
+
+      {:error, _} ->
+        retry_or_park(intent, nil)
+    end
+  end
+
   defp error_hint(%{"message" => message}) when is_binary(message),
     do: String.slice(message, 0, 80)
 
@@ -298,14 +415,18 @@ defmodule Agentboard.Mattermost.Delivery do
         Bridge.actor()
       )
 
-      thread_row = Operations.fetch!(TaskThread, thread.task_id, "Task thread not found")
+      # Private routes have no task thread; the intent alone carries the
+      # visible uncertainty.
+      if thread do
+        thread_row = Operations.fetch!(TaskThread, thread.task_id, "Task thread not found")
 
-      Operations.update(
-        thread_row,
-        :mark_uncertain,
-        %{expected_marker: intent.event_marker, uncertain_reason: reason, updated_at: stamp},
-        Bridge.actor()
-      )
+        Operations.update(
+          thread_row,
+          :mark_uncertain,
+          %{expected_marker: intent.event_marker, uncertain_reason: reason, updated_at: stamp},
+          Bridge.actor()
+        )
+      end
 
       %{uncertain: true, reason: reason}
     end)

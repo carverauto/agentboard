@@ -9,9 +9,13 @@ defmodule Agentboard.Mattermost.Bridge do
   """
 
   alias Agentboard.Board.Operations
-  alias Agentboard.Mattermost.{Outbox, Routing, TaskThread}
+  alias Agentboard.Mattermost.{AgentRoutes, Outbox, Routing, TaskThread}
 
   @routing_revision 1
+  # Private recipient intents captured while routes are enabled. Intents
+  # captured before (revision 1, `recipient_route_unavailable`) stay parked:
+  # enabling routes never replays an old private backlog.
+  @private_routing_revision 2
   @destination_prefix "mattermost:board_thread:"
   @source "board_task_event"
   @max_body_chars 2_000
@@ -72,13 +76,14 @@ defmodule Agentboard.Mattermost.Bridge do
   def capture(_task_id, _event_id, _action, _actor, _data, _stamp), do: {:ok, :ineligible}
 
   def capture_intent(attrs, stamp) do
-    dispatch? = enabled?() and thread_destination?(attrs.destination, attrs.task_id)
+    revision = Map.get(attrs, :routing_revision, @routing_revision)
+    dispatch? = enabled?() and dispatchable?(attrs.destination, attrs.task_id, revision)
 
     attrs =
       Map.merge(attrs, %{
         id: Ash.UUID.generate(),
         source_version: 1,
-        routing_revision: @routing_revision,
+        routing_revision: revision,
         state: if(dispatch?, do: "claimed", else: "pending"),
         generation: if(dispatch?, do: 1, else: 0),
         claim_run_id: if(dispatch?, do: Ash.UUID.generate(), else: nil),
@@ -89,19 +94,32 @@ defmodule Agentboard.Mattermost.Bridge do
 
     intent = Operations.create(Outbox, :capture, attrs, @actor)
 
-    if thread_destination?(intent.destination, intent.task_id),
+    if revision == @routing_revision and thread_destination?(intent.destination, intent.task_id),
       do: ensure_thread(intent.task_id, stamp)
 
     if dispatch?, do: Routing.enqueue(intent.id)
     {:ok, intent}
   end
 
-  # Until per-worker private routes exist, only an exact task-thread route
-  # may use the shared lifecycle bot. Never fall back to the board channel.
+  # Only an exact task-thread route, or a private recipient route captured
+  # while those routes were enabled, may use the shared bot. Never fall back
+  # to the board channel.
   def thread_destination?(destination, task_id) when is_binary(task_id),
     do: destination == @destination_prefix <> task_id
 
   def thread_destination?(_, _), do: false
+
+  def private_routing_revision, do: @private_routing_revision
+
+  def private_destination?(destination, revision) do
+    revision == @private_routing_revision and AgentRoutes.enabled?() and
+      is_binary(AgentRoutes.recipient(destination))
+  end
+
+  def dispatchable?(destination, task_id, revision) do
+    (revision == @routing_revision and thread_destination?(destination, task_id)) or
+      private_destination?(destination, revision)
+  end
 
   def note_snippet(note) when is_binary(note) and note != "" do
     if String.length(note) > @max_note_chars do

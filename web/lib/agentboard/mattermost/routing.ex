@@ -6,7 +6,7 @@ defmodule Agentboard.Mattermost.Routing do
   routers and restarts converge on the same pending set.
   """
   alias Agentboard.Board.Operations
-  alias Agentboard.Mattermost.{Bridge, SendWorker}
+  alias Agentboard.Mattermost.{AgentRoutes, Bridge, SendWorker}
   alias Agentboard.Repo
 
   @page_size 25
@@ -33,8 +33,10 @@ defmodule Agentboard.Mattermost.Routing do
             WHERE id IN (
               SELECT o.id FROM mattermost_outbox o
               WHERE o.next_eligible_at<=clock_timestamp()
-                AND o.routing_revision=$1
-                AND o.destination='mattermost:board_thread:'||o.task_id
+                AND (
+                  (o.routing_revision=$1 AND o.destination='mattermost:board_thread:'||o.task_id)
+                  OR ($3 AND o.routing_revision=$4 AND starts_with(o.destination, 'mattermost:agent_inbox:'))
+                )
                 AND (
                   o.state='pending'
                   OR (o.state='claimed' AND o.updated_at<=clock_timestamp()-interval '5 minutes')
@@ -49,7 +51,12 @@ defmodule Agentboard.Mattermost.Routing do
               FOR UPDATE SKIP LOCKED
             ) RETURNING id::text
             """,
-            [Bridge.routing_revision(), @page_size]
+            [
+              Bridge.routing_revision(),
+              @page_size,
+              AgentRoutes.enabled?(),
+              Bridge.private_routing_revision()
+            ]
           )
 
         Enum.each(rows, fn [id] ->

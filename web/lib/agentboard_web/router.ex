@@ -196,6 +196,9 @@ defmodule AgentboardWeb.Router do
     post("/conversations/send", ConversationController, :send)
     get("/conversations/reads", ConversationController, :reads)
     get("/conversations/diagnostics", ConversationController, :diagnostics)
+    get("/conversations/sends", ConversationController, :sends)
+    get("/conversations/sends/:msg_id", ConversationController, :send_status)
+    post("/conversations/sends/:msg_id/resolve", ConversationController, :resolve_send)
 
     post(
       "/conversations/coverage/:agent_id/:channel_id",

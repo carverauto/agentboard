@@ -104,13 +104,29 @@ func (c *commands) staleAfter(cmd *cobra.Command) string {
 }
 
 func (c *commands) request(cmd *cobra.Command, method, path string, query url.Values, payload any) error {
+	raw, err := c.call(cmd, method, path, query, payload)
+	if err != nil {
+		return err
+	}
+	if isDecisionConversationPath(path) {
+		// Preserve the complete receipt in either output mode, including retained
+		// uncertainty and independent source/handling evidence. Do not infer delivery.
+		_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
+		return err
+	}
+	return c.output(cmd.OutOrStdout(), raw)
+}
+
+// call performs the schema-negotiated API request and returns the raw JSON
+// response without printing it, so commands can inspect receipts.
+func (c *commands) call(cmd *cobra.Command, method, path string, query url.Values, payload any) (json.RawMessage, error) {
 	// Fleet authority and audit attribution come from verified captain transport,
 	// not the caller's self-reported actor environment.
 	fleetLoadout := strings.HasPrefix(path, "fleets/") && strings.HasSuffix(path, "/loadout")
 	decisionConversation := isDecisionConversationPath(path)
 	if (method != http.MethodGet || decisionConversation) && !fleetLoadout {
 		if err := c.cfg.Actor.Validate(); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	var api *client.Client
@@ -127,19 +143,19 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if captain {
 		secret, readErr := worker.ReadProtected(os.Getenv("AGENTBOARD_CAPTAIN_TOKEN_FILE"), 4096)
 		if readErr != nil {
-			return errors.New("AGENTBOARD_CAPTAIN_TOKEN_FILE must be a protected captain capability file")
+			return nil, errors.New("AGENTBOARD_CAPTAIN_TOKEN_FILE must be a protected captain capability file")
 		}
 		api, err = client.NewCaptain(c.cfg, strings.TrimSpace(string(secret)))
 	} else {
 		api, err = client.New(c.cfg)
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer api.Close()
 	raw, err := api.JSON(cmd.Context(), http.MethodGet, "meta", nil, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var meta struct {
 		API                           int             `json:"api_version"`
@@ -231,13 +247,20 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 	if decisionConversation {
 		required = 39
 	}
+	// Spool receipts/resolution and private recipient routes arrived together.
+	if strings.HasPrefix(path, "conversations/sends") || query.Get("inbox") != "" {
+		required = 43
+	}
+	if fields, ok := payload.(map[string]any); ok && path == "conversations/send" && fields["to"] != nil {
+		required = 43
+	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
-		return &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
+		return nil, &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
 	}
 	if decisionConversation {
 		var supported bool
 		if json.Unmarshal(meta.DecisionConversationSupported, &supported) != nil || !supported {
-			return &client.Error{Code: "schema_unavailable", Message: "Server does not advertise decision conversation support; an operator must enable a compatible release"}
+			return nil, &client.Error{Code: "schema_unavailable", Message: "Server does not advertise decision conversation support; an operator must enable a compatible release"}
 		}
 	}
 	if meta.DecisionIntake > DecisionIntakeVersion {
@@ -248,17 +271,7 @@ func (c *commands) request(cmd *cobra.Command, method, path string, query url.Va
 			fmt.Fprintln(cmd.ErrOrStderr(), warning)
 		}
 	}
-	raw, err = api.JSON(cmd.Context(), method, path, query, payload)
-	if err != nil {
-		return err
-	}
-	if decisionConversation {
-		// Preserve the complete receipt in either output mode, including retained
-		// uncertainty and independent source/handling evidence. Do not infer delivery.
-		_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
-		return err
-	}
-	return c.output(cmd.OutOrStdout(), raw)
+	return api.JSON(cmd.Context(), method, path, query, payload)
 }
 func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 	if c.json {
@@ -270,7 +283,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "scope", "loadout", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "decision", "decisions", "wake", "wakes"} {
+	for _, key := range []string{"agent", "agents", "scope", "loadout", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "send", "sends", "decision", "decisions", "wake", "wakes"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue
@@ -330,8 +343,11 @@ func PrintError(root *cobra.Command, w io.Writer, err error) {
 	if asJSON {
 		code := "invalid_input"
 		var e *client.Error
+		var named interface{ ErrorCode() string }
 		if errors.As(err, &e) {
 			code = e.Code
+		} else if errors.As(err, &named) {
+			code = named.ErrorCode()
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": code, "message": err.Error()}})
 	} else {

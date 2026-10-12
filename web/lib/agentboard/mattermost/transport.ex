@@ -54,11 +54,17 @@ defmodule Agentboard.Mattermost.Transport do
     search_retry_key(cfg, channel_id, retry_key, agent_id, 0)
   end
 
-  defp search_retry_key(_cfg, _channel_id, _retry_key, _agent_id, page) when page >= @history_max_pages,
-    do: {:ok, nil}
+  defp search_retry_key(_cfg, _channel_id, _retry_key, _agent_id, page)
+       when page >= @history_max_pages,
+       do: {:ok, nil}
 
   defp search_retry_key(cfg, channel_id, retry_key, agent_id, page) do
-    case request(cfg, :get, "/api/v4/channels/#{channel_id}/posts?page=#{page}&per_page=#{@history_per_page}", nil) do
+    case request(
+           cfg,
+           :get,
+           "/api/v4/channels/#{channel_id}/posts?page=#{page}&per_page=#{@history_per_page}",
+           nil
+         ) do
       {:ok, 200, posts} ->
         case find_in_retry(posts, retry_key, agent_id) do
           nil ->
@@ -93,8 +99,82 @@ defmodule Agentboard.Mattermost.Transport do
     end)
   end
 
+  # Spool reconciliation: every post carrying this exact msg_id from this
+  # agent, so an accepted-post/lost-response is adopted and a duplicate is
+  # reported instead of hidden. `complete` is false when the bounded scan
+  # stopped before the end of channel history; a miss is then not proof.
+  def find_by_msg_id(cfg, channel_id, msg_id, agent_id) do
+    scan_msg_id(cfg, channel_id, msg_id, agent_id, 0, [])
+  end
+
+  defp scan_msg_id(_cfg, _channel_id, _msg_id, _agent_id, page, matches)
+       when page >= @history_max_pages,
+       do: {:ok, matches, false}
+
+  defp scan_msg_id(cfg, channel_id, msg_id, agent_id, page, matches) do
+    case request(
+           cfg,
+           :get,
+           "/api/v4/channels/#{channel_id}/posts?page=#{page}&per_page=#{@history_per_page}",
+           nil
+         ) do
+      {:ok, 200, posts} ->
+        found =
+          (posts["posts"] || %{})
+          |> Map.values()
+          |> Enum.filter(fn post ->
+            get_in(post, ["props", "msg_id"]) == msg_id and
+              get_in(post, ["props", "agent_id"]) == agent_id
+          end)
+
+        matches = Enum.uniq_by(matches ++ found, & &1["id"])
+
+        if has_more?(posts),
+          do: scan_msg_id(cfg, channel_id, msg_id, agent_id, page + 1, matches),
+          else: {:ok, matches, true}
+
+      {:ok, status, _} when status in [401, 403] ->
+        {:error, :unauthorized}
+
+      {:ok, 404, _} ->
+        {:error, :not_found}
+
+      {:ok, _status, _} ->
+        {:error, :unconfirmed}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # Private recipient routes: the shared bot creates and later adopts one
+  # private channel per recipient agent. Responses are interpreted by the
+  # caller; nothing here logs a body or a credential.
+  def me(cfg), do: request(cfg, :get, "/api/v4/users/me", nil)
+
+  def create_private_channel(cfg, team_id, name, display_name, purpose) do
+    body =
+      Jason.encode!(%{
+        team_id: team_id,
+        name: name,
+        display_name: display_name,
+        purpose: purpose,
+        type: "P"
+      })
+
+    request(cfg, :post, "/api/v4/channels", body)
+  end
+
+  def channel_by_name(cfg, team_id, name),
+    do: request(cfg, :get, "/api/v4/teams/#{team_id}/channels/name/#{name}", nil)
+
   def channel_page(cfg, channel_id, page, per_page) do
-    request(cfg, :get, "/api/v4/channels/#{channel_id}/posts?page=#{page}&per_page=#{per_page}", nil)
+    request(
+      cfg,
+      :get,
+      "/api/v4/channels/#{channel_id}/posts?page=#{page}&per_page=#{per_page}",
+      nil
+    )
   end
 
   # Reconciliation: find a post we may have created before losing the
@@ -124,11 +204,18 @@ defmodule Agentboard.Mattermost.Transport do
   end
 
   defp search_channel(cfg, channel_id, marker, page) when page < @history_max_pages do
-    case request(cfg, :get, "/api/v4/channels/#{channel_id}/posts?page=#{page}&per_page=#{@history_per_page}", nil) do
+    case request(
+           cfg,
+           :get,
+           "/api/v4/channels/#{channel_id}/posts?page=#{page}&per_page=#{@history_per_page}",
+           nil
+         ) do
       {:ok, 200, posts} ->
         case find_in_posts(posts, marker) do
           nil ->
-            if has_more?(posts), do: search_channel(cfg, channel_id, marker, page + 1), else: {:ok, nil}
+            if has_more?(posts),
+              do: search_channel(cfg, channel_id, marker, page + 1),
+              else: {:ok, nil}
 
           match ->
             {:ok, match}
@@ -284,7 +371,12 @@ defmodule Agentboard.Mattermost.Transport do
          ],
          req = request_tuple(method, url, headers, body),
          {:ok, {{_, status, _}, resp_headers, resp_body}} <-
-           :httpc.request(method, req, [{:autoredirect, false}, {:timeout, request_timeout()} | http_opts], []) do
+           :httpc.request(
+             method,
+             req,
+             [{:autoredirect, false}, {:timeout, request_timeout()} | http_opts],
+             []
+           ) do
       {:ok, status, decode(resp_body, status, resp_headers)}
     else
       {:error, {:failed_connect, _}} -> {:error, :unreachable}
@@ -359,8 +451,7 @@ defmodule Agentboard.Mattermost.Transport do
     base = [
       {:verify, :verify_peer},
       {:depth, 4},
-      {:customize_hostname_check,
-       [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]}
+      {:customize_hostname_check, [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]}
     ]
 
     case ca_source() do
@@ -379,9 +470,14 @@ defmodule Agentboard.Mattermost.Transport do
         bundle = "/etc/ssl/certs/ca-certificates.crt"
 
         cond do
-          File.exists?(bundle) -> {:file, bundle}
-          function_exported?(:public_key, :cacerts_get, 0) -> {:cacerts, :public_key.cacerts_get()}
-          true -> :none
+          File.exists?(bundle) ->
+            {:file, bundle}
+
+          function_exported?(:public_key, :cacerts_get, 0) ->
+            {:cacerts, :public_key.cacerts_get()}
+
+          true ->
+            :none
         end
     end
   end

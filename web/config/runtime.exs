@@ -150,6 +150,25 @@ config :agentboard,
        :mattermost_agent_bot_channel_ids,
        System.get_env("AGENTBOARD_MATTERMOST_AGENT_BOT_CHANNEL_IDS", "")
 
+# Phase 1 private recipient routes: the shared bot owns one private channel
+# per recipient agent in AGENTBOARD_MATTERMOST_TEAM_ID. Off by default; private
+# notices captured while off stay parked and are never replayed later.
+config :agentboard,
+       :mattermost_private_routes_enabled,
+       System.get_env("AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED", "false") in ["true", "1"]
+
+# Outbound chat spool body retention in seconds (default one day, max 30 days).
+chat_spool_ttl =
+  case Integer.parse(System.get_env("AGENTBOARD_CHAT_SPOOL_TTL_S", "86400")) do
+    {seconds, ""} when seconds >= 1 and seconds <= 2_592_000 ->
+      seconds
+
+    _ ->
+      raise "AGENTBOARD_CHAT_SPOOL_TTL_S must be an integer between 1 and 2592000"
+  end
+
+config :agentboard, :chat_spool_ttl_s, chat_spool_ttl
+
 decode_cloak_key = fn contents, source ->
   case Base.decode64(contents) do
     {:ok, key} when byte_size(key) == 32 ->

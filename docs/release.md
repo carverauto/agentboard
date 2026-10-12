@@ -496,3 +496,18 @@ and authenticated host boundary ship.
 
 Roll back by retaining the schema-31 tables and deploying a compatible prior
 digest. The down migration raises instead of deleting recovery evidence.
+
+## Schema 43: chat spool and private recipient routes
+
+Migration `20261008004300` adds `conversation_spool` and
+`mattermost_agent_routes`. It is additive: existing outbox intents, coverage
+receipts and messages are untouched, and nothing is created for past sends.
+Both tables have no PUBLIC grant. Its `down` refuses to drop them; roll back by
+deploying a compatible image, since older code ignores both tables.
+
+Private routes stay off until `AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED`
+is set with `AGENTBOARD_MATTERMOST_TEAM_ID`. Private notices captured while
+off keep `recipient_route_unavailable` and are never replayed later. Generic
+`chat send` now answers an unresolved outcome with HTTP 202 and a `state`
+field instead of a 503; verified sends and legacy `msg` contracts are
+unchanged. See the [agent-chat runbook](setup/mattermost-agent-chat-runbook.md#outbound-spool-and-uncertain-sends).
