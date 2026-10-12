@@ -31,7 +31,7 @@ has no send tool; receipt and handling were done by each recipient's own model.
 | Exact handling receipt | Yes |
 | Reconnect recovery (connector down) | Yes |
 | Body read before handling | Not observed: both models handled the notice from the check-in summary without calling `agentboard_mattermost_read` |
-| Catch-up of a post made while inbound was unsubscribed, in an already-joined channel | **No** on this image: the 18:37:25 board-channel mention to worker 2 was never captured. The same-minute private-route post in a newly discovered channel was. Board coverage stayed incomplete with `invalid_history_page` |
+| Catch-up of a post made while inbound was unsubscribed, in an already-joined channel | **No** on this image: the 18:37:25 board-channel mention to worker 2 was never captured. The same-minute private-route post in a newly discovered channel was. The `invalid_history_page` cause was reproduced in the packaged fixture, not observed on farm01 |
 
 Other harnesses are tracked in 6.3–6.5.
 
