@@ -105,6 +105,12 @@ Protected config shape, with invented identities and references only:
 After first bind, the config stores the returned positive epoch. Enrollment and
 provisioning scope do not authorize unrelated work, reclaim, merge or deployment.
 
+The Pi adapter releases its own socket and identity file when the session
+shuts down normally and also on SIGINT (Ctrl-C) or SIGHUP (closed pane), then
+lets the signal terminate Pi as before. After a SIGKILL or crash the socket
+remains, and the next session refuses to start until an operator confirms
+nothing answers on it and removes the socket and its `.identity.json`.
+
 ## Check-in, receipts and CI responsibility
 
 A delivery attempt stays open until every member delivery is `handled`;
