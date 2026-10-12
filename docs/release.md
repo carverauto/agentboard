@@ -22,7 +22,7 @@ The dashboard image uses a pinned Ubuntu Noble base, UID/GID 10001, release stat
   | Push to `main` | `sha-<commit>` and `latest` |
   | Push of tag `vX.Y.Z` | `sha-<commit>` and `vX.Y.Z` |
 
-  `sha-<commit>` tags are immutable; deploy by digest. Pushes to `main` that touch only non-image paths (`k8s/`, `docs/` except the CLI-embedded pages, `openspec/`, `contrib/`, other repo metadata, or Markdown outside the CLI bundle) skip the build; the Markdown the CLI embeds (`skills/**`, `docs/coordinator/adapters/grok-bot.md`, `docs/api.md`, `docs/quota.md`, `docs/participation.md`, `docs/context.md`) still builds, and `v*` tag pushes always build. On every pull request targeting `main`, the workflow runs a secret-free plan job: it prints the tags it would push and checks the reference overlay. The PR trigger has no path filter so changes to transitive test inputs cannot silently skip acceptance. Trusted same-repository PRs, excluding Dependabot, also run `//:acceptance` on BuildBuddy at the exact PR head using the existing `agentboard-release` environment. That job exposes the BuildBuddy key and pull-only Harbor build credentials to trusted PR code, persists no checkout credential, and contains no image-publishing or release-creation steps or publisher-secret references. Acceptance can build images and release artifacts as test dependencies. Fork and Dependabot PRs remain plan-only. Existing environment approval and branch/ref protections are unchanged; if they reject a PR ref, acceptance stays blocked rather than bypassing the protection. Same-repository is a trust requirement, not a sandbox: PR workflow edits can request other secrets available to the selected environment, so its existing protections and trusted branch writers remain the security boundary. Main/tag publication continues to use the environment and secrets below.
+  `sha-<commit>` tags are immutable; deploy by digest. Pushes to `main` that touch only non-image paths (`k8s/`, `docs/` except the CLI-embedded pages, `openspec/`, `contrib/`, other repo metadata, or Markdown outside the CLI bundle) skip the build; the Markdown the CLI embeds (`skills/**`, `docs/coordinator/adapters/grok-bot.md`, `docs/api.md`, `docs/quota.md`, `docs/participation.md`, `docs/context.md`) still builds, and `v*` tag pushes always build. On every pull request targeting `main`, the workflow runs a secret-free plan job: it prints the tags it would push and checks the reference overlay. The PR trigger has no path filter so changes to transitive test inputs cannot silently skip acceptance. Trusted same-repository PRs, excluding Dependabot, also run `//:acceptance` on BuildBuddy at the exact PR head using the dedicated `agentboard-pr-tests` environment configured below. That job exposes the BuildBuddy key and pull-only Harbor build credentials to trusted PR code, persists no checkout credential, and contains no image-publishing or release-creation steps or publisher-secret references. Acceptance can build images and release artifacts as test dependencies. Fork and Dependabot PRs remain plan-only. PR-test approval and ref restrictions must pass before the job runs; rejection stays blocked rather than bypassing protection. Same-repository is a trust requirement, not a sandbox: trusted PR code can access supplied build credentials. Main/tag publication continues to use `agentboard-release` and its secrets below; that environment is unchanged.
 - **Publish workflow** (`.github/workflows/release.yml`, manual): accepts an existing release tag whose commit is on `main`, reruns the remote acceptance targets and packaging, pushes the verified OCI digest to the maintainers' registry, and creates a **draft** GitHub release with the binaries, checksums, release archive, image reference, and a matching Kustomization. It runs in the protected `agentboard-release` environment with these secrets (values are provisioned out of band and never recorded in Git):
 
   | Secret | Purpose |
@@ -30,6 +30,51 @@ The dashboard image uses a pinned Ubuntu Noble base, UID/GID 10001, release stat
   | `BUILDBUDDY_API_KEY` | Remote execution |
   | `HARBOR_BUILD_USERNAME`, `HARBOR_BUILD_PASSWORD` | Pull-only access to the mirrored base image |
   | `HARBOR_USERNAME`, `HARBOR_PASSWORD` | Publishing the agentboard images |
+
+## Protected PR-test environment setup
+
+A repository administrator must complete and verify this setup **before the
+workflow environment switch is pushed or any run references it**. GitHub can
+automatically create a missing environment without protections or secrets.
+Do not rely on auto-creation. No additional readiness variable is required.
+See [GitHub's environment setup documentation](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
+
+1. In repository **Settings → Environments**, create `agentboard-pr-tests`.
+   Do not change `agentboard-release` or its release-only restrictions.
+2. Enable **Required reviewers** and select the maintainer who will approve
+   these jobs. For a single-maintainer setup, leave **Prevent self-review**
+   unchecked so that maintainer can approve runs they initiate. If enabling
+   self-review prevention, first add an independent reviewer who can approve
+   those runs. The restriction concerns the run initiator, not merely its PR
+   author; one listed reviewer's approval is sufficient.
+3. Disable **Allow administrators to bypass configured protection rules**.
+4. Select **Selected branches and tags**. Add a **Branch** rule with the exact
+   pattern `refs/pull/*/merge`; no tag rule or unrestricted-branch setting is
+   needed. GitHub checks the workflow's `GITHUB_REF`, not the checked-out SHA.
+   Thus a PR run uses a merge ref such as `refs/pull/212/merge` even though the
+   job explicitly tests the PR head. A release environment allowing only main
+   or release tags rejects that ref before any tests run.
+5. Under **Environment secrets**, configure only these existing build-purpose
+   credentials through GitHub's secure settings UI:
+   - `BUILDBUDDY_API_KEY`: authorized remote execution/cache/build-event access.
+   - `HARBOR_BUILD_USERNAME` and `HARBOR_BUILD_PASSWORD`: the existing pull-only
+     account for mirrored build inputs.
+   Do not add `HARBOR_USERNAME`, `HARBOR_PASSWORD`, deployment credentials or
+   other publisher credentials. Verify that publisher secrets are confined to
+   the release environment, rather than inherited repository/organization
+   scopes accessible to PR jobs. A separate environment cannot remove inherited
+   access. If isolation is not already configured, stop for an administrator's
+   explicit access-setting change; do not silently copy or broaden secrets.
+6. Verify the environment exists, saved reviewer/ref/bypass controls match the
+   checklist, and only the intended secret names and scopes are configured
+   without displaying their values. Only then publish the workflow change and
+   approve its exact-head test run. A later rejection or missing configuration
+   is a blocker, not permission to weaken these controls.
+
+[GitHub's protection-rule reference](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
+explains merge-ref matching and reviewer controls;
+[deployment review guidance](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/review-deployments)
+explains the self-approval restriction.
 
 ## Rules
 
