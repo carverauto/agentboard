@@ -14,4 +14,4 @@
 
 - [x] 3.1 Setup guide, launchd/systemd templates, Herdr skill and worker-runtime doc updates.
 - [x] 3.2 Remote Bazel tests and a dry run of both commands against the live board.
-- [ ] 3.3 Idle-wake pilot: one coordinator and two Herdr seats complete a bounded task woken only by `seat nudge --apply`.
+- [x] 3.3 Idle-wake pilot: one coordinator and two Herdr seats (Codex and Claude) completed the read-only `pilot-idle-wake-20261012` task woken only by `seat nudge --apply` (2026-10-12 09:06–09:11 UTC), with busy, kill-switch, deny, stale-name, harness-mismatch, uncertain-send no-replay and reap checks; it found and fixed the `held_by_decision` decoding bug.
