@@ -5,55 +5,103 @@ defmodule Agentboard.Mattermost.Conversations do
   `agentboard` bot; agents never hold Mattermost credentials and the
   CLI calls the Agentboard API. Attribution derives from the
   Agentboard-authenticated agent id plus structured post props, never from
-  the display name.
+  the display name. Sends are spooled before posting (`ChatSends`), and a
+  `to` send or `inbox` read uses the recipient's private route
+  (`AgentRoutes`) instead of a channel id.
   """
   alias Agentboard.Board.Operations
-  alias Agentboard.Mattermost.{ConversationCoverage, Delivery, ElasticBots, Transport}
+  alias Agentboard.Mattermost.{AgentRoutes, ChatSends, ConversationCoverage, Delivery, ElasticBots, Transport}
   require Ash.Query
 
   @actor %{"agent" => "mattermost-conversations", "model" => "system", "harness" => "ash"}
 
-  @post_props ~w(agent_id task_id kind msg_id agentboard_retry_key)
+  @post_props ~w(agent_id task_id kind msg_id agentboard_retry_key recipient_id)
   @kinds ~w(status decision handoff ask-user note)
   @read_per_page 60
   @read_max_pages 5
 
   # Server-side send on behalf of an Agentboard-authenticated agent. The
   # caller is verified against the registered agent roster first; the
-  # shared bot token never leaves the server.
+  # shared bot token never leaves the server. The send is spooled before any
+  # network call (see ChatSends) so a lost response is reconciled, not reposted.
   def send_as(caller, params, verified_cfg \\ nil) when is_map(params) do
     with {:ok, agent_id} <- registered_agent(caller),
-         {:ok, channel_id, body, task_id, kind, root_id, retry_key, icon_url} <- send_params(params),
-         {:ok, channel_id} <- check_channel_scope(channel_id),
-         {:ok, cfg} <- shared_config(verified_cfg) do
-      msg_id = Ash.UUID.generate()
-      header = "[#{agent_id} · #{task_id}]"
-      message = header <> "\n" <> body
+         {:ok, request} <- send_params(params),
+         {:ok, request} <- send_scope(agent_id, request),
+         {:ok, cfg} <- shared_config(verified_cfg),
+         {:ok, request} <- send_target(cfg, request) do
+      spec =
+        request
+        |> Map.take([:channel_id, :body, :task_id, :kind, :root_id, :retry_key, :icon_url, :recipient_id])
+        |> Map.merge(%{agent_id: agent_id, msg_id: Ash.UUID.generate()})
 
-      props = %{
-        "agent_id" => agent_id,
-        "task_id" => task_id,
-        "kind" => kind,
-        "msg_id" => msg_id,
-        "agentboard_retry_key" => retry_key
-      }
+      case ChatSends.post(cfg, spec) do
+        {:ok, %{"state" => "sent", "duplicate" => false, "post" => %{"id" => post_id}} = sent} ->
+          # Best-effort send receipt: the post is the primary result and
+          # later reads record coverage anyway, so a receipt-write failure
+          # must not misreport the send itself.
+          _ = record_coverage(agent_id, spec.channel_id, post_id, 0, false, "send_only")
+          {:ok, sent}
 
-      case adopt_retry(cfg, channel_id, retry_key, agent_id) do
-        {:ok, nil} ->
-          with {:ok, sent} <- post_as(cfg, agent_id, channel_id, message, props, root_id, icon_url, msg_id) do
-            # Best-effort send receipt: the post is the primary result and
-            # later reads record coverage anyway, so a receipt-write failure
-            # must not misreport the send itself.
-            _ = record_coverage(agent_id, channel_id, sent["post"]["id"], 0, false, "send_only")
-            {:ok, sent}
-          end
-
-        {:ok, post} ->
-          {:ok, %{"duplicate" => true, "post" => post, "msg_id" => get_in(post, ["props", "msg_id"])}}
-
-        {:error, _code, _message} = error ->
-          error
+        result ->
+          result
       end
+    end
+  end
+
+  def send_status(caller, msg_id) do
+    with {:ok, agent_id} <- registered_agent(caller), do: ChatSends.status(agent_id, msg_id)
+  end
+
+  def sends(caller, state) do
+    with {:ok, agent_id} <- registered_agent(caller), do: ChatSends.list(agent_id, state)
+  end
+
+  def send_channel(caller, msg_id) do
+    with {:ok, agent_id} <- registered_agent(caller), do: ChatSends.channel_of(agent_id, msg_id)
+  end
+
+  def resolve_send(caller, msg_id, action, verified_cfg \\ nil) do
+    with {:ok, agent_id} <- registered_agent(caller),
+         {:ok, cfg} <- shared_config(verified_cfg) do
+      ChatSends.resolve(cfg, agent_id, msg_id, action)
+    end
+  end
+
+  # A channel send stays within the allowlist and never targets a private
+  # recipient route; a `to` send is addressed only through that route.
+  defp send_scope(_agent_id, %{to: nil, channel_id: channel_id} = request) do
+    case AgentRoutes.owner(channel_id) do
+      nil ->
+        with {:ok, _} <- check_channel_scope(channel_id), do: {:ok, request}
+
+      _owner ->
+        {:error, "forbidden", "Private recipient routes are addressed with --to, not a channel id"}
+    end
+  end
+
+  defp send_scope(agent_id, %{to: to} = request) do
+    cond do
+      not AgentRoutes.enabled?() ->
+        {:error, "invalid_context", "Private recipient routes are not enabled on this server"}
+
+      to == agent_id ->
+        {:error, "invalid_input", "to must name another agent"}
+
+      not Operations.agent_exists?(to) ->
+        {:error, "invalid_context", "Recipient is not a registered agent"}
+
+      true ->
+        {:ok, request}
+    end
+  end
+
+  defp send_target(_cfg, %{to: nil} = request), do: {:ok, Map.put(request, :recipient_id, nil)}
+
+  defp send_target(cfg, %{to: to} = request) do
+    case AgentRoutes.resolve(cfg, to) do
+      {:ok, channel_id} -> {:ok, %{request | channel_id: channel_id} |> Map.put(:recipient_id, to)}
+      {:error, _kind, reason} -> {:error, "unavailable", "Private recipient route unavailable: #{reason}"}
     end
   end
 
@@ -71,74 +119,66 @@ defmodule Agentboard.Mattermost.Conversations do
   # bot otherwise. Props and header are identical either way; override
   # fields follow the cached server observation. A revoked bot token
   # re-provisions in the background and the same send falls back once.
-  def post_as(cfg, agent_id, channel_id, message, props, root_id \\ nil, icon_url \\ nil, msg_id \\ nil) do
+  # Outcomes are classified for the spool: `{:sent, post}`, a definitive
+  # `{:rejected, code, message, reason}` (nothing was stored), or
+  # `{:ambiguous, reason}` when the post may exist remotely.
+  def submit(cfg, agent_id, channel_id, message, props, root_id \\ nil, icon_url \\ nil) do
     {send_cfg, via_bot} = send_config(cfg, agent_id)
-
-    do_post_as(
-      send_cfg,
-      via_bot,
-      cfg,
-      agent_id,
-      channel_id,
-      message,
-      props,
-      root_id,
-      icon_url,
-      msg_id
-    )
+    do_submit(send_cfg, via_bot, cfg, agent_id, channel_id, message, props, root_id, icon_url)
   end
 
-  defp do_post_as(
-         send_cfg,
-         via_bot,
-         shared_cfg,
-         agent_id,
-         channel_id,
-         message,
-         props,
-         root_id,
-         icon_url,
-         msg_id
-       ) do
+  defp do_submit(send_cfg, via_bot, shared_cfg, agent_id, channel_id, message, props, root_id, icon_url) do
     {username_opt, icon_opt} = override_opts(agent_id, icon_url)
     opts = [root_id: root_id, override_username: username_opt, override_icon_url: icon_opt]
 
     case Transport.post_agent(send_cfg, channel_id, message, props, opts) do
       {:ok, 201, %{"id" => _} = post} ->
         observe_overrides(post, username_opt, icon_opt)
-        {:ok, %{"duplicate" => false, "post" => post, "msg_id" => msg_id}}
+        {:sent, post}
 
       {:ok, 404, _} ->
-        {:error, "not_found", "channel not found"}
+        {:rejected, "not_found", "channel not found", "not_found:channel"}
 
       {:ok, 400, _} ->
-        {:error, "invalid_input", "Mattermost rejected the post"}
+        {:rejected, "invalid_input", "Mattermost rejected the post", "rejected:400"}
 
       {:ok, status, _} when status in [401, 403] and via_bot ->
         ElasticBots.note_revoked(agent_id)
+        do_submit(shared_cfg, false, shared_cfg, agent_id, channel_id, message, props, root_id, icon_url)
 
-        do_post_as(
-          shared_cfg,
-          false,
-          shared_cfg,
-          agent_id,
-          channel_id,
-          message,
-          props,
-          root_id,
-          icon_url,
-          msg_id
-        )
+      {:ok, status, _} when status in [401, 403] ->
+        {:rejected, "unavailable", "bridge unauthorized; rotate the bridge token", "unauthorized:#{status}"}
 
+      {:ok, 429, _} ->
+        {:rejected, "unavailable", "Mattermost rate limited the post; retry later", "rate_limited"}
+
+      # Redirects are never followed, so the API never saw the post.
+      {:ok, status, _} when status in 300..399 ->
+        {:rejected, "unavailable", "Mattermost did not acknowledge the post", "redirect:#{status}"}
+
+      # Any other status may follow a stored post: reconcile, never repost.
       {:ok, _status, _} ->
-        {:error, "unavailable", "Mattermost did not acknowledge the post"}
+        {:ambiguous, "submission_outcome_unknown"}
 
-      {:error, :unauthorized} ->
-        {:error, "unavailable", "bridge unauthorized; rotate the bridge token"}
+      # No request byte reached Mattermost.
+      {:error, reason} when reason in [:forbidden_destination, :unreachable] ->
+        {:rejected, "unavailable", "Mattermost post failed", Atom.to_string(reason)}
 
       {:error, _} ->
-        {:error, "unavailable", "Mattermost post failed"}
+        {:ambiguous, "submission_outcome_unknown"}
     end
+  end
+
+  # Private recipient notices always use the shared bot, which owns every
+  # route channel in phase 1. Props/header attribution and the observed
+  # override gating are identical to agent sends. Returns the raw transport
+  # result so the delivery worker keeps its own fencing and reconciliation.
+  def post_shared(cfg, agent_id, channel_id, message, props) do
+    {username_opt, _icon} = override_opts(agent_id, nil)
+    result = Transport.post_agent(cfg, channel_id, message, props, override_username: username_opt)
+
+    with {:ok, 201, %{"id" => _} = post} <- result, do: observe_overrides(post, username_opt, nil)
+    result
   end
 
   defp send_config(cfg, agent_id) do
@@ -148,16 +188,17 @@ defmodule Agentboard.Mattermost.Conversations do
     end
   end
 
-  # Server-side read with own-echo suppression by props.agent_id (every
-  # post shares the bot user, so MM user id suppression is meaningless).
-  # Coverage is recorded as part of the read; incomplete catch-up stays
-  # explicit with a reason.
-  def reads(caller, channel_id, since, limit, verified_cfg \\ nil) do
+  # Server-side read with own-echo suppression by props.agent_id plus
+  # msg_id (every post shares the bot user, so MM user id suppression is
+  # meaningless). Coverage is recorded as part of the read; incomplete
+  # catch-up stays explicit with a reason. `inbox: true` reads the caller's
+  # own private recipient route; another agent's route is never readable.
+  def reads(caller, channel_id, since, limit, verified_cfg \\ nil, opts \\ []) do
     with {:ok, agent_id} <- registered_agent(caller),
-         {:ok, channel_id} <- channel_param(channel_id),
-         {:ok, channel_id} <- check_channel_scope(channel_id),
+         {:ok, requested} <- read_request(agent_id, channel_id, Keyword.get(opts, :inbox, false)),
          {:ok, limit} <- read_limit(limit),
          {:ok, cfg} <- shared_config(verified_cfg),
+         {:ok, channel_id} <- read_channel(cfg, agent_id, requested),
          {:ok, order, posts} <- channel_history(cfg, channel_id, limit) do
       since = normalize_since(since)
       {selected, newest, found_since} = select_since(order, posts, agent_id, since)
@@ -191,6 +232,33 @@ defmodule Agentboard.Mattermost.Conversations do
       end
     end
   end
+
+  defp read_request(_agent_id, channel_id, true) do
+    cond do
+      channel_id not in [nil, ""] -> {:error, "invalid_input", "Use either channel_id or inbox, not both"}
+      AgentRoutes.enabled?() -> {:ok, :inbox}
+      true -> {:error, "invalid_context", "Private recipient routes are not enabled on this server"}
+    end
+  end
+
+  defp read_request(agent_id, channel_id, _inbox) do
+    with {:ok, channel_id} <- channel_param(channel_id) do
+      case AgentRoutes.owner(channel_id) do
+        nil -> check_channel_scope(channel_id)
+        ^agent_id -> {:ok, channel_id}
+        _other -> {:error, "forbidden", "Private recipient route belongs to another agent"}
+      end
+    end
+  end
+
+  defp read_channel(cfg, agent_id, :inbox) do
+    case AgentRoutes.resolve(cfg, agent_id) do
+      {:ok, channel_id} -> {:ok, channel_id}
+      {:error, _kind, reason} -> {:error, "unavailable", "Private recipient route unavailable: #{reason}"}
+    end
+  end
+
+  defp read_channel(_cfg, _agent_id, channel_id), do: {:ok, channel_id}
 
   # Explicit coverage receipt (kept for compatibility with headless
   # catch-up loops that observe without the reads path). The caller must
@@ -326,9 +394,7 @@ defmodule Agentboard.Mattermost.Conversations do
 
 
   defp send_params(params) do
-    with {:ok, channel_id} <- present(params["channel_id"], "channel_id is required"),
-         {:ok, channel_id} <- capped(channel_id, 128, "channel_id exceeds 128 characters"),
-         {:ok, channel_id} <- channel_shape(channel_id),
+    with {:ok, target} <- send_destination(params["channel_id"], params["to"]),
          {:ok, body} <- present(params["body"], "body is required"),
          {:ok, body} <- capped(body, 16_383, "body exceeds 16383 characters"),
          {:ok, kind} <- send_kind(params["kind"]),
@@ -336,7 +402,33 @@ defmodule Agentboard.Mattermost.Conversations do
          {:ok, task_id} <- send_task_id(params["task_id"]),
          {:ok, root_id} <- optional_text(params["root_id"], 128),
          {:ok, icon_url} <- optional_text(params["icon_url"], 512) do
-      {:ok, channel_id, body, task_id || "general", kind, root_id, retry_key, icon_url}
+      {:ok,
+       Map.merge(target, %{
+         body: body,
+         task_id: task_id || "general",
+         kind: kind,
+         root_id: root_id,
+         retry_key: retry_key,
+         icon_url: icon_url
+       })}
+    end
+  end
+
+  # Exactly one destination: a channel id, or a registered recipient agent
+  # whose private route the server resolves.
+  defp send_destination(channel_id, to) when to in [nil, ""] do
+    with {:ok, channel_id} <- present(channel_id, "channel_id or to is required"),
+         {:ok, channel_id} <- capped(channel_id, 128, "channel_id exceeds 128 characters"),
+         {:ok, channel_id} <- channel_shape(channel_id) do
+      {:ok, %{channel_id: channel_id, to: nil}}
+    end
+  end
+
+  defp send_destination(channel_id, to) do
+    cond do
+      channel_id not in [nil, ""] -> {:error, "invalid_input", "Use either channel_id or to, not both"}
+      Agentboard.Input.slug?(to) -> {:ok, %{channel_id: nil, to: to}}
+      true -> {:error, "invalid_input", "to must be a registered agent id"}
     end
   end
 
@@ -503,9 +595,11 @@ defmodule Agentboard.Mattermost.Conversations do
 
   defp non_negative(_), do: {:error, "invalid_input", "last_version must be a non-negative integer"}
 
-  defp adopt_retry(_cfg, _channel_id, nil, _agent_id), do: {:ok, nil}
+  # Bounded legacy adoption by retry key (posts made before the spool, or
+  # whose spool row already expired). Used by ChatSends before reserving.
+  def adopt_retry(_cfg, _channel_id, nil, _agent_id), do: {:ok, nil}
 
-  defp adopt_retry(cfg, channel_id, retry_key, agent_id) do
+  def adopt_retry(cfg, channel_id, retry_key, agent_id) do
     case Transport.find_by_retry_key(cfg, channel_id, retry_key, agent_id) do
       {:ok, nil} -> {:ok, nil}
       {:ok, post} -> {:ok, post}
@@ -552,11 +646,19 @@ defmodule Agentboard.Mattermost.Conversations do
           case posts[id] do
             %{"id" => pid} = post when is_binary(pid) ->
               newest = newest || pid
-              if get_in(post, ["props", "agent_id"]) == agent_id, do: {:cont, {acc, newest, found}}, else: {:cont, {[slim(post) | acc], newest, found}}
+              if own_send?(post, agent_id), do: {:cont, {acc, newest, found}}, else: {:cont, {[slim(post) | acc], newest, found}}
             _ -> {:cont, {acc, newest, found}}
           end
       end
     end)
+  end
+
+  # Own send: this agent's attribution plus a server-assigned msg_id. A post
+  # that merely names the agent without a msg_id is not suppressed.
+  defp own_send?(post, agent_id) do
+    props = post["props"] || %{}
+    msg_id = props["msg_id"]
+    props["agent_id"] == agent_id and is_binary(msg_id) and msg_id != ""
   end
 
   defp slim(post) do

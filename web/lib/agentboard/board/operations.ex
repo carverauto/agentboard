@@ -602,6 +602,13 @@ defmodule Agentboard.Board.Operations do
   def registered_agent(_, _),
     do: {:error, "invalid_context", "Register a matching agent identity first"}
 
+  # Addressable peer: registered and not retired.
+  def agent_exists?(agent_id) when is_binary(agent_id) and agent_id != "" do
+    match?(%Agent{retired_at: nil}, Ash.get!(Agent, agent_id, not_found_error?: false))
+  end
+
+  def agent_exists?(_), do: false
+
   def fetch!(resource, id, message, code \\ "not_found") do
     Ash.get!(resource, id, not_found_error?: false) || reject(code, message)
   end

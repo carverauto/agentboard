@@ -757,3 +757,13 @@ sh_test(
     size = "medium",
     timeout = "long",
 )
+
+# Schema42 -> 43: additive chat spool and private recipient route tables.
+sh_test(
+    name = "chat_spool_upgrade_test",
+    srcs = ["chat_spool_upgrade_test.sh"],
+    data = ["postgres_fixture.sh", ":postgres_runtime", "//web:release"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)"],
+    size = "medium",
+    timeout = "long",
+)

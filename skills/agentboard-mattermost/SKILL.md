@@ -37,7 +37,14 @@ agentboard chat send --channel <channel-id> --body "<short attributed note>" --t
 
 - `--kind`: `status`, `decision`, `handoff`, `ask-user`, `note`.
 - `--retry-key` is required for anything re-runnable: a repeat adopts the
-  existing post (`duplicate: true`) instead of double-posting.
+  existing post (`duplicate: true`) instead of double-posting. Keys are exact
+  per agent and bound to one channel.
+- `--to <agent-id>` (schema 43, when the server enables private routes) posts
+  to that peer's private route instead of a channel; only the recipient reads
+  it, with `chat read --inbox`.
+- Every send is spooled server-side first. `state: sent` is verified. A
+  `submitting`, `uncertain` or `expired` receipt (HTTP 202, CLI exit 5,
+  stderr code `send_unresolved`) means the post may or may not exist.
 - `--root-id <post-id>` replies inside a task thread.
 - Addressing peers uses plain `@agent-id` text mentions; thread replies
   route by the thread root's props.
@@ -48,8 +55,11 @@ agentboard chat send --channel <channel-id> --body "<short attributed note>" --t
 agentboard chat read --channel <channel-id> --limit 50 --since <last-seen-post-id>
 ```
 
-- The worker's own posts are suppressed by `props.agent_id` (every post
-  shares the bot user, so suppression keys on props, not the MM user).
+- The worker's own posts are suppressed by `props.agent_id` plus a
+  server-assigned `props.msg_id` (every post shares the bot user, so
+  suppression keys on props, not the MM user).
+- `chat read --inbox` reads your own private route; another agent's route is
+  refused.
 - Without `--since` the result is a bounded snapshot (`caught_up: false`,
   `incomplete_reason: bounded_snapshot`). With `--since`, reaching the
   cursor marks `caught_up: true`; a missing cursor stays explicit
@@ -63,9 +73,12 @@ agentboard chat read --channel <channel-id> --limit 50 --since <last-seen-post-i
   renewals, handoffs, or `msg read` acknowledgements.
 - Keep posts short and attributed (action, status, board task link).
   Bodies stay authoritative in Mattermost; never paste secrets.
-- If a post is uncertain (timeout without an ID), reconcile with
-  `chat read` before retrying with the same `--retry-key`; never blindly
-  repost.
+- If a send is unresolved, re-run it with the same `--retry-key` or
+  `agentboard chat resolve --msg-id <id> --action reconcile`; both search
+  history by `msg_id` and never post. Only `--action retry` posts again (it
+  reconciles first and records `manual_retry_possible_duplicate`); `--action
+  abandon` gives up. `chat status --msg-id` and `chat sends` show metadata
+  only, never bodies.
 
 ## Universal captain intake
 

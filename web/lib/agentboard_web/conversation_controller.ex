@@ -7,16 +7,40 @@ defmodule AgentboardWeb.ConversationController do
   # POST /conversations/send — Agentboard-authenticated agents only. The
   # server posts with the agent's own bot when active, else the shared
   # bot; attribution comes from props.
+  # An unresolved spool outcome (`submitting`, `uncertain`, `expired`) is a
+  # 202 receipt, never a 200: the post may or may not exist remotely.
   def send(conn, params) do
     result =
       with {:ok, cfg} <- authorize_channel(conn, params["channel_id"]),
            do: Conversations.send_as(actor(conn), params, cfg)
 
-    reply(conn, result)
+    reply_send(conn, result)
+  end
+
+  # GET /conversations/sends?state= — the caller's own spool receipts,
+  # metadata only (never bodies; the spool is not a second inbox).
+  def sends(conn, params), do: reply(conn, Conversations.sends(actor(conn), params["state"]))
+
+  # GET /conversations/sends/:msg_id — one of the caller's own receipts.
+  def send_status(conn, %{"msg_id" => msg_id}),
+    do: reply(conn, Conversations.send_status(actor(conn), msg_id))
+
+  # POST /conversations/sends/:msg_id/resolve {"action": reconcile|retry|abandon}
+  # Explicit resolution of an unresolved send; retry records a possible duplicate.
+  def resolve_send(conn, %{"msg_id" => msg_id} = params) do
+    caller = actor(conn)
+
+    result =
+      with {:ok, channel_id} <- Conversations.send_channel(caller, msg_id),
+           {:ok, cfg} <- authorize_channel(conn, channel_id),
+           do: Conversations.resolve_send(caller, msg_id, params["action"], cfg)
+
+    reply_send(conn, result)
   end
 
   # GET /conversations/reads?channel_id=&since=&limit= — own-echo
   # suppression by props.agent_id; coverage recorded with the read.
+  # `inbox=true` reads the caller's own private recipient route instead.
   def reads(conn, params) do
     result =
       with {:ok, cfg} <- authorize_channel(conn, params["channel_id"]),
@@ -26,7 +50,8 @@ defmodule AgentboardWeb.ConversationController do
                params["channel_id"],
                params["since"],
                params["limit"],
-               cfg
+               cfg,
+               inbox: params["inbox"] in ["true", "1"]
              )
 
     reply(conn, result)
@@ -96,6 +121,14 @@ defmodule AgentboardWeb.ConversationController do
   end
 
   defp actor(conn), do: AgentboardWeb.APIController.actor(conn)
+
+  defp reply_send(conn, {:ok, value} = result) do
+    if Agentboard.Mattermost.ChatSends.unresolved?(value),
+      do: conn |> put_status(202) |> json(value),
+      else: reply(conn, result)
+  end
+
+  defp reply_send(conn, result), do: reply(conn, result)
 
   defp reply(conn, {:ok, value}), do: json(conn, value)
 

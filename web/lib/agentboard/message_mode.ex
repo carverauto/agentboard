@@ -10,9 +10,9 @@ defmodule Agentboard.MessageMode do
   # These implementations are not yet present in this release. Replace each
   # blocker with its owning subsystem's measured readiness when it lands;
   # never expose a configuration boolean that bypasses these prerequisites.
+  # 5.1 shared-bot attribution and 5.2 spooled headless send/read are present
+  # in this release; 5.1 private recipient delivery is measured below.
   @missing_capabilities [
-    "peer_identities_unavailable_5_1",
-    "headless_send_read_unavailable_5_2",
     "inbox_catch_up_unavailable_5_3",
     "delivery_adapter_readiness_unverified",
     "coordinator_decision_path_unavailable_80",
@@ -21,7 +21,7 @@ defmodule Agentboard.MessageMode do
 
   def status do
     requested = Application.get_env(:agentboard, :message_mode, "board")
-    blockers = bridge_blockers() ++ @missing_capabilities
+    blockers = bridge_blockers() ++ route_blockers() ++ @missing_capabilities
 
     refused =
       requested not in ["board", "dual", "mattermost"] or
@@ -52,6 +52,14 @@ defmodule Agentboard.MessageMode do
       _ ->
         :ok
     end
+  end
+
+  # Recipient-addressed messages reach Mattermost only through the shared
+  # bot's private routes; without them dual mode cannot carry DMs.
+  defp route_blockers do
+    if Agentboard.Mattermost.AgentRoutes.enabled?(),
+      do: [],
+      else: ["private_recipient_routes_disabled"]
   end
 
   defp bridge_blockers do

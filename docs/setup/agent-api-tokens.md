@@ -55,9 +55,11 @@ Under enforce, a participant retains the coordinator's allowed reads and adds:
   availability and quota writes remain forbidden; heartbeat never renews a lease.
 - Explicit acknowledgment of board messages addressed to itself. List/show
   recipient isolation and immutable first-handled attribution remain enforced.
-- Generic chat send/read and its own coverage in a granted channel, intersected
+- Generic chat send/read, its own spool receipts and resolution, its own private
+  route inbox, and its own coverage in a granted channel, intersected
   with the current global channel policy and verified shared-bot membership.
-  An empty global allowlist never widens the credential's nonempty grant.
+  Spool receipts are metadata-only and owner-only. An empty global allowlist
+  never widens the credential's nonempty grant.
   Diagnostics expose only its own non-secret bot/override status, not channel
   discovery or another identity's history.
 - The typed decision reply, receipt read and explicit reconciliation described

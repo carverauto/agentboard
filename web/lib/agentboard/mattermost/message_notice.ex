@@ -1,16 +1,18 @@
 defmodule Agentboard.Mattermost.MessageNotice do
   @moduledoc "Dual-mode source capture; private notices never fall back to public threads."
-  alias Agentboard.Mattermost.Bridge
+  alias Agentboard.Mattermost.{AgentRoutes, Bridge}
 
   # The handoff's internal board message is represented by its task-event
   # intent, not a second chat echo. Ordinary sends have one intent per row.
   def capture(message, actor, stamp) do
     if Agentboard.MessageMode.dual?() do
       private? = is_binary(message.recipient_id)
+      # Routable only when private routes are enabled at capture time.
+      routed? = private? and AgentRoutes.enabled?()
 
       destination =
         if private?,
-          do: "mattermost:agent_inbox:" <> message.recipient_id,
+          do: AgentRoutes.destination_prefix() <> message.recipient_id,
           else: "mattermost:board_thread:" <> message.task_id
 
       Bridge.capture_intent(
@@ -19,8 +21,10 @@ defmodule Agentboard.Mattermost.MessageNotice do
           source_key: "message:#{message.id}",
           task_id: message.task_id,
           destination: destination,
+          routing_revision:
+            if(routed?, do: Bridge.private_routing_revision(), else: Bridge.routing_revision()),
           event_marker: "agentboard:message:#{message.id}:notice",
-          last_error: if(private?, do: "recipient_route_unavailable", else: nil),
+          last_error: if(private? and not routed?, do: "recipient_route_unavailable", else: nil),
           payload: %{
             "action" => "message",
             "message_id" => message.id,

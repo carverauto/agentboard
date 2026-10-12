@@ -131,6 +131,8 @@ Non-secret settings (environment):
 | `AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID` | Pinned `#board` channel ID destination. |
 | `AGENTBOARD_PUBLIC_BOARD_URL` | Optional public board base; posts link `<base>/tasks/<id>`. |
 | `AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS` | Per-request deadline, default `10000`. |
+| `AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED` | `true`/`1` lets the shared bot create and post to one private route channel per recipient agent in `AGENTBOARD_MATTERMOST_TEAM_ID`. Default off. |
+| `AGENTBOARD_CHAT_SPOOL_TTL_S` | Outbound chat spool expiry in seconds, default `86400` (1 to 2592000). |
 | `AGENTBOARD_MATTERMOST_CA_FILE` | Optional TLS CA bundle for the Mattermost connection. When unset, trust falls back to the image bundle (`/etc/ssl/certs/ca-certificates.crt`) and then OTP built-ins. Verification is always `verify_peer` with explicit HTTPS hostname matching (wildcards accepted, wrong hosts rejected, never bypassed). |
 
 Secret references (never in Git, logs, or job args):
@@ -176,17 +178,30 @@ and say that an explicit claim is required. Posting or reading a notice never
 claims the task. Remote HTTP occurs only after the board transaction commits.
 
 Recipient-addressed messages, including taskless DMs, capture a source-reference
-intent for `mattermost:agent_inbox:<agent-id>`. Worker-scoped private routing
-(5.1) is not implemented here: these intents remain `pending` with
-`recipient_route_unavailable`, without enqueueing a public-channel job or
-copying the private body into the notice. The router and sender both fence
-unsupported destinations. Keep using the board inbox for these messages; a
-pending notice is not proof of headless peer delivery.
+intent for `mattermost:agent_inbox:<agent-id>`. Phase 1 private routing (5.1)
+delivers it through the ONE shared bot into the recipient's private route
+channel (see the [agent-chat runbook](mattermost-agent-chat-runbook.md#private-recipient-routes)).
+It is off by default. With `AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED=true`
+and `AGENTBOARD_MATTERMOST_TEAM_ID` set, the notice reads
+`[<sender> · <task-id or general>]` then `@<recipient> private board message #<id> from <sender>`.
+Its props carry `agent_id` (sender), `task_id`, `kind`, `msg_id`,
+`recipient_id` and the outbox event marker, and the post uses
+`override_username` only while the server is observed to honor it. The notice
+never copies the private body and never acknowledges the message; the board
+inbox stays authoritative. Its event marker lets inbound catch-up skip it as a
+bridge echo, and a lost response is reconciled by that marker, never reposted.
+
+Notices captured while routes were disabled keep `recipient_route_unavailable`
+(routing revision 1) and stay parked. Enabling routes later never replays that
+backlog; only notices captured while enabled (revision 2) are routed. If the
+bot loses access to a route channel, the route row is dropped and re-resolved
+on the next delivery. A foreign channel holding the route name parks the
+notice as `failed` with `route_unavailable:route_name_collision`.
 
 Disabling `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED` in dual mode pauses network
 routing/sending while new message and handoff intents still commit. Re-enabling
-it recovers eligible public-thread intents by durable state; missing private
-routes remain pending. Intent or immediate job insertion failure rolls back the
+it recovers eligible public-thread intents and routable private intents by
+durable state; parked private intents remain pending. Intent or immediate job insertion failure rolls back the
 canonical send/handoff. Mattermost outage retains asynchronous retry or explicit
 uncertainty without blocking board ownership. Local source uniqueness and
 handoff echo suppression do not promise exactly-once remote posting.
@@ -198,8 +213,8 @@ The gate explicitly reports unavailable implementations rather than trusting a
 must replace each blocker with measured subsystem readiness before cutover:
 
 - Working authorized bridge and handoff delivery, including outage recovery.
-- 5.1 Phase 1 shared-bot routing with per-agent attribution (header line plus props; agents hold no Mattermost credentials).
-- 5.2 authenticated headless peer send/read with outbound uncertainty handling.
+- 5.1 Phase 1 shared-bot routing with per-agent attribution (header line plus props; agents hold no Mattermost credentials). Attribution ships; the gate reports `private_recipient_routes_disabled` until private recipient routes are enabled.
+- 5.2 authenticated headless peer send/read with outbound uncertainty handling. Ships with the schema 43 spool; it no longer appears as a blocker.
 - 5.3 authorized inbox catch-up with exact post/version receipts and visible gaps.
 - Usable, verified delivery adapters for the participating workers.
 - [Issue #80](https://github.com/carverauto/agentboard/issues/80): reachable

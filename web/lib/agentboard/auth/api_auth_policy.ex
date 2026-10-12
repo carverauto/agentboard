@@ -215,10 +215,12 @@ defmodule Agentboard.Auth.APIAuthPolicy do
        when action in [:heartbeat, :read_message], do: true
 
   defp participant_operation?(%{plug: ConversationController, plug_opts: action}, method)
-       when action in [:reads, :coverage, :diagnostics] and method in ["GET", "HEAD"], do: true
+       when action in [:reads, :coverage, :diagnostics, :sends, :send_status] and
+              method in ["GET", "HEAD"],
+       do: true
 
   defp participant_operation?(%{plug: ConversationController, plug_opts: action}, "POST")
-       when action in [:send, :report_coverage], do: true
+       when action in [:send, :report_coverage, :resolve_send], do: true
 
   defp participant_operation?(%{plug: DecisionConversationController, plug_opts: :show}, method)
        when method in ["GET", "HEAD"], do: true
