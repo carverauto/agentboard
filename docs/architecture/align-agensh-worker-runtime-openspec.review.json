@@ -1,0 +1,92 @@
+{
+  "proposal": "align-agensh-worker-runtime",
+  "scope": "Current-state review export of the change (first release proven live; checklist 26/38). Not deployment evidence. The approved planning snapshot agensh-worker-runtime-proposal.html is unchanged.",
+  "design_source": "Agentboard dashboard tokens and typography from web/assets/app.css (light and prefers-color-scheme dark), plain inline CSS; no CDN because the document viewer sandbox CSP allows only inline script/style and data: images",
+  "deterministic": {
+    "portable_sha256": "e18bb07181cb9308344100c807f60513c811de914e4ed354fb2891431960cd4c",
+    "portable_bytes": 544155,
+    "export": {
+      "command": "lavish-axi export",
+      "unresolved_local_assets": 0,
+      "notices": 0
+    },
+    "rendered_counts": {
+      "tasks": 38,
+      "tasks_done": 26,
+      "requirements": 29,
+      "scenarios": 50
+    },
+    "remote_resources": "none (external URLs are anchors only)",
+    "source_sha256": {
+      "openspec/changes/align-agensh-worker-runtime/proposal.md": "61dbe05d3d9f6a46119be16f25273392c302df004d12b5f4e0d385616f3c9873",
+      "openspec/changes/align-agensh-worker-runtime/design.md": "a7dc095db5ade73cf9537c643125067971b380df36be77d0d2c7fdb2aa89f04c",
+      "openspec/changes/align-agensh-worker-runtime/tasks.md": "334addd39de867a5ccb97799abc139c3799d6eed48a13cd0ac08a2b8924b5f80",
+      "openspec/changes/align-agensh-worker-runtime/choices.md": "c9e120335d882cb22206056cdc2adb4c43c91ac99fe595db3fd0cd238f2d7173",
+      "openspec/changes/align-agensh-worker-runtime/specs/cooperation-visibility/spec.md": "8713fcaa777c1495307d5da35d21e0f7cbbf34c99367f198f7ce31fa9c203117",
+      "openspec/changes/align-agensh-worker-runtime/specs/harness-adapters/spec.md": "e5b6fe47d29596e69ad1f8271b6c24c50c6e13522d23a43d59abf731d06c2dff",
+      "openspec/changes/align-agensh-worker-runtime/specs/mattermost-coordination/spec.md": "a2b39a8309b7cdb615136a6cc5cfb7df5532d7165655829fa388d2aa512c7706",
+      "openspec/changes/align-agensh-worker-runtime/specs/worker-delivery/spec.md": "d2332510d9c2a83564a3e307a24dd2c2ae4b1c7aafc89026f40af8957cefa226",
+      "docs/verification/runtime-first-release-pilot.md": "0797a173c71c02314e711e1116eaf4f073e3da4942944c28c36bb64333128748",
+      "docs/architecture/agensh-worker-runtime.html": "48bbf5426e5491ce3e231aa6cf76db9810fb981ba4c588edd7bfdc553f01b7a8"
+    }
+  },
+  "lavish_session": {
+    "session": "0809c3b64ce68d34",
+    "rendered": true,
+    "ended_by": "user",
+    "final_feedback": "approved",
+    "note": "Two CSS-only fixes after the session (narrow flag wrapping, anchor scroll margin) were made from the same generator and re-exported; the session was not reopened."
+  },
+  "browser_checks": [
+    {
+      "viewport": "1440x900",
+      "theme": "light",
+      "document_scroll_width": 1440,
+      "overflow_x": false,
+      "console_errors": 0,
+      "diagram_image_loaded": true
+    },
+    {
+      "viewport": "1440x900",
+      "theme": "dark",
+      "document_scroll_width": 1440,
+      "overflow_x": false,
+      "console_errors": 0,
+      "diagram_image_loaded": true
+    },
+    {
+      "viewport": "390x844",
+      "theme": "light",
+      "document_scroll_width": 390,
+      "overflow_x": false,
+      "console_errors": 0,
+      "diagram_image_loaded": true
+    },
+    {
+      "viewport": "390x844",
+      "theme": "dark",
+      "document_scroll_width": 390,
+      "overflow_x": false,
+      "console_errors": 0,
+      "diagram_image_loaded": true
+    }
+  ],
+  "browser_method": "headless Chrome via playwright-core on the exported file, prefers-color-scheme emulation",
+  "perceptual_review": {
+    "reviewer": "claude-agentboard-runtime-f (claude-opus-5-5, image-capable)",
+    "status": "pass",
+    "reviewed": [
+      "desktop light (align-agensh-worker-runtime-openspec.light.png)",
+      "desktop dark (.dark.png)",
+      "narrow dark 390x844 (.narrow.png)",
+      "tasks section dark",
+      "requirements section light"
+    ],
+    "observations": [
+      "Status, pilot timeline and per-group progress read at a glance in both themes",
+      "Theme-matched Archify capture swaps with the color scheme",
+      "Requirements and scenarios are distinguishable; open tasks carry an amber edge"
+    ],
+    "limitations": "The Archify diagram is embedded as a static capture because the viewer sandbox forbids frames; the interactive diagram is its own archify document. Long page (about 34k px on desktop) by design: all sections are expanded for the sandboxed viewer."
+  }
+}

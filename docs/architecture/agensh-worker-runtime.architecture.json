@@ -1,21 +1,387 @@
 {
   "schema_version": 1,
   "diagram_type": "architecture",
-  "meta": {"title": "Proposed worker cooperation runtime", "locale": "en", "quality_profile": "showcase", "viewBox": [1360, 680]},
+  "meta": {
+    "title": "Worker runtime first release: red CI returns to its owner",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/carverauto/agentboard",
+      "revision": "56a5a74f5948159766809d240bb124b193e1ad5f"
+    },
+    "viewBox": [
+      1360,
+      630
+    ],
+    "views": [
+      {
+        "id": "detect",
+        "label": "Red PR to obligation",
+        "focus": [
+          "github",
+          "observe",
+          "account",
+          "ledger"
+        ],
+        "note": "The server polls current-head checks and records one failure episode plus a repair obligation."
+      },
+      {
+        "id": "deliver",
+        "label": "Obligation to idle worker",
+        "focus": [
+          "account",
+          "coop",
+          "host",
+          "pi"
+        ],
+        "note": "A durable delivery is frozen into an attempt, woken at an idle native boundary and closed only by exact handled receipts."
+      },
+      {
+        "id": "escalate",
+        "label": "Reminders and captain",
+        "focus": [
+          "account",
+          "captain",
+          "coop"
+        ],
+        "note": "Four reminders per hour without progress escalate to the captain; replaced-epoch attempts need resolve_attempt."
+      },
+      {
+        "id": "repair",
+        "label": "Repair and resolve",
+        "focus": [
+          "pi",
+          "github",
+          "observe",
+          "account"
+        ],
+        "note": "Only a green current head resolves the obligation; the repair task stays assigned."
+      }
+    ]
+  },
   "components": [
-    {"id": "workspace", "type": "external", "label": "GitHub workspace", "sublabel": "Code, PRs and CI", "pos": [120, 430], "size": [230, 90]},
-    {"id": "ledger", "type": "database", "label": "PostgreSQL", "sublabel": "Ownership, Context, delivery", "pos": [120, 140], "size": [230, 90]},
-    {"id": "api", "type": "backend", "label": "Phoenix + AshOban", "sublabel": "API and durable obligations", "pos": [570, 140], "size": [250, 90]},
-    {"id": "host", "type": "backend", "label": "agentboard worker", "sublabel": "Supervised host connector", "pos": [1060, 140], "size": [250, 90]},
-    {"id": "chat", "type": "messagebus", "label": "Mattermost", "sublabel": "Channels and worker DMs", "pos": [570, 430], "size": [250, 90]},
-    {"id": "session", "type": "frontend", "label": "Agent session", "sublabel": "Herdr and native adapters", "pos": [1060, 430], "size": [250, 90]}
+    {
+      "id": "github",
+      "type": "external",
+      "label": "GitHub PR",
+      "sublabel": "Current-head checks",
+      "pos": [
+        40,
+        80
+      ],
+      "size": [
+        220,
+        90
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/github.ex",
+          "line": 10,
+          "label": "collect/1"
+        }
+      ]
+    },
+    {
+      "id": "observe",
+      "type": "backend",
+      "label": "CI observation",
+      "sublabel": "AshOban per-PR polls",
+      "pos": [
+        400,
+        80
+      ],
+      "size": [
+        220,
+        90
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/poll_worker.ex",
+          "line": 13,
+          "label": "perform/1"
+        },
+        {
+          "path": "web/lib/agentboard/delivery/polling.ex",
+          "line": 316,
+          "label": "observe in poll commit"
+        }
+      ]
+    },
+    {
+      "id": "account",
+      "type": "backend",
+      "label": "Accountability",
+      "sublabel": "Episode + repair obligation",
+      "pos": [
+        760,
+        80
+      ],
+      "size": [
+        220,
+        90
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/accountability.ex",
+          "line": 14,
+          "label": "observe/3"
+        },
+        {
+          "path": "web/lib/agentboard/delivery/accountability.ex",
+          "line": 446,
+          "label": "reminder tick/0"
+        }
+      ]
+    },
+    {
+      "id": "captain",
+      "type": "frontend",
+      "label": "Captain + /prs",
+      "sublabel": "Escalation, attempt decisions",
+      "pos": [
+        1100,
+        80
+      ],
+      "size": [
+        220,
+        90
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard_web/live/pr_live.ex",
+          "line": 335,
+          "label": "obligation rows"
+        },
+        {
+          "path": "web/lib/agentboard_web/worker_controller.ex",
+          "line": 7,
+          "label": "resolve_attempt"
+        }
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Obligations, deliveries, receipts",
+      "pos": [
+        400,
+        290
+      ],
+      "size": [
+        220,
+        90
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/obligation.ex",
+          "label": "Obligation resource"
+        },
+        {
+          "path": "web/lib/agentboard/cooperation/receipt.ex",
+          "label": "Receipt resource"
+        }
+      ]
+    },
+    {
+      "id": "coop",
+      "type": "backend",
+      "label": "Cooperation runtime",
+      "sublabel": "Frozen attempts, epochs",
+      "pos": [
+        760,
+        290
+      ],
+      "size": [
+        220,
+        90
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/cooperation/runtime.ex",
+          "line": 192,
+          "label": "request/5"
+        },
+        {
+          "path": "web/lib/agentboard/cooperation/runtime.ex",
+          "line": 139,
+          "label": "resolve_attempt/2"
+        }
+      ]
+    },
+    {
+      "id": "pi",
+      "type": "frontend",
+      "label": "Pi native adapter",
+      "sublabel": "check_in + exact ack tools",
+      "pos": [
+        400,
+        500
+      ],
+      "size": [
+        220,
+        90
+      ],
+      "sources": [
+        {
+          "path": "internal/worker/pi-native.mjs",
+          "line": 103,
+          "label": "idle wake"
+        },
+        {
+          "path": "internal/worker/pi-native.mjs",
+          "line": 208,
+          "label": "agentboard_ack"
+        }
+      ]
+    },
+    {
+      "id": "host",
+      "type": "backend",
+      "label": "agentboard worker serve",
+      "sublabel": "launchd host, crash journal",
+      "pos": [
+        760,
+        500
+      ],
+      "size": [
+        220,
+        90
+      ],
+      "sources": [
+        {
+          "path": "internal/worker/runtime.go",
+          "line": 56,
+          "label": "Step"
+        },
+        {
+          "path": "internal/worker/journal.go",
+          "line": 12,
+          "label": "Journal"
+        },
+        {
+          "path": "internal/worker/install.go",
+          "line": 72,
+          "label": "LaunchAgent"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "farm01 Phoenix / Ash server",
+      "wraps": [
+        "observe",
+        "account",
+        "captain",
+        "ledger",
+        "coop"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "Worker host (arrakis)",
+      "wraps": [
+        "pi",
+        "host"
+      ]
+    }
   ],
   "connections": [
-    {"id": "provider-observations", "from": "workspace", "to": "api", "label": "Provider reads", "variant": "dashed"},
-    {"id": "durable-pending", "from": "ledger", "to": "api", "label": "Pending records"},
-    {"id": "host-protocol", "from": "api", "to": "host", "label": "HTTPS + receipts", "variant": "emphasis"},
-    {"id": "session-dispatch", "from": "host", "to": "session", "label": "Verified binding", "labelDy": 24},
-    {"id": "board-bridge", "from": "api", "to": "chat", "label": "Lifecycle outbox", "variant": "dashed", "labelDy": 24},
-    {"id": "peer-conversation", "from": "chat", "to": "host", "label": "REST + WebSocket"}
+    {
+      "id": "checks",
+      "from": "github",
+      "to": "observe",
+      "label": "check runs",
+      "variant": "dashed"
+    },
+    {
+      "id": "confirmed",
+      "from": "observe",
+      "to": "account",
+      "label": "red head",
+      "variant": "emphasis"
+    },
+    {
+      "id": "escalation",
+      "from": "account",
+      "to": "captain",
+      "label": "escalate",
+      "variant": "security"
+    },
+    {
+      "id": "intents",
+      "from": "account",
+      "to": "coop",
+      "label": "alert intents",
+      "variant": "emphasis",
+      "labelAt": [
+        870,
+        230
+      ]
+    },
+    {
+      "id": "durable",
+      "from": "coop",
+      "to": "ledger",
+      "label": "receipts"
+    },
+    {
+      "id": "attempt",
+      "from": "coop",
+      "to": "host",
+      "label": "HTTPS attempt",
+      "variant": "emphasis",
+      "labelAt": [
+        870,
+        440
+      ]
+    },
+    {
+      "id": "wake",
+      "from": "host",
+      "to": "pi",
+      "label": "idle wake",
+      "variant": "emphasis"
+    },
+    {
+      "id": "repair",
+      "from": "pi",
+      "to": "github",
+      "label": "repair push",
+      "variant": "dashed",
+      "fromSide": "left",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Live proof, PR #224 (2026-10-12)",
+      "items": [
+        "Red lint to pending ci_failure delivery in ~75 s",
+        "Idle Pi wake; 102 deliveries handled by exact ID",
+        "Four reminders, then captain escalation; green head resolved it"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Accountability rules",
+      "items": [
+        "Only handled closes an attempt; handling is not repair",
+        "Missing required checks stay degraded, never green",
+        "Stale-epoch receipts refused; repair task stays assigned"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Merged after the gate, default off",
+      "items": [
+        "#219 Shared context, #222 private routes + chat spool",
+        "#223 idle continuation, #225 history, #230 Pi socket",
+        "Not covered: other harnesses (6.3 to 6.5), 3.4 rollout"
+      ]
+    }
   ]
 }

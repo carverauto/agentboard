@@ -1,18 +1,79 @@
 {
-  "artifact_sha256": "537674e7d00bbceb83ee5db2dcee7554d24458e2a77096204cec3774eb2b6d55",
-  "artifact_bytes": 707300,
+  "artifact_sha256": "48bbf5426e5491ce3e231aa6cf76db9810fb981ba4c588edd7bfdc553f01b7a8",
+  "artifact_bytes": 716057,
+  "evidence": {
+    "deterministic": {
+      "source": "agensh-worker-runtime.receipt.json",
+      "command": "archify deliver architecture --quality showcase --repo-root",
+      "checks": "9/9",
+      "composition": "showcase pass, 0 errors, 0 warnings",
+      "repository_evidence": "16 source references verified at 56a5a74f5948159766809d240bb124b193e1ad5f"
+    },
+    "browser": {
+      "desktop": {
+        "source": "agensh-worker-runtime.visual-check.json",
+        "status": "pass",
+        "viewports": [
+          "1440x900",
+          "1600x1000",
+          "1920x1080",
+          "2048x1320"
+        ],
+        "themes_captured": [
+          "light",
+          "dark"
+        ],
+        "overflow": "none (scrollWidth/scrollHeight equal the viewport at all four sizes)"
+      },
+      "narrow": {
+        "method": "headless Chrome via playwright-core, prefers-color-scheme emulation, exact delivered HTML",
+        "viewports": [
+          {
+            "size": "390x844",
+            "theme": "light",
+            "scroll_width": 390,
+            "overflow_x": false,
+            "console_errors": 0
+          },
+          {
+            "size": "390x844",
+            "theme": "dark",
+            "scroll_width": 390,
+            "overflow_x": false,
+            "console_errors": 0
+          }
+        ],
+        "captures": [
+          "agensh-worker-runtime.narrow.390x844.light.png",
+          "agensh-worker-runtime.narrow.390x844.dark.png"
+        ],
+        "note": "No horizontal page scroll. The guided-view chapter rail scrolls horizontally inside its own container by design."
+      }
+    }
+  },
   "visual_review": "passed",
-  "browser_evidence": "passed",
-  "correction_rounds": 0,
-  "scope": [
-    "1440x900 light screenshot",
-    "2048x1320 dark screenshot"
-  ],
-  "observations": [
-    "Default READ composition has clear routes and labels in both themes; no unrelated-node crossing or ambiguous shared corridor visible.",
-    "Large desktop composition remains balanced; legend/navigation do not overlap nodes."
-  ],
-  "limitations": [
-    "Perceptual review uses the exact automated screenshots. Focus/search/passport/export interactions are not covered by this screenshot review."
+  "perceptual_review": {
+    "reviewer": "claude-agentboard-runtime-f (claude-opus-5-5, image-capable)",
+    "method": "inspected the actual capture files",
+    "captures": [
+      "1440x900.light",
+      "1440x900.dark",
+      "2048x1320.dark",
+      "390x844.dark"
+    ],
+    "observations": [
+      "Main path reads left to right then down: GitHub PR, CI observation, Accountability, Cooperation runtime, worker serve, Pi adapter; repair push returns to GitHub without crossing a node.",
+      "Server and worker-host boundaries are distinct; labels clear their routes in both themes; no clipped nodes.",
+      "Large desktop composition fills the first screen with diagram and three conclusion cards; no empty lower band."
+    ],
+    "limitations": [
+      "At 1440x900 node sublabels project near 7px: legible but small; the title wraps to two lines.",
+      "At 390x844 the leftmost toolbar button is partly cut off and the diagram opens at desktop scale inside its pan/zoom stage; narrow is readable only by panning. Archify targets desktop; this was not repaired.",
+      "Search, focus, passport, presentation and export interactions are not covered by this screenshot review."
+    ]
+  },
+  "correction_rounds": 1,
+  "corrections": [
+    "First delivery overflowed 1440x900 (scrollHeight 966) and 1600x1000 (1048); compacted row spacing (viewBox 720 to 630) and shortened conclusion cards, then redelivered."
   ]
 }
