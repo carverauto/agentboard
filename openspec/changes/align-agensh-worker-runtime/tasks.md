@@ -6,18 +6,27 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 
 ## Next Agent Prompt
 
-Status 2026-10-12: v0.3.0 is published as a pre-release. 3.4 and 6.3–6.5 are done.
-3.2/3.3 are in docs/verification/runtime-first-release-pilot.md. farm01's current
-pin is 358c8a3 (schema 44); see docs/deploy/reference-farm01.md. 5.4 and 4.3 are
-in docs/verification/runtime-dual-mode-pilot.md. 3.5 is in PR #232. Pilot workers
-`worker-agentboard-farm01-1` and `worker-agentboard-farm01-2` are paused, with
-their LaunchAgents stopped and their Herdr sessions closed; they keep their
-enrollment and pending work. Harness-proof workers are revoked.
+Status 2026-10-12: v0.3.0 is published as a pre-release. 3.4, 6.3 and 6.5 are done.
+6.4 stays open. Established so far: Darwin Codex native is unsupported by
+design; Grok has no supported native completion integration (manual check-in
+only); Codex manual check-in with exact receipts is proved against farm01
+(docs/verification/runtime-harness-readiness.md). Remaining: the Codex native
+owner is still unregistered and live-disabled (docs/worker-codex-owner.md), so a
+packaged Linux owner/FD proof on a fixture runner plus the cancellation,
+compaction, correct-session callback and no-detached-watcher checks are still
+required. 3.2/3.3 are in docs/verification/runtime-first-release-pilot.md.
+farm01's current pin is 358c8a3 (schema 44); see docs/deploy/reference-farm01.md.
+5.4 and 4.3 are in docs/verification/runtime-dual-mode-pilot.md. 3.5 is in PR
+#232. Pilot workers `worker-agentboard-farm01-1` and `worker-agentboard-farm01-2`
+are paused, with their LaunchAgents stopped and their Herdr sessions closed;
+they keep their enrollment and pending work. Harness-proof workers are revoked.
 
 Priority order:
 1. Async-journal fix (in flight).
 2. 7.3 docs/skills/OpenSpec reconcile (in flight).
-3. 8.1 fresh acceptance and 8.3 final artifacts. 5.1b's remote proof belongs to
+3. 6.4 packaged Linux owner/FD proof and the cancellation, compaction,
+   correct-session callback and no-detached-watcher checks.
+4. 8.1 fresh acceptance and 8.3 final artifacts. 5.1b's remote proof belongs to
    `mm-elastic-agent-bots` task 7; 8.2 stays with `adopt-ash-and-monitor-pr-ci`.
 
 ## 1. Server observes CI after the owner moves on
@@ -66,7 +75,7 @@ Priority order:
 - [x] 6.1 Wire scoped Context source intents/priority frames and atomic existing Context receipts; verify receipt rollback, own-entry suppression, task-independent repository findings, bounded/fair backlog and late commits remotely, and document findings versus chat/ownership. Source intents, own-entry suppression, repository scope and atomic Context receipts shipped with 2.1–2.3 (`Runtime.capture_context`); [remote cooperation acceptance](https://carverauto.buildbuddy.io/invocation/90667998-b1c9-490b-8bbf-68dc3b7fb7b8); findings versus chat/ownership documented in docs/context.md.
 - [x] 6.2 Add the 20-entry task Shared context section through `Agentboard.Context.recent`, filtered link and independent error handling; verify empty/long/escaped entries, read-without-ack and section failure remotely and in a real browser, keeping documents/timeline separate. Task detail Shared context section shipped in PR #219 with packaged LiveView acceptance (empty/long/escaped, read-without-ack, section failure).
 - [x] 6.3 Add generation-aware Claude hook integration and Pi extension integration, reusing the first-release adapter where applicable; verify session/new/resume/fork, one wake owner, pause, foreign-hook preservation and tool-result preservation in remote conformance plus isolated live harness sessions. Proved in docs/verification/runtime-harness-readiness.md (PR #237): Claude hook adapter against farm01 with a fresh native session, resume (same session, new generation) and fork (new session), stale epochs/generations refused, no replay, pause holding the frame, foreign hooks and the check-in tool result preserved; Pi generations, pause/resume and rebinds proved in the first-release and dual-mode pilots. Signal-safe Pi socket release in PR #230.
-- [x] 6.4 Add Codex checkpoint/dedicated infrastructure-tool boundary integration and Grok supported completion integration only against installed capability evidence; verify cancellation, compaction, correct-session callback and absence of detached shell watchers, and document App/CLI and headless limitations. Codex native owner is proven on Linux by the hosted native fixtures (PR #215–#217) and is unsupported on Darwin by design (docs/worker-codex-owner.md); on this Mac Codex was proved through explicit check-in and exact receipts only. Grok has no supported native completion integration on the installed alpha, so it is recorded as manual check-in only. Limits are in docs/verification/runtime-harness-readiness.md.
+- [ ] 6.4 Add Codex checkpoint/dedicated infrastructure-tool boundary integration and Grok supported completion integration only against installed capability evidence; verify cancellation, compaction, correct-session callback and absence of detached shell watchers, and document App/CLI and headless limitations. Established so far: Darwin Codex native is unsupported by design; Grok has no supported native completion integration (manual check-in only); Codex manual check-in with exact receipts is proved against farm01 (docs/verification/runtime-harness-readiness.md). Remaining: the Codex native owner is still unregistered and live-disabled (docs/worker-codex-owner.md), so a packaged Linux owner/FD proof on a fixture runner plus the cancellation, compaction, correct-session callback and no-detached-watcher checks are still required.
 - [x] 6.5 Validate Muse/AGY and remaining workers through the supported transport; report native boundary unsupported where appropriate, verify explicit receipt/check-in on each installed harness, and publish per-worker readiness instead of claiming blanket parity. Grok, Muse, AGY and Codex each completed explicit check-in with exact received/handled receipts against farm01 (AGY round 1 only), with native boundaries reported unsupported and per-worker readiness published in docs/verification/runtime-harness-readiness.md (PR #237).
 - [x] 6.6 Add bounded authorized idle/no-findings continuation and cooldown; verify no work/no new finding, paused/blocked/quota-exhausted worker, outage and repeated no-progress turns remotely, and document suppression/escalation rather than forcing publications. Bounded idle/no-findings continuation with cooldown and escalation shipped in PR #223 (schema 44, default off: `AGENTBOARD_IDLE_CONTINUATION_ENABLED`).
 
