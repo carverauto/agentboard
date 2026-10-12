@@ -189,6 +189,28 @@ func TestReapHonoursAvailabilityAndKeepsTheLease(t *testing.T) {
 	}
 }
 
+func TestReapKeepsRetiredPausedPane(t *testing.T) {
+	cwd := gitCheckout(t, true)
+	old := seatAgent("old", "codex")
+	old.RetiredAt = &t0
+	old.Availability.State = "paused"
+	board := &fakeBoard{agents: []BoardAgent{old}}
+	a := pane("w1:p1", "old", "codex", "idle", "sess-1")
+	a.Cwd = cwd
+	host := &fakeHost{agents: []HostAgent{a}}
+	report := reapTwice(t, board, host, nil, testConfig(t))
+	if len(host.closed) != 0 {
+		t.Fatalf("closed a retired paused pane: %v", host.closed)
+	}
+	kept := ""
+	for _, k := range report.Kept {
+		kept += k.Agent + ": " + k.Reason + "\n"
+	}
+	if !strings.Contains(kept, "old: availability paused") {
+		t.Fatalf("kept = %+v", report.Kept)
+	}
+}
+
 func TestReapDryRunChangesNothing(t *testing.T) {
 	board, host := finishedSeat(t)
 	cfg := testConfig(t)

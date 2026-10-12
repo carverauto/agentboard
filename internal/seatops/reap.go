@@ -102,11 +102,20 @@ func Reap(ctx context.Context, board Board, host Host, leases Leases, cfg Config
 	}
 	seats, skipped := DiscoverSeats(panes, agents, cfg)
 	// A retired identity still occupying a pane is a reap candidate too.
+	byID := map[string]BoardAgent{}
+	for _, a := range agents {
+		byID[a.ID] = a
+	}
 	for _, s := range skipped {
 		if s.Reason == "identity retired" {
 			for _, p := range panes {
 				if p.Pane == s.Pane {
-					seats = append(seats, Seat{Agent: BoardAgent{ID: s.Agent, RetiredAt: &now}, Host: p})
+					agent, ok := byID[s.Agent]
+					if !ok {
+						agent = BoardAgent{ID: s.Agent}
+					}
+					agent.RetiredAt = &now
+					seats = append(seats, Seat{Agent: agent, Host: p})
 				}
 			}
 		}
