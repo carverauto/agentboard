@@ -118,6 +118,9 @@ func (c *commands) agents() *cobra.Command {
 			if err := c.request(cmd, http.MethodPost, "agents/register", nil, data); err != nil {
 				return err
 			}
+			if backend == "herdr" {
+				nameHerdrPane(cmd, c.cfg.Actor.ID)
+			}
 			if agentIDNeedsNamingHint(c.cfg.Actor.ID, c.cfg.Actor.Harness) {
 				message := fmt.Sprintf("Agent ID %q may lack repository context; prefer {harness}-{repo-slug}-{role} for new worker IDs (e.g. codex-agentboard-agent-a). This is advisory; existing IDs remain valid.", c.cfg.Actor.ID)
 				if c.json {
@@ -132,7 +135,7 @@ func (c *commands) agents() *cobra.Command {
 	register.Flags().StringVar(&kind, "kind", "", "Identity kind: seat, human, system, or fixture")
 	register.Flags().StringVar(&host, "host", "", "Host/session label")
 	register.Flags().StringSliceVar(&caps, "capability", nil, "Comma-separated capabilities")
-	register.Flags().StringVar(&backend, "backend", "", "Optional backend metadata (e.g. herdr)")
+	register.Flags().StringVar(&backend, "backend", "", "Optional backend metadata; herdr also names this pane after the agent ID for seat nudge")
 	reason, force := "", false
 	retire := &cobra.Command{Use: "retire ID", Short: "Captain-gated tombstone retire of an identity (idempotent)", Args: idArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

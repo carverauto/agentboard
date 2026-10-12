@@ -1,0 +1,12 @@
+# Runs agentboard-seat-ops.service every 3 minutes.
+# Guide: docs/setup/seat-nudge.md
+[Unit]
+Description=Nudge idle agentboard seats and reap finished ones every 3 minutes
+
+[Timer]
+OnActiveSec=1min
+OnUnitActiveSec=3min
+RandomizedDelaySec=15s
+
+[Install]
+WantedBy=timers.target
