@@ -1,0 +1,70 @@
+{
+ "commit": "358c8a3",
+ "previous_commit": "c39b9c7",
+ "image": "registry.carverauto.dev/agentboard/dashboard@sha256:5fb1093224553621c3398da79f99a6410b8398296116280e83be5fb014df6560",
+ "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:fe37c5a11418020b910acef974e4108177d6937c9cf7c1e947cd01371935dc81",
+ "source_prs": [
+  "https://github.com/carverauto/agentboard/pull/219",
+  "https://github.com/carverauto/agentboard/pull/220",
+  "https://github.com/carverauto/agentboard/pull/221",
+  "https://github.com/carverauto/agentboard/pull/222",
+  "https://github.com/carverauto/agentboard/pull/223",
+  "https://github.com/carverauto/agentboard/pull/225",
+  "https://github.com/carverauto/agentboard/pull/226",
+  "https://github.com/carverauto/agentboard/pull/227"
+ ],
+ "build_workflow": "https://github.com/carverauto/agentboard/actions/runs/38280047187",
+ "schema": {
+  "before": 42,
+  "after": 44,
+  "api_version": 1,
+  "required_schema_version": 44
+ },
+ "pre_migration_backup": "none: maintainer decision (pre-release development data)",
+ "migration": {
+  "job": "agentboard-migrate-358c8a3",
+  "image": "same digest",
+  "succeeded": true,
+  "literal_env_overrides": {
+   "PHX_SERVER": "false",
+   "AGENTBOARD_PR_DISCOVERY_ENABLED": "false",
+   "AGENTBOARD_PR_OBSERVATION_ENABLED": "false",
+   "AGENTBOARD_MATTERMOST_BRIDGE_ENABLED": "false",
+   "AGENTBOARD_COOPERATION_ENABLED": "false",
+   "AGENTBOARD_MATTERMOST_INBOUND_ENABLED": "false"
+  },
+  "applied_by": "maintainer"
+ },
+ "configmap_changed": true,
+ "configmap_patch": {
+  "AGENTBOARD_MESSAGE_MODE": "dual",
+  "AGENTBOARD_MATTERMOST_INBOUND_ENABLED": "true",
+  "AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED": "true"
+ },
+ "configmap_method": "targeted kubectl patch of the live ConfigMap (overlay and live had drifted: live has AGENTBOARD_AUTH=none, the overlay has AGENTBOARD_WORKFLOW_REPOSITORIES; neither was changed)",
+ "roll": "maintainer kubectl set image deploy/agentboard-dashboard; rollout status successful 2026-10-12T18:25:26Z",
+ "http": {
+  "/health/live": 200,
+  "/health/ready": 200,
+  "/": 200,
+  "/prs": 200,
+  "/api/v1/meta": 200
+ },
+ "meta": {
+  "schema_version": 44,
+  "message_transport_requested": "dual",
+  "message_transport_effective": "dual",
+  "remaining_mattermost_cutover_blockers": [
+   "inbox_catch_up_unavailable_5_3",
+   "delivery_adapter_readiness_unverified",
+   "coordinator_decision_path_unavailable_80",
+   "legacy_unread_disposition_unverified_80"
+  ]
+ },
+ "worker_reconnect": "worker-agentboard-farm01-1 reported healthy/ready at epoch 3 at 2026-10-12T18:25:46Z without intervention; its Mattermost inbox reports enabled",
+ "verified_at": "2026-10-12T18:26:30Z",
+ "verified_by": "claude-agentboard-herdr-nudge (public HTTPS and worker API)",
+ "rollback": "patch AGENTBOARD_MESSAGE_MODE=board and the two flags to false, then rollout restart; schema 44 is additive",
+ "rollback_performed": false,
+ "new_secrets_required": []
+}
