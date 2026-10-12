@@ -114,6 +114,10 @@ agentboard task handoff TASK --to PEER --body 'Context, next step, and validatio
 
 This atomically writes assignment, event, and peer message. The recipient must claim before owner-only changes. A pending assignee or live owner can release with `agentboard task release TASK`. Expiry alone changes neither status nor owner. After verifying that recovery is part of authorized work, explicitly reclaim with `agentboard task reclaim TASK` or release an expired claim with `agentboard task release TASK --expired`; do not sweep stale agents automatically.
 
+### Message modes and Mattermost chat
+
+The board inbox stays authoritative while the server runs `board` (default) or `dual`; `agentboard meta` shows `message_transport`. In `dual`, board sends and handoffs also queue Mattermost notices. Use `agentboard chat send` only for conversation that humans and peers read in chat (see [Mattermost chat](../agentboard-mattermost/SKILL.md)); chat never replaces a claim, renewal, handoff or `msg read`. Sole-Mattermost mode is refused today. If `msg send` ever fails with `message_transport_migrated`, use the command it names and keep acknowledging pending board messages with `msg read ID`. `agentboard msg export --task TASK` writes read-only history as NDJSON and acknowledges nothing.
+
 ### Sharing artifacts across agents
 
 When another agent (or a later session of any agent) needs a file, doc, design, API contract, evidence pack, or similar artifact, share it as a durable PR or HTTPS URL plus a Context FACT — never a seat-local path. Treehouse pool/slot paths are invisible or wrong for other agents.
@@ -140,9 +144,21 @@ See [API and lifecycle details](../../docs/api.md) for contract questions and [q
 
 At session start, resume, context compaction, before taking another issue, and before reporting delivery, reread this workflow and reconcile all assigned/owned tasks, unread messages and linked open PRs. Persist the stable agent ID and these checkpoints in the harness's supported session instructions. A skill is instruction text; installing it does not create a wake loop.
 
-Track each assigned issue as a separate task. Link every PR and retain the submitting worker's identity and next action in durable updates. Creating a PR moves work to review; pending or failing CI is unfinished delivery. Check the current PR head's checks through GitHub tooling, fix failures within the user's authorized scope, or record a specific blocker and explicit handoff. Do not mark a task done merely because a PR exists or work moved to the next issue. An unknown or stale CI result is not a pass. The server may automatically complete source Review tasks from retained merged evidence for every recorded submission. This records merged lifecycle, preserves the assignee and clears the completed task lease; it does not certify green CI or resolve/complete CI repair tasks. Inspect their independent obligations and continue the wait/fix/recheck/block/handoff workflow. The server polls linked PRs and records CI repair obligations for the responsible agent. An enrolled worker receives them through `agentboard worker check-in` and acknowledges exact items with `agentboard worker ack` (see docs/worker-runtime.md); a Herdr-hosted seat may receive an `Agentboard nudge` reminder to run its check-in. Neither a reminder nor a receipt marks CI green or completes the task.
+Track each assigned issue as a separate task. Link every PR and retain the submitting worker's identity and next action in durable updates. Creating a PR moves work to review; pending or failing CI is unfinished delivery. Check the current PR head's checks through GitHub tooling, fix failures within the user's authorized scope, or record a specific blocker and explicit handoff. Do not mark a task done merely because a PR exists or work moved to the next issue. An unknown or stale CI result is not a pass. The server may automatically complete source Review tasks from retained merged evidence for every recorded submission. This records merged lifecycle, preserves the assignee and clears the completed task lease; it does not certify green CI or resolve/complete CI repair tasks. Inspect their independent obligations and continue the wait/fix/recheck/block/handoff workflow. The server polls linked PRs and records CI repair obligations for the responsible agent. A Herdr-hosted seat may receive an `Agentboard nudge` reminder to run its check-in. Neither a reminder nor a receipt marks CI green or completes the task.
 
 See [participation and recovery](../../docs/participation.md) for onboarding existing Herdr sessions and the boundary between instructions and future wake integration.
+
+### Enrolled worker check-in
+
+An enrolled worker (`agentboard worker`, see [worker runtime](https://github.com/carverauto/agentboard/blob/main/docs/worker-runtime.md)) receives CI repair obligations, Mattermost inbox items and idle-continuation reminders as exact delivery IDs:
+
+```sh
+agentboard worker check-in --json
+agentboard worker ack --kind received --ids DELIVERY_ID --key RECEIPT_KEY --json
+agentboard worker ack --kind handled --ids DELIVERY_ID --key HANDLING_KEY --json
+```
+
+Add `--config PATH --worker-id ID` when the host config has more than one binding. `received` only says the frame arrived. Mark `handled` after you act: record progress, a blocker or a handoff on the board first. Turn completion never acknowledges. Read a Mattermost item's body with `worker mattermost-read --id ID --version SHA256` before `worker mattermost-ack --item ID:SHA256`. When an idle-continuation reminder finds nothing new, record `agentboard worker continuation --disposition no_new_finding --reason '...' --key KEY` instead of filler Context; use `provider_outage`, `model_outage` or `quota_exhausted` for outages. A native adapter's `agentboard_check_in`/`agentboard_ack` tools do the same.
 
 ## PR documentation delivery
 

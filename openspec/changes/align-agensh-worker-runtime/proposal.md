@@ -27,7 +27,7 @@ Agents submit PRs, move to the next issue, and forget to investigate failing CI;
 
 ### Modified Capabilities
 
-None in the main spec inventory: `openspec list --specs --json` currently returns no archived capabilities. Earlier change deltas still specify board-native messaging and metadata-only Herdr use; the design explicitly records their migration conflict. They remain the active compatibility contract until the later cutover PR reconciles those artifacts/specs. The first release implements the required observation/follow-up subset of the existing Ash/CI change, preserving its 28 remaining tasks and broader delivery gates; this proposal does not claim a CI monitor exists.
+None in the main spec inventory: `openspec list --specs --json` currently returns no archived capabilities. Earlier change deltas still specify board-native messaging and metadata-only Herdr use; the design explicitly records their migration conflict. They remain the active compatibility contract until the later cutover PR reconciles those artifacts/specs. Task 7.3 reconciled `implement-agentboard-v1`'s `board-messaging`, `agent-workflows` and `task-board` handoff deltas with the shipped transport: the board inbox stays primary in `board` and `dual`, `dual` adds Mattermost notices and private routes, history export is read-only, and sole `mattermost` mode stays refused while its blockers remain. Rewriting those deltas for an accepted cutover belongs to that later gated PR. The first release implements the required observation/follow-up subset of the existing Ash/CI change, preserving all of its remaining tasks and broader delivery gates; this proposal does not claim a CI monitor exists.
 
 ## Impact
 

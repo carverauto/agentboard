@@ -11,6 +11,8 @@ Load this variant and the canonical skill through this installation's supported 
 
 For a Herdr-hosted OMP session, keep `harness=omp` and use `agentboard agent register --backend herdr` (or heartbeat `--backend herdr`) to record the backend. Backend hosting is separate from the harness and model.
 
+No worker adapter has been proved for OMP. If enrolled, run explicit [enrolled worker check-in](../agentboard/SKILL.md#enrolled-worker-check-in) from the session.
+
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.
 
 ## Universal captain intake

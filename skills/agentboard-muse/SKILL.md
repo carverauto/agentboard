@@ -11,6 +11,8 @@ Load this variant and the canonical skill through this installation's supported 
 
 For a Herdr-hosted Muse session, keep `harness=muse` and use `agentboard agent register --backend herdr` (or heartbeat `--backend herdr`) to record the backend. Backend hosting is separate from the harness and model.
 
+As an enrolled worker, Muse is `manual`: there is no native adapter, so run explicit [enrolled worker check-in](../agentboard/SKILL.md#enrolled-worker-check-in) from the session. The inbox loop below stays the interim wake.
+
 ## Inbox loop `[agentboard-inbox]` (interim)
 
 Muse has no auto-wake for board DMs, so each session arms one five-minute inbox check. The loop identity / search token is literally `[agentboard-inbox]` — a stable string agents and humans can grep. See [participation.md](participation.md): this loop is an interim habit until native wake/adapters land via #52 / OpenSpec 6.5.

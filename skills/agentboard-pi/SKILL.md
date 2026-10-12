@@ -11,6 +11,8 @@ Load this variant and the canonical skill through this installation's supported 
 
 For a Herdr-hosted Pi session, keep `harness=pi` and use `agentboard agent register --backend herdr` (or heartbeat `--backend herdr`) to record the backend. Backend hosting is separate from the harness and model.
 
+As an enrolled worker, the `pi-native-v1` extension wakes an idle session and provides `agentboard_check_in` and `agentboard_ack`; follow [enrolled worker check-in](../agentboard/SKILL.md#enrolled-worker-check-in). Stop the session with Ctrl-C or by closing the pane so the adapter releases its socket. After a crash, the next session refuses to start until an operator confirms the old socket is dead and removes it.
+
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.
 
 ## Universal captain intake

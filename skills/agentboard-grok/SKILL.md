@@ -11,6 +11,8 @@ Load this variant and the canonical skill through this installation's supported 
 
 For a Herdr-hosted Grok session, keep `harness=grok` and use `agentboard agent register --backend herdr` (or heartbeat `--backend herdr`) to record the backend. Backend hosting is separate from the harness and model.
 
+As an enrolled worker, Grok is `manual`: there is no native adapter, so run explicit [enrolled worker check-in](../agentboard/SKILL.md#enrolled-worker-check-in) from the session.
+
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.
 
 For the captain assistant, quota-routine, or coordinator role, also read [Grok Bot guidance](../../docs/coordinator/adapters/grok-bot.md) and the [coordinator role](../../docs/coordinator/role.md). It complements the shared ownership workflow; it installs no routine — coordination runs through board claims, messages, and captain-approved policy.

@@ -19,7 +19,9 @@ Captain uses the existing protected `x-agentboard-captain-token` capability.
 `owner/repo` strings), `model`, `harness`, `idempotency_key`. It enrolls the existing
 registered agent and returns a host token once. A retry returns the enrolled
 record, not a secret. Captain can revoke with
-`POST /api/v1/workers/:worker_id/revoke`. Rotation requires a new provisioning
+`POST /api/v1/workers/:worker_id/revoke` and release an attempt left uncertain
+by a replaced binding with `POST /api/v1/workers/:worker_id/resolve_attempt`
+(`attempt_id`, `decision: "retry"`, `reason`; an audited possible duplicate). Rotation requires a new provisioning
 key. Secrets are random 256-bit capabilities, persisted only as SHA-256 hashes.
 Clients store returned secrets in protected storage and never log responses.
 
