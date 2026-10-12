@@ -172,3 +172,32 @@ Primary references:
 - [Pinned Codex process identity](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/app-server-daemon/src/backend/pid_identity.rs)
 - [Pinned queue parameters](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/app-server-protocol/src/protocol/v2/thread.rs#L879-L889)
 - [Pinned persistent queue/resume behavior](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/ext/queue/src/service.rs#L509-L534)
+
+### Diagnosing fixture timing failures
+
+The merged-main hosted race run `38211010405` failed before the child emitted
+`accepted` in `pipe-eof`. The Go parent closes the control pipe only after that
+explicit marker, following native acceptance and a successful historical journal
+read. Thus the intentional EOF injection did not cause that failure. Its exact
+uncertainty cause was not recorded. The failure diagnostic also read a live
+`os/exec` stderr buffer concurrently; fixture logs now synchronize both writes
+and snapshots, with a race regression test.
+
+The inherited client exposes read-only `diagnostics()` containing only local
+retirement status, a fixed retirement-reason enum, challenge counters and lease
+remaining/retirement age milliseconds. It exposes no endpoint, socket metadata,
+source text, credentials or peer-controlled error text. The fixture records these
+along with the transport outcome/reason, journal phase and synchronous fsync
+count/total/max durations before the strict acceptance assertion. These fields
+help distinguish local expiry, owner-pipe closure and native connection closure;
+they are observations, never authorization or proof of remote acceptance.
+
+The hosted Go owner suite now runs ten repetitions under `-race -v`, requiring
+actual inherited-FD interoperability in every repetition. Any unexpected
+uncertainty still fails. A deterministic in-memory-stream test injects retirement
+during the submitting-file fsync and requires retained `submitting` uncertainty,
+zero native writes and no replay. This classifies a possible safe failure mode;
+it does not establish that an fsync stall caused the hosted failure. The 250 ms
+health bound, prior-deadline fence, durable fsync sequence, no-retry behavior and
+strict acceptance barrier are unchanged. Linux socket execution must pass hosted
+CI; this VM cannot certify it. Darwin remains unsupported at runtime.

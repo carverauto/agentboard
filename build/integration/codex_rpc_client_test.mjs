@@ -779,6 +779,29 @@ try {
     assert.equal((await transport.submit(attempt)).historical, true);
     assert.equal(f.calls.length, 1); f.close();
   });
+  await check('owner expiry during submitting fsync retains uncertainty without a native write', async () => {
+    const dir = path.join(temporary, 'fsync-owner-expiry'); fs.mkdirSync(dir, { mode: 0o700 });
+    const journal = createJournal(dir);
+    const f = fixture({ advisory: true });
+    f.identity.endpoint.profile = 'codex-durable-advisory-v1';
+    f.identity.recipient = { threadId: recipient.threadId, identityKind: 'durable-conversation-v1', enrollmentRevision: 42, bindingEpoch: 3, persistent: true, topLevel: true };
+    await f.open();
+    const transport = createCodexAdvisoryTransport({ client: f.client, ...f.identity, journalDir: dir });
+    const attempt = { attemptId: 'fsync-expiry', source: { kind: 'wake', id: 'source', version: 'b'.repeat(64), uri: 'https://agentboard.example.com/source' }, recipient: clone(f.identity.recipient), bindingEpoch: 3, dispatchGeneration: 1 };
+    const original = fs.fsyncSync;
+    let count = 0;
+    // Inject the effect of a health lease expiring during the submitting-file
+    // fsync (after lock-file + directory sync). No sleep or Unix socket needed.
+    fs.fsyncSync = function (...args) { const result = original.apply(this, args); if (++count === 3) f.revoke(); return result; };
+    let result;
+    try { result = await transport.submit(attempt); } finally { fs.fsyncSync = original; }
+    assert.equal(result.outcome, 'uncertain');
+    assert.equal(result.reason, 'native_acceptance_unknown');
+    assert.equal(journal.load(attempt.attemptId).phase, 'submitting');
+    assert.equal(f.calls.length, 0);
+    assert.equal((await transport.submit(attempt)).reason, 'retained_submitting_evidence');
+    assert.equal(f.calls.length, 0); f.close();
+  });
   for (const invalid of ['strict-recipient', 'zero-epoch', 'fake-incarnation']) {
     await check('advisory wire refuses ' + invalid + ' before connect', async () => {
       const f = fixture({ advisory: true }); f.identity.endpoint.profile = 'codex-durable-advisory-v1';
