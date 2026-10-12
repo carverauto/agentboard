@@ -75,6 +75,8 @@ configMapGenerator:
       # shared-bot inbound and private recipient routes. Rollback: board/false.
       - AGENTBOARD_MESSAGE_MODE=dual
       - AGENTBOARD_MATTERMOST_INBOUND_ENABLED=true
+      # Required scope for inbound; without it the owner never subscribes (5.4 pilot).
+      - AGENTBOARD_MATTERMOST_INBOUND_REPO=carverauto/agentboard
       - AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED=true
 generatorOptions:
   disableNameSuffixHash: true
