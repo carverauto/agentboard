@@ -17,12 +17,45 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 //go:embed testdata/*.mjs
 var fixtures embed.FS
+
+// os/exec copies stderr concurrently until Wait. Failure diagnostics may be read
+// while the invented peer is still alive, so both operations must synchronize.
+type synchronizedLog struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *synchronizedLog) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Write(p)
+}
+func (b *synchronizedLog) String() string { b.mu.Lock(); defer b.mu.Unlock(); return b.buffer.String() }
+func TestSynchronizedLog(t *testing.T) {
+	var b synchronizedLog
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 1000; j++ {
+				_, _ = b.Write([]byte("x"))
+				_ = b.String()
+			}
+		}()
+	}
+	wg.Wait()
+	if len(b.String()) != 4000 {
+		t.Fatal("lost diagnostic output")
+	}
+}
 
 func fixtureApproval(t *testing.T, pid int) Approval {
 	t.Helper()
@@ -230,7 +263,7 @@ func TestInheritedFDIntegration(t *testing.T) {
 			}
 			peer := exec.CommandContext(ctx, node, filepath.Join(stage, "peer.mjs"), path, log, mode)
 			peer.Env = []string{"WS_NO_BUFFER_UTIL=1", "WS_NO_UTF_8_VALIDATE=1"}
-			var peerErr bytes.Buffer
+			var peerErr synchronizedLog
 			peer.Stderr = &peerErr
 			out, err := peer.StdoutPipe()
 			if err != nil {
@@ -266,7 +299,7 @@ func TestInheritedFDIntegration(t *testing.T) {
 			}
 			child := exec.CommandContext(ctx, node, filepath.Join(stage, "client.mjs"), mode, journal)
 			child.Env = peer.Env
-			var childErr bytes.Buffer
+			var childErr synchronizedLog
 			child.Stderr = &childErr
 			childOut, err := child.StdoutPipe()
 			if err != nil {

@@ -111,7 +111,7 @@ jobs:
           export OWNER_INTEGRATION=1
           export OWNER_NODE="$(command -v node)"
           export OWNER_WS_ARCHIVE="${RUNNER_TEMP}/ws-${CODEX_RPC_WS_VERSION}.tgz"
-          "${RUNNER_TEMP}/go/bin/go" test -count=1 -race ./internal/nativequeue/owner
+          "${RUNNER_TEMP}/go/bin/go" test -count=10 -race -v ./internal/nativequeue/owner
           GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 "${RUNNER_TEMP}/go/bin/go" test -c \
             -o "${RUNNER_TEMP}/owner-darwin-arm64.test" ./internal/nativequeue/owner
           GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 "${RUNNER_TEMP}/go/bin/go" test -c \

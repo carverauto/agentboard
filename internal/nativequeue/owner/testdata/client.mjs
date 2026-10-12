@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { performance } from 'node:perf_hooks';
+import { createJournal } from './codex/journal.mjs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { connectInheritedCodexAdvisory } from './codex/inherited-client.mjs';
 import { createCodexQueueTransport, createCodexAdvisoryTransport } from './codex/transport.mjs';
 import { requireEvidence } from './codex/rpc-wire.mjs';
+const fsync = fs.fsyncSync;
+let fsyncCount = 0, fsyncTotalMs = 0, fsyncMaxMs = 0;
+fs.fsyncSync = function (...args) { const start = performance.now(); try { return fsync.apply(this, args); } finally { const elapsed = performance.now() - start; fsyncCount++; fsyncTotalMs += elapsed; fsyncMaxMs = Math.max(fsyncMaxMs, elapsed); } };
 const [mode, journalDir] = process.argv.slice(2);
 if (mode === 'wrong-fd') { fs.closeSync(3); }
 let client;
@@ -32,8 +37,15 @@ if (mode === 'lose-add') {
   assert.equal(again.reason, 'retained_submitting_evidence');
   client.close(); console.log('uncertain-no-replay');
 } else {
-  const result = await transport.submit(attempt); assert.equal(result.outcome, 'accepted');
+  const started = performance.now();
+  const result = await transport.submit(attempt);
+  console.error(JSON.stringify({ fixture: mode, outcome: result.outcome, reason: result.reason ?? null,
+    journalPhase: createJournal(journalDir).load(attempt.attemptId)?.phase ?? null,
+    submitMs: performance.now() - started, fsyncCount, fsyncTotalMs, fsyncMaxMs, owner: client.diagnostics() }));
+  assert.equal(result.outcome, 'accepted');
   assert.equal((await transport.submit(attempt)).historical, true);
+  // Explicit barrier: acceptance and durable historical evidence must both pass
+  // before the Go parent may close the owner pipe or retire the owner.
   console.log('accepted');
   if (mode === 'retire' || mode === 'lease' || mode === 'pipe-eof') {
     for (let i = 0; i < 100 && client.identity(); i++) await sleep(20);
