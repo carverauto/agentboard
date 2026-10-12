@@ -6,15 +6,25 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 
 ## Next Agent Prompt
 
-Status 2026-10-12: farm01 runs main c39b9c7 at schema 42 with PR observation, cooperation and the outbound bridge enabled (PR #220 records the rollout; no pre-migration backup by maintainer decision). Pilot worker `worker-agentboard-farm01-1` (Pi 0.99.2 exclusive RPC, xAI grok-4.3, host `arrakis`) is enrolled but paused at a stale epoch-1 binding; its protected config is `~/.config/agentboard/worker/config.json` and `worker install --apply` has written the owned adapter files and an unloaded LaunchAgent.
-
-In flight: 6.2 Shared context (PR #219, card `agentboard-runtime-6-2-shared-context`), 5.1 private DM route + 5.2 outbound spool (schema 43, card `agentboard-runtime-5-1-dm-spool`), 6.6 idle continuation (schema 44, card `agentboard-runtime-6-6-idle-continuation`).
+Status 2026-10-12 ~17:30Z: the first release gate (3.2/3.3) is proven live; see
+docs/verification/runtime-first-release-pilot.md. farm01 runs c39b9c7 at schema
+42; main is 358c8a3 (schema 44). Pilot worker `worker-agentboard-farm01-1` stays
+enrolled, bound at epoch 3 and supervised by its LaunchAgent on `arrakis`.
 
 Priority order:
-1. First-release gate 3.2 → 3.3 → 3.4 on the pilot worker: start the Pi session, rebind (epoch 2), doctor, resume, load the service; controlled failing PR owned by the worker after it moves on; receipt; reminder/escalation; connector + session restart; repair to green. Live steps that persist services or change farm01 need the maintainer at the keyboard.
-2. 7.2 archive/export after 6.2 merges (shares `board_live.ex`/`layouts.ex`); refresh `MessageMode` blockers after 5.1/5.2.
-3. 5.4 live dual-mode pair after 5.1/5.2 and 3.4; 6.3–6.5 per-harness live proofs; 4.3 outage demo.
-4. 7.3 docs/skills/OpenSpec reconcile, then 8.1–8.3. 5.1b's remote proof belongs to `mm-elastic-agent-bots` task 7. 8.2 stays owned by `adopt-ash-and-monitor-pr-ci`.
+1. 3.4: farm01 roll to main with `AGENTBOARD_MESSAGE_MODE=dual`, Mattermost inbound
+   and private routes (maintainer-authorized; script prepared, maintainer runs
+   it), then record health/pause/rollback. Publishing a tagged CLI release
+   (v0.3.0) is a separate maintainer decision.
+2. 5.4: second worker plus two-worker dual-mode send/receive/reconnect proof.
+3. 4.3 outage demo; 6.3–6.5 per-harness live proofs (each needs a live session
+   started by the maintainer).
+4. 7.3 docs/skills/OpenSpec reconcile after 5.4; then 8.1–8.3. 5.1b's remote
+   proof belongs to `mm-elastic-agent-bots` task 7; 8.2 stays with
+   `adopt-ash-and-monitor-pr-ci`.
+
+Open finding: stopping the Pi session with Ctrl-C leaves its socket and blocks
+the next session's adapter until a stale-owner inspection.
 
 ## 1. Server observes CI after the owner moves on
 
@@ -37,8 +47,8 @@ Priority order:
 ## 3. First release: red CI reaches the owner and stays accountable
 
 - [x] 3.1 Add obligation reminder/escalation scheduling with defaults from design D9; verify acknowledgement without progress, progress postponement, blocker, pause, duplicate reminder jobs, four-per-hour bound and new failure episodes remotely, and document the captain escalation path.
-- [ ] 3.2 Run a controlled live PR failure after its recorded owner starts another issue; measure detection/eligible-boundary delivery, inspect failed-head/job links, record an exact receipt and show the still-red obligation in the dashboard. Then leave it without progress to prove bounded reminder/escalation.
-- [ ] 3.3 Restart the host connector and selected agent session during the same controlled obligation; verify pending recovery, stale-generation rejection, no automatic lease recovery and retained repair responsibility. Repair/rerun CI and verify canonical current-head recovery without silent follow-up task completion.
+- [x] 3.2 Run a controlled live PR failure after its recorded owner starts another issue; measure detection/eligible-boundary delivery, inspect failed-head/job links, record an exact receipt and show the still-red obligation in the dashboard. Then leave it without progress to prove bounded reminder/escalation. Proved live on farm01 2026-10-12 with PR #224 and `worker-agentboard-farm01-1`: failure to unresolved obligation and pending alert in ~75 s, idle native wake, exact `handled` receipts, four reminders then captain escalation at 17:00:00Z. See docs/verification/runtime-first-release-pilot.md. The pilot found and PR #226 fixed missing handled guidance.
+- [x] 3.3 Restart the host connector and selected agent session during the same controlled obligation; verify pending recovery, stale-generation rejection, no automatic lease recovery and retained repair responsibility. Repair/rerun CI and verify canonical current-head recovery without silent follow-up task completion. Proved in the same run: two explicit rebinds (epochs 2 and 3) with connector and session restarts, captain `resolve_attempt` decisions for replaced attempts, stale-epoch ack refused, no lease recovery, `degraded` (never green) while required checks were missing, and current-head resolution at 17:26:22Z with the repair task still assigned.
 - [ ] 3.4 Publish remote-built immutable service/CLI assets, enroll the selected worker explicitly and enable observation/delivery only after the proof; verify production service health/pause/rollback and update participation skills with actual check-in/repair/receipt commands. Record unsupported agents separately.
 - [ ] 3.5 Deliver this first release's Archify JSON/HTML and portable Lavish proposal with separate deterministic/browser/perceptual evidence; upload from the live claimed task, link the PR and verify the sandboxed viewers. Keep the broader implementation checklist open.
 
@@ -50,9 +60,9 @@ Priority order:
 
 ## 5. Worker identities and real peer inboxes
 
-- [ ] 5.1 Phase 1 shared-bot identity: server posts every agent message through the ONE shared `agentboard` bot with per-post `override_username` (agent id), `override_icon_url`, structured props (`agent_id`, `task_id`, `kind`, `msg_id` plus retry key) and a readable `[<agent-id> · <task-id>]` header line; props are the source of truth, never the display name. Agents hold NO Mattermost credentials; `agentboard chat` calls the Agentboard API. Verify override on/off behavior (header plus props carry identity when overrides are off), retry-key adoption, and machine-readable output remotely. Keep the server posting seam pluggable for phase 2.
+- [x] 5.1 Phase 1 shared-bot identity: server posts every agent message through the ONE shared `agentboard` bot with per-post `override_username` (agent id), `override_icon_url`, structured props (`agent_id`, `task_id`, `kind`, `msg_id` plus retry key) and a readable `[<agent-id> · <task-id>]` header line; props are the source of truth, never the display name. Agents hold NO Mattermost credentials; `agentboard chat` calls the Agentboard API. Verify override on/off behavior (header plus props carry identity when overrides are off), retry-key adoption, and machine-readable output remotely. Keep the server posting seam pluggable for phase 2. Private recipient routes through the shared bot shipped in PR #222 (off by default; `AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED`); MessageMode no longer lists the 5.1 blocker.
 - [ ] 5.1b Phase 2 elastic per-agent bots (GH #82, board task agentboard-mm-elastic-agent-bots): lazy bot per agent on first `agent register`, AshCloak-encrypted tokens in Postgres, roster-GC retirement. Explicitly NOT blocking `dual` mode; the phase 1/2 swap stays transparent to agents.
-- [ ] 5.2 Add `agentboard chat send/read` over the Agentboard API with protected server-side outbound spool and source references; verify exact retry keys, uncertain sends, own-send/bridge echo suppression by `props.agent_id` plus `msg_id`, and machine-readable output remotely, and preserve legacy `msg` contracts until cutover.
+- [x] 5.2 Add `agentboard chat send/read` over the Agentboard API with protected server-side outbound spool and source references; verify exact retry keys, uncertain sends, own-send/bridge echo suppression by `props.agent_id` plus `msg_id`, and machine-readable output remotely, and preserve legacy `msg` contracts until cutover. Protected outbound chat spool with retry-key adoption, uncertain parking and expiry shipped in PR #222 (schema 43), with remote packaged acceptance.
 - [x] 5.3 Implement shared-bot server WebSocket plus paginated REST catch-up with a per-worker metadata inbox and persisted coverage/version ledger; verify equal-time posts, edits, concurrent page/live arrival, newly discovered DM channels, outage, retention gap and deleted posts remotely, and expose incomplete coverage explicitly.
 - [x] 5.3a Connect exact inbound inbox versions to recipient-scoped, body-free Cooperation notifications; prove atomic capture, frozen reservation, version isolation and two-way receipt reconciliation in packaged HTTP/WS acceptance. This does not close the separate live-worker gate below. Shipped in PR #189 (`Cooperation.Runtime.recover_mattermost/1`, `InboundStore` notification capture); [6/6 remote runs](https://carverauto.buildbuddy.io/invocation/d389db57-498b-4979-86b1-3f0113bbe66d) after fixing a non-UTF-8 log decode flake in `mattermost_inbox_test`.
 - [ ] 5.4 Run two real workers through headless channel/urgent-DM send/receive/handling and reconnect recovery in `dual` mode; phase 1 shared-bot routing with per-agent attribution satisfies dual-mode parity. Document the measured capability matrix.
@@ -60,16 +70,16 @@ Priority order:
 ## 6. Context and native boundary adapters
 
 - [x] 6.1 Wire scoped Context source intents/priority frames and atomic existing Context receipts; verify receipt rollback, own-entry suppression, task-independent repository findings, bounded/fair backlog and late commits remotely, and document findings versus chat/ownership. Source intents, own-entry suppression, repository scope and atomic Context receipts shipped with 2.1–2.3 (`Runtime.capture_context`); [remote cooperation acceptance](https://carverauto.buildbuddy.io/invocation/90667998-b1c9-490b-8bbf-68dc3b7fb7b8); findings versus chat/ownership documented in docs/context.md.
-- [ ] 6.2 Add the 20-entry task Shared context section through `Agentboard.Context.recent`, filtered link and independent error handling; verify empty/long/escaped entries, read-without-ack and section failure remotely and in a real browser, keeping documents/timeline separate.
+- [x] 6.2 Add the 20-entry task Shared context section through `Agentboard.Context.recent`, filtered link and independent error handling; verify empty/long/escaped entries, read-without-ack and section failure remotely and in a real browser, keeping documents/timeline separate. Task detail Shared context section shipped in PR #219 with packaged LiveView acceptance (empty/long/escaped, read-without-ack, section failure).
 - [ ] 6.3 Add generation-aware Claude hook integration and Pi extension integration, reusing the first-release adapter where applicable; verify session/new/resume/fork, one wake owner, pause, foreign-hook preservation and tool-result preservation in remote conformance plus isolated live harness sessions.
 - [ ] 6.4 Add Codex checkpoint/dedicated infrastructure-tool boundary integration and Grok supported completion integration only against installed capability evidence; verify cancellation, compaction, correct-session callback and absence of detached shell watchers, and document App/CLI and headless limitations.
 - [ ] 6.5 Validate Muse/AGY and remaining workers through the supported transport; report native boundary unsupported where appropriate, verify explicit receipt/check-in on each installed harness, and publish per-worker readiness instead of claiming blanket parity.
-- [ ] 6.6 Add bounded authorized idle/no-findings continuation and cooldown; verify no work/no new finding, paused/blocked/quota-exhausted worker, outage and repeated no-progress turns remotely, and document suppression/escalation rather than forcing publications.
+- [x] 6.6 Add bounded authorized idle/no-findings continuation and cooldown; verify no work/no new finding, paused/blocked/quota-exhausted worker, outage and repeated no-progress turns remotely, and document suppression/escalation rather than forcing publications. Bounded idle/no-findings continuation with cooldown and escalation shipped in PR #223 (schema 44, default off: `AGENTBOARD_IDLE_CONTINUATION_ENABLED`).
 
 ## 7. Staged chat cutover and coherent contracts
 
 - [x] 7.1 Add default `board`, explicit `dual` and readiness-gated `mattermost` modes with atomic handoff event/outbox behavior; verify offline handoff, recipient explicit claim, disabled jobs and no partial assignment remotely, and document mode prerequisites.
-- [ ] 7.2 Add read-only historical board-message archive/export while retaining recipient acknowledgement and migration errors for legacy sends; verify pending legacy messages, pagination, export escaping, rollback and no data loss remotely, then update primary navigation/task thread links.
+- [x] 7.2 Add read-only historical board-message archive/export while retaining recipient acknowledgement and migration errors for legacy sends; verify pending legacy messages, pagination, export escaping, rollback and no data loss remotely, then update primary navigation/task thread links. Read-only message history/export and mattermost-mode send migration error shipped in PR #225; the `mattermost` mode path is exercised with a stand-in because activation is still refused.
 - [ ] 7.3 Reconcile completed/active `board-messaging`, `agent-workflows` and handoff deltas with the chosen transport before archive/cutover; update README, PRD #1, #37/#41, API and canonical/harness/captain skills. Validate OpenSpec and verify documented commands against the remote-built CLI; preserve all uncompleted Ash/CI tasks.
 
 ## 8. Wider integration and final evidence
