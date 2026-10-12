@@ -21,7 +21,8 @@ Loading skills never starts a service or enrolls a worker.
 | Pi 0.99.2 exclusive RPC | Actual isolated model wake proved | Versioned native events; dedicated `agentboard_check_in` only; original tool output preserved | Explicit exact-ID tool, protected native evidence, replacement retires callbacks |
 | Pi TUI or competing wake owner | Disabled | Automatic delivery disabled until live conformance and wake-owner coordination | Explicit manual check-in remains available |
 | Herdr 0.9.0 / protocol 22 | Worker adapter disabled: no expected-recipient/composer guard on installed `agent.prompt`. Separately, [`agentboard seat nudge`](setup/seat-nudge.md) sends a content-free "run your check-in" prompt to idle named seats after a session/state recheck | Unsupported | Manual protected API check-in; a nudge is not a delivery or handling receipt |
-| Claude, Grok, Muse, AGY | No host automation claimed by this release | Native hooks unimplemented here | Existing manual board workflow; no fabricated healthy enrollment |
+| Claude Code 2.1.296 headless (`claude-hook-v1`) | Unsupported | Native prompt-boundary frame proved live; dedicated check-in result left unmodified; no automatic tool-return frame | Exact receipts through the dedicated ack tool; resume, fork, pause and stale-generation refusal proved live. See [Claude adapter](worker-claude-adapter.md) |
+| Grok, Muse, AGY, Codex on macOS (`manual`) | Unsupported | Unsupported: no native adapter (Codex's native owner is Linux-only) | Explicit check-in and exact receipts proved from each harness's own session. Bind and batch reservation for `manual` have no CLI command yet |
 
 The isolated Herdr server was named `agentboard-runtime-conformance`; no user's
 active server/session was inspected or prompted. [Herdr socket documentation](https://herdr.dev/docs/socket-api/)
@@ -35,6 +36,10 @@ identity. That historical harness proof used invented local HTTP contracts.
 now cover the shipped boundary separately; the coordinated 3.2/3.3 release proof is recorded in `docs/verification/runtime-first-release-pilot.md`. A second actual busy model turn consumed the frame at the dedicated check-in tool return while retaining its original result (`docs/verification/worker-pi-busy-live.json`). Remote socket
 fixtures test occupied composer, busy native queuing, original result preservation,
 pause, exact generation rejection and uncertainty. No TUI parity is implied.
+
+Per-worker readiness for OpenSpec 6.3–6.5, with the live evidence and the gaps found, is in
+[runtime-harness-readiness.md](verification/runtime-harness-readiness.md). Each row is a
+separate proof for one harness version and surface; none implies parity for another.
 
 ## Explicit installation and enrollment
 

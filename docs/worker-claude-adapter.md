@@ -120,9 +120,14 @@ batch was staged through the public native socket while receipt-scoped
 check-in state was held, so exact receipts refer to the first genuine
 host-reserved prompt source. The earlier [retained proof](verification/worker-claude-live.json)
 is unchanged historical evidence of headless prompt delivery under the prior
-policy. A fresh isolated live attempt could not load the adapter because
-the profile is not logged in; no credentials were copied and no login,
-enrollment, or global settings change was performed. UI-attached, unknown,
+policy. A later isolated live run of Claude Code 2.1.296 against the published
+server proved, in a headless stream-json session: the frame added at the native
+prompt with the prompt unmodified, an unmodified check-in tool result,
+pause/resume, exact receipts, resume (same session, new generation) and fork
+(new session). It also proved stale-capability refusal and no replay of a
+stranded attempt. See [per-harness readiness](verification/runtime-harness-readiness.md).
+That run also found that closing stdin does not end an idle headless session;
+SIGINT does, with `SessionEnd`. UI-attached, unknown,
 and unsupported sessions receive explicit results without automatic frames
 or implicit receipts. The invented engine/API fixture is distinct
 from installed-Claude proof and published-server interoperability.
@@ -131,8 +136,8 @@ from installed-Claude proof and published-server interoperability.
 - [Remote Darwin binary build](https://carverauto.buildbuddy.io/invocation/1a465c0f-0ba3-4b2a-8639-e27602fbb9a2)
 - [Architecture](architecture/claude-native.html), with retained JSON, artifact and browser receipts
 
-OpenSpec 6.3 remains open until both Claude and Pi lifecycle and installed-harness
-requirements are complete. This slice makes no parity claim for later harnesses.
+Claude and Pi lifecycle and installed-harness evidence for OpenSpec 6.3 is now
+recorded in the readiness record above. It makes no parity claim for other harnesses or Claude surfaces.
 
 A delayed-bind regression first failed remotely because an old prompt consumed a
 replacement's pending frame. The fix pins the bind callback to its original
