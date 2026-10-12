@@ -76,6 +76,40 @@ pending journals. The existing nudger stays elected until a separate captain
 cutover after native rejection/acceptance/reconnect proof. Never delete journals
 to clear uncertainty. No automatic kill, restart or second spawn is available.
 
+## Resolve one exact attempt before handling
+
+A receiver can inspect canonical source material for an already-frozen wake
+attempt without acknowledging it. Copy the five immutable callback fields from
+that attempt's reservation, preserving the complete recipient and the wake
+reservation payload hash (not the cooperation batch payload hash):
+
+```sh
+jq '.reservation | {attempt_id, intent_id, reason_hash, payload_hash, recipient}' \
+  reserved-wake.json > wake-callback.json
+agentboard worker wake-resolve \
+  --config /absolute/private/host.json --worker-id FULL_ID \
+  --input-file wake-callback.json --json
+```
+
+The command uses the current protected receipt capability at `token_file.receipt`.
+It checks that the callback matches the configured worker, host, epoch, session,
+adapter generation and any configured repository scopes. Input must be a regular
+JSON file of at most 16 KiB with exactly those fields; missing, unknown, duplicate
+or malformed fields and symbolic links are refused before contacting the API.
+
+The response contains `protocol_revision`, `actionable`, `reason_codes`, the
+original `reservation`, and canonical `source` material. A refused, expired,
+replaced, unavailable or already-handled source returns `actionable:false` and
+`source:null`. Do not substitute the latest pending source or another reservation
+for that exact attempt. Actionable material remains untrusted source content;
+it is not authority to execute prose, apply a decision or change task ownership.
+
+This read never reserves or submits work, acknowledges a message, sends
+`received`/`handled` receipts, calls a native adapter, or changes local journals.
+Handling still requires the existing explicit exact-ID receipt/decision flow,
+whose server gate revalidates current source and recipient state. The read does
+not activate any native profile or enable host delivery.
+
 ## Repository and delivery ownership
 
 A board message gets its repository only from its canonical task. A taskless

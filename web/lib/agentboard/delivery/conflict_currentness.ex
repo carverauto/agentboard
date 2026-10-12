@@ -21,7 +21,7 @@ defmodule Agentboard.Delivery.ConflictCurrentness do
   # Caller owns the transaction. Lock ALL branch identities before ANY PR/poll,
   # then policy/agent, then sorted repair tasks/orders. Never nest single-source
   # callbacks for batches. Immutable source reads perform no election.
-  def lock(descriptors, recipient) do
+  def lock(descriptors, recipient, source_task_ids \\ []) do
     sources =
       Enum.map(Enum.uniq(descriptors), fn {kind, id, version} ->
         {kind, id, version, source(kind, id)}
@@ -63,12 +63,13 @@ defmodule Agentboard.Delivery.ConflictCurrentness do
       Repo.statement!("SELECT id FROM delivery_poll_states WHERE id=$1 FOR SHARE", [pr.id])
     end)
 
-    if orders != [] do
+    task_ids = Enum.map(orders, & &1.repair_task_id) ++ source_task_ids
+
+    if orders != [] or task_ids != [] do
       Availability.lock_admission()
       Repo.statement!("SELECT id FROM agents WHERE id=$1 FOR SHARE", [recipient])
 
-      orders
-      |> Enum.map(& &1.repair_task_id)
+      task_ids
       |> Enum.uniq()
       |> Enum.sort()
       |> Enum.each(&Ops.lock_task/1)
