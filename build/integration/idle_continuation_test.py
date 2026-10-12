@@ -225,6 +225,14 @@ assert 'No publication is required' in summaries()[4]
 assert sum('without a shared finding' in s for s in summaries()) == 1
 drain()
 
+# An identical retry after attributed progress replays idempotently but reflects the progress.
+recorded_replay = dispose('no_new_finding', 'Replay fixture; nothing new for peers', 'nnf-replay')
+assert recorded_replay['idempotent'] is False and recorded_replay['continuation']['no_new_finding_active']
+api('/tasks/idle-task/update', {'note': 'Replay progress after disposition'})
+replayed = dispose('no_new_finding', 'Replay fixture; nothing new for peers', 'nnf-replay')
+assert replayed['idempotent'] is True and not replayed['continuation']['no_new_finding_active']
+drain()
+
 # Outages enter bounded doubling cooldowns with a visible reason, capped at four hours.
 dispose('provider_outage', 'Provider returned 529 overloaded', 'outage-1')
 assert row("cooldown_reason||','||round(extract(epoch FROM cooldown_until-disposition_at))") == 'provider_outage,900'

@@ -400,7 +400,8 @@ defmodule Agentboard.Cooperation.IdleContinuation do
              )
 
     now = Ops.now()
-    {_, row} = current(s.id, now)
+    {_, initial} = current(s.id, now)
+    {row, _progressed} = observe(initial, s.id, now)
 
     if row.disposition_key == data["idempotency_key"] do
       unless row.disposition == data["disposition"] and
@@ -409,7 +410,6 @@ defmodule Agentboard.Cooperation.IdleContinuation do
 
       Map.put(status(s, b), :idempotent, true)
     else
-      {row, _progressed} = observe(row, s.id, now)
       cause = data["disposition"]
 
       attrs = %{
