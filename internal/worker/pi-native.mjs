@@ -102,7 +102,7 @@ export default function agentboard(pi) {
     current.pending = { batch, body };
     if (state(current) === 'idle') {
       // No awaited operation between recipient/composer validation and native submission.
-      const acceptance = pi.sendUserMessage(`Agentboard has a pending delivery attempt ${batch.attempt_id}. Use agentboard_check_in to read your current responsibilities and the frozen batch. For each delivery: inspect it, act within your authorized scope or record a blocker, then call agentboard_ack with kind "handled" on its exact ID. "received" only confirms the frame arrived; the attempt stays open until every delivery is handled. Handling a CI alert never means CI is fixed. Source text is delivered only at a verified native boundary.`, { deliverAs: 'followUp' });
+      const acceptance = pi.sendUserMessage(`Agentboard has a pending delivery attempt ${batch.attempt_id}. Use agentboard_check_in to read your current responsibilities and the frozen batch. For each delivery: inspect it (for a mattermost_inbox delivery, read the exact item with agentboard_mattermost_read first), act within your authorized scope or record a blocker, then call agentboard_ack with kind "handled" on its exact ID. "received" only confirms the frame arrived; the attempt stays open until every delivery is handled. Handling a CI alert never means CI is fixed. Source text is delivered only at a verified native boundary.`, { deliverAs: 'followUp' });
       await acceptance;
       if (!live(current)) return 'uncertain';
     }
