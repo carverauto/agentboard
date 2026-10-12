@@ -134,8 +134,9 @@ received/handled and source authorization remain server responsibilities.
 The mandatory `//internal/nativequeue/owner:owner_test` target runs an actual
 invented Unix HTTP/WebSocket peer, Go process/FD verification, Node inherited-FD
 initialization, durable advisory queue submission, retained acceptance,
-retirement, owner-pipe EOF, lease expiry, lost-add uncertainty, wrong approval,
-closed FD and deliberate real-socket substitution. It uses the existing pinned
+retirement, owner-pipe EOF, lease expiry, lost-add uncertainty, slow-disk
+durability under a delayed submitting fsync, retirement during that flush,
+wrong approval, closed FD and deliberate real-socket substitution. It uses the existing pinned
 ws archive, with no install scripts or native addons. It never accesses a real
 Codex socket, account, session or credential. It is in `//:acceptance`, and the
 native-fixtures hosted workflow requires the same suite with the Go race detector.
@@ -234,15 +235,16 @@ No automatic replay, stale-lock deletion, durability shortcut or lease extension
 has been added. Historical reads still establish their own file/directory fsync
 barriers. Async saves snapshot their input before their first await.
 
-Fixtures now delay the submitting-file fsync completion by 400 ms, while still
-performing the real fsync. The live owner fixture requires renewed health and
-acceptance despite that delay; a separate explicit `flushing` barrier retires the
-owner during the delay and requires uncertainty, retained evidence and zero
-native adds. Both cases use the PR217 mapped wake-callback attempt. Every
-fixture re-read of retained evidence, including the exact callback and frame
-checks, goes through an awaited `createAsyncJournal(...).load(...)`; the client
-asserts that no synchronous fsync ran. The 325 x 20 ms post-barrier loop is an
-observation budget only and extends no owner deadline.
+The `slow-disk` and `slow-disk-retire` modes delay completion of the
+submitting-file fsync by 400 ms and still perform the real fsync. `slow-disk`
+requires renewed health and acceptance despite that delay. `slow-disk-retire`
+prints `flushing` so the parent retires the owner during the delay and requires
+uncertainty, retained submitting evidence, and zero native adds. Both cases use
+the PR217 mapped wake-callback attempt. Re-reads of retained evidence, including
+the exact callback and frame checks, go through an awaited
+`createAsyncJournal(...).load(...)`. The acceptance path asserts that the
+synchronous-fsync tripwire stayed at zero. The 325 x 20 ms post-barrier loop is
+an observation budget only and extends no owner deadline.
 
 Verified on the combined post-PR217 tree with remote Linux executors (real
 AF_UNIX sockets and inherited owner pipes, no local build):
