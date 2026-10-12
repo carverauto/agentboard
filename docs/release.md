@@ -242,8 +242,7 @@ is harmless. Readiness requires at least schema 9 and that table.
 
 `AGENTBOARD_PR_OBSERVATION_ENABLED` still defaults to false. Enabling it at
 boot installs the scheduler; this schema adds no provider collector, CI
-verdict, repair task, session notification or public route. Keep it off until
-the later observation/delivery acceptance gate.
+verdict, repair task, session notification or public route. See [current-head observations](github-ci-observation.md) for the enablement state.
 
 Roll back by deploying an older compatible image and retaining schema 9,
 jobs, evidence and budgets. Do not drop the additive table or run a down
