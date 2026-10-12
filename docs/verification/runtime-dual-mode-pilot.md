@@ -44,3 +44,19 @@ Other harnesses are tracked in 6.3–6.5.
    handling them.
 3. Rollout: dual mode with inbound needs `AGENTBOARD_MATTERMOST_INBOUND_REPO`;
    without it the owner never subscribes and nothing reports that clearly.
+
+## Mattermost outage (OpenSpec 4.3)
+
+Same deployment, 2026-10-12. Mattermost was scaled to zero from 19:13:22 to
+19:15:03 UTC (ping 503 during, 200 after).
+
+| Check during the outage | Result |
+| --- | --- |
+| Board task create and update (`pilot-mm-outage-20261012`) | Succeeded (events 3500, 3501) |
+| Worker check-in and `/api/v1/meta` | Succeeded; HTTP 200 |
+| `agentboard chat send` | Refused before posting: "retry-key lookup failed; send aborted instead of risking a duplicate" |
+
+After recovery the outbound bridge posted both outage-window lifecycle events at
+19:16:00 (about 57 s after Mattermost returned) with no duplicates, and retrying
+the aborted send with the same retry key posted exactly once
+(`duplicate: false`).

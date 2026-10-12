@@ -6,20 +6,20 @@ The **first release gate is group 3**, an actual failed PR returning to its resp
 
 ## Next Agent Prompt
 
-Status 2026-10-12 ~17:30Z: the first release gate (3.2/3.3) is proven live; see
-docs/verification/runtime-first-release-pilot.md. farm01 runs c39b9c7 at schema
-42; main is 358c8a3 (schema 44). Pilot worker `worker-agentboard-farm01-1` stays
-enrolled, bound at epoch 3 and supervised by its LaunchAgent on `arrakis`.
+Status 2026-10-12: 3.2/3.3 are in docs/verification/runtime-first-release-pilot.md.
+farm01's current pin is 358c8a3 (schema 44); see docs/deploy/reference-farm01.md.
+5.4 and 4.3 are in docs/verification/runtime-dual-mode-pilot.md. 3.5 is in PR #232.
+Pilot worker `worker-agentboard-farm01-1` stays enrolled, bound at epoch 3 and
+supervised by its LaunchAgent on `arrakis`.
 
 Priority order:
-1. 3.4: farm01 roll to main with `AGENTBOARD_MESSAGE_MODE=dual`, Mattermost inbound
-   and private routes (maintainer-authorized; script prepared, maintainer runs
-   it), then record health/pause/rollback. Publishing a tagged CLI release
-   (v0.3.0) is a separate maintainer decision.
-2. 5.4: second worker plus two-worker dual-mode send/receive/reconnect proof.
-3. 4.3 outage demo; 6.3–6.5 per-harness live proofs (each needs a live session
-   started by the maintainer).
-4. 7.3 docs/skills/OpenSpec reconcile after 5.4; then 8.1–8.3. 5.1b's remote
+1. 3.4 is still open. The 358c8a3 dual-mode roll and
+   `AGENTBOARD_MATTERMOST_INBOUND_REPO` are already on the overlay; do not repeat
+   that roll. Publishing a tagged CLI release (v0.3.0) remains a separate
+   maintainer decision.
+2. 6.3–6.5 per-harness live proofs (each needs a live session started by the
+   maintainer).
+3. 7.3 docs/skills/OpenSpec reconcile after 5.4; then 8.1–8.3. 5.1b's remote
    proof belongs to `mm-elastic-agent-bots` task 7; 8.2 stays with
    `adopt-ash-and-monitor-pr-ci`.
 
@@ -50,13 +50,13 @@ the next session's adapter until a stale-owner inspection.
 - [x] 3.2 Run a controlled live PR failure after its recorded owner starts another issue; measure detection/eligible-boundary delivery, inspect failed-head/job links, record an exact receipt and show the still-red obligation in the dashboard. Then leave it without progress to prove bounded reminder/escalation. Proved live on farm01 2026-10-12 with PR #224 and `worker-agentboard-farm01-1`: failure to unresolved obligation and pending alert in ~75 s, idle native wake, exact `handled` receipts, four reminders then captain escalation at 17:00:00Z. See docs/verification/runtime-first-release-pilot.md. The pilot found and PR #226 fixed missing handled guidance.
 - [x] 3.3 Restart the host connector and selected agent session during the same controlled obligation; verify pending recovery, stale-generation rejection, no automatic lease recovery and retained repair responsibility. Repair/rerun CI and verify canonical current-head recovery without silent follow-up task completion. Proved in the same run: two explicit rebinds (epochs 2 and 3) with connector and session restarts, captain `resolve_attempt` decisions for replaced attempts, stale-epoch ack refused, no lease recovery, `degraded` (never green) while required checks were missing, and current-head resolution at 17:26:22Z with the repair task still assigned.
 - [ ] 3.4 Publish remote-built immutable service/CLI assets, enroll the selected worker explicitly and enable observation/delivery only after the proof; verify production service health/pause/rollback and update participation skills with actual check-in/repair/receipt commands. Record unsupported agents separately.
-- [ ] 3.5 Deliver this first release's Archify JSON/HTML and portable Lavish proposal with separate deterministic/browser/perceptual evidence; upload from the live claimed task, link the PR and verify the sandboxed viewers. Keep the broader implementation checklist open.
+- [x] 3.5 Deliver this first release's Archify JSON/HTML and portable Lavish proposal with separate deterministic/browser/perceptual evidence; upload from the live claimed task, link the PR and verify the sandboxed viewers. Keep the broader implementation checklist open. Delivered in PR #232: Archify architecture (board document 207) and portable OpenSpec review (document 208), uploaded from the live claimed task with separate deterministic, browser and perceptual evidence.
 
 ## 4. Outbound Mattermost bridge, independent of CI wake delivery
 
 - [x] 4.1 Add additive lifecycle outbox/task-thread mappings and transactional board source capture; verify rollback, duplicate jobs, pinned fan-out continuation, late commits and multi-pod contention remotely, and document the independent queue/runtime fence. Shipped in PR #61 (`Agentboard.Mattermost` outbox/task threads/bridge capture); [remote bridge acceptance](https://carverauto.buildbuddy.io/invocation/fbab4c30-853b-498d-af07-a8f5da8d0f86), live on farm01 since the 4f8821d rollout.
 - [x] 4.2 Implement bounded Mattermost posts, thread roots and event-marker reconciliation outside transactions; verify accepted-post/lost-response, unresolved uncertainty, 429, timeout and duplicate-root reporting remotely against controlled HTTP fixtures, and document actual receiver idempotency limits. Shipped in PR #61 (`mattermost/delivery.ex`: HTTP outside transactions, generation fence, marker adoption or parking); same `mattermost_bridge_test` evidence covers lost response, uncertainty, 429, timeout and duplicate roots.
-- [ ] 4.3 Prepare the existing Mattermost service bot/channels/Secret references and validate member scopes without exposing tokens; run a controlled lifecycle/handoff outage-and-recovery demonstration, verify board/CI delivery remains available, and document rotation/rollback.
+- [x] 4.3 Prepare the existing Mattermost service bot/channels/Secret references and validate member scopes without exposing tokens; run a controlled lifecycle/handoff outage-and-recovery demonstration, verify board/CI delivery remains available, and document rotation/rollback. Proved live on farm01 2026-10-12: a 2-minute Mattermost outage left board writes, worker check-in and the API available; chat send refused rather than risk a duplicate; the bridge delivered both outage-window lifecycle posts 57 s after recovery without duplicates. See docs/verification/runtime-dual-mode-pilot.md.
 
 ## 5. Worker identities and real peer inboxes
 

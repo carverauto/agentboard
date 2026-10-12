@@ -545,20 +545,27 @@ No pre-migration database backup was taken, by explicit maintainer decision
 `kubectl set image` (rollout status successful 2026-10-12T18:25:26Z); the
 migration succeeded and meta reports schema 44/API 1/required 44.
 
-The overlay adds three literals matching the targeted live ConfigMap patch:
+The 18:25 live ConfigMap patch set three literals:
 `AGENTBOARD_MESSAGE_MODE=dual`, `AGENTBOARD_MATTERMOST_INBOUND_ENABLED=true`
-and `AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED=true`. The pre-existing
-overlay/live drift (`AGENTBOARD_AUTH` live-only,
-`AGENTBOARD_WORKFLOW_REPOSITORIES` overlay-only) is deliberately unchanged.
-No new secret is required.
+and `AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED=true`. The overlay matches
+that patch and also sets
+`AGENTBOARD_MATTERMOST_INBOUND_REPO=carverauto/agentboard`. That scope was
+missing from the first dual rollout; without it inbound never subscribes. It
+was added on the live ConfigMap at 18:47 UTC the same day and is now in the
+overlay. The [rollout receipt](../verification/farm01-358c8a3-rollout.json)
+records only the 18:25 patch. The pre-existing overlay/live drift
+(`AGENTBOARD_AUTH` live-only, `AGENTBOARD_WORKFLOW_REPOSITORIES` overlay-only)
+is deliberately unchanged. No new secret is required.
 
 Verification was public HTTPS plus the worker API (`/health/live`,
 `/health/ready`, `/`, `/prs` and `/api/v1/meta` return 200; transport
 requested and effective `dual`); worker `agentboard-farm01-1` reported
 healthy/ready at epoch 3 with its Mattermost inbox enabled. No rollback was
-performed. See the [rollout receipt](../verification/farm01-358c8a3-rollout.json).
-Roll back by patching `AGENTBOARD_MESSAGE_MODE=board` and both flags to
-`false` with a restart, keeping the additive schema 44.
+performed. Roll back by patching `AGENTBOARD_MESSAGE_MODE=board` and the two
+boolean flags to `false` with a restart, keeping the additive schema 44.
+Leaving `AGENTBOARD_MATTERMOST_INBOUND_REPO` set is harmless while inbound is
+disabled. The [dual-mode pilot](../verification/runtime-dual-mode-pilot.md)
+records the later outage check on this deployment.
 
 ## Coordinator attribution
 
