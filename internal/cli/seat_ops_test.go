@@ -49,7 +49,7 @@ func seatOpsBoard(t *testing.T) *httptest.Server {
 		if r.URL.Query().Get("owner") != "codex-a" {
 			t.Errorf("tasks query = %s", r.URL.RawQuery)
 		}
-		w.Write([]byte(`{"tasks":[{"id":"ship-it","status":"assigned","priority":0,"assignee_id":"codex-a","created_at":"2026-10-12T08:00:00Z"},{"id":"old","status":"done","priority":0,"assignee_id":"codex-a","created_at":"2026-10-01T08:00:00Z"}],"next_cursor":null}`))
+		w.Write([]byte(`{"tasks":[{"id":"ship-it","status":"assigned","priority":0,"held_by_decision":false,"assignee_id":"codex-a","created_at":"2026-10-12T08:00:00Z"},{"id":"old","status":"done","priority":0,"assignee_id":"codex-a","created_at":"2026-10-01T08:00:00Z"}],"next_cursor":null}`))
 	})
 	mux.HandleFunc("GET /api/v1/messages", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()

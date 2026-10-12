@@ -407,6 +407,7 @@ func TestPickCard(t *testing.T) {
 		{"actionable beats parked at same priority", []Task{{ID: "parked", Status: "blocked", Priority: p(1), CreatedAt: t0.Add(-time.Hour)}, {ID: "ready", Status: "assigned", Priority: p(1), CreatedAt: t0}}, nil, "ready"},
 		{"claimed P1 beats older unclaimed P1", []Task{{ID: "older", Status: "assigned", Priority: p(1), CreatedAt: t0.Add(-time.Hour)}, {ID: "mine", Status: "in_progress", Priority: p(1), CreatedAt: t0, ClaimedAt: &claimedAt}}, nil, "mine"},
 		{"oldest wins below P1", []Task{{ID: "newer", Status: "assigned", Priority: p(2), CreatedAt: t0}, {ID: "older", Status: "assigned", Priority: p(2), CreatedAt: t0.Add(-time.Hour)}}, nil, "older"},
+		{"held by a decision is never picked", []Task{{ID: "held", Status: "assigned", Priority: p(0), HeldByDecision: true}, {ID: "free", Status: "assigned", Priority: p(3)}}, nil, "free"},
 		{"waiting on captain is never picked", []Task{{ID: "waits", Status: "blocked", Priority: p(0)}, {ID: "next", Status: "assigned", Priority: p(2)}}, map[string]time.Time{"waits": t0}, "next"},
 		{"review is not work to pick", []Task{{ID: "rev", Status: "review", Priority: p(0)}}, nil, ""},
 	}

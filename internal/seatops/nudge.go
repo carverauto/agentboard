@@ -205,7 +205,7 @@ func PickCard(owned []Task, waiting map[string]time.Time) (*Task, string) {
 		default:
 			continue
 		}
-		if _, ok := waiting[t.ID]; ok || t.HeldBy != nil {
+		if _, ok := waiting[t.ID]; ok || t.HeldByDecision {
 			continue
 		}
 		eligible = append(eligible, t)

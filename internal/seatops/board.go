@@ -19,15 +19,15 @@ type BoardAgent struct {
 
 // Task is the slice of a task record the seat operations read.
 type Task struct {
-	ID           string     `json:"id"`
-	Status       string     `json:"status"`
-	Priority     *int       `json:"priority"`
-	AssigneeID   string     `json:"assignee_id"`
-	ClaimedAt    *time.Time `json:"claimed_at"`
-	ClaimExpired bool       `json:"claim_expired"`
-	CreatedAt    time.Time  `json:"created_at"`
-	Revision     int64      `json:"revision"`
-	HeldBy       any        `json:"held_by_decision"`
+	ID             string     `json:"id"`
+	Status         string     `json:"status"`
+	Priority       *int       `json:"priority"`
+	AssigneeID     string     `json:"assignee_id"`
+	ClaimedAt      *time.Time `json:"claimed_at"`
+	ClaimExpired   bool       `json:"claim_expired"`
+	CreatedAt      time.Time  `json:"created_at"`
+	Revision       int64      `json:"revision"`
+	HeldByDecision bool       `json:"held_by_decision"`
 }
 
 // Message is the slice of an inbox message the seat operations read.
