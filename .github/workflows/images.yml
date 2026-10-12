@@ -4,7 +4,7 @@ name: Container images
 #   push to main  -> sha-<commit> and latest
 #   push of v*    -> sha-<commit> and the version tag
 # Main-targeting pull requests run the secret-free plan. Trusted same-repository PRs
-# also run remote acceptance behind the existing release environment controls,
+# also run remote acceptance behind dedicated PR-test environment controls,
 # using build/pull-only credentials. Fork/Dependabot PRs remain plan-only.
 # Pull requests never run image publication.
 on:
@@ -111,8 +111,9 @@ jobs:
 
   acceptance:
     needs: plan
-    # PR code can use the build credentials below. Keep this on trusted source
-    # branches and preserve all existing environment approval/ref protections.
+    # Create and verify this protected environment before publishing the route;
+    # GitHub auto-creates missing environments without protection rules.
+    # PR code can use its build credentials. Keep trusted sources and approvals.
     if: >-
       github.event_name == 'pull_request' &&
       github.repository == 'carverauto/agentboard' &&
@@ -121,7 +122,7 @@ jobs:
       github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: arc-runner-set
     timeout-minutes: 60
-    environment: agentboard-release
+    environment: agentboard-pr-tests
     permissions:
       contents: read
     container:
