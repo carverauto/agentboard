@@ -788,13 +788,13 @@ try {
     await f.open();
     const transport = createCodexAdvisoryTransport({ client: f.client, ...f.identity, journalDir: dir });
     const attempt = { attemptId: 'fsync-expiry', source: { kind: 'wake', id: 'source', version: 'b'.repeat(64), uri: 'https://agentboard.example.com/source' }, recipient: clone(f.identity.recipient), bindingEpoch: 3, dispatchGeneration: 1 };
-    const original = fs.fsyncSync;
+    const original = fs.fsync;
     let count = 0;
     // Inject the effect of a health lease expiring during the submitting-file
     // fsync (after lock-file + directory sync). No sleep or Unix socket needed.
-    fs.fsyncSync = function (...args) { const result = original.apply(this, args); if (++count === 3) f.revoke(); return result; };
+    fs.fsync = function (fd, callback) { original.call(this, fd, error => { if (++count === 3) f.revoke(); callback(error); }); };
     let result;
-    try { result = await transport.submit(attempt); } finally { fs.fsyncSync = original; }
+    try { result = await transport.submit(attempt); } finally { fs.fsync = original; }
     assert.equal(result.outcome, 'uncertain');
     assert.equal(result.reason, 'native_acceptance_unknown');
     assert.equal(journal.load(attempt.attemptId).phase, 'submitting');

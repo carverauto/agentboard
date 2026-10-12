@@ -1,6 +1,6 @@
 // Unregistered delivery-boundary library. No process, socket, host or board API.
 import { createHash, randomUUID } from 'node:crypto';
-import { createJournal } from './journal.mjs';
+import { createAsyncJournal } from './journal.mjs';
 import { ADVISORY_TITLE, NOTICE_SUFFIX, validateMappedWakeAttempt } from './advisory-mapping.mjs';
 
 export const PROFILE = 'codex-native-queue-v1';
@@ -107,7 +107,7 @@ function createTransport({ client, endpoint, recipient, journalDir, timeoutMs = 
   endpoint = snapshot(endpoint); recipient = snapshot(recipient);
   if (!endpointValid(endpoint, advisory) || !recipientValid(recipient, advisory) || typeof client?.identity !== 'function' || typeof client?.request !== 'function') error('Verified queue endpoint and persistent top-level recipient required');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000 || !Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > 32 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) error('Invalid transport bounds');
-  const journal = createJournal(journalDir, { io: journalIO });
+  const journal = createAsyncJournal(journalDir, { io: journalIO });
   const identity = freeze({ endpoint, recipient });
   function current() {
     if (!equal(snapshot(client.identity()), identity)) error('Native endpoint or recipient identity changed');
@@ -136,8 +136,8 @@ function createTransport({ client, endpoint, recipient, journalDir, timeoutMs = 
       attemptId: record.attempt.attemptId, bindingEpoch: record.attempt.bindingEpoch, dispatchGeneration: record.attempt.dispatchGeneration,
       frameSha256: record.frameSha256, endpoint, recipient };
   }
-  function load(attempt) {
-    const record = journal.load(attempt.attemptId);
+  async function load(attempt) {
+    const record = await journal.load(attempt.attemptId);
     if (record === null) return null;
     const keys = ['version', 'attempt', 'endpoint', 'frame', 'frameSha256', 'clientUserMessageId', 'phase'];
     if (record.phase === 'accepted') keys.push('receipt');
@@ -150,9 +150,9 @@ function createTransport({ client, endpoint, recipient, journalDir, timeoutMs = 
   function matchItem(item, record) {
     return exact(item, ['id', 'input', 'clientUserMessageId']) && uuid(item.id) && item.clientUserMessageId === record.clientUserMessageId && equal(item.input, inputFor(record.frame));
   }
-  function retain(record, item) {
+  async function retain(record, item) {
     const next = { ...record, phase: 'accepted', receipt: receiptFor(record, item.id) };
-    journal.save(record.attempt.attemptId, next);
+    await journal.save(record.attempt.attemptId, next);
     return accepted(next, false);
   }
   async function inspect() {
@@ -173,33 +173,33 @@ function createTransport({ client, endpoint, recipient, journalDir, timeoutMs = 
     const attempt = expectedAttempt(value);
     // Retained acceptance is historical evidence even when the client is now
     // disconnected. A changed frame/context can never inherit that acceptance.
-    const previous = load(attempt);
+    const previous = await load(attempt);
     if (previous !== null) return previous.phase === 'accepted' ? accepted(previous, true) : uncertain('retained_submitting_evidence');
     current();
     const frame = frameFor(attempt);
     try {
       return await journal.withLock(attempt.attemptId, async () => {
-        const existing = load(attempt);
+        const existing = await load(attempt);
         if (existing !== null) return existing.phase === 'accepted' ? accepted(existing, true) : uncertain('retained_submitting_evidence');
         current();
         const record = { version: 1, attempt, endpoint, frame, frameSha256: hash(frame), clientUserMessageId: randomUUID(), phase: 'submitting' };
-        journal.save(attempt.attemptId, record); // Durable before ANY RPC.
+        await journal.save(attempt.attemptId, record); // Durable before ANY RPC.
         try {
           const result = await rpc('thread/queue/add', { threadId: recipient.threadId, input: inputFor(frame), clientUserMessageId: record.clientUserMessageId });
           if (!exact(result, ['queuedSubmission']) || !matchItem(result.queuedSubmission, record)) return uncertain('native_acceptance_mismatch');
-          return retain(record, result.queuedSubmission);
+          return await retain(record, result.queuedSubmission);
         } catch { return uncertain('native_acceptance_unknown'); }
       });
     } catch { return uncertain('journal_or_attempt_custody_unavailable'); }
   }
   async function reconcile(value) {
     const attempt = expectedAttempt(value);
-    const previous = load(attempt);
+    const previous = await load(attempt);
     if (previous === null) return uncertain('no_retained_native_evidence');
     if (previous.phase === 'accepted') return accepted(previous, true);
     try {
       return await journal.withLock(attempt.attemptId, async () => {
-        const record = load(attempt);
+        const record = await load(attempt);
         if (record === null) return uncertain('no_retained_native_evidence');
         if (record.phase === 'accepted') return accepted(record, true);
         let cursor = null, match = null;
@@ -219,7 +219,7 @@ function createTransport({ client, endpoint, recipient, journalDir, timeoutMs = 
           if (result.nextCursor === null) {
             // Even exhausted offset pagination cannot establish non-submission.
             // A positive exact item proves acceptance, not a unique execution.
-            return match ? retain(record, match) : uncertain('queue_absence_is_inconclusive');
+            return match ? await retain(record, match) : uncertain('queue_absence_is_inconclusive');
           }
           cursor = result.nextCursor;
         }

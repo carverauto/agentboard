@@ -250,7 +250,7 @@ func integrationFiles(t *testing.T) (string, string) {
 }
 func TestInheritedFDIntegration(t *testing.T) {
 	node, stage := integrationFiles(t)
-	for _, mode := range []string{"happy", "retire", "pipe-eof", "lease", "lose-add", "wrong-approval", "wrong-fd", "fd-substitution"} {
+	for _, mode := range []string{"happy", "retire", "pipe-eof", "lease", "lose-add", "slow-disk", "slow-disk-retire", "wrong-approval", "wrong-fd", "fd-substitution"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 			defer cancel()
@@ -313,7 +313,7 @@ func TestInheritedFDIntegration(t *testing.T) {
 			for lines.Scan() {
 				line := lines.Text()
 				output = append(output, line)
-				if line == "accepted" && mode == "retire" {
+				if (line == "accepted" && mode == "retire") || (line == "flushing" && mode == "slow-disk-retire") {
 					o.Retire()
 				}
 				if line == "accepted" && mode == "pipe-eof" {
@@ -356,6 +356,10 @@ func TestInheritedFDIntegration(t *testing.T) {
 			if mode == "wrong-approval" || mode == "wrong-fd" || mode == "fd-substitution" {
 				if initializes != 0 || adds != 0 {
 					t.Fatal("refused owner wrote native RPC")
+				}
+			} else if mode == "slow-disk-retire" {
+				if initializes != 1 || adds != 0 {
+					t.Fatalf("retired during flush wrote native add: %d initializes, %d adds", initializes, adds)
 				}
 			} else if initializes != 1 || adds != 1 {
 				t.Fatalf("expected exactly one initialize and add, got %d %d", initializes, adds)

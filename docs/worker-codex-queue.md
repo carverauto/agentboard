@@ -161,6 +161,15 @@ response after add invocation remains uncertain, even if it looks like rejection
 The library never performs a second add for a retained attempt. A crash leaves
 submitting evidence (and possibly custody lock), preventing automatic replay.
 
+Transports drive this custody algorithm through `createAsyncJournal`, which
+awaits Node's callback filesystem operations so a slow fsync cannot block the
+event loop that renews owner health. Root and lock identities are rechecked after
+each awaited barrier, and the caller identity is rechecked immediately before
+native add. A journal root that fails validation is reported on the first
+journal operation instead of at construction; no native add precedes that check.
+Injected `journalIO` must supply callback-style operations. The synchronous
+`createJournal` runs the same algorithm for offline inspection and fixtures only.
+
 ## Remaining gates
 
 Before integration: obtain Muse's shared runtime agreement and Rollout's admission
