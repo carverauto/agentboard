@@ -164,6 +164,14 @@ class MM(http.server.BaseHTTPRequestHandler):
                                   key=lambda p: (p['create_at'], p['id']), reverse=True)
                 selected = selected[page * 60:(page + 1) * 60]
                 response = dict(order=[p['id'] for p in selected], posts={p['id']: dict(p) for p in selected})
+                # Like Mattermost, `posts` also carries the thread roots of page
+                # replies (whole threads unless skipFetchThreads=true); `order` does not.
+                roots = {p['root_id'] for p in selected if p['root_id']}
+                skip_threads = query.get('skipFetchThreads') == ['true']
+                for p in POSTS.values():
+                    if p['channel_id'] == channel and not p['delete_at'] and (
+                            p['id'] in roots or (not skip_threads and p['root_id'] in roots)):
+                        response['posts'].setdefault(p['id'], dict(p))
                 if RACE and channel == 'room' and page == 0:
                     RACE = False
                     POSTS['zz-page-live'] = post('zz-page-live', '@worker-b concurrent live/page arrival')
@@ -243,6 +251,7 @@ server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), MM)
 threading.Thread(target=server.serve_forever, daemon=True).start()
 TOKENS = {}
 rpc('Application.put_env(:agentboard, :captain_token, ' + json.dumps(CAPTAIN) + ')')
+NOW_MS = lambda: int(time.time() * 1000)
 for worker in ('worker-a', 'worker-b'):
     api('/agents/register', dict(name=worker), actor=worker)
     TOKENS[worker] = api('/workers/provision', dict(worker_id=worker, host_id='fixture-host', repos=['fixture/repo'],
@@ -263,6 +272,17 @@ POSTS['zz-poison-1'] = post('zz-poison-1', '@worker-b ' + 'x' * 70000)
 POSTS['zz-poison-2'] = post('zz-poison-2', '@worker-b poison root', root='missing-root-post')
 POSTS['zz-poison-0-sibling'] = post('zz-poison-0-sibling', '@worker-b valid sibling after poison')
 POSTS['zz-task-1'] = post('zz-task-1', '@worker-b task post', user='shared-bot', props=dict(agent_id='worker-a', msg_id='task-1-msg', task_id='fixture-task'))
+# An existing bot-joined board channel whose newest page is task-thread replies
+# to an older root, as on a real board. Lifecycle markers route to nobody.
+CHANNELS.append('board')
+BOARD_START = NOW_MS() - 100000
+POSTS['board-root'] = dict(post('board-root', 'task thread root', user='shared-bot', channel='board',
+                                props=dict(agentboard_event_marker='agentboard:task:fixture-task:root')),
+                           create_at=BOARD_START, update_at=BOARD_START)
+for i in range(60):
+    POSTS['board-reply-%02d' % i] = dict(post('board-reply-%02d' % i, 'task event %d' % i, user='shared-bot', channel='board',
+                                              root='board-root', props=dict(agentboard_event_marker='agentboard:task:fixture-task:%d' % i)),
+                                         create_at=BOARD_START + 1000 + i, update_at=BOARD_START + 1000 + i)
 RACE = True
 rpc('Application.put_env(:agentboard, :mattermost_inbound_history_start_ms, 0)')
 rpc('Application.put_env(:agentboard, :mattermost_base_url, ' + json.dumps('http://127.0.0.1:%d' % server.server_port) + ')')
@@ -354,8 +374,9 @@ with LOCK:
     emit('direct_added', {'channel_id': 'new-dm'})
     emit('posted', {'post': json.dumps(POSTS['dm'])})
 wait(lambda: find('dm'))
-dm_cov = next(c for c in inbox()[1] if c['channel_id'] == 'new-dm')
-assert dm_cov['history_complete'] and dm_cov['incomplete_reason'] == 'historical_deletions_unprovable'
+# Periodic rescans briefly mark every channel catch_up_in_progress; wait for a settled scan.
+dm_cov = wait(lambda: next((c for c in inbox()[1] if c['channel_id'] == 'new-dm' and c['history_complete']), None))
+assert dm_cov['incomplete_reason'] == 'historical_deletions_unprovable'
 # Live edit with unchanged timestamps is a distinct version; old body is unavailable.
 old = find('p-002')
 with LOCK:
@@ -385,7 +406,7 @@ wait(lambda: find('live-sibling-2'))
 assert not any(c['channel_id'] == 'unknown' for c in inbox()[1]), 'malformed frame must not create phantom coverage'
 wait(lambda: any(c['live_connected'] for c in inbox()[1]))
 # Buffered posts from a denied channel are dropped while allowed siblings continue.
-rpc('Application.put_env(:agentboard, :mattermost_channel_allowlist, "room,new-dm")')
+rpc('Application.put_env(:agentboard, :mattermost_channel_allowlist, "room,new-dm,board")')
 with LOCK:
     CHANNELS.append('late-denied')
     for i in range(5):
@@ -409,6 +430,40 @@ assert len([r for r in REQUESTS if '/posts?' in r]) == before, 'source requests 
 row = sql("SELECT reason || ':' || (expires_at > clock_timestamp())::text FROM mattermost_inbound_runs")
 assert row.startswith('rate_limited:true'), 'durable delayed lease expiry required, got ' + row
 RATE429 = False
+wait(lambda: any(c['live_connected'] for c in inbox()[1]))
+# Enabled without a repository scope, the owner never subscribes: that is an
+# operator-visible blocker, not silence. A peer note posted meanwhile in the
+# existing board channel (after the recipient enrolled) is recovered from history
+# once the scope is fixed, under the default enrollment-time bootstrap.
+def transport_blockers():
+    with urllib.request.urlopen(os.environ['AGENTBOARD_URL'] + '/api/v1/meta') as response:
+        return json.load(response)['message_transport']['blockers']
+
+
+assert 'mattermost_inbound_repo_invalid' not in transport_blockers()
+rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
+wait(lambda: sql("SELECT reason FROM mattermost_inbound_runs") == 'disabled')
+rpc('Application.delete_env(:agentboard, :mattermost_inbound_repo)')
+rpc('Application.delete_env(:agentboard, :mattermost_inbound_history_start_ms)')
+rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, true)')
+assert 'mattermost_inbound_repo_invalid' in transport_blockers()
+web_log = Path(os.environ['TEST_TMPDIR']) / 'web.log'
+wait(lambda: b'not subscribed: mattermost_inbound_repo_invalid' in web_log.read_bytes())
+with LOCK:
+    POSTS['board-note'] = dict(post('board-note', '[worker-a \u00b7 fixture-task]\n@worker-b note sent while inbound was unsubscribed',
+                                    user='shared-bot', channel='board',
+                                    props=dict(agent_id='worker-a', msg_id='board-note-msg', kind='note', task_id='fixture-task')),
+                               create_at=NOW_MS(), update_at=NOW_MS())
+time.sleep(6)
+assert sql("SELECT reason FROM mattermost_inbound_runs") == 'disabled', 'owner must not subscribe without a repository scope'
+rpc('Application.put_env(:agentboard, :mattermost_inbound_repo, "fixture/repo")')
+note = wait(lambda: find('board-note'), timeout=60)
+assert (note['sender_agent_id'], note['task_id'], note['kind'], note['channel_id']) == ('worker-a', 'fixture-task', 'note', 'board'), note
+assert 'mattermost_inbound_repo_invalid' not in transport_blockers()
+board_cov = wait(lambda: next((c for c in inbox()[1] if c['channel_id'] == 'board' and c['history_complete']), None))
+assert board_cov['incomplete_reason'] == 'historical_deletions_unprovable' and not board_cov['caught_up'], board_cov
+assert not any(i['post_id'].startswith('board-r') for i in inbox()[0]), 'lifecycle markers route to nobody'
+rpc('Application.put_env(:agentboard, :mattermost_inbound_history_start_ms, 0)')
 wait(lambda: any(c['live_connected'] for c in inbox()[1]))
 # Downtime/reconnect replays missed posts; deletes/retention remain explicit gaps.
 ACCEPT_WS = False

@@ -3,9 +3,10 @@ defmodule Agentboard.Mattermost.InboundStream do
   use GenServer
   alias Agentboard.Mattermost.{Inbound, InboundHTTP, InboundStore}
   alias Mint.{HTTP, WebSocket}
+  require Logger
 
   def start_link(_), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
-  defp empty, do: %{cfg: nil, conn: nil, ref: nil, ws: nil, status: nil, headers: [], hello: false, authenticated: false, seq: nil, task: nil, buffer: [], bytes: 0, channels: [], last_frame: now(), next_scan: now(), frame_bytes: 0, retry_at: now()}
+  defp empty, do: %{cfg: nil, conn: nil, ref: nil, ws: nil, status: nil, headers: [], hello: false, authenticated: false, seq: nil, task: nil, buffer: [], bytes: 0, channels: [], last_frame: now(), next_scan: now(), frame_bytes: 0, retry_at: now(), blocked: nil}
   @impl true
   def init(_) do
     Process.send_after(self(), :tick, 1000)
@@ -83,7 +84,7 @@ defmodule Agentboard.Mattermost.InboundStream do
   defp connect(state) do
     with {:ok, cfg} <- Inbound.base_config(),
          {:ok, cfg} <- InboundStore.claim(cfg) do
-      state = %{state | cfg: cfg, last_frame: now()}
+      state = %{state | cfg: cfg, last_frame: now(), blocked: nil}
       with {:ok, verified} <- Inbound.verify_bot(cfg),
            {:ok, conn, uri, scheme} <- InboundHTTP.connect(verified, :active),
            {:ok, conn, ref} <- WebSocket.upgrade(if(scheme == :https, do: :wss, else: :ws), conn, InboundHTTP.path(uri, "/api/v4/websocket"), []) do
@@ -94,8 +95,19 @@ defmodule Agentboard.Mattermost.InboundStream do
       end
     else
       {:error, {:rate_limited, seconds}} -> %{state | retry_at: now() + seconds * 1000}
+      {:error, :bot_identity_or_scope_unverified} -> unsubscribed(state)
       _ -> state
     end
+  end
+
+  # Enabled but unable to subscribe is an operator-visible failure, not silence:
+  # catch-up for every channel stops until configuration is fixed. The same
+  # blocker appears in /meta message_transport. Logged once per transition.
+  defp unsubscribed(state) do
+    blocker = Inbound.configuration_blocker()
+    if blocker && blocker != state.blocked,
+      do: Logger.error("Mattermost inbound is enabled but not subscribed: #{blocker}; no inbox capture or catch-up runs until it is fixed")
+    %{state | blocked: blocker}
   end
 
   # Unexpected OTP errors must not dump the server credential or buffered bodies.

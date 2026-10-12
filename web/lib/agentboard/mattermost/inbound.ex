@@ -12,14 +12,23 @@ defmodule Agentboard.Mattermost.Inbound do
   end
 
   def base_config do
-    repo = Application.get_env(:agentboard, :mattermost_inbound_repo)
-    history_start = Application.get_env(:agentboard, :mattermost_inbound_history_start_ms)
-    with true <- is_binary(repo) and Regex.match?(~r/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/, repo),
-         true <- is_nil(history_start) or (is_integer(history_start) and history_start >= 0),
+    with nil <- configuration_blocker(),
          {:ok, cfg} <- Delivery.bot_config() do
-      {:ok, Map.put(cfg, :repo, repo)}
+      {:ok, Map.put(cfg, :repo, Application.get_env(:agentboard, :mattermost_inbound_repo))}
     else
       _ -> {:error, :bot_identity_or_scope_unverified}
+    end
+  end
+
+  # Local configuration only (no HTTP): why an enabled owner cannot subscribe.
+  def configuration_blocker do
+    repo = Application.get_env(:agentboard, :mattermost_inbound_repo)
+    history_start = Application.get_env(:agentboard, :mattermost_inbound_history_start_ms)
+    cond do
+      not (is_binary(repo) and Regex.match?(~r/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/, repo)) -> "mattermost_inbound_repo_invalid"
+      not (is_nil(history_start) or (is_integer(history_start) and history_start >= 0)) -> "mattermost_inbound_history_start_invalid"
+      match?({:error, _, _}, Delivery.bot_config()) -> "mattermost_inbound_bot_unconfigured"
+      true -> nil
     end
   end
 

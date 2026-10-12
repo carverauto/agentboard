@@ -21,7 +21,7 @@ defmodule Agentboard.MessageMode do
 
   def status do
     requested = Application.get_env(:agentboard, :message_mode, "board")
-    blockers = bridge_blockers() ++ route_blockers() ++ @missing_capabilities
+    blockers = bridge_blockers() ++ route_blockers() ++ inbound_blockers() ++ @missing_capabilities
 
     refused =
       requested not in ["board", "dual", "mattermost"] or
@@ -60,6 +60,17 @@ defmodule Agentboard.MessageMode do
     if Agentboard.Mattermost.AgentRoutes.enabled?(),
       do: [],
       else: ["private_recipient_routes_disabled"]
+  end
+
+  # Inbound opted in but unable to subscribe (missing/invalid repository scope,
+  # history cutoff or bot config): no worker inbox is being captured.
+  defp inbound_blockers do
+    with true <- Agentboard.Mattermost.Inbound.enabled?(),
+         blocker when is_binary(blocker) <- Agentboard.Mattermost.Inbound.configuration_blocker() do
+      [blocker]
+    else
+      _ -> []
+    end
   end
 
   defp bridge_blockers do
