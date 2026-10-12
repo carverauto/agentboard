@@ -191,8 +191,9 @@ The inherited client exposes read-only `diagnostics()` containing only local
 retirement status, a fixed retirement-reason enum, challenge counters and lease
 remaining/retirement age milliseconds. It exposes no endpoint, socket metadata,
 source text, credentials or peer-controlled error text. The fixture records these
-along with the transport outcome/reason, journal phase and synchronous fsync
-count/total/max durations before the strict acceptance assertion. These fields
+along with the transport outcome/reason, journal phase, callback fsync
+count/total/max durations and a synchronous-fsync tripwire count before the
+strict acceptance assertion. The tripwire must remain zero. These fields
 help distinguish local expiry, owner-pipe closure and native connection closure;
 they are observations, never authorization or proof of remote acceptance.
 
@@ -205,3 +206,58 @@ it does not establish that an fsync stall caused the hosted failure. The 250 ms
 health bound, prior-deadline fence, durable fsync sequence, no-retry behavior and
 strict acceptance barrier are unchanged. Linux socket execution must pass hosted
 CI; this VM cannot certify it. Darwin remains unsupported at runtime.
+
+### Async durability and owner health
+
+Fresh merged-main run `38219735186` supplied the missing evidence: the `retire`
+fixture failed before its explicit accepted/retire barrier with
+`native_acceptance_unknown`, retained `submitting`, and owner `lease_expired`.
+The reported submit/diagnostic interval was 352.89 ms, with 347.93 ms recorded
+across seven synchronous fsyncs;
+the owner challenge sequence was still 1. Those synchronous durability operations
+blocked the same JavaScript event loop that services the 250 ms owner lease.
+Failing closed was correct; starving its own health channel was a runtime defect.
+
+Live transports now use `createAsyncJournal`, backed by Node's built-in callback
+filesystem operations. The synchronous `createJournal` remains an offline
+inspection/fixture facade. Both execute one shared custody algorithm. Every
+filesystem result, close, cleanup and persistence barrier is awaited. Transport
+loads, submitting saves and acceptance saves are awaited in order; there is no
+fire-and-forget save. Native add is still impossible until the submitting file
+has been written and fsynced, atomically renamed, and its directory fsynced. The
+root and held-lock identities are rechecked after awaited durability and cleanup,
+before save resolves. The owner identity is checked again immediately before the
+native call. Root/lock replacement during a pending flush therefore cannot cross
+the native-write boundary. Real owner
+retirement during a pending flush leaves submitting evidence and sends no add.
+No automatic replay, stale-lock deletion, durability shortcut or lease extension
+has been added. Historical reads still establish their own file/directory fsync
+barriers. Async saves snapshot their input before their first await.
+
+Fixtures now delay the submitting-file fsync completion by 400 ms, while still
+performing the real fsync. The live owner fixture requires renewed health and
+acceptance despite that delay; a separate explicit `flushing` barrier retires the
+owner during the delay and requires uncertainty, retained evidence and zero
+native adds. Both cases use the PR217 mapped wake-callback attempt. Every
+fixture re-read of retained evidence, including the exact callback and frame
+checks, goes through an awaited `createAsyncJournal(...).load(...)`; the client
+asserts that no synchronous fsync ran. The 325 x 20 ms post-barrier loop is an
+observation budget only and extends no owner deadline.
+
+Verified on the combined post-PR217 tree with remote Linux executors (real
+AF_UNIX sockets and inherited owner pipes, no local build):
+`./scripts/bazel test //internal/nativequeue/owner:owner_test
+//internal/worker:native_authority_integration_test
+--@io_bazel_rules_go//go/config:race --runs_per_test=10 --test_arg=-test.v`
+passed BuildBuddy invocation `1896dc57-6583-4ebb-9968-befe8bc0443e`: all ten
+owner modes passed in each of ten race runs (100 subcases, including `slow-disk`
+and `slow-disk-retire`), and the five authority-to-FD cases passed ten times.
+No data race was reported. The queue, RPC/control and advisory-mapping
+fixtures passed in invocation `4f4cefbd-d2c8-4a3a-aa52-8f8735b6d228`. The
+hosted `Native bridge fixtures` workflow runs the same owner suite with
+`go test -count=10 -race -v`. In-memory tests cover responsive health timers during delayed
+I/O, true retirement, callback-injected failures at each durability boundary,
+independent readers before writer directory sync, and process crashes. The test
+I/O injection contract is callback-style Node fs; it never silently falls back
+to synchronous hooks. These remain invented Linux peers. Darwin runtime support
+and live activation are still absent.

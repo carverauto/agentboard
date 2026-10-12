@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const modulePath = path.resolve(process.argv[2]);
 const { createCodexQueueTransport } = await import(pathToFileURL(modulePath));
-const { createJournal } = await import(pathToFileURL(path.join(path.dirname(modulePath), 'journal.mjs')));
+const { createJournal, createAsyncJournal } = await import(pathToFileURL(path.join(path.dirname(modulePath), 'journal.mjs')));
 const clone = value => JSON.parse(JSON.stringify(value));
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -550,10 +550,10 @@ if (process.argv[3] === '--child') {
           const original = target[key];
           if (typeof original !== 'function') return original;
           return (...args) => {
-            const fail = (stage === 'write' && key === 'writeFileSync' && String(args[1]).includes('"phase":"submitting"')) ||
-              (stage === 'rename' && key === 'renameSync') ||
-              (key === 'fsyncSync' && stage === 'sync-' + (++syncs));
-            if (fail && !failed) { failed = true; throw new Error('Injected durable-save ' + stage + ' failure'); }
+            const fail = (stage === 'write' && key === 'writeFile' && String(args[1]).includes('"phase":"submitting"')) ||
+              (stage === 'rename' && key === 'rename') ||
+              (key === 'fsync' && stage === 'sync-' + (++syncs));
+            if (fail && !failed) { failed = true; return queueMicrotask(() => args.at(-1)(new Error('Injected durable-save ' + stage + ' failure'))); }
             return original.apply(target, args);
           };
         } });
@@ -570,10 +570,10 @@ if (process.argv[3] === '--child') {
     await check('failed acceptance persistence remains uncertain and cannot resend', async () => {
       let failed = false;
       const io = new Proxy(fs, { get(target, key) {
-        if (key !== 'writeFileSync') return target[key];
+        if (key !== 'writeFile') return target[key];
         return (...args) => {
-          if (String(args[1]).includes('"phase":"accepted"')) { failed = true; throw new Error('Injected receipt save failure'); }
-          return fs.writeFileSync(...args);
+          if (String(args[1]).includes('"phase":"accepted"')) { failed = true; return queueMicrotask(() => args.at(-1)(new Error('Injected receipt save failure'))); }
+          return fs.writeFile(...args);
         };
       } });
       const f = fixture('receipt-save', {}, { journalIO: io });
@@ -591,11 +591,11 @@ if (process.argv[3] === '--child') {
           const original = target[key];
           if (typeof original !== 'function') return original;
           return (...args) => {
-            if (key === 'writeFileSync' && String(args[1]).includes('"phase":"accepted"')) acceptedWrite = true;
-            const sync = key === 'fsyncSync' && acceptedWrite ? ++syncsAfterAcceptance : 0;
-            if (!failed && acceptedWrite && ((stage === 'rename' && key === 'renameSync') ||
+            if (key === 'writeFile' && String(args[1]).includes('"phase":"accepted"')) acceptedWrite = true;
+            const sync = key === 'fsync' && acceptedWrite ? ++syncsAfterAcceptance : 0;
+            if (!failed && acceptedWrite && ((stage === 'rename' && key === 'rename') ||
                 (stage === 'file-sync' && sync === 1) || (stage === 'root-sync' && sync === 2) || (stage === 'unlock-sync' && sync === 3))) {
-              failed = true; throw new Error('Injected receipt ' + stage + ' failure');
+              failed = true; return queueMicrotask(() => args.at(-1)(new Error('Injected receipt ' + stage + ' failure')));
             }
             return original.apply(target, args);
           };
@@ -617,14 +617,19 @@ if (process.argv[3] === '--child') {
         const original = target[key];
         if (typeof original !== 'function') return original;
         return (...args) => {
-          if (key === 'writeFileSync' && String(args[1]).includes('"phase":"accepted"')) acceptedWrite = true;
-          if (key === 'fsyncSync' && acceptedRenamed && failDirectorySync && fs.fstatSync(args[0]).isDirectory()) {
+          if (key === 'writeFile' && String(args[1]).includes('"phase":"accepted"')) acceptedWrite = true;
+          if (key === 'fsync' && acceptedRenamed && failDirectorySync && fs.fstatSync(args[0]).isDirectory()) {
             refusedBarriers++;
-            throw new Error('Persistent post-rename directory durability failure');
+            return queueMicrotask(() => args.at(-1)(new Error('Persistent post-rename directory durability failure')));
           }
-          const result = original.apply(target, args);
-          if (key === 'renameSync' && acceptedWrite) acceptedRenamed = true;
-          return result;
+          if (key === 'rename' && acceptedWrite) {
+            const callback = args.pop();
+            return original.call(target, ...args, error => {
+              if (!error) acceptedRenamed = true;
+              callback(error);
+            });
+          }
+          return original.apply(target, args);
         };
       } });
       const f = fixture('accepted-read-barrier', {}, { journalIO: io }), a = attempt();
@@ -650,16 +655,16 @@ if (process.argv[3] === '--child') {
       const journal = createJournal(dir), readerClient = synthetic();
       let failReaderSync = true, readerBarriers = 0, readerAttempt;
       const readerIO = new Proxy(fs, { get(target, key) {
-        if (key !== 'fsyncSync') return target[key];
-        return fd => {
+        if (key !== 'fsync') return target[key];
+        return (fd, callback) => {
           if (fs.fstatSync(fd).isDirectory()) {
             readerBarriers++;
             if (failReaderSync) {
               assert.ok(fs.existsSync(journal.paths(a.attemptId).lock), 'reader observes the still-held writer custody');
-              throw new Error('Independent reader directory barrier failed');
+              return queueMicrotask(() => callback(new Error('Independent reader directory barrier failed')));
             }
           }
-          return fs.fsyncSync(fd);
+          return fs.fsync(fd, callback);
         };
       } });
       const reader = createCodexQueueTransport({ client: readerClient.client, endpoint, recipient, journalDir: dir, journalIO: readerIO });
@@ -668,16 +673,25 @@ if (process.argv[3] === '--child') {
         const original = target[key];
         if (typeof original !== 'function') return original;
         return (...args) => {
-          if (key === 'writeFileSync' && String(args[1]).includes('"phase":"accepted"')) acceptedWrite = true;
-          const result = original.apply(target, args);
-          if (key === 'renameSync' && acceptedWrite && !readerStarted) {
-            readerStarted = true;
-            // Run the independent reader at the exact visibility window, before
-            // returning from rename so the writer cannot yet fsync its root.
-            readerAttempt = refused(() => reader.submit(a));
-            assert.equal(readerBarriers, 1, 'visible acceptance cannot bypass the reader fsync barrier');
+          if (key === 'writeFile' && String(args[1]).includes('"phase":"accepted"')) acceptedWrite = true;
+          if (key === 'rename' && acceptedWrite && !readerStarted) {
+            const callback = args.pop();
+            return original.call(target, ...args, error => {
+              if (error) return callback(error);
+              readerStarted = true;
+              // Withhold the rename callback until the independent reader has
+              // attempted its own barrier. Writer custody and the exact
+              // rename-before-root-fsync visibility window remain intact.
+              readerAttempt = refused(() => reader.submit(a));
+              readerAttempt.then(() => {
+                try {
+                  assert.equal(readerBarriers, 1, 'visible acceptance cannot bypass the reader fsync barrier');
+                  callback(null);
+                } catch (failure) { callback(failure); }
+              }, callback);
+            });
           }
-          return result;
+          return original.apply(target, args);
         };
       } });
       const writerClient = synthetic();
@@ -694,6 +708,153 @@ if (process.argv[3] === '--child') {
       assert.equal(readerBarriers, 2);
       assert.equal(readerClient.calls.length, 0);
       assert.equal(writerClient.adds().length, 1);
+    });
+
+    await check('slow asynchronous durability permits health progress and still fences retirement', async () => {
+      for (const retire of [false, true]) {
+        let submittingWrite = false, delayed = false, pending = false, pulses = 0, live = true;
+        let lastPulse = Date.now(), retiredWhilePending = false;
+        const io = new Proxy(fs, { get(target, key) {
+          const original = target[key];
+          if (typeof original !== 'function') return original;
+          return (...args) => {
+            if (key === 'writeFile' && String(args[1]).includes('"phase":"submitting"')) submittingWrite = true;
+            if (key === 'fsync' && submittingWrite && !delayed) {
+              delayed = true; pending = true;
+              // Deliberately exceed the 250 ms control health window without
+              // blocking its event loop. This is synthetic scheduling evidence.
+              setTimeout(() => original.call(target, ...args.slice(0, -1), error => {
+                pending = false;
+                args.at(-1)(error);
+              }), 350);
+              return;
+            }
+            return original.apply(target, args);
+          };
+        } });
+        const f = fixture('slow-durability-' + retire, {}, { journalIO: io });
+        const originalIdentity = f.client.identity;
+        f.client.identity = () => live && Date.now() - lastPulse < 250 ? originalIdentity() : null;
+        const pulse = setInterval(() => { if (pending) pulses++; lastPulse = Date.now(); }, 25);
+        let retirement;
+        try {
+          const submission = f.transport.submit(attempt());
+          await until(() => pending);
+          assert.equal(f.calls.length, 0, 'native writes wait for submitting durability');
+          if (retire) retirement = setTimeout(() => { retiredWhilePending = pending; live = false; }, 75);
+          const result = await submission;
+          assert.ok(pulses >= 2, 'control scheduling progresses during pending fsync');
+          assert.ok(delayed);
+          if (retire) {
+            assert.ok(retiredWhilePending);
+            assert.equal(result.outcome, 'uncertain');
+            assert.equal(f.calls.length, 0, 'retirement while fsync is pending prevents all native writes');
+            assert.equal(f.journal.load(attempt().attemptId).phase, 'submitting');
+            assert.equal((await f.transport.submit(attempt())).outcome, 'uncertain');
+            assert.equal(f.calls.length, 0, 'retained submitting evidence never replays');
+          } else {
+            assert.equal(result.outcome, 'accepted');
+            assert.equal(f.adds().length, 1);
+            assert.equal(f.journal.load(attempt().attemptId).phase, 'accepted');
+          }
+        } finally { clearInterval(pulse); clearTimeout(retirement); }
+      }
+    });
+
+    await check('lock substitution during pending submitting fsync prevents native writes', async () => {
+      let submittingWrite = false, replaced = false, lockPath;
+      const io = new Proxy(fs, { get(target, key) {
+        const original = target[key];
+        if (typeof original !== 'function') return original;
+        return (...args) => {
+          if (key === 'writeFile' && String(args[1]).includes('"phase":"submitting"')) submittingWrite = true;
+          if (key === 'fsync' && submittingWrite && !replaced) {
+            replaced = true;
+            // Complete the real fsync after another custodian has replaced the
+            // lock pathname. Save must revalidate custody before returning.
+            return setImmediate(() => {
+              fs.renameSync(lockPath, lockPath + '.displaced');
+              fs.writeFileSync(lockPath, JSON.stringify({ version: 1, pid: process.pid }), { mode: 0o600 });
+              original.apply(target, args);
+            });
+          }
+          return original.apply(target, args);
+        };
+      } });
+      const f = fixture('lock-substitution-flush', {}, { journalIO: io }), a = attempt();
+      lockPath = f.journal.paths(a.attemptId).lock;
+      assert.equal((await f.transport.submit(a)).outcome, 'uncertain');
+      assert.ok(replaced);
+      assert.equal(f.calls.length, 0, 'custody substitution cannot cross the native write boundary');
+      assert.equal(f.journal.load(a.attemptId).phase, 'submitting');
+      assert.ok(fs.existsSync(lockPath), 'foreign replacement lock remains untouched');
+      assert.ok(fs.existsSync(lockPath + '.displaced'), 'displaced original custody remains available for inspection');
+      assert.equal((await f.transport.submit(a)).outcome, 'uncertain');
+      assert.equal(f.calls.length, 0, 'submitting evidence cannot replay after custody loss');
+    });
+
+    await check('root substitution during submitting directory fsync prevents native writes', async () => {
+      let syncs = 0, replaced = false, journalDir;
+      const io = new Proxy(fs, { get(target, key) {
+        if (key !== 'fsync') return target[key];
+        return (fd, callback) => {
+          if (++syncs === 4) {
+            assert.ok(fs.fstatSync(fd).isDirectory(), 'fourth barrier is submitting rename directory durability');
+            return setImmediate(() => {
+              fs.renameSync(journalDir, journalDir + '.displaced');
+              fs.mkdirSync(journalDir, { mode: 0o700 });
+              replaced = true;
+              fs.fsync(fd, callback); // Successful flush of the now-displaced root.
+            });
+          }
+          return fs.fsync(fd, callback);
+        };
+      } });
+      const f = fixture('root-substitution-flush', {}, { journalIO: io }), a = attempt();
+      journalDir = f.dir;
+      assert.equal((await f.transport.submit(a)).outcome, 'uncertain');
+      assert.ok(replaced);
+      assert.equal(f.calls.length, 0, 'successful old-root flush cannot authorize a native write');
+      const displaced = createJournal(journalDir + '.displaced');
+      assert.equal(displaced.load(a.attemptId).phase, 'submitting');
+      assert.ok(fs.existsSync(displaced.paths(a.attemptId).lock), 'displaced custody is not deleted');
+      await refused(() => f.transport.submit(a));
+      assert.equal(f.calls.length, 0, 'changed root cannot permit replay');
+      assert.deepEqual(fs.readdirSync(journalDir), [], 'replacement root remains untouched');
+    });
+
+    await check('async journal preserves offline custody checks and freezes pending save inputs', async () => {
+      const dir = directory('async-custody'), journal = createAsyncJournal(dir), id = 'async-custody';
+      await assert.rejects(journal.save(id, { version: 1 }), /lock/i);
+      await journal.withLock(id, async () => {
+        const value = { version: 1, nested: { marker: 'frozen' } };
+        const saving = journal.save(id, value);
+        value.nested.marker = 'changed';
+        await saving;
+      });
+      assert.deepEqual(await journal.load(id), { version: 1, nested: { marker: 'frozen' } });
+      const record = journal.paths(id).record;
+      fs.chmodSync(record, 0o644);
+      await assert.rejects(journal.load(id));
+      fs.chmodSync(record, 0o600);
+      const link = path.join(dir, 'record-link');
+      fs.linkSync(record, link);
+      await assert.rejects(journal.load(id));
+      fs.unlinkSync(link);
+      fs.writeFileSync(record, 'x'.repeat(65537));
+      await assert.rejects(journal.load(id), /bound/i);
+      fs.unlinkSync(record);
+      fs.symlinkSync(path.join(dir, 'missing-target'), record);
+      await assert.rejects(journal.load(id));
+      const alias = path.join(root, 'async-root-alias');
+      fs.symlinkSync(dir, alias);
+      await assert.rejects(createAsyncJournal(alias).load(id));
+      await assert.rejects(createAsyncJournal(path.join(root, 'async-missing')).load(id));
+      const replaced = directory('async-replaced'), retained = createAsyncJournal(replaced);
+      await retained.load(id); // Establish the original root identity.
+      fs.renameSync(replaced, replaced + '-old');
+      fs.mkdirSync(replaced, { mode: 0o700 });
+      await assert.rejects(retained.load(id), /root changed/i);
     });
 
     await check('corrupt retained frame and receipt never inherit positive acceptance', async () => {
