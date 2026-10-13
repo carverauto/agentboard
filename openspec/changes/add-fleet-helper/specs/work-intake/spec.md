@@ -7,7 +7,7 @@ Let any authorized client file work as board cards and, optionally, GitHub issue
 ## ADDED Requirements
 
 ### Requirement: Intake flag defaults off
-`AGENTBOARD_INTAKE_ENABLED` SHALL default off and SHALL fully disable intake. While it is off, `POST /api/v1/intake`, intake cancel, `GET /api/v1/intake/:id` and the Mattermost `/board` command SHALL be unavailable and SHALL create nothing. Intake SHALL NOT depend on a fleet or on a fleet's dry-run or live mode. A dry-run fleet SHALL NOT file issues, assign cards or open tabs through refill or seat supply.
+`AGENTBOARD_INTAKE_ENABLED` SHALL default off and SHALL fully disable intake. While it is off, `POST /api/v1/intake`, intake import, intake cancel, `GET /api/v1/intake/:id` and the Mattermost `/board` command SHALL be unavailable and SHALL create nothing. Intake SHALL NOT depend on a fleet or on a fleet's dry-run or live mode. A dry-run fleet SHALL NOT file issues, assign cards or open tabs through refill or seat supply.
 
 #### Scenario: Flag off
 - **WHEN** the intake flag is at its default and a client posts an intake request
@@ -18,7 +18,7 @@ Let any authorized client file work as board cards and, optionally, GitHub issue
 - **THEN** intake still accepts a filing for a captain-listed repository
 
 ### Requirement: Helper token even when agent auth is off
-`POST /api/v1/intake`, intake cancel and `GET /api/v1/intake/:id` SHALL require a captain-issued helper token or the captain, including when `agent_auth_mode` is off. This requirement SHALL NOT change `agent_auth_mode` or the authentication of any other route. The Mattermost `/board` command keeps its own slash-token check.
+`POST /api/v1/intake`, intake import, intake cancel and `GET /api/v1/intake/:id` SHALL require a captain-issued helper token or the captain, including when `agent_auth_mode` is off. This requirement SHALL NOT change `agent_auth_mode` or the authentication of any other route. The Mattermost `/board` command keeps its own slash-token check.
 
 #### Scenario: Open auth mode, no helper token
 - **WHEN** `agent_auth_mode` is off and a caller without a captain-issued helper token or captain credential posts intake
@@ -57,6 +57,25 @@ For items whose issue flag is true, the server SHALL create the issue outside th
 #### Scenario: Marker is not unique
 - **WHEN** recovery finds two issues with the same intake marker
 - **THEN** the intent stays uncertain with that reason and links neither issue
+
+### Requirement: Import existing issues
+`POST /api/v1/intake/import` SHALL turn existing open GitHub issues in one intake repository into board cards linked to those issues, without creating any issue. The caller SHALL name either 1 to 10 issue numbers, kept in the caller's order, or a list selection of up to 10 issues in GitHub's default open-issue order (newest first), optionally filtered by labels. Pull requests SHALL never be imported. An issue that is closed, missing, a pull request, or already linked to a card that is not cancelled SHALL be skipped and reported, never failed. A list selection SHALL pass over issues already on the board and take the next ones. Cards SHALL be created in the selected order with one caller-chosen priority. The same request key with the same normalized request SHALL return the original result without calling GitHub; a changed request under that key SHALL conflict. A GitHub failure SHALL create nothing.
+
+#### Scenario: Captain asks for an issue burndown
+- **WHEN** the captain imports the first ten open issues of an intake repository and three of them already have cards
+- **THEN** cards are created for the next ten issues not yet on the board, in GitHub's list order, each linked to its issue, and no GitHub issue is created
+
+#### Scenario: Captain names the issues
+- **WHEN** the captain imports issues 12, 7 and 30, where 7 is closed and 30 is a pull request
+- **THEN** one card is created for issue 12, and 7 and 30 are reported as skipped with their reasons
+
+#### Scenario: Import retried after a timeout
+- **WHEN** the caller repeats an import with the same key and request
+- **THEN** it receives the original cards and skips without listing GitHub again, and no second card is created
+
+#### Scenario: GitHub unavailable during import
+- **WHEN** GitHub is unavailable while the import reads issues
+- **THEN** the request fails and no card or intake record is created
 
 ### Requirement: Slash command over the same contract
 The Mattermost `/board` command SHALL authenticate the slash-command token, map the Mattermost user to a captain-allowlisted filer, and call the intake and status contracts. It SHALL reply in the invoking channel or thread with card and issue links and SHALL refuse unmapped users without creating anything. It SHALL be unavailable while the intake flag is off.

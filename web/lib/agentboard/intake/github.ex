@@ -1,8 +1,9 @@
 defmodule Agentboard.Intake.Github do
   @moduledoc """
   The GitHub calls the intake credential makes: create an issue, resolve that
-  credential's login once, and list issues that login created in one configured
-  repository to find an intake marker. The caller confines every repository
+  credential's login once, list issues that login created in one configured
+  repository to find an intake marker, and read existing open issues for
+  import. The caller confines every repository
   call to the intake list. Calls run outside any database transaction and
   share the operator-pinned transport.
 
@@ -133,6 +134,77 @@ defmodule Agentboard.Intake.Github do
 
       {:error, _} ->
         {:retry, "search_unavailable", 60}
+    end
+  end
+
+  # One issue for import. Missing, gone and moved issues are answers, not
+  # failures; any other refusal or outage fails the whole import.
+  def issue(repository, number) do
+    with {:ok, destination} <- destination() do
+      case GithubHTTP.exchange(
+             destination,
+             "GET",
+             "/repos/#{repository}/issues/#{number}",
+             [@user_agent],
+             nil,
+             @timeout
+           ) do
+        {:ok, 200, _headers, body} ->
+          case Jason.decode(body) do
+            {:ok, %{} = issue} -> {:ok, issue}
+            _ -> {:retry, "response_unreadable", 60}
+          end
+
+        {:ok, status, _headers, _body} when status in [404, 410] ->
+          {:ok, :not_found}
+
+        {:ok, 301, _headers, _body} ->
+          {:ok, :moved}
+
+        {:ok, status, headers, body} ->
+          classify(status, headers, body)
+
+        {:error, _} ->
+          {:retry, "unavailable", 60}
+      end
+    end
+  end
+
+  # One page of open issues and pull requests in GitHub's default list order
+  # (newest first), optionally filtered to issues carrying every label.
+  def open_issues(repository, labels, page) do
+    query =
+      %{
+        "state" => "open",
+        "sort" => "created",
+        "direction" => "desc",
+        "per_page" => @page_size,
+        "page" => page
+      }
+      |> then(&if(labels == [], do: &1, else: Map.put(&1, "labels", Enum.join(labels, ","))))
+      |> URI.encode_query()
+
+    with {:ok, destination} <- destination() do
+      case GithubHTTP.exchange(
+             destination,
+             "GET",
+             "/repos/" <> repository <> "/issues?" <> query,
+             [@user_agent],
+             nil,
+             @timeout
+           ) do
+        {:ok, 200, _headers, body} ->
+          case Jason.decode(body) do
+            {:ok, issues} when is_list(issues) -> {:ok, issues, length(issues) < @page_size}
+            _ -> {:retry, "response_unreadable", 60}
+          end
+
+        {:ok, status, headers, body} ->
+          classify(status, headers, body)
+
+        {:error, _} ->
+          {:retry, "unavailable", 60}
+      end
     end
   end
 

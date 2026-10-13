@@ -6,7 +6,8 @@ defmodule Agentboard.Intake.Payload do
   title and body trimmed, integer priority (lower is more urgent), labels
   trimmed, sorted and deduplicated, and a boolean issue flag (default true).
   Two requests with the same key and the same normalized items replay; any
-  normalized difference conflicts.
+  normalized difference conflicts. An import request normalizes its issue
+  selection the same way and digests it under its own tag.
   """
   alias Agentboard.SeatScope
 
@@ -35,6 +36,105 @@ defmodule Agentboard.Intake.Payload do
   end
 
   def normalize(_), do: {:error, "invalid_input", @shape_error}
+
+  @import_fields ~w(request_key repository issues labels limit priority)
+  @import_error "Import requires request_key (1-128 bytes) and repository (owner/repo), then either issues (1-10 distinct issue numbers) or an optional labels filter (up to 20) with limit (1-10, default 10), plus optional priority (integer >= 0, default 3); unknown fields are forbidden"
+
+  # An import selects existing issues instead of describing new ones. Named
+  # issue numbers keep the caller's order; a list selection is the first
+  # `limit` open issues in GitHub's order that are not yet on the board.
+  def normalize_import(data) when is_map(data) do
+    with true <- Enum.all?(Map.keys(data), &(&1 in @import_fields)),
+         {:ok, key} <- request_key(data["request_key"]),
+         repository when is_binary(repository) <- SeatScope.canonical_repo(data["repository"]),
+         {:ok, selection} <- selection(data),
+         priority when is_integer(priority) and priority in 0..2_147_483_647 <-
+           Map.get(data, "priority", 3) do
+      {:ok,
+       %{
+         "request_key" => key,
+         "repository" => repository,
+         "selection" => selection,
+         "priority" => priority
+       }}
+    else
+      _ -> {:error, "invalid_input", @import_error}
+    end
+  end
+
+  def normalize_import(_), do: {:error, "invalid_input", @import_error}
+
+  # Tagged so a filing and an import can never replay each other; field
+  # order is fixed like `digest/1`.
+  def import_digest(%{"selection" => selection} = request) do
+    canonical = [
+      "import",
+      request["repository"],
+      selection["issues"],
+      selection["labels"],
+      selection["limit"],
+      request["priority"]
+    ]
+
+    :crypto.hash(:sha256, Jason.encode!(canonical)) |> Base.encode16(case: :lower)
+  end
+
+  # GitHub labels become card labels under the same bounds as filed labels;
+  # names the board cannot hold are left off rather than failing the import.
+  def issue_labels(labels) when is_list(labels) do
+    labels
+    |> Enum.flat_map(fn
+      %{"name" => name} when is_binary(name) -> [String.trim(name)]
+      _ -> []
+    end)
+    |> Enum.filter(&label?/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.take(@max_labels)
+  end
+
+  def issue_labels(_), do: []
+
+  # A card title from an issue title: single line, bounded like a filed title.
+  def issue_title(title, number) do
+    title =
+      if is_binary(title) and String.valid?(title),
+        do: title |> String.replace(~r/[\p{Cc}\p{Cf}]+/u, " ") |> String.trim(),
+        else: ""
+
+    if title == "",
+      do: "Issue ##{number}",
+      else: title |> String.slice(0, @max_title) |> String.trim_trailing()
+  end
+
+  # The card description: the issue link, then the issue body within the
+  # filed-body bound.
+  def issue_description(url, body) do
+    body = if is_binary(body) and String.valid?(body), do: String.trim(body), else: ""
+    String.trim("Imported from #{url}\n\n" <> String.slice(body, 0, @max_body))
+  end
+
+  defp selection(%{"issues" => numbers} = data)
+       when is_list(numbers) and length(numbers) in 1..@max_items do
+    valid? =
+      not Map.has_key?(data, "labels") and not Map.has_key?(data, "limit") and
+        Enum.all?(numbers, &(is_integer(&1) and &1 in 1..2_147_483_647)) and
+        length(Enum.uniq(numbers)) == length(numbers)
+
+    if valid?, do: {:ok, %{"issues" => numbers}}, else: :error
+  end
+
+  defp selection(data) when not is_map_key(data, "issues") do
+    with {:ok, labels} <- labels(Map.get(data, "labels", [])),
+         limit when is_integer(limit) and limit in 1..@max_items <-
+           Map.get(data, "limit", @max_items) do
+      {:ok, %{"labels" => labels, "limit" => limit}}
+    else
+      _ -> :error
+    end
+  end
+
+  defp selection(_), do: :error
 
   # Field order is fixed so the digest never depends on map ordering.
   def digest(items) do

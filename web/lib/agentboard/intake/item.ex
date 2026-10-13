@@ -5,7 +5,8 @@ defmodule Agentboard.Intake.Item do
   `issue_state` is `none` for card-only items. Issue items move
   `pending -> creating -> created`; definitive rejections and ambiguous
   marker matches park as `uncertain` with a reason until the filer or captain
-  reconciles or abandons them. Claims are fenced by `generation` and
+  reconciles or abandons them. Imported items link an existing issue and
+  start as `created` with reason `imported`. Claims are fenced by `generation` and
   `claim_run_id`, so a stale worker cannot overwrite a newer outcome.
   """
   use Ash.Resource,
@@ -30,6 +31,27 @@ defmodule Agentboard.Intake.Item do
         :issue,
         :issue_state,
         :next_attempt_at,
+        :created_at,
+        :updated_at
+      ])
+    end
+
+    # A card for an existing issue. The issue is already there, so the item
+    # starts terminal (`created`, reason `imported`) and never enters the
+    # outbox.
+    create :import do
+      accept([
+        :id,
+        :request_id,
+        :position,
+        :task_id,
+        :repository,
+        :issue,
+        :issue_state,
+        :issue_url,
+        :issue_number,
+        :reason,
+        :resolved_at,
         :created_at,
         :updated_at
       ])

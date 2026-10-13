@@ -13,6 +13,9 @@ defmodule AgentboardWeb.IntakeController do
 
   def create(conn, _), do: guarded(conn, :write, &Intake.file(&1, conn.body_params))
 
+  def import_issues(conn, _),
+    do: guarded(conn, :write, &Intake.import_issues(&1, conn.body_params))
+
   def show(conn, %{"id" => id}), do: guarded(conn, :read, &Intake.show(id, &1))
 
   def cancel(conn, %{"id" => id}),
