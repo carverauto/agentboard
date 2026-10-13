@@ -530,7 +530,21 @@ Migration `20261008004600` adds `fleet_activations` with immutable version
 history, `fleet_refill_assignments` and `fleet_refill_passes`. It inserts the
 reserved `fleet-refill` agent and refuses to migrate when that id already
 exists. Existing fleets gain no activation row, so they stay inactive.
-The stamp uses `GREATEST(version, 46)`.
-Readiness requires schema 46. The down migration raises; roll back by
-deploying a compatible image and keeping the new tables. Behavior is in
+The stamp uses `GREATEST(version, 46)` and does not define schema 45.
+Readiness required schema 46 until schema 47. The down migration raises; roll
+back by deploying a compatible image and keeping the new tables. Behavior is in
 [Fleet backlog refill](setup/fleet-refill.md).
+
+## Schema 47: seat supply
+
+Migration `20261008004700` adds `requested_seats` and `max_seats` (both 0) to
+every `fleet_activations` row, and creates `fleet_hosts` (captain-enrolled
+hosts, token SHA-256 and launch cap) and `fleet_launch_intents` with a partial
+unique index that allows one outstanding intent per fleet seat. No host is
+enrolled and no intent exists after the upgrade, so nothing launches until a
+captain enrolls a host with a cap above 0, sets requested and maximum seats,
+and `AGENTBOARD_SEAT_SUPPLY_ENABLED` is turned on. The stamp uses
+`GREATEST(version, 47)`. Readiness requires schema 47. The down migration
+raises; roll back by deploying a compatible image and keeping the new tables
+and columns, which older code ignores. Behavior is in
+[fleet host setup](setup/fleet-host.md).

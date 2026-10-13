@@ -2,13 +2,13 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "seatops",
-    srcs = ["board.go", "config.go", "herdr.go", "nudge.go", "reap.go", "spawn.go", "state.go"],
+    srcs = ["board.go", "config.go", "herdr.go", "nudge.go", "reap.go", "spawn.go", "state.go", "supply.go"],
     importpath = "github.com/carverauto/agentboard/internal/seatops",
     visibility = ["//:__subpackages__"],
 )
 go_test(
     name = "seatops_test",
-    srcs = ["nudge_test.go", "reap_test.go", "spawn_test.go"],
+    srcs = ["nudge_test.go", "reap_test.go", "spawn_test.go", "supply_test.go"],
     embed = [":seatops"],
     size = "small",
 )

@@ -110,9 +110,15 @@ Spawn stops with a `refuses:` error, and nothing is opened, when:
 `--apply` and `--dry-run` cannot be combined. Without either flag the command
 is a dry run.
 
+## Seat supply
+
+[`agentboard host fleet serve`](fleet-host.md) launches seats the server asks
+for through this same path and the same allowlist. It passes a generated brief
+named after the launch intent instead of a task.
+
 ## Other hosts
 
 `Spawn` is part of the same host interface that [nudge and reap](seat-nudge.md)
 use. Herdr is the only implementation today. Another host needs to open a new
 tab or window in a directory with a given environment, run one command in it,
-and return the new pane's identity.
+return the new pane's identity, and list the seat workspace's tabs and panes.

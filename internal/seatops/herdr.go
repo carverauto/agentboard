@@ -28,10 +28,18 @@ type HostAgent struct {
 	} `json:"agent_session"`
 }
 
+// HostTab is one tab in the seat workspace and the panes it holds.
+type HostTab struct {
+	Workspace string   `json:"workspace_id"`
+	Tab       string   `json:"tab_id"`
+	Label     string   `json:"label"`
+	Panes     []string `json:"panes"`
+}
+
 // Host is the terminal workspace that runs seat sessions. Herdr is the only
 // implementation today; any host that can list agents with a status and a
-// native session identity, read recent output, prompt, close, and open a new
-// tab that runs a command fits.
+// native session identity, read recent output, prompt, close, open a new tab
+// that runs a command, and list the seat workspace's tabs fits.
 type Host interface {
 	Agents(ctx context.Context) ([]HostAgent, error)
 	Agent(ctx context.Context, pane string) (HostAgent, error)
@@ -41,6 +49,9 @@ type Host interface {
 	// Spawn opens a new tab and runs req.Argv in its own fresh pane. It never
 	// sends input to a pane that existed before the call.
 	Spawn(ctx context.Context, req SpawnRequest) (SpawnedSeat, error)
+	// SeatTabs lists the tabs, with their panes, of the one workspace
+	// labelled workspace. A workspace that does not exist has no tabs.
+	SeatTabs(ctx context.Context, workspace string) ([]HostTab, error)
 }
 
 // ErrAgentBlocked means the host rejected a prompt before sending any input.
@@ -123,35 +134,18 @@ func (h HerdrCLI) ClosePane(ctx context.Context, pane string) error {
 // Spawn finds the one workspace labelled req.Workspace, or creates it, refuses
 // a tab already labelled req.Label there, then creates the seat's tab and runs
 // argv in that tab's root pane. Herdr 0.9.0 `pane run` types into a pane, so it
-// is only ever pointed at the pane `tab create` just returned.
+// is only ever pointed at the pane `tab create` just returned. Every refusal
+// before `tab create` is marked NotStarted.
 func (h HerdrCLI) Spawn(ctx context.Context, req SpawnRequest) (SpawnedSeat, error) {
 	var seat SpawnedSeat
-	out, err := h.run(ctx, 15*time.Second, "workspace", "list")
+	id, err := h.workspace(ctx, req.Workspace)
 	if err != nil {
-		return seat, err
+		return seat, notStarted{err}
 	}
-	var spaces struct {
-		Result struct {
-			Workspaces []struct {
-				ID    string `json:"workspace_id"`
-				Label string `json:"label"`
-			} `json:"workspaces"`
-		} `json:"result"`
-	}
-	if err := json.Unmarshal(out, &spaces); err != nil {
-		return seat, fmt.Errorf("herdr workspace list: %w", err)
-	}
-	var matches []string
-	for _, w := range spaces.Result.Workspaces {
-		if w.Label == req.Workspace {
-			matches = append(matches, w.ID)
-		}
-	}
-	switch len(matches) {
-	case 0:
+	if id == "" {
 		out, err := h.run(ctx, 15*time.Second, "workspace", "create", "--cwd", req.Cwd, "--label", req.Workspace, "--no-focus")
 		if err != nil {
-			return seat, err
+			return seat, notStarted{err}
 		}
 		var created struct {
 			Result struct {
@@ -161,39 +155,26 @@ func (h HerdrCLI) Spawn(ctx context.Context, req SpawnRequest) (SpawnedSeat, err
 			} `json:"result"`
 		}
 		if json.Unmarshal(out, &created) != nil || created.Result.Workspace.ID == "" {
-			return seat, errors.New("herdr workspace create: no workspace_id in response")
+			return seat, notStarted{errors.New("herdr workspace create: no workspace_id in response")}
 		}
 		seat.Workspace, seat.CreatedWorkspace = created.Result.Workspace.ID, true
-	case 1:
-		seat.Workspace = matches[0]
-		out, err := h.run(ctx, 15*time.Second, "tab", "list", "--workspace", seat.Workspace)
+	} else {
+		seat.Workspace = id
+		tabs, err := h.tabs(ctx, id)
 		if err != nil {
-			return seat, err
+			return seat, notStarted{err}
 		}
-		var tabs struct {
-			Result struct {
-				Tabs []struct {
-					ID    string `json:"tab_id"`
-					Label string `json:"label"`
-				} `json:"tabs"`
-			} `json:"result"`
-		}
-		if err := json.Unmarshal(out, &tabs); err != nil {
-			return seat, fmt.Errorf("herdr tab list: %w", err)
-		}
-		for _, t := range tabs.Result.Tabs {
+		for _, t := range tabs {
 			if t.Label == req.Label {
-				return seat, fmt.Errorf("refuses: herdr tab %s in workspace %s is already labelled %s: %w", t.ID, seat.Workspace, req.Label, ErrSeatExists)
+				return seat, notStarted{fmt.Errorf("refuses: herdr tab %s in workspace %s is already labelled %s: %w", t.Tab, seat.Workspace, req.Label, ErrSeatExists)}
 			}
 		}
-	default:
-		return seat, fmt.Errorf("refuses: %d herdr workspaces are labelled %q (%s); rename or close the extras", len(matches), req.Workspace, strings.Join(matches, " "))
 	}
 	args := []string{"tab", "create", "--workspace", seat.Workspace, "--cwd", req.Cwd, "--label", req.Label, "--no-focus"}
 	for _, key := range sortedEnv(req.Env) {
 		args = append(args, "--env", key+"="+req.Env[key])
 	}
-	out, err = h.run(ctx, 15*time.Second, args...)
+	out, err := h.run(ctx, 15*time.Second, args...)
 	if err != nil {
 		return seat, err
 	}
@@ -215,4 +196,95 @@ func (h HerdrCLI) Spawn(ctx context.Context, req SpawnRequest) (SpawnedSeat, err
 		return seat, fmt.Errorf("new pane %s (tab %s) did not confirm its launch command; inspect it before closing: %w", seat.Pane, seat.Tab, err)
 	}
 	return seat, nil
+}
+
+func (h HerdrCLI) SeatTabs(ctx context.Context, workspace string) ([]HostTab, error) {
+	id, err := h.workspace(ctx, workspace)
+	if err != nil || id == "" {
+		return nil, err
+	}
+	tabs, err := h.tabs(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out, err := h.run(ctx, 15*time.Second, "pane", "list", "--workspace", id)
+	if err != nil {
+		return nil, err
+	}
+	var panes struct {
+		Result struct {
+			Panes []struct {
+				ID  string `json:"pane_id"`
+				Tab string `json:"tab_id"`
+			} `json:"panes"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(out, &panes); err != nil {
+		return nil, fmt.Errorf("herdr pane list: %w", err)
+	}
+	for i := range tabs {
+		for _, p := range panes.Result.Panes {
+			if p.Tab == tabs[i].Tab {
+				tabs[i].Panes = append(tabs[i].Panes, p.ID)
+			}
+		}
+	}
+	return tabs, nil
+}
+
+// workspace returns the ID of the one workspace labelled label, or "" when
+// none is. Several workspaces sharing the label is a refusal.
+func (h HerdrCLI) workspace(ctx context.Context, label string) (string, error) {
+	out, err := h.run(ctx, 15*time.Second, "workspace", "list")
+	if err != nil {
+		return "", err
+	}
+	var spaces struct {
+		Result struct {
+			Workspaces []struct {
+				ID    string `json:"workspace_id"`
+				Label string `json:"label"`
+			} `json:"workspaces"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(out, &spaces); err != nil {
+		return "", fmt.Errorf("herdr workspace list: %w", err)
+	}
+	var matches []string
+	for _, w := range spaces.Result.Workspaces {
+		if w.Label == label {
+			matches = append(matches, w.ID)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return "", nil
+	case 1:
+		return matches[0], nil
+	default:
+		return "", fmt.Errorf("refuses: %d herdr workspaces are labelled %q (%s); rename or close the extras", len(matches), label, strings.Join(matches, " "))
+	}
+}
+
+func (h HerdrCLI) tabs(ctx context.Context, workspace string) ([]HostTab, error) {
+	out, err := h.run(ctx, 15*time.Second, "tab", "list", "--workspace", workspace)
+	if err != nil {
+		return nil, err
+	}
+	var listed struct {
+		Result struct {
+			Tabs []struct {
+				ID    string `json:"tab_id"`
+				Label string `json:"label"`
+			} `json:"tabs"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(out, &listed); err != nil {
+		return nil, fmt.Errorf("herdr tab list: %w", err)
+	}
+	tabs := make([]HostTab, 0, len(listed.Result.Tabs))
+	for _, t := range listed.Result.Tabs {
+		tabs = append(tabs, HostTab{Workspace: workspace, Tab: t.ID, Label: t.Label})
+	}
+	return tabs, nil
 }

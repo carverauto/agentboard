@@ -402,6 +402,13 @@ config :agentboard,
        :refill_enabled,
        env_flag.("AGENTBOARD_REFILL_ENABLED")
 
+# Seat supply (schema 47). Default off; when off, no launch intent is written
+# and hosts can reserve none. Each fleet also needs `fleet activate` with
+# requested and maximum seats, and each host a captain enrollment.
+config :agentboard,
+       :seat_supply_enabled,
+       env_flag.("AGENTBOARD_SEAT_SUPPLY_ENABLED")
+
 # Labels that refill sends only to seats whose managed scope names them.
 config :agentboard,
        :refill_restricted_labels,

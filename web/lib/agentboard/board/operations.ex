@@ -794,6 +794,8 @@ defmodule Agentboard.Board.Operations do
              Agentboard.FleetLoadout.Activation,
              Agentboard.FleetRefill.Assignment,
              Agentboard.FleetRefill.Pass,
+             Agentboard.SeatSupply.Intent,
+             Agentboard.SeatSupply.Host,
              Agentboard.Delivery.BranchFlow.Configuration,
              Agentboard.Delivery.BranchFlow.Receipt,
              Agentboard.DecisionPolicy.Version,

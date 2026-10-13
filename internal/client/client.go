@@ -94,6 +94,21 @@ func NewCaptain(cfg config.Config, token string) (*Client, error) {
 	return c, nil
 }
 
+// NewFleetHost authenticates seat-supply host routes with an enrolled host's
+// bearer token. The caller loads the token from protected storage.
+func NewFleetHost(cfg config.Config, token string) (*Client, error) {
+	if len(token) < 32 || strings.ContainsAny(token, "\r\n\t ") {
+		return nil, errors.New("fleet host token is malformed")
+	}
+	cfg.Token, cfg.TokenFile = "", ""
+	c, err := New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	c.token = token
+	return c, nil
+}
+
 // WorkerControl uses the worker API's independent captain boundary. Its
 // closed operation set prevents captain headers from reaching ordinary routes.
 // A request-local copy preserves concurrent ordinary bearer requests.

@@ -14,6 +14,10 @@ func (h *fakeHost) Spawn(context.Context, SpawnRequest) (SpawnedSeat, error) {
 	return SpawnedSeat{}, errors.New("fakeHost does not spawn")
 }
 
+func (h *fakeHost) SeatTabs(context.Context, string) ([]HostTab, error) {
+	return nil, errors.New("fakeHost has no tabs")
+}
+
 // recordingHerdr writes a herdr stand-in that answers "$1 $2" from replies
 // (unknown subcommands fail) and records every call's exact argv.
 func recordingHerdr(t *testing.T, replies map[string]string) (HerdrCLI, func() [][]string) {

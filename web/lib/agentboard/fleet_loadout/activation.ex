@@ -1,5 +1,5 @@
 defmodule Agentboard.FleetLoadout.Activation do
-  @moduledoc "Captain-owned per-fleet activation (inactive, dry_run or live); absent means inactive."
+  @moduledoc "Captain-owned per-fleet activation (inactive, dry_run or live) and seat counts; absent means inactive."
   use Ash.Resource,
     domain: Agentboard.Board,
     data_layer: AshPostgres.DataLayer,
@@ -39,6 +39,8 @@ defmodule Agentboard.FleetLoadout.Activation do
         :fleet_id,
         :mode,
         :claim_deadline_seconds,
+        :requested_seats,
+        :max_seats,
         :revision,
         :changed_by,
         :activated_at,
@@ -47,7 +49,16 @@ defmodule Agentboard.FleetLoadout.Activation do
     end
 
     update :change do
-      accept([:mode, :claim_deadline_seconds, :revision, :changed_by, :activated_at, :updated_at])
+      accept([
+        :mode,
+        :claim_deadline_seconds,
+        :requested_seats,
+        :max_seats,
+        :revision,
+        :changed_by,
+        :activated_at,
+        :updated_at
+      ])
     end
   end
 
@@ -59,6 +70,9 @@ defmodule Agentboard.FleetLoadout.Activation do
     attribute(:fleet_id, :string, primary_key?: true, allow_nil?: false, public?: true)
     attribute(:mode, :string, allow_nil?: false, public?: true)
     attribute(:claim_deadline_seconds, :integer, allow_nil?: false, public?: true)
+    # Seat supply (schema 47): the captain's wanted and maximum live seats.
+    attribute(:requested_seats, :integer, allow_nil?: false, default: 0, public?: true)
+    attribute(:max_seats, :integer, allow_nil?: false, default: 0, public?: true)
     attribute(:revision, :integer, allow_nil?: false, constraints: [min: 1], public?: true)
     attribute(:changed_by, :string, allow_nil?: false, public?: true)
     attribute(:activated_at, :utc_datetime_usec, public?: true)

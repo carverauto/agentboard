@@ -94,6 +94,10 @@ defmodule Agentboard.Auth.APIAuthPolicy do
   # The controller also verifies the captain capability in off/observe mode.
   def boundary(%{plug: AgentboardWeb.IntakeController}), do: :captain
 
+  # Enrolled fleet hosts authenticate with their own token, verified by the
+  # controller in every auth mode.
+  def boundary(%{plug: AgentboardWeb.FleetHostController}), do: :independent
+
   def boundary(%{plug: CaptainController, plug_opts: action})
       when action in [:settings, :save, :archive, :restore], do: :captain
 

@@ -9,6 +9,8 @@ Refill is off by default. It runs only when:
 
 Start with `--mode dry-run`, read the would-assign pairs, then switch to `--mode live`.
 
+Refill only assigns cards to seats that exist. To have missing seats started on their hosts as well, set `--requested-seats` and `--max-seats` on the same activation and enable [seat supply](fleet-host.md).
+
 ## Before you activate
 
 Refill uses existing board records. Set these up first:

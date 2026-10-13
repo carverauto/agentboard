@@ -13,7 +13,7 @@ export PHX_SERVER=false
 
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 46 ]]
+[[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 47 ]]
 [[ "$(fixture_psql 'SELECT count(*) FROM mattermost_agent_bots')" == 0 ]]
 [[ "$(fixture_psql 'SELECT (SELECT count(*) FROM conversation_spool) + (SELECT count(*) FROM mattermost_agent_routes)')" == 0 ]]
 [[ "$(fixture_psql 'SELECT (SELECT count(*) FROM intake_requests) + (SELECT count(*) FROM intake_items)')" == 0 ]]
@@ -59,7 +59,7 @@ INSERT INTO task_documents(task_id,source_agent_id,model,harness,kind,title,html
 CREATE EXTENSION pg_textsearch VERSION '1.5.1';" >/dev/null
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 46 ]]
+[[ "$(upgrade_psql 'SELECT version FROM board_schema WHERE id=1')" == 47 ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM task_events WHERE task_id='retained-task'")" == 1 ]]
 [[ "$(upgrade_psql "SELECT html FROM task_documents WHERE task_id='retained-task'")" == '<!doctype html><p>Retained</p>' ]]
 [[ "$(upgrade_psql "SELECT count(*) FROM pg_indexes WHERE indexname='context_entries_bm25'")" == 1 ]]
@@ -102,7 +102,7 @@ before_snapshot="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_ci_snapshots
 before_projection="$(inventory_psql 'SELECT to_jsonb(s) FROM delivery_poll_states s')"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 46 ]]
+[[ "$(inventory_psql 'SELECT version FROM board_schema WHERE id=1')" == 47 ]]
 [[ "$(inventory_psql "$history_query")" == "$before_inventory" ]]
 [[ "$(inventory_psql "SELECT to_jsonb(s)-'default_ref'-'expected_default_sha'-'base_ref'-'expected_base_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' FROM delivery_poll_states s")" == "$before_projection" ]]
 [[ "$(inventory_psql 'SELECT base_ref IS NULL AND expected_base_sha IS NULL FROM delivery_poll_states')" == t ]]
@@ -150,7 +150,7 @@ before_obligations="$(avail_psql 'SELECT jsonb_agg(to_jsonb(o) ORDER BY episode)
 before_avail="$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id'-'current_base' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'default_ref'-'expected_default_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(avail_psql 'SELECT version FROM board_schema WHERE id=1')" == 46 ]]
+[[ "$(avail_psql 'SELECT version FROM board_schema WHERE id=1')" == 47 ]]
 [[ "$(avail_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t)-'assignment_authorized' ORDER BY id) FROM tasks t),'events',(SELECT count(*) FROM task_events),'watches',(SELECT jsonb_agg(to_jsonb(w) ORDER BY id) FROM delivery_base_watches w),'followups',(SELECT jsonb_agg(to_jsonb(f)-'current_order_id'-'current_base' ORDER BY id) FROM delivery_rebase_follow_ups f),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s),'poll',(SELECT jsonb_agg(to_jsonb(p)-'default_ref'-'expected_default_sha'-'budget_deferred_at'-'unchanged_polls'-'check_fingerprint'-'github_cache' ORDER BY id) FROM delivery_poll_states p))")" == "$before_avail" ]]
 [[ "$(avail_psql 'SELECT count(*) FROM availability_policies')" == 0 ]]
 [[ "$(avail_psql 'SELECT count(*) FROM tasks WHERE assignment_authorized')" == 0 ]]
@@ -182,7 +182,7 @@ INSERT INTO decision_requests(id,task_id,requester_id,kind,gate_ref,question,fin
 VALUES ('11111111-1111-4111-8111-111111111129','legacy-decision-card','legacy-decision-owner','ask_user_gate','legacy-gate','  Retained question?  ','Retained findings','{}','open',clock_timestamp(),clock_timestamp());" >/dev/null
 legacy_decision="$(decision_psql "SELECT to_jsonb(d) FROM decision_requests d")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(decision_psql 'SELECT version FROM board_schema WHERE id=1')" == 46 ]]
+[[ "$(decision_psql 'SELECT version FROM board_schema WHERE id=1')" == 47 ]]
 [[ "$(decision_psql "SELECT to_jsonb(d)-'question_key'-'normalization_version'-'retry_key'-'expires_at'-'expires_in'-'bound_pr'-'source_type'-'source_id'-'promoted_by'-'requested_ci_runs' FROM decision_requests d")" == "$legacy_decision" ]]
 
 # Stop at schema38: schema39 intentionally adds an FK to the existing inbox.
@@ -208,7 +208,7 @@ DROP TABLE mattermost_inbox, mattermost_post_versions, mattermost_channel_recove
 [[ "$(backfill_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008001800')" == 1 ]]
 echo "Backfilled 01800 over marker $installed_marker keeps the higher marker, creates metadata tables and preserves rows."
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(backfill_psql 'SELECT version FROM board_schema WHERE id=1')" == 46 ]]
+[[ "$(backfill_psql 'SELECT version FROM board_schema WHERE id=1')" == 47 ]]
 # Actual schema22 -> 24 upgrade, including retained task/event/document prefixes.
 "$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard agentboard_duplicate_upgrade
 export DATABASE_NAME=agentboard_duplicate_upgrade
@@ -252,7 +252,7 @@ INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES (
 INSERT INTO delivery_ci_snapshots(id,pull_request_id,generation,observed_at,head_sha,base_sha,lifecycle,ci_state,payload) VALUES ('66666666-6666-4666-8666-666666666666',repeat('f',64),1,clock_timestamp(),repeat('a',40),repeat('b',40),'open','failing','{\"coverage\":\"complete_head\",\"policy\":\"unknown\",\"tested_ref\":\"head\",\"attempts\":[]}');" >/dev/null
 before_auth24="$(auth24_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'prs',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_pull_requests p),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(auth24_psql 'SELECT version FROM board_schema WHERE id=1')" == 46 ]]
+[[ "$(auth24_psql 'SELECT version FROM board_schema WHERE id=1')" == 47 ]]
 [[ "$(auth24_psql "SELECT to_regclass('delivery_workflow_runs')::text||','||to_regclass('delivery_workflow_health')::text")" == 'delivery_workflow_runs,delivery_workflow_health' ]]
 [[ "$(auth24_psql "SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM task_events e),'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM task_documents d),'prs',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM delivery_pull_requests p),'snapshots',(SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM delivery_ci_snapshots s))")" == "$before_auth24" ]]
 [[ "$(auth24_psql 'SELECT count(*) FROM agent_api_credentials')" == 0 ]]
@@ -362,7 +362,7 @@ for initial_marker in 34 99; do
   before_fleet_operational="$(fleet_operational_rows)"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-  expected_marker=46
+  expected_marker=47
   if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
   [[ "$(fleet_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
   [[ "$(fleet_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003500')" == 1 ]]
@@ -418,7 +418,7 @@ for initial_marker in 35 99; do
   before_triage="$(triage_psql "$triage_history_query")"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-  expected_marker=46
+  expected_marker=47
   if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
   [[ "$(triage_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
   [[ "$(triage_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003600')" == 1 ]]
@@ -447,7 +447,7 @@ for initial_marker in 36 99; do
   before_pins="$(pins_psql "$pins_history_query")"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-  expected_marker=46
+  expected_marker=47
   if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
   [[ "$(pins_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
   [[ "$(pins_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003700')" == 1 ]]
@@ -502,7 +502,7 @@ conflict_history="SELECT jsonb_build_object('tasks',(SELECT jsonb_agg(to_jsonb(t
 before_conflict="$(conflict_psql "$conflict_history")"
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
 "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-[[ "$(conflict_psql 'SELECT version FROM board_schema WHERE id=1')" == 46 ]]
+[[ "$(conflict_psql 'SELECT version FROM board_schema WHERE id=1')" == 47 ]]
 [[ "$(conflict_psql "$conflict_history")" == "$before_conflict" ]]
 [[ "$(conflict_psql 'SELECT count(*) FROM delivery_publication_bindings')" == 0 ]]
 [[ "$(conflict_psql 'SELECT count(*) FROM delivery_publication_bindings_versions')" == 0 ]]
@@ -539,7 +539,7 @@ for initial_marker in 37 99; do
   before_metadata="$(metadata_psql "$metadata_history_query")"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-  expected_marker=46
+  expected_marker=47
   if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
   [[ "$(metadata_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
   [[ "$(metadata_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003800')" == 1 ]]
@@ -582,7 +582,7 @@ for initial_marker in 38 99; do
   before_participant="$(participant_psql 'SELECT jsonb_agg(to_jsonb(c) ORDER BY id) FROM agent_api_credentials c')"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-  expected_marker=46
+  expected_marker=47
   if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
   [[ "$(participant_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
   [[ "$(participant_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008003900')" == 1 ]]
@@ -644,7 +644,7 @@ for initial_marker in 44 99 collision; do
   fi
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
-  expected_marker=46
+  expected_marker=47
   if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
   [[ "$(refill_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
   [[ "$(refill_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008004600')" == 1 ]]
@@ -670,4 +670,51 @@ for initial_marker in 44 99 collision; do
     fi
   done
   echo "Schema44 to fleet refill preserves marker $expected_marker, dormant loadouts and board history, and seeds fleet-refill once."
+done
+
+# Schema46 -> 47 seat supply is additive: retained activations keep every
+# field and gain zero requested/maximum seats, no host or intent exists, and
+# the intent shape allows one outstanding intent per seat. A higher aggregate
+# marker never decreases.
+for initial_marker in 46 99; do
+  db="agentboard_supply_${initial_marker}_upgrade"
+  "$fixture_bin/createdb" -h "$fixture_root" -p "$DATABASE_PORT" -U postgres -O agentboard "$db"
+  export DATABASE_NAME="$db"
+  supply_psql() {
+    PGPASSWORD="$DATABASE_PASSWORD" "$fixture_bin/psql" "host=127.0.0.1 port=$DATABASE_PORT dbname=$DATABASE_NAME user=agentboard sslmode=verify-full sslrootcert=$DATABASE_CA_FILE" -v ON_ERROR_STOP=1 -Atc "$1"
+  }
+  supply_psql "CREATE EXTENSION pg_textsearch VERSION '1.5.1'" >/dev/null
+  "$release_root/bin/agentboard" eval 'Application.load(:agentboard); Ecto.Migrator.with_repo(Agentboard.Repo, fn repo -> Ecto.Migrator.run(repo, Application.app_dir(:agentboard, "priv/repo/migrations"), :up, to: 20261008004600) end)'
+  [[ -z "$(supply_psql "SELECT to_regclass('fleet_launch_intents')")" ]]
+  supply_psql "INSERT INTO agents(id,name,model,harness,kind) VALUES ('supply-retained','Retained seat','observed-model','codex','seat');
+  INSERT INTO fleet_loadouts(id,configuration,revision,changed_by,updated_at) VALUES ('supply-fleet','{\"seats\":[{\"seat_id\":\"seat-a\",\"agent_id\":\"supply-retained\",\"harness\":\"codex\",\"desired_host_id\":\"host-a\",\"desired_model\":\"model\",\"desired_effort\":\"effort\",\"scope_revision\":1}]}',1,'captain',clock_timestamp());
+  INSERT INTO fleet_activations(fleet_id,mode,claim_deadline_seconds,revision,changed_by,activated_at,updated_at) VALUES ('supply-fleet','live',900,2,'captain',clock_timestamp(),clock_timestamp())" >/dev/null
+  if [[ "$initial_marker" == 99 ]]; then supply_psql 'UPDATE board_schema SET version=99 WHERE id=1' >/dev/null; fi
+  before_supply="$(supply_psql "SELECT jsonb_agg(to_jsonb(t)) FROM fleet_activations t")"
+  "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+  "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
+  expected_marker=47
+  if [[ "$initial_marker" == 99 ]]; then expected_marker=99; fi
+  [[ "$(supply_psql 'SELECT version FROM board_schema WHERE id=1')" == "$expected_marker" ]]
+  [[ "$(supply_psql 'SELECT count(*) FROM schema_migrations WHERE version=20261008004700')" == 1 ]]
+  [[ "$(supply_psql "SELECT jsonb_agg(to_jsonb(t) - 'requested_seats' - 'max_seats') FROM fleet_activations t")" == "$before_supply" ]]
+  [[ "$(supply_psql 'SELECT requested_seats::text||max_seats::text FROM fleet_activations')" == 00 ]]
+  [[ "$(supply_psql 'SELECT (SELECT count(*) FROM fleet_hosts)+(SELECT count(*) FROM fleet_launch_intents)')" == 0 ]]
+  intent="INSERT INTO fleet_launch_intents(id,fleet_id,seat_id,agent_id,harness,host_id,loadout_revision,state,created_at,updated_at"
+  supply_psql "$intent) VALUES ('i1','supply-fleet','seat-a','supply-retained','codex','host-a',1,'pending',clock_timestamp(),clock_timestamp());
+  $intent,closed_at) VALUES ('i2','supply-fleet','seat-a','supply-retained','codex','host-a',1,'expired',clock_timestamp(),clock_timestamp(),clock_timestamp())" >/dev/null
+  for operation in "$intent) VALUES ('i3','supply-fleet','seat-a','supply-retained','codex','host-a',1,'dry_run',clock_timestamp(),clock_timestamp())" \
+                   "$intent) VALUES ('i4','supply-fleet','seat-b','supply-retained','codex','host-a',1,'launched',clock_timestamp(),clock_timestamp())" \
+                   "$intent) VALUES ('i5','supply-fleet','seat-b','supply-retained','codex','host-a',1,'failed',clock_timestamp(),clock_timestamp())" \
+                   "$intent) VALUES ('i6','supply-fleet','seat-b','supply-retained','codex','host-a',0,'pending',clock_timestamp(),clock_timestamp())" \
+                   "$intent) VALUES ('i7','supply-fleet','seat-b','supply-retained','codex','host-a',1,'enabled',clock_timestamp(),clock_timestamp())" \
+                   "UPDATE fleet_activations SET requested_seats=33" 'UPDATE fleet_activations SET max_seats=-1' \
+                   "INSERT INTO fleet_hosts(host_id,token_hash,launch_cap,revision,changed_by,created_at,updated_at) VALUES ('Host-A',repeat('a',64),0,1,'captain',clock_timestamp(),clock_timestamp())" \
+                   "INSERT INTO fleet_hosts(host_id,token_hash,launch_cap,revision,changed_by,created_at,updated_at) VALUES ('host-a','plaintext',0,1,'captain',clock_timestamp(),clock_timestamp())" \
+                   "INSERT INTO fleet_hosts(host_id,token_hash,launch_cap,revision,changed_by,created_at,updated_at) VALUES ('host-a',repeat('a',64),33,1,'captain',clock_timestamp(),clock_timestamp())"; do
+    if supply_psql "$operation" >/dev/null 2>&1; then
+      echo "Invalid seat supply shape or second outstanding intent accepted: $operation" >&2; exit 1
+    fi
+  done
+  echo "Schema46 to seat supply preserves marker $expected_marker and activations, defaults seat counts to 0 and allows one outstanding intent per seat."
 done

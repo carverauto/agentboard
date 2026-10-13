@@ -124,7 +124,8 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	// not the caller's self-reported actor environment.
 	fleetLoadout := strings.HasPrefix(path, "fleets/") && strings.HasSuffix(path, "/loadout")
 	fleetRefill := strings.HasPrefix(path, "fleets/") && (strings.HasSuffix(path, "/activate") || strings.HasSuffix(path, "/deactivate") || strings.HasSuffix(path, "/refill"))
-	fleetCaptain := fleetLoadout || fleetRefill
+	fleetSupply := strings.HasPrefix(path, "fleets/") && (strings.HasSuffix(path, "/supply") || strings.Contains(path, "/launch-intents/")) || strings.HasPrefix(path, "fleet-hosts/")
+	fleetCaptain := fleetLoadout || fleetRefill || fleetSupply
 	// Intake is captain-only until scoped helper credentials exist.
 	intake := path == "intake" || strings.HasPrefix(path, "intake/")
 	decisionConversation := isDecisionConversationPath(path)
@@ -229,6 +230,9 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	}
 	if fleetRefill {
 		required = 46
+	}
+	if fields, ok := payload.(map[string]any); fleetSupply || ok && fleetRefill && (fields["requested_seats"] != nil || fields["max_seats"] != nil) {
+		required = 47
 	}
 	if fields, ok := payload.(map[string]any); ok {
 		if kind, ok := fields["kind"].(string); ok && (kind == "seat" || kind == "human" || kind == "system" || kind == "fixture") {

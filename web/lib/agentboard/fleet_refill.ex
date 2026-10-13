@@ -29,6 +29,9 @@ defmodule Agentboard.FleetRefill do
     :fleet_admin => true
   }
   @default_deadline 1800
+  # Captain activation settings and their first-activation defaults. Seat
+  # counts belong to seat supply; refill ignores them.
+  @settings [claim_deadline_seconds: @default_deadline, requested_seats: 0, max_seats: 0]
   @card_limit 100
 
   def enabled?, do: Application.get_env(:agentboard, :refill_enabled, false) == true
@@ -43,7 +46,7 @@ defmodule Agentboard.FleetRefill do
   def activate(id, capability, data) do
     with :ok <- authority(capability),
          :ok <- fleet_id(id),
-         {:ok, mode, deadline} <- validate_activation(data) do
+         {:ok, settings} <- validate_activation(data) do
       Ops.transaction(fn ->
         # Policy lock: exclusive against in-flight refill admission.
         Availability.lock_policy()
@@ -51,7 +54,7 @@ defmodule Agentboard.FleetRefill do
         unless Ash.get!(Configuration, id, not_found_error?: false),
           do: Ops.reject("conflict", "Save a fleet loadout before activating it")
 
-        change(id, mode, deadline)
+        change(id, settings)
       end)
       |> wake_after()
     end
@@ -63,17 +66,24 @@ defmodule Agentboard.FleetRefill do
          true <- data == %{} || {:error, "invalid_input", "Deactivation takes no fields"} do
       Ops.transaction(fn ->
         Availability.lock_policy()
-        change(id, "inactive", nil)
+        change(id, %{mode: "inactive"})
       end)
     end
   end
 
-  defp change(id, mode, deadline) do
+  # Omitted settings keep their recorded value; a first activation starts from
+  # the defaults (claim deadline 30 minutes, no requested or maximum seats).
+  defp change(id, settings) do
     prior = Ash.get!(Activation, id, not_found_error?: false)
-    deadline = deadline || if(prior, do: prior.claim_deadline_seconds, else: @default_deadline)
+    mode = settings.mode
+
+    kept =
+      Map.new(@settings, fn {key, default} ->
+        {key, Map.get(settings, key) || if(prior, do: Map.fetch!(prior, key), else: default)}
+      end)
 
     if (is_nil(prior) and mode == "inactive") or
-         (prior && prior.mode == mode && prior.claim_deadline_seconds == deadline) do
+         (prior && prior.mode == mode && Map.take(prior, Map.keys(kept)) == kept) do
       %{"activation" => activation(prior, id), "changed" => false}
     else
       stamp = Ops.now()
@@ -85,13 +95,13 @@ defmodule Agentboard.FleetRefill do
           true -> stamp
         end
 
-      attrs = %{
-        mode: mode,
-        claim_deadline_seconds: deadline,
-        changed_by: @captain["agent"],
-        activated_at: activated_at,
-        updated_at: stamp
-      }
+      attrs =
+        Map.merge(kept, %{
+          mode: mode,
+          changed_by: @captain["agent"],
+          activated_at: activated_at,
+          updated_at: stamp
+        })
 
       row =
         if prior,
@@ -127,6 +137,8 @@ defmodule Agentboard.FleetRefill do
       "fleet_id" => id,
       "mode" => "inactive",
       "claim_deadline_seconds" => @default_deadline,
+      "requested_seats" => 0,
+      "max_seats" => 0,
       "revision" => 0,
       "changed_by" => nil,
       "activated_at" => nil,
@@ -145,11 +157,23 @@ defmodule Agentboard.FleetRefill do
 
   defp validate_activation(data) when is_map(data) do
     deadline = data["claim_deadline_seconds"]
+    seats = Enum.map(~w(requested_seats max_seats), &data[&1])
 
-    if Enum.all?(Map.keys(data), &(&1 in ~w(mode claim_deadline_seconds))) and
+    if Enum.all?(
+         Map.keys(data),
+         &(&1 in ~w(mode claim_deadline_seconds requested_seats max_seats))
+       ) and
          data["mode"] in ~w(dry_run live) and
-         (is_nil(deadline) or (is_integer(deadline) and deadline in 60..86_400)),
-       do: {:ok, data["mode"], deadline},
+         (is_nil(deadline) or (is_integer(deadline) and deadline in 60..86_400)) and
+         Enum.all?(seats, &(is_nil(&1) or (is_integer(&1) and &1 in 0..32))),
+       do:
+         {:ok,
+          %{
+            mode: data["mode"],
+            claim_deadline_seconds: deadline,
+            requested_seats: data["requested_seats"],
+            max_seats: data["max_seats"]
+          }},
        else: invalid_activation()
   end
 
@@ -158,7 +182,7 @@ defmodule Agentboard.FleetRefill do
   defp invalid_activation,
     do:
       {:error, "invalid_input",
-       "Activation requires mode dry_run or live and optional integer claim_deadline_seconds from 60 to 86400; unknown fields are forbidden"}
+       "Activation requires mode dry_run or live, optional integer claim_deadline_seconds from 60 to 86400, and optional integer requested_seats and max_seats from 0 to 32; unknown fields are forbidden"}
 
   ## Status
 
@@ -275,17 +299,7 @@ defmodule Agentboard.FleetRefill do
 
     if activation && activation.mode in ~w(dry_run live) && loadout do
       agents = loadout.configuration["seats"] |> Enum.map(& &1["agent_id"]) |> Enum.sort()
-
-      repos =
-        agents
-        |> Enum.flat_map(fn agent ->
-          case SeatScope.get(agent) do
-            nil -> []
-            scope -> scope.allowed_repos
-          end
-        end)
-        |> Enum.uniq()
-        |> Enum.sort()
+      repos = repos(agents)
 
       %{
         fleet_id: id,
@@ -298,11 +312,25 @@ defmodule Agentboard.FleetRefill do
     end
   end
 
+  # A fleet's repositories: every managed repository its seats may work in.
+  # Seat supply counts the same backlog.
+  def repos(agents),
+    do:
+      agents
+      |> Enum.flat_map(fn agent ->
+        case SeatScope.get(agent) do
+          nil -> []
+          scope -> scope.allowed_repos
+        end
+      end)
+      |> Enum.uniq()
+      |> Enum.sort()
+
   # Unassigned open cards in the fleet's repositories: priority (lower number
   # first), then creation time, then ID.
-  defp backlog([]), do: []
+  def backlog([]), do: []
 
-  defp backlog(repos) do
+  def backlog(repos) do
     %{rows: rows} =
       Repo.statement!(
         """
