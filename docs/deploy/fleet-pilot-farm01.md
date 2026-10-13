@@ -179,9 +179,20 @@ records two `dry_run` would-launch intents.
 ## 5. The Mac as a fleet host
 
 ```sh
+mkdir -p -m 700 ~/.config/agentboard/fleet
 git clone git@github.com:carverauto/app-testing.git ~/src/app-testing
 mkdir -p /Volumes/Build/app-testing-seats-v3   # first launch-seat creates the v3 pool
 agentboard fleet host set HOST_ID --launch-cap 2 --token-file ~/.config/agentboard/fleet/host.token
+```
+
+`~/.config/agentboard/fleet/host.token` must exist and be mode 0600. Enrollment
+saves the host before it writes that file, and a failed write still exits 0.
+A later `host set` with the same launch cap and no `--rotate-token` issues no
+token. If the file is missing, re-run:
+
+```sh
+agentboard fleet host set HOST_ID --launch-cap 2 --rotate-token \
+  --token-file ~/.config/agentboard/fleet/host.token
 ```
 
 Add the pilot pool to `treehouse_roots` in
@@ -280,12 +291,16 @@ Pick three small, independent tasks a seat can finish in one PR.
 
 ```sh
 agentboard fleet activate pilot --mode dry-run --requested-seats 2 --max-seats 2 --claim-deadline 30m
-agentboard fleet supply status pilot --json   # two dry_run would-launch intents, nothing reserved
+agentboard fleet supply status pilot --json   # empty until the next seat-supply minute
 agentboard fleet refill status pilot --json   # no seat heartbeats yet, so no would-assign pairs
 ```
 
-Confirm on the board and in Herdr that nothing changed: no assignment, no
-task order, no tab. Leave it for at least two refill passes (two minutes).
+Activate does not write launch intents. The two `dry_run` would-launch rows
+appear on the next seat-supply minute, and nothing is reserved. Wait at least
+one minute and re-read `fleet supply status` until they are there. An empty
+status before that pass is not a mismatch. Refill's would-assign list stays
+empty. Confirm on the board and in Herdr that nothing changed: no assignment,
+no task order, no tab. Leave it for at least two refill passes (two minutes).
 
 ## 8. Live
 
@@ -295,7 +310,9 @@ agentboard fleet activate pilot --mode live
 
 Expected, in order (record a timestamp for each):
 
-1. `fleet supply status` shows two `pending` intents, then `reserved` by `HOST_ID`.
+1. On the next seat-supply minute, `fleet supply status` shows two `pending`
+   intents, then `reserved` by `HOST_ID`. An empty status in that first minute
+   is not a mismatch.
 2. Herdr workspace `fleet-pilot` gains tabs `claude-app-testing-seat-1` and
    `codex-app-testing-seat-2`; each runs `launch-seat`, leases a worktree under
    `/Volumes/Build/app-testing-seats-v3` and starts its harness.
