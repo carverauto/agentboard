@@ -101,6 +101,7 @@ test_suite(
         "//build/integration:poll_budget_fairness_test",
         "//build/integration:cooperation_api_test",
         "//build/integration:idle_continuation_test",
+        "//build/integration:fleet_refill_test",
         "//build/integration:ci_accountability_test",
         "//build/integration:default_branch_workflows_test",
         "//build/integration:repository_metadata_test",

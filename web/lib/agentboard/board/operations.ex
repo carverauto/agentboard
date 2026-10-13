@@ -575,7 +575,17 @@ defmodule Agentboard.Board.Operations do
     Agentboard.Cooperation.Runtime.capture_task(task, event_id, action, actor)
     Agentboard.WakeIntents.capture_task(task, actor)
     Agentboard.Delivery.Accountability.progress(task, action, data, actor, stamp)
+    Agentboard.FleetRefill.wake(action, data)
     %{"task" => public(task), "event_id" => event_id}
+  end
+
+  # Server-owned automatic transition (fleet refill assignment or claim-deadline
+  # return) through the same update, timeline and capture path as mutate/4.
+  # The caller owns the transaction, admission prefix and task lock, computes
+  # attrs under them and supplies a fixed reserved system actor.
+  def apply_system(task, action, actor, attrs, data, stamp) when action in ~w(assign release) do
+    changed = update(task, action_name(action), attrs, actor, task.revision)
+    result(changed, task, action, actor, data, stamp)
   end
 
   def identity!(actor) do
@@ -709,6 +719,9 @@ defmodule Agentboard.Board.Operations do
              Agentboard.FleetLoadout.Configuration,
              Agentboard.FleetLoadout.Binding,
              Agentboard.FleetLoadout.Receipt,
+             Agentboard.FleetLoadout.Activation,
+             Agentboard.FleetRefill.Assignment,
+             Agentboard.FleetRefill.Pass,
              Agentboard.Delivery.BranchFlow.Configuration,
              Agentboard.Delivery.BranchFlow.Receipt,
              Agentboard.DecisionPolicy.Version,

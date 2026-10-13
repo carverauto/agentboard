@@ -123,8 +123,10 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	// Fleet authority and audit attribution come from verified captain transport,
 	// not the caller's self-reported actor environment.
 	fleetLoadout := strings.HasPrefix(path, "fleets/") && strings.HasSuffix(path, "/loadout")
+	fleetRefill := strings.HasPrefix(path, "fleets/") && (strings.HasSuffix(path, "/activate") || strings.HasSuffix(path, "/deactivate") || strings.HasSuffix(path, "/refill"))
+	fleetCaptain := fleetLoadout || fleetRefill
 	decisionConversation := isDecisionConversationPath(path)
-	if (method != http.MethodGet || decisionConversation) && !fleetLoadout {
+	if (method != http.MethodGet || decisionConversation) && !fleetCaptain {
 		if err := c.cfg.Actor.Validate(); err != nil {
 			return nil, err
 		}
@@ -134,7 +136,7 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	captain, _ := cmd.Flags().GetBool("captain")
 	// Fleet configuration is captain-only for reads as well as writes. There is
 	// no command flag that can downgrade this transport to an ordinary bearer.
-	captain = captain || fleetLoadout
+	captain = captain || fleetCaptain
 	// Typed conversation participation always uses the caller's ordinary bearer,
 	// never a protected captain capability or a worker runtime receipt.
 	if decisionConversation {
@@ -223,6 +225,9 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	if fleetLoadout {
 		required = 35
 	}
+	if fleetRefill {
+		required = 46
+	}
 	if fields, ok := payload.(map[string]any); ok {
 		if kind, ok := fields["kind"].(string); ok && (kind == "seat" || kind == "human" || kind == "system" || kind == "fixture") {
 			required = 30
@@ -283,7 +288,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "scope", "loadout", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "send", "sends", "decision", "decisions", "wake", "wakes"} {
+	for _, key := range []string{"agent", "agents", "scope", "loadout", "activation", "refill", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "send", "sends", "decision", "decisions", "wake", "wakes"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue
@@ -316,6 +321,9 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 	}
 	if dupe, ok := envelope["duplicate"]; ok {
 		fmt.Fprintf(table, "duplicate\t%v\n", dupe)
+	}
+	if changed, ok := envelope["changed"]; ok {
+		fmt.Fprintf(table, "changed\t%v\n", changed)
 	}
 	if replayed, ok := envelope["replayed"]; ok {
 		fmt.Fprintf(table, "replayed\t%v\n", replayed)

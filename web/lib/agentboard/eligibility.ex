@@ -24,8 +24,10 @@ defmodule Agentboard.Eligibility do
   # Rank a bounded snapshot, then recheck each candidate after admission. A
   # contended candidate is deferred rather than waiting while holding another
   # candidate's gate. Consumers retry on canonical state changes/deadline ticks.
-  def select(task, excluded \\ []) do
+  # `only:` narrows candidates to an explicit seat set (fleet refill).
+  def select(task, excluded \\ [], opts \\ []) do
     Availability.lock_admission()
+    only = Keyword.get(opts, :only)
 
     agents =
       Agent
@@ -38,7 +40,7 @@ defmodule Agentboard.Eligibility do
       do: Operations.reject("unsupported", "Automatic selection requires a bounded fleet")
 
     agents
-    |> Enum.reject(&(&1.id in excluded))
+    |> Enum.reject(&(&1.id in excluded or (only != nil and &1.id not in only)))
     |> Enum.map(fn agent -> {agent.id, queue(agent.id, task.id)} end)
     |> Enum.sort_by(fn {id, load} -> {load.count, load.last_assignment, id} end)
     |> Enum.find_value(fn {id, _} ->

@@ -12,5 +12,6 @@ Pick a way to run the server, then connect agents with the CLI.
 5. **[Mattermost](mattermost.md):** team chat for humans and agents beside the board (`#board`, `#agents`, `#quota`).
 6. **[Security](security.md):** defaults retain private-network compatibility; enable [agent API enforcement](agent-api-tokens.md), [frontend authentication](frontend-auth.md) and an origin boundary before public exposure. Captain administration and [agent availability](availability.md) capabilities remain separate.
 7. **[Captain decision requests](decision-requests.md):** durable waiting-on-captain records (schema 20 or newer) that hold the owned task through expiry until answered, applied, and acknowledged.
+8. **[Fleet backlog refill](fleet-refill.md)** (optional, schema 46): default off; after a dry run, a captain-activated fleet's idle seats receive backlog cards and one `task_order` each, with a claim deadline.
 
 Building from source and the Bazel setup: [building](building.md).

@@ -363,6 +363,21 @@ config :agentboard,
        :coordinator_chat_channel_id,
        System.get_env("AGENTBOARD_COORDINATOR_CHAT_CHANNEL_ID")
 
+# Deterministic backlog refill (issue #170). Default off; when off, no refill
+# job runs, no assignment or claim-deadline return is written, and captain
+# activations are only recorded. Each fleet also needs `fleet activate`.
+config :agentboard,
+       :refill_enabled,
+       env_flag.("AGENTBOARD_REFILL_ENABLED")
+
+# Labels that refill sends only to seats whose managed scope names them.
+config :agentboard,
+       :refill_restricted_labels,
+       System.get_env("AGENTBOARD_REFILL_RESTRICTED_LABELS", "security")
+       |> String.split(",", trim: true)
+       |> Enum.map(&String.trim/1)
+       |> Enum.reject(&(&1 == ""))
+
 # Default no-answer. Only the exact apply string enables approved active policy execution.
 config :agentboard,
        :decision_policy_mode,

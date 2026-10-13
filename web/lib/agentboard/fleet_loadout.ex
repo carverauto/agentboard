@@ -1,9 +1,14 @@
 defmodule Agentboard.FleetLoadout do
-  @moduledoc "Dormant desired configuration only. No enrollment, activation, claiming or host control."
+  @moduledoc """
+  Captain-owned desired seat configuration. Saving a loadout never enrolls,
+  activates, claims, assigns or controls hosts. A separate captain activation
+  (`Agentboard.FleetRefill.activate/3`, schema 46) lets backlog refill use the
+  fleet's seats; a fleet without one keeps the dormant projection unchanged.
+  """
   alias Agentboard.{Availability, Captain, Repo, SeatScope}
   alias Agentboard.Board.Operations, as: Ops
   alias Agentboard.Board.Resources.Agent
-  alias Agentboard.FleetLoadout.{Binding, Configuration, Receipt}
+  alias Agentboard.FleetLoadout.{Activation, Binding, Configuration, Receipt}
   @actor %{"agent" => "captain", "model" => "human", "harness" => "captain", :fleet_admin => true}
   @seat_fields ~w(seat_id agent_id harness desired_host_id desired_model desired_effort scope_revision)
 
@@ -150,13 +155,17 @@ defmodule Agentboard.FleetLoadout do
 
   defp project(row, id) do
     seats = if row, do: row.configuration["seats"], else: []
+    activation = Ash.get!(Activation, id, not_found_error?: false)
+    mode = if activation, do: activation.mode, else: "inactive"
 
     %{
       "id" => id,
       "revision" => if(row, do: row.revision, else: 0),
-      "enabled" => false,
+      # Activation supersedes the dormant fixed state only for an activated
+      # fleet; inactive and never-activated fleets project exactly as before.
+      "enabled" => mode == "live",
       "seat_count" => length(seats),
-      "activation_state" => "not_activatable",
+      "activation_state" => if(mode in ~w(dry_run live), do: mode, else: "not_activatable"),
       "catalog_status" => "unverified",
       "host_status" => "unverified",
       "changed_by" => if(row, do: row.changed_by, else: nil),
