@@ -145,3 +145,144 @@ func TestRegisterWithHerdrBackendNamesThePane(t *testing.T) {
 		t.Fatalf("herdr calls = %q, %v", sent, err)
 	}
 }
+
+// spawnHost is a host-local allowlist, launcher, source checkout and pool,
+// plus a herdr stand-in that records each call and names agentPane's pane.
+func spawnHost(t *testing.T, agentPane string) (config, brief, log string) {
+	t.Helper()
+	dir := t.TempDir()
+	launcher, log := filepath.Join(dir, "launch-seat"), filepath.Join(dir, "herdr.log")
+	for path, body := range map[string]string{
+		launcher: "#!/bin/sh\n",
+		filepath.Join(dir, "herdr"): `#!/bin/sh
+printf '%s\n' "$*" >> "` + log + `"
+case "$1 $2" in
+"agent list") printf '%s\n' '{"result":{"agents":[{"pane_id":"w1:p1","name":"` + agentPane + `"}]}}' ;;
+"workspace list") printf '%s\n' '{"result":{"workspaces":[]}}' ;;
+"workspace create") printf '%s\n' '{"result":{"workspace":{"workspace_id":"w2"}}}' ;;
+"tab create") printf '%s\n' '{"result":{"tab":{"tab_id":"w2:t2"},"root_pane":{"pane_id":"w2:p2"}}}' ;;
+"pane run") printf '%s\n' '{"result":{}}' ;;
+*) echo "unexpected herdr $*" >&2; exit 2 ;;
+esac
+`,
+	} {
+		if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, sub := range []string{"repo", "pool"} {
+		if err := os.Mkdir(filepath.Join(dir, sub), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	config = filepath.Join(dir, "harnesses.json")
+	body := `{"version":1,"launcher":"` + launcher + `","repo":"` + filepath.Join(dir, "repo") + `","root":"` + filepath.Join(dir, "pool") +
+		`","brief_dir":"` + filepath.Join(dir, "briefs") + `","harnesses":{"codex":{"model":"gpt-5.5","argv":["codex","{brief_text}"]}}}`
+	if err := os.WriteFile(config, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AGENTBOARD_URL", "https://board.example")
+	t.Setenv("AGENTBOARD_HERDR_BIN", filepath.Join(dir, "herdr"))
+	return config, filepath.Join(dir, "briefs", "codex-b--ship-it.md"), log
+}
+
+func runSeatSpawn(config string, extra ...string) (string, error) {
+	var out bytes.Buffer
+	root := cli.NewRoot()
+	root.SetOut(&out)
+	root.SetErr(&bytes.Buffer{})
+	root.SetArgs(append([]string{"seat", "spawn", "--task", "ship-it", "--agent", "codex-b", "--config", config}, extra...))
+	err := root.Execute()
+	return out.String(), err
+}
+
+func herdrCalls(t *testing.T, log string) []string {
+	t.Helper()
+	raw, err := os.ReadFile(log)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(string(raw)), "\n")
+}
+
+func TestSeatSpawnIsADryRunUnlessApplied(t *testing.T) {
+	config, brief, log := spawnHost(t, "codex-a")
+	out, err := runSeatSpawn(config, "--harness", "codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		DryRun  bool              `json:"dry_run"`
+		Argv    []string          `json:"argv"`
+		Env     map[string]string `json:"env"`
+		Spawned *struct {
+			Pane string `json:"pane_id"`
+		} `json:"spawned"`
+	}
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if !report.DryRun || report.Spawned != nil || report.Env["AGENT_ID"] != "codex-b" || report.Env["AGENTBOARD_URL"] != "https://board.example" {
+		t.Fatalf("dry run report = %s", out)
+	}
+	if n := len(report.Argv); n < 3 || report.Argv[n-3] != "--" || report.Argv[n-2] != "codex" || report.Argv[n-1] != "{brief_text}" {
+		t.Fatalf("argv = %q", report.Argv)
+	}
+	if calls := herdrCalls(t, log); len(calls) != 1 || calls[0] != "agent list" {
+		t.Fatalf("dry run herdr calls = %q", calls)
+	}
+	if _, err := os.Stat(brief); !os.IsNotExist(err) {
+		t.Fatalf("dry run wrote the brief: %v", err)
+	}
+
+	out, err = runSeatSpawn(config, "--harness", "codex", "--apply")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(out), &report); err != nil || report.DryRun || report.Spawned == nil || report.Spawned.Pane != "w2:p2" {
+		t.Fatalf("apply report = %s (%v)", out, err)
+	}
+	calls := herdrCalls(t, log)
+	last := calls[len(calls)-1]
+	if !strings.HasPrefix(last, "pane run w2:p2 ") || !strings.Contains(last, brief) || !strings.HasSuffix(last, " -- codex '{brief_text}'") {
+		t.Fatalf("launch call = %q (all %q)", last, calls)
+	}
+	if _, err := os.Stat(brief); err != nil {
+		t.Fatalf("apply did not write the brief: %v", err)
+	}
+}
+
+func TestSeatSpawnRefusals(t *testing.T) {
+	for name, tc := range map[string]struct {
+		pane, want string
+		args       []string
+		noHerdr    bool
+	}{
+		"unknown harness":    {pane: "codex-a", args: []string{"--harness", "muse", "--apply"}, want: `harness "muse" is not in the host allowlist`},
+		"pane name taken":    {pane: "codex-b", args: []string{"--harness", "codex", "--apply"}, want: "already named codex-b"},
+		"herdr unavailable":  {pane: "codex-a", args: []string{"--harness", "codex", "--apply"}, want: "host unavailable", noHerdr: true},
+		"apply with dry-run": {pane: "codex-a", args: []string{"--harness", "codex", "--apply", "--dry-run"}, want: "none of the others can be"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			config, _, log := spawnHost(t, tc.pane)
+			if tc.noHerdr {
+				t.Setenv("AGENTBOARD_HERDR_BIN", filepath.Join(t.TempDir(), "herdr"))
+			}
+			if _, err := runSeatSpawn(config, tc.args...); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+			for _, call := range herdrCalls(t, log) {
+				if call != "agent list" {
+					t.Fatalf("refused spawn ran herdr %q", call)
+				}
+			}
+		})
+	}
+	config, _, _ := spawnHost(t, "codex-a")
+	if _, err := runSeatSpawn(filepath.Join(filepath.Dir(config), "absent.json"), "--harness", "codex"); err == nil || !strings.Contains(err.Error(), "no harness allowlist") {
+		t.Fatalf("missing allowlist err = %v", err)
+	}
+}
