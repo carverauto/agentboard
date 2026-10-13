@@ -583,8 +583,10 @@ Status: **prepared configuration only, not a rollout receipt**. The captain
 approved activation with the next agentboard image roll at 2026-10-08 14:00 CT.
 The assigned preparation card is `agentboard-main-ci-routing-activation`.
 This patch neither changes the image digest nor provisions a secret, registers a
-webhook, applies manifests or enrolls a worker. Worker task3.4 remains held until
-#156/#164 land and its separate captain gate is answered.
+webhook, applies manifests or enrolls a worker. It does not answer runtime task
+3.4; that checklist is
+`openspec/changes/align-agensh-worker-runtime/tasks.md`. #156/#164 recovery
+activation stays a separate hold.
 
 ### Intake mode and exact GitHub settings
 
@@ -675,8 +677,9 @@ credential permissions were not inspected or changed.
 6. Confirm one retained obligation and at most one notice to the immutable
    submitter (or registered coordinator for unknown attribution). Explicitly
    redeliver any missed hook; verify rate-limit/provider deferral stays pending
-   rather than being reported green. Keep worker3.4 and Herdr/restart activation
-   held under their separate decisions.
+   rather than being reported green. Do not change worker enrollment or
+   Herdr/restart activation as part of this roll. Runtime task 3.4 is tracked on
+   `openspec/changes/align-agensh-worker-runtime/tasks.md`.
 
 ### Rollback and verification limits
 

@@ -45,10 +45,11 @@ at the owned binary and protected config reference. No service was activated.
 See `worker-packaged-install.json`.
 
 OpenSpec host tasks 2.4–2.6 now have shipped implementation plus fresh executable
-proof. Production enrollment/assets/activation/rollback in 3.4 require captain
-inputs, and the controlled real failing-PR/reminder/restart/repaired-head
-demonstration in 3.2–3.3 is proved live in `runtime-first-release-pilot.md` (tasks 3.2/3.3 checked). No global host service, automation,
-production rollout or merge is authorized by these receipts.
+proof. Production enrollment/assets/activation/rollback (task 3.4) is recorded on
+the align-agensh-worker-runtime checklist, and the controlled real
+failing-PR/reminder/restart/repaired-head demonstration in 3.2–3.3 is proved live
+in `runtime-first-release-pilot.md` (tasks 3.2/3.3 checked). No global host
+service, automation, production rollout or merge is authorized by these receipts.
 
 The fixture-only follow-up removes DATABASE_* and PG* inputs from the host
 child environment while retaining server/RPC setup. Both packaged host/API and

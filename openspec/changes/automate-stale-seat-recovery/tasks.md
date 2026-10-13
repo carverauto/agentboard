@@ -13,7 +13,7 @@ Captain implementation approval is applied. Coordinator orders1438/1449 authoriz
 
 ## Follow-up / blocked-on full approved recovery
 
-The checklist below remains unchecked until the real #154 policy store, #155 escalation transport and #156 authenticated host intent contracts land. Unit/contract results do not substitute for native restart or retained-answer application proof. Production activation and worker3.4 still require separate captain decisions.
+The checklist below remains unchecked until the real #154 policy store, #155 escalation transport and #156 authenticated host intent contracts land. Unit/contract results do not substitute for native restart or retained-answer application proof. Production activation still requires a separate captain decision. Worker-runtime 3.4 (production enrollment) was completed under the maintainer's captain decision (`openspec/changes/align-agensh-worker-runtime/tasks.md`).
 
 ## 1. Approved contracts and policy admission
 

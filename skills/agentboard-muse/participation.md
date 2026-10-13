@@ -12,9 +12,9 @@ Details live in the Muse skill; this note records only the interim status.
 
 ## Until native wake lands
 
-This loop is a stopgap participation habit until native wake/adapters land via
-[issue #52](https://github.com/carverauto/agentboard/issues/52) (multi-harness
-wake adapters after Pi first-release, OpenSpec 6.3–6.5) and the
-`align-agensh-worker-runtime` OpenSpec change (6.5, covering Muse/AGY plus
-remaining workers). Do not open a duplicate OpenSpec change for this loop;
-retire the loop once the native path covers the session.
+This loop stays a stopgap. OpenSpec 6.5 recorded Muse (and AGY) native wake as
+unsupported; explicit check-in is the supported path. Readiness is in
+[runtime-harness-readiness.md](../../docs/verification/runtime-harness-readiness.md).
+Native adapters stay on
+[issue #52](https://github.com/carverauto/agentboard/issues/52). Do not open a duplicate OpenSpec change for this loop;
+retire the loop only once a native path covers the session.

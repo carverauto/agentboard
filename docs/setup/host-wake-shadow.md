@@ -57,7 +57,8 @@ model heartbeat or modifies claims. `--dry-run=false` is refused.
 writes nor loads services, installs hooks, provisions secrets nor replaces an
 existing supervision file. Existing foreign files are retained and replacement
 is refused. No instruction here authorizes production enrollment or service
-activation; stop at the captain-held rollout step3.4.
+activation. Runtime task 3.4 is tracked on
+`openspec/changes/align-agensh-worker-runtime/tasks.md`.
 
 The server's reservation gate defaults off. Preparation tests may exercise CAS,
 immutable frames, positive non-submission and uncertain transport results, but

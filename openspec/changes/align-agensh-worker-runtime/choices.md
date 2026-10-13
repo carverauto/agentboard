@@ -27,6 +27,16 @@ closes.
   (Context-only batches) were released with `resolve_attempt` under the
   maintainer's pilot authorization, accepting possible duplicate notices.
 
+- **Manual-adapter workers bound through the raw worker API.** `worker bind`
+  refuses the `manual` adapter and `worker serve` never reserves for it, so the
+  6.5 proofs bound and froze batches with an operator script against the
+  published API. A CLI path for manual workers is an open follow-up.
+- **Release v0.3.0 published as a pre-release** after re-tagging on the version
+  bump; the stray first tag on 37d496e was deleted unused. Notes were rewritten
+  from the stale template.
+- **Proof workers revoked and pilot workers paused** at the maintainer's request
+  after the proofs; pilot workers keep their enrollment and pending work.
+
 ## Sound, low risk
 
 - **6.2 task-linked means `task_id`, any repository.** Task repo labels are
@@ -44,7 +54,8 @@ closes.
   unchanged; no bulk migration of pending DMs. (PR #225)
 - **7.2 task-thread link uses `/_redirect/pl/<root_post_id>`.** Assumed to be a
   supported Mattermost route; only URL generation is tested. **Provisional:**
-  confirm in the 5.4 live run.
+  not exercised in the 5.4 run (sole-Mattermost mode stays refused); confirm at
+  cutover.
 - **5.1 notices carry no body.** The board inbox stays authoritative; notices
   captured while routes were off are not replayed when routes turn on. (PR #222)
 - **Handled guidance lives in the Pi wake text and tool description**, not in
