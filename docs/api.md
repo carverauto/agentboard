@@ -412,8 +412,11 @@ Off unless the server sets `AGENTBOARD_INTAKE_ENABLED=true`; while off every
 intake route returns 404 `intake_disabled`. `GET /api/v1/meta` reports
 `intake_enabled`. Each route verifies the captain capability
 (`Authorization: Bearer`) itself, so intake stays authenticated even when
-`AGENTBOARD_AUTH_MODE` is `off`; anything else gets 403 `forbidden`. Responses
-carry `Cache-Control: no-store`. Setup, credentials and the issue state table:
+`AGENTBOARD_AUTH_MODE` is `off`; anything else gets 403 `forbidden`. With
+`AGENTBOARD_AUTH_MODE=enforce`, that 403 is decided before the controller, so
+an unauthenticated caller gets 403 rather than 404 `intake_disabled`. A
+captain still receives 404 while intake is off. Responses carry
+`Cache-Control: no-store`. Setup, credentials and the issue state table:
 [work intake](setup/intake.md).
 
 `POST /api/v1/intake` takes exactly `request_key` (1-128 bytes, trimmed) and
@@ -446,11 +449,15 @@ Unknown or invisible requests return 404.
 GitHub issues are created afterwards by an AshOban outbox job, outside the
 board transaction, with the hidden body marker
 `<!-- agentboard-intake:ITEM_ID -->`. Once a create may have reached GitHub,
-the job lists the repository's issues for the marker and adopts a single match
-before creating again. Transient failures stay `pending` with backoff;
-definitive rejections, more than one marked issue, or a repository removed
-from the list park the item `uncertain` with a `reason`. The `system-intake`
-identity links the card to the created issue and never replaces another link.
+the job resolves the intake credential's login once (`GET /user`) and lists
+issues that login created since the first create attempt, newest first, and
+adopts a single marker match before creating again. Transient failures stay
+`pending` with backoff. Definitive rejections, more than one marked issue, a
+bounded lookup that cannot finish (`marker_search_incomplete`, keeping any
+marker URLs already seen), or a repository removed from the list park the item
+`uncertain` with a `reason`. Adopting a survivor clears `duplicate_issue_urls`.
+The `system-intake` identity links the card to the created issue and never
+replaces another link.
 
 `POST /api/v1/intake/:id/cancel` takes `{}` (all items) or
 `{"items": [ITEM_ID, ...]}` and cancels cards that are still open and

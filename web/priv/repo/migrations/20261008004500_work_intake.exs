@@ -43,6 +43,7 @@ defmodule Agentboard.Repo.Migrations.WorkIntake do
       reason text,
       last_error text,
       attempts integer NOT NULL DEFAULT 0,
+      first_attempt_at timestamptz,
       generation bigint NOT NULL DEFAULT 0,
       claim_run_id uuid,
       claimed_at timestamptz,

@@ -83,6 +83,7 @@ defmodule Agentboard.Intake.Item do
     attribute(:reason, :string, public?: true)
     attribute(:last_error, :string, public?: true)
     attribute(:attempts, :integer, default: 0, allow_nil?: false, public?: true)
+    attribute(:first_attempt_at, :utc_datetime_usec, public?: true)
     attribute(:generation, :integer, default: 0, allow_nil?: false, public?: true)
     attribute(:claim_run_id, :uuid, public?: true)
     attribute(:claimed_at, :utc_datetime_usec, public?: true)

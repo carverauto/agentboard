@@ -94,6 +94,7 @@ def task(task_id):
 issues = []
 posts = []
 lists = []
+user_lookups = []
 mode = {'post': 'ok', 'list': 'ok'}
 
 
@@ -143,16 +144,27 @@ class GitHub(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         assert self.headers['Authorization'] == 'Bearer ' + INTAKE_TOKEN
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == '/user':
+            user_lookups.append(parsed.path)
+            return self.reply(200, {'login': 'intake-bot'})
         query = urllib.parse.parse_qs(parsed.query)
         lists.append(parsed.path)
-        assert query['state'] == ['all'] and 'since' in query, query
+        per_page = int(query['per_page'][0])
+        assert query['state'] == ['all'] and query['creator'] == ['intake-bot'], query
+        assert query['sort'] == ['created'] and query['direction'] == ['desc'] and 'since' in query, query
+        assert 1 <= per_page <= 10, per_page
         if mode['list'] == 'outage':
             return self.reply(503, {'message': 'fixture outage'})
         page = int(query['page'][0])
-        per_page = int(query['per_page'][0])
         prefix = 'https://github.com' + parsed.path[len('/repos'):]
         rows = [{'number': i['number'], 'html_url': i['html_url'], 'body': i['body']}
                 for i in issues if i['html_url'].startswith(prefix + '/')]
+        if mode['list'] == 'endless':
+            # Every page is full, so a bounded lookup cannot decide it is done.
+            while len(rows) < page * per_page:
+                number = 5000 + len(rows)
+                rows.append({'number': number, 'html_url': f'{prefix}/{number}', 'body': 'padding'})
+            return self.reply(200, rows[(page - 1) * per_page: page * per_page])
         # A pull request with the marker text must never be adopted.
         rows.append({'number': 999, 'html_url': 'https://github.com/acme/widgets/pull/999',
                      'body': ' '.join(i['body'] for i in issues), 'pull_request': {}})
@@ -300,6 +312,26 @@ with tls_provider(GitHub) as (api_url, ca, _server):
         assert len(posts) == posted and len(issues) == 2, 'adopted, not created again'
         assert task(lost['task_id'])['issue_url'] == 'https://github.com/acme/widgets/issues/2'
 
+        # A creator-scoped list that never ends parks uncertain with the marker
+        # already seen. It does not stay pending, and it does not create again.
+        stuck = file('stuck-1', [{'repository': REPO, 'title': 'Lookup cannot finish'}])['intake']['items'][0]
+        mode['post'] = 'lost'
+        assert work(stuck['id'])['state'] == 'pending'
+        seen = issues[-1]['html_url']
+        mode['post'], mode['list'] = 'ok', 'endless'
+        due(stuck['id'])
+        posted = len(posts)
+        assert work(stuck['id'])['state'] == 'uncertain' and len(posts) == posted
+        row = item_row(stuck['id'])
+        assert row['reason'] == 'marker_search_incomplete' and row['duplicate_issue_urls'] == [seen], row
+        assert row['next_attempt_at'] is None
+        assert work(stuck['id'])['skipped'] == 'not_due'
+        mode['list'] = 'ok'
+        api('intake/' + sql("SELECT request_id FROM intake_items WHERE id='" + stuck['id'] + "'") +
+            '/items/' + stuck['id'] + '/reconcile', {})
+        assert work(stuck['id'])['state'] == 'created' and len(posts) == posted
+        assert task(stuck['task_id'])['issue_url'] == seen
+
         # A crashed worker leaves `creating`; after the lease the sweep re-claims
         # it and the marker scan adopts the issue the crashed create stored.
         crashed = file('crash-1', [{'repository': REPO, 'title': 'Crashed worker'}])['intake']['items'][0]
@@ -339,6 +371,9 @@ with tls_provider(GitHub) as (api_url, ca, _server):
         posted = len(posts)
         assert work(dup['id'])['state'] == 'created' and len(posts) == posted
         assert task(dup['task_id'])['issue_url'] == survivor
+        adopted = api('intake/' + dup_request)[0]['intake']['items'][0]
+        assert adopted['issue_state'] == 'created' and adopted['issue_url'] == survivor
+        assert adopted['duplicate_issue_urls'] == []
 
         # Definitive rejection parks immediately; reconcile retries after a scan.
         rejected = file('reject-1', [{'repository': REPO, 'title': 'Rejected once'}])['intake']
@@ -442,6 +477,8 @@ with tls_provider(GitHub) as (api_url, ca, _server):
             cancelled = json.loads(ab('--json', 'intake', 'cancel', parked['intake']['id']))
             assert cancelled['cancelled'] == [parked['intake']['items'][0]['id']]
             mode['post'] = 'ok'
+
+        assert user_lookups == ['/user'], user_lookups
 
 assert len(issues) == len({i['body'] for i in issues}), 'no item has two issues once duplicates are resolved'
 

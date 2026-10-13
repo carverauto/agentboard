@@ -1,15 +1,18 @@
 defmodule Agentboard.Intake.Github do
   @moduledoc """
-  The only two GitHub calls the intake credential makes: create an issue and
-  list a repository's recent issues to find an intake marker. Both are
-  confined to the configured intake repositories by the caller, run outside
-  any database transaction and share the operator-pinned transport.
+  The GitHub calls the intake credential makes: create an issue, resolve that
+  credential's login once, and list issues that login created in one configured
+  repository to find an intake marker. The caller confines every repository
+  call to the intake list. Calls run outside any database transaction and
+  share the operator-pinned transport.
 
   Results are classified for the outbox:
 
     * `{:ok, value}` - the call succeeded;
     * `{:retry, reason, seconds}` - transient (outage, rate limit, lost
       response); the intent stays pending and searches before re-creating;
+    * `{:incomplete, matches}` - the bounded creator lookup stopped before it
+      could decide; matches are markers already seen. Park uncertain;
     * `{:rejected, reason}` - definitive refusal (validation, permission,
       missing repository); the intent parks as uncertain.
   """
@@ -17,8 +20,10 @@ defmodule Agentboard.Intake.Github do
 
   @user_agent {"user-agent", "agentboard-intake"}
   @timeout 15_000
-  @page_size 100
-  @max_pages 10
+  # One page must fit the shared 1 MiB observation cap. Issues this login
+  # created since the attempt are few, so a short page is the whole lookup.
+  @page_size 10
+  @max_pages 3
 
   def configured?, do: match?({:ok, _}, destination())
 
@@ -59,26 +64,31 @@ defmodule Agentboard.Intake.Github do
     end
   end
 
-  # Lists issues updated since `since` (oldest first) and returns those whose
-  # body carries the marker. The list endpoint reads current state, unlike the
-  # search index, so a just-created issue is visible. Pull requests are
-  # skipped. An unfinished scan is transient, never proof of absence.
+  # Lists issues this credential created at or after `since` (newest first)
+  # and returns those whose body carries the marker. `since` is the first
+  # create attempt minus clock skew. The list endpoint reads current state,
+  # unlike the search index, so a just-created issue is visible. Pull requests
+  # are skipped. A lookup that still cannot finish is incomplete, not absence
+  # and not a reason to ask for the same pages again.
   def find_marker(repository, marker, since) do
-    with {:ok, destination} <- destination() do
-      scan(destination, repository, marker, DateTime.to_iso8601(since), 1, [])
+    with {:ok, destination} <- destination(),
+         {:ok, login} <- creator_login(destination) do
+      scan(destination, repository, login, marker, DateTime.to_iso8601(since), 1, [])
     end
   end
 
-  defp scan(_destination, _repository, _marker, _since, page, _found) when page > @max_pages,
-    do: {:retry, "marker_search_incomplete", 300}
+  defp scan(_destination, _repository, _login, _marker, _since, page, found)
+       when page > @max_pages,
+       do: {:incomplete, matches(found)}
 
-  defp scan(destination, repository, marker, since, page, found) do
+  defp scan(destination, repository, login, marker, since, page, found) do
     query =
       URI.encode_query(%{
         "state" => "all",
+        "creator" => login,
         "since" => since,
         "sort" => "created",
-        "direction" => "asc",
+        "direction" => "desc",
         "per_page" => @page_size,
         "page" => page
       })
@@ -97,8 +107,8 @@ defmodule Agentboard.Intake.Github do
             found = found ++ Enum.filter(issues, &marked?(&1, marker))
 
             if length(issues) < @page_size,
-              do: {:ok, Enum.map(found, &%{number: &1["number"], url: &1["html_url"]})},
-              else: scan(destination, repository, marker, since, page + 1, found)
+              do: {:ok, matches(found)},
+              else: scan(destination, repository, login, marker, since, page + 1, found)
 
           _ ->
             {:retry, "search_unreadable", 60}
@@ -110,10 +120,65 @@ defmodule Agentboard.Intake.Github do
           {:retry, reason, seconds} -> {:retry, "search_" <> reason, seconds}
         end
 
+      # The same page will exceed the body cap on every retry.
+      {:error, :too_large} ->
+        {:incomplete, matches(found)}
+
       {:error, _} ->
         {:retry, "search_unavailable", 60}
     end
   end
+
+  # One login per token. A rotated token is a different credential and is
+  # resolved again; a failed lookup is not cached.
+  defp creator_login(%{token: token} = destination) do
+    digest = :crypto.hash(:sha256, token)
+
+    case :persistent_term.get({__MODULE__, :creator}, :unresolved) do
+      {^digest, login} ->
+        {:ok, login}
+
+      _ ->
+        fetch_login(destination, digest)
+    end
+  end
+
+  defp fetch_login(destination, digest) do
+    case GithubHTTP.exchange(destination, "GET", "/user", [@user_agent], nil, @timeout) do
+      {:ok, 200, _headers, body} ->
+        case Jason.decode(body) do
+          {:ok, %{"login" => login}} ->
+            if login?(login) do
+              :persistent_term.put({__MODULE__, :creator}, {digest, login})
+              {:ok, login}
+            else
+              {:rejected, "creator_unreadable"}
+            end
+
+          _ ->
+            {:retry, "creator_unreadable", 60}
+        end
+
+      {:ok, status, headers, body} ->
+        case classify(status, headers, body) do
+          {:rejected, reason} -> {:rejected, "creator_" <> reason}
+          {:retry, reason, seconds} -> {:retry, "creator_" <> reason, seconds}
+        end
+
+      {:error, :connect} ->
+        {:retry, "creator_unreachable", 60}
+
+      {:error, _} ->
+        {:retry, "creator_unavailable", 60}
+    end
+  end
+
+  defp login?(login) when is_binary(login),
+    do: String.match?(login, ~r/\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\z/)
+
+  defp login?(_), do: false
+
+  defp matches(found), do: Enum.map(found, &%{number: &1["number"], url: &1["html_url"]})
 
   defp marked?(%{"body" => body, "number" => number, "html_url" => url} = issue, marker)
        when is_binary(body) and is_integer(number) and is_binary(url),

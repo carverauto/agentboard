@@ -6,14 +6,16 @@ defmodule Agentboard.Intake.Issues do
   worker then claims the intent in a short transaction, talks to GitHub with
   no transaction open, and commits the outcome fenced on its claim:
 
-    * once any create may have reached GitHub (`attempts > 0`), the
-      repository is scanned for the item's hidden marker before another
-      create, and a single match is adopted instead of creating a duplicate;
-    * transient failures (outage, rate limit, lost response, unfinished
-      scan) leave the intent `pending` with a backoff;
-    * definitive rejections, a marker on more than one issue, or a
-      repository removed from the intake scope park it `uncertain` with a
-      reason until the filer or captain reconciles or abandons it.
+    * once any create may have reached GitHub (`attempts > 0`), issues
+      created by the intake credential since that attempt are listed for the
+      item's hidden marker before another create, and a single match is
+      adopted instead of creating a duplicate;
+    * transient failures (outage, rate limit, lost response) leave the
+      intent `pending` with a backoff;
+    * a creator lookup that cannot finish, definitive rejections, a marker
+      on more than one issue, or a repository removed from the intake scope
+      park it `uncertain` with a reason until the filer or captain
+      reconciles or abandons it.
 
   A created issue is linked to the card by the `system-intake` identity,
   never over a link someone else made.
@@ -29,7 +31,8 @@ defmodule Agentboard.Intake.Issues do
   @claim_lease_s 300
   @max_backoff_s 900
   @sweep_limit 25
-  # Clock skew allowance for the marker scan's `since` bound.
+  # Subtracted from the first create attempt so a skewed GitHub clock still
+  # includes the issue that attempt stored.
   @scan_slack_s 600
 
   def actor, do: @actor
@@ -79,13 +82,13 @@ defmodule Agentboard.Intake.Issues do
           AND (i.issue_state = 'pending'
             OR (i.issue_state = 'creating' AND i.claimed_at <= clock_timestamp() - ($2::integer * interval '1 second')))
         RETURNING i.id::text, i.generation, i.claim_run_id::text, i.repository, i.attempts,
-          i.created_at, r.payload -> 'items' -> i.position
+          i.created_at, i.first_attempt_at, r.payload -> 'items' -> i.position
         """,
         [id, @claim_lease_s]
       )
 
     case rows do
-      [[id, generation, run_id, repository, attempts, created_at, filed]] ->
+      [[id, generation, run_id, repository, attempts, created_at, first_attempt_at, filed]] ->
         %{
           id: id,
           generation: generation,
@@ -93,6 +96,7 @@ defmodule Agentboard.Intake.Issues do
           repository: repository,
           attempts: attempts,
           created_at: created_at,
+          first_attempt_at: first_attempt_at,
           filed: filed
         }
 
@@ -111,14 +115,26 @@ defmodule Agentboard.Intake.Issues do
         defer(claim, "github_unconfigured", 300)
 
       claim.attempts > 0 ->
-        since = DateTime.add(claim.created_at, -@scan_slack_s)
+        since = DateTime.add(claim.first_attempt_at || claim.created_at, -@scan_slack_s)
 
         case Github.find_marker(claim.repository, Github.marker(claim.id), since) do
-          {:ok, []} -> create(claim)
-          {:ok, [issue]} -> adopt(claim, issue)
-          {:ok, issues} -> park(claim, "duplicate_marker", Enum.map(issues, & &1.url))
-          {:retry, reason, seconds} -> defer(claim, reason, seconds)
-          {:rejected, reason} -> park(claim, reason, nil)
+          {:ok, []} ->
+            create(claim)
+
+          {:ok, [issue]} ->
+            adopt(claim, issue)
+
+          {:ok, issues} ->
+            park(claim, "duplicate_marker", Enum.map(issues, & &1.url))
+
+          {:incomplete, issues} ->
+            park(claim, "marker_search_incomplete", Enum.map(issues, & &1.url))
+
+          {:retry, reason, seconds} ->
+            defer(claim, reason, seconds)
+
+          {:rejected, reason} ->
+            park(claim, reason, nil)
         end
 
       true ->
@@ -149,7 +165,9 @@ defmodule Agentboard.Intake.Issues do
     %{num_rows: rows} =
       Repo.statement!(
         """
-        UPDATE intake_items SET attempts = attempts + 1, updated_at = clock_timestamp()
+        UPDATE intake_items SET attempts = attempts + 1,
+          first_attempt_at = COALESCE(first_attempt_at, clock_timestamp()),
+          updated_at = clock_timestamp()
         WHERE id = $1::text::uuid AND issue_state = 'creating' AND generation = $2
           AND claim_run_id = $3::text::uuid
         """,
@@ -172,6 +190,7 @@ defmodule Agentboard.Intake.Issues do
           issue_state: "created",
           issue_url: url,
           issue_number: number,
+          duplicate_issue_urls: [],
           reason: reason,
           last_error: nil,
           next_attempt_at: nil,
