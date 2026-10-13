@@ -282,7 +282,8 @@ defmodule Agentboard.Intake do
               "selection" => request["selection"],
               "priority" => request["priority"],
               "skipped" => skipped,
-              "bounded" => selected.bounded
+              "bounded" => selected.bounded,
+              "next_page" => selected.next_page
             },
             "items" => Enum.map(picked, &Map.take(&1, ~w(issue_number issue_url title)))
           },

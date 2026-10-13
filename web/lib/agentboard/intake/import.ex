@@ -4,15 +4,18 @@ defmodule Agentboard.Intake.Import do
 
   Named issue numbers are read one by one and keep the caller's order. A list
   selection walks open issues in GitHub's default order (newest first),
-  passes over pull requests and issues already linked to a live card, and
-  stops at the limit, a short page, or the page bound. Closed, missing, moved
-  and pull-request issues are skipped with a reason; any other GitHub failure
-  fails the whole import, so nothing is half-imported.
+  from `start_page` (the top of the list when omitted), passes over pull
+  requests and issues already linked to a live card, and stops at the limit,
+  a short page, or the page bound. `next_page` is where that walk stopped, or
+  nil when the list is exhausted. Closed, missing, moved and pull-request
+  issues are skipped with a reason; any other GitHub failure fails the whole
+  import, so nothing is half-imported.
   """
   alias Agentboard.Intake.{Github, Payload}
 
-  # Ten issues per page fits the shared 1 MiB response bound. A list
-  # selection reads at most this many pages before it reports `bounded`.
+  # Ten issues per page. A page over the shared 1 MiB cap is re-read in
+  # smaller chunks of that same page. A list selection reads at most this
+  # many pages before it reports `bounded` and the next page.
   @max_pages 20
 
   # `linked.(numbers)` maps issue numbers to the live card already linking
@@ -35,45 +38,76 @@ defmodule Agentboard.Intake.Import do
     end)
     |> case do
       {:ok, picked, skipped} ->
-        {:ok, %{picked: Enum.reverse(picked), skipped: Enum.reverse(skipped), bounded: false}}
+        {:ok,
+         %{
+           picked: Enum.reverse(picked),
+           skipped: Enum.reverse(skipped),
+           bounded: false,
+           next_page: nil
+         }}
 
       failure ->
         unavailable(failure)
     end
   end
 
-  def select(%{"repository" => repository, "selection" => selection}, linked),
-    do: walk(repository, selection, linked, 1, [])
+  def select(
+        %{"repository" => repository, "selection" => %{"start_page" => start} = selection},
+        linked
+      )
+      when is_integer(start) and start >= 1,
+      do: walk(repository, selection, linked, start, [])
 
-  defp walk(_repository, _selection, _linked, page, picked) when page > @max_pages,
-    do: {:ok, %{picked: Enum.reverse(picked), skipped: [], bounded: true}}
+  defp walk(_repository, %{"start_page" => start}, _linked, page, picked)
+       when is_integer(start) and page >= start + @max_pages,
+       do: done(picked, true, page)
 
   defp walk(repository, %{"labels" => labels, "limit" => limit} = selection, linked, page, picked) do
     case Github.open_issues(repository, labels, page) do
       {:ok, issues, last?} ->
         on_board = linked.(for %{"number" => n} <- issues, is_integer(n), do: n)
 
-        picked =
-          Enum.reduce(issues, picked, fn issue, acc ->
-            # Pagination can shift while it is read; an issue is taken once.
-            with true <- length(acc) < limit,
-                 number when is_integer(number) <- issue["number"],
-                 false <- Enum.any?(acc, &(&1["issue_number"] == number)),
-                 {:import, candidate} <- classify(repository, number, issue, on_board) do
-              [candidate | acc]
+        {picked, remaining?} =
+          Enum.reduce_while(issues, {picked, false}, fn issue, {acc, _} ->
+            if length(acc) >= limit do
+              {:halt, {acc, true}}
             else
-              _ -> acc
+              # Pagination can shift while it is read; an issue is taken once.
+              acc =
+                with number when is_integer(number) <- issue["number"],
+                     false <- Enum.any?(acc, &(&1["issue_number"] == number)),
+                     {:import, candidate} <- classify(repository, number, issue, on_board) do
+                  [candidate | acc]
+                else
+                  _ -> acc
+                end
+
+              {:cont, {acc, false}}
             end
           end)
 
-        if length(picked) >= limit or last?,
-          do: {:ok, %{picked: Enum.reverse(picked), skipped: [], bounded: false}},
-          else: walk(repository, selection, linked, page + 1, picked)
+        cond do
+          length(picked) >= limit ->
+            done(picked, false, if(remaining?, do: page, else: next_page(page, last?)))
+
+          last? ->
+            done(picked, false, nil)
+
+          true ->
+            walk(repository, selection, linked, page + 1, picked)
+        end
 
       failure ->
         unavailable(failure)
     end
   end
+
+  defp done(picked, bounded, next_page),
+    do:
+      {:ok, %{picked: Enum.reverse(picked), skipped: [], bounded: bounded, next_page: next_page}}
+
+  defp next_page(_page, true), do: nil
+  defp next_page(page, false), do: page + 1
 
   defp classify(_repository, number, :not_found, _on_board), do: skip(number, "not_found")
   defp classify(_repository, number, :moved, _on_board), do: skip(number, "moved")

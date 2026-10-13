@@ -52,8 +52,9 @@ type intakeView struct {
 			LastError  *string `json:"last_error"`
 		} `json:"items"`
 		Import *struct {
-			Bounded bool `json:"bounded"`
-			Skipped []struct {
+			Bounded  bool `json:"bounded"`
+			NextPage *int `json:"next_page"`
+			Skipped  []struct {
 				IssueNumber int     `json:"issue_number"`
 				Reason      string  `json:"reason"`
 				TaskID      *string `json:"task_id"`
@@ -141,8 +142,8 @@ func (c *commands) intakeImport() *cobra.Command {
 	var key, repo string
 	var issues []int
 	var labels []string
-	var limit, priority int
-	cmd := &cobra.Command{Use: "import --request-key KEY --repo OWNER/REPO ([--issue N]... | [--label L]... [--limit N])", Short: "Card existing open issues: named numbers in order, or the first N open issues not yet on the board", Args: cobra.NoArgs,
+	var limit, priority, startPage int
+	cmd := &cobra.Command{Use: "import --request-key KEY --repo OWNER/REPO ([--issue N]... | [--label L]... [--limit N] [--start-page N])", Short: "Card existing open issues: named numbers in order, or the first N open issues not yet on the board", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(key) == "" {
 				return errors.New("--request-key is required; reuse it to retry safely")
@@ -152,8 +153,8 @@ func (c *commands) intakeImport() *cobra.Command {
 			}
 			payload := map[string]any{"request_key": key, "repository": repo}
 			if len(issues) > 0 {
-				if len(labels) > 0 || cmd.Flags().Changed("limit") {
-					return errors.New("--issue cannot be combined with --label or --limit")
+				if len(labels) > 0 || cmd.Flags().Changed("limit") || cmd.Flags().Changed("start-page") {
+					return errors.New("--issue cannot be combined with --label, --limit, or --start-page")
 				}
 				payload["issues"] = issues
 			} else {
@@ -162,6 +163,12 @@ func (c *commands) intakeImport() *cobra.Command {
 				}
 				if cmd.Flags().Changed("limit") {
 					payload["limit"] = limit
+				}
+				if cmd.Flags().Changed("start-page") {
+					if startPage < 1 {
+						return errors.New("--start-page must be at least 1")
+					}
+					payload["start_page"] = startPage
 				}
 			}
 			if cmd.Flags().Changed("priority") {
@@ -179,6 +186,7 @@ func (c *commands) intakeImport() *cobra.Command {
 	f.IntSliceVar(&issues, "issue", nil, "Issue number to import, in order (repeatable, up to 10)")
 	f.StringArrayVar(&labels, "label", nil, "Only list open issues carrying this label (repeatable)")
 	f.IntVar(&limit, "limit", 10, "How many open issues not yet on the board to import (1-10)")
+	f.IntVar(&startPage, "start-page", 1, "Open-issue list page to start from; pass the previous import's next page to continue")
 	f.IntVar(&priority, "priority", 3, "Board priority for every imported card; lower is more urgent")
 	return cmd
 }
@@ -285,8 +293,13 @@ func printIntakeTable(w io.Writer, view intakeView) error {
 			}
 			fmt.Fprintf(table, "not imported\t#%d\t%s\t%s\n", skipped.IssueNumber, skipped.Reason, card)
 		}
-		if imported.Bounded {
+		switch {
+		case imported.Bounded && imported.NextPage != nil:
+			fmt.Fprintf(table, "listing stopped at its page bound; import again with --start-page %d to continue\n", *imported.NextPage)
+		case imported.Bounded:
 			fmt.Fprintln(table, "listing stopped at its page bound; import again to continue")
+		case imported.NextPage != nil:
+			fmt.Fprintf(table, "import again with --start-page %d to continue\n", *imported.NextPage)
 		}
 	}
 	return table.Flush()

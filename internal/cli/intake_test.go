@@ -193,7 +193,7 @@ func TestIntakeImportSendsSelection(t *testing.T) {
 		var body map[string]any
 		_ = json.Unmarshal(raw, &body)
 		got = append(got, body)
-		fmt.Fprint(w, `{"intake":{"id":"11111111-1111-4111-8111-111111111111","request_key":"burn-1","items":[],"import":{"bounded":true,"skipped":[{"issue_number":7,"reason":"closed"},{"issue_number":9,"reason":"already_linked","task_id":"fix-9-abc"}]}},"replayed":false}`)
+		fmt.Fprint(w, `{"intake":{"id":"11111111-1111-4111-8111-111111111111","request_key":"burn-1","items":[],"import":{"bounded":true,"next_page":21,"skipped":[{"issue_number":7,"reason":"closed"},{"issue_number":9,"reason":"already_linked","task_id":"fix-9-abc"}]}},"replayed":false}`)
 	})
 	out, err := intakeCommand("import", "--request-key", "burn-1", "--repo", "acme/widgets", "--issue", "12", "--issue", "7", "--priority", "1")
 	if err != nil {
@@ -205,15 +205,19 @@ func TestIntakeImportSendsSelection(t *testing.T) {
 	if _, err := intakeCommand("--json", "import", "--request-key", "burn-3", "--repo", "acme/widgets"); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := intakeCommand("--json", "import", "--request-key", "burn-4", "--repo", "acme/widgets", "--start-page", "21"); err != nil {
+		t.Fatal(err)
+	}
 	want := []map[string]any{
 		{"request_key": "burn-1", "repository": "acme/widgets", "issues": []any{float64(12), float64(7)}, "priority": float64(1)},
 		{"request_key": "burn-2", "repository": "acme/widgets", "labels": []any{"bug"}, "limit": float64(5)},
 		{"request_key": "burn-3", "repository": "acme/widgets"},
+		{"request_key": "burn-4", "repository": "acme/widgets", "start_page": float64(21)},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("payloads = %#v", got)
 	}
-	for _, line := range []string{"#7", "closed", "#9", "already_linked", "fix-9-abc", "page bound"} {
+	for _, line := range []string{"#7", "closed", "#9", "already_linked", "fix-9-abc", "page bound", "--start-page 21"} {
 		if !strings.Contains(out, line) {
 			t.Fatalf("human output lacks %q: %q", line, out)
 		}
@@ -229,6 +233,8 @@ func TestIntakeImportRefusesBeforeAnyRequest(t *testing.T) {
 		{"import", "--request-key", "k"},
 		{"import", "--request-key", "k", "--repo", "acme/widgets", "--issue", "3", "--label", "bug"},
 		{"import", "--request-key", "k", "--repo", "acme/widgets", "--issue", "3", "--limit", "2"},
+		{"import", "--request-key", "k", "--repo", "acme/widgets", "--issue", "3", "--start-page", "2"},
+		{"import", "--request-key", "k", "--repo", "acme/widgets", "--start-page", "0"},
 	} {
 		if _, err := intakeCommand(args...); err == nil {
 			t.Errorf("%v: expected refusal", args)

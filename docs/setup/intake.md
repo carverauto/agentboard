@@ -92,7 +92,13 @@ passed over, which makes a repeated burndown continue where the last one
 stopped. Pull requests are never imported. Named issues that are closed,
 missing, transferred, pull requests or already on the board are listed as
 `not imported` with the reason. A list selection reads at most 20 pages of
-ten; if it stops there it says so, and importing again continues.
+ten, starting at `--start-page` (the top of the list when omitted). The
+result names the next page. If it stops at the page bound it says so, and
+importing again with that `--start-page` continues. An issue body over the
+1 MiB response cap fails a named import with reason `too_large` and writes
+nothing; a list page over that cap is re-read in smaller chunks, and one
+issue that is still over the cap is passed over so the rest of the page can
+be imported.
 
 Import reads GitHub with the intake token before it writes anything. If
 GitHub fails, nothing is created and the same `--request-key` can be retried.

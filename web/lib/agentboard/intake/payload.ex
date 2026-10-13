@@ -37,8 +37,8 @@ defmodule Agentboard.Intake.Payload do
 
   def normalize(_), do: {:error, "invalid_input", @shape_error}
 
-  @import_fields ~w(request_key repository issues labels limit priority)
-  @import_error "Import requires request_key (1-128 bytes) and repository (owner/repo), then either issues (1-10 distinct issue numbers) or an optional labels filter (up to 20) with limit (1-10, default 10), plus optional priority (integer >= 0, default 3); unknown fields are forbidden"
+  @import_fields ~w(request_key repository issues labels limit priority start_page)
+  @import_error "Import requires request_key (1-128 bytes) and repository (owner/repo), then either issues (1-10 distinct issue numbers) or an optional labels filter (up to 20) with limit (1-10, default 10) and start_page (integer >= 1, default 1), plus optional priority (integer >= 0, default 3); unknown fields are forbidden"
 
   # An import selects existing issues instead of describing new ones. Named
   # issue numbers keep the caller's order; a list selection is the first
@@ -73,6 +73,7 @@ defmodule Agentboard.Intake.Payload do
       selection["issues"],
       selection["labels"],
       selection["limit"],
+      selection["start_page"],
       request["priority"]
     ]
 
@@ -118,6 +119,7 @@ defmodule Agentboard.Intake.Payload do
        when is_list(numbers) and length(numbers) in 1..@max_items do
     valid? =
       not Map.has_key?(data, "labels") and not Map.has_key?(data, "limit") and
+        not Map.has_key?(data, "start_page") and
         Enum.all?(numbers, &(is_integer(&1) and &1 in 1..2_147_483_647)) and
         length(Enum.uniq(numbers)) == length(numbers)
 
@@ -127,8 +129,10 @@ defmodule Agentboard.Intake.Payload do
   defp selection(data) when not is_map_key(data, "issues") do
     with {:ok, labels} <- labels(Map.get(data, "labels", [])),
          limit when is_integer(limit) and limit in 1..@max_items <-
-           Map.get(data, "limit", @max_items) do
-      {:ok, %{"labels" => labels, "limit" => limit}}
+           Map.get(data, "limit", @max_items),
+         start when is_integer(start) and start in 1..2_147_483_647 <-
+           Map.get(data, "start_page", 1) do
+      {:ok, %{"labels" => labels, "limit" => limit, "start_page" => start}}
     else
       _ -> :error
     end

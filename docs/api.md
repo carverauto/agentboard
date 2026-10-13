@@ -468,27 +468,37 @@ creates no issue. It takes `request_key`, `repository` (must be in
 `AGENTBOARD_INTAKE_REPOSITORIES`, otherwise 403 before any GitHub call) and
 either `issues` (1-10 distinct issue numbers, imported in that order) or a
 list selection: optional `labels` (up to 20; GitHub returns only issues
-carrying all of them) and `limit` (1-10, default 10). `priority` (default 3)
-applies to every card. Mixing `issues` with `labels` or `limit`, and any other
-shape, returns 422 `invalid_input`. A list selection reads open issues newest
-first, ten per page, and takes the first `limit` that are not pull requests
-and not already linked to a card that is not cancelled (matched
-case-insensitively); it stops at 20 pages and then reports `bounded: true`.
-Named issues that are closed, missing (`not_found`), transferred (`moved`),
-pull requests or already linked (`already_linked`, with that card's
-`task_id`) are reported, not failed. GitHub is read before anything is
-written and only for a new request key: a GitHub failure returns 503
-`github_unavailable` (with `reason`) or `github_unconfigured` and writes
-nothing, and a replay never calls GitHub. Imports into one repository
-serialize and recheck links, so two imports never card the same issue twice.
-Each card takes the issue's title, `Imported from <issue URL>` plus the issue
-body as its description, the issue's labels under the filing bounds, and the
-issue link. The response is the intake view; its `import` object carries
-`repository`, `selection`, `priority`, `skipped`
-(`{"issue_number", "reason", "task_id"?}`) and `bounded`, and is `null` for a
-filing. Imported items are `issue_state: "created"` with `reason: "imported"`
-and never enter the outbox. The same key with the same normalized selection
-replays; a changed selection, or a filing under that key, returns 409.
+carrying all of them), `limit` (1-10, default 10) and `start_page` (integer
+>= 1, default 1, the top of the list). `priority` (default 3) applies to
+every card. Mixing `issues` with `labels`, `limit` or `start_page`, and any
+other shape, returns 422 `invalid_input`. A list selection reads open issues
+newest first, ten per page, from `start_page`, and takes the first `limit`
+that are not pull requests and not already linked to a card that is not
+cancelled (matched case-insensitively); it stops at 20 pages and then reports
+`bounded: true`. Every list import returns `next_page`, the page where the
+listing stopped, or null when the list is exhausted. Passing that page back
+as `start_page` (part of the normalized request) continues past a window
+filled with pull requests and already-linked issues. A page over the 1 MiB
+response cap is re-read in smaller chunks of that same page, still inside the
+20-page window; one issue that is still over the cap is passed over. A named
+import of an issue over that cap returns 503 `github_unavailable` with reason
+`too_large` and writes nothing. Named issues that are closed, missing
+(`not_found`), transferred (`moved`), pull requests or already linked
+(`already_linked`, with that card's `task_id`) are reported, not failed.
+GitHub is read before anything is written and only for a new request key: a
+GitHub failure returns 503 `github_unavailable` (with `reason`) or
+`github_unconfigured` and writes nothing, and a replay never calls GitHub.
+Imports into one repository serialize and recheck links, so two imports never
+card the same issue twice. Each card takes the issue's title, `Imported from
+<issue URL>` plus the issue body as its description, the issue's labels under
+the filing bounds, and the issue link. The response is the intake view; its
+`import` object carries `repository`, `selection` (including `start_page` for
+a list), `priority`, `skipped` (`{"issue_number", "reason", "task_id"?}`),
+`bounded` and `next_page`, and is `null` for a filing. Imported items are
+`issue_state: "created"` with `reason: "imported"` and never enter the
+outbox. The same key with the same normalized selection replays; a changed
+selection, including a different `start_page`, or a filing under that key,
+returns 409.
 
 `POST /api/v1/intake/:id/cancel` takes `{}` (all items) or
 `{"items": [ITEM_ID, ...]}` and cancels cards that are still open and

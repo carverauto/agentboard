@@ -103,6 +103,18 @@ class GitHub(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
+    def oversized(self):
+        # Content-Length over the shared 1 MiB cap. The client rejects it
+        # from the header, so the body does not have to fill that length.
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', '1048577')
+        self.end_headers()
+        try:
+            self.wfile.write(b' ')
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
     def do_POST(self):
         posts.append(self.path)
         self.reply(500, {'message': 'import must never create an issue'})
@@ -117,6 +129,8 @@ class GitHub(http.server.BaseHTTPRequestHandler):
         assert parsed.path.startswith('/repos/acme/widgets/issues'), parsed.path
         tail = parsed.path[len('/repos/acme/widgets/issues'):]
         if tail:
+            if mode['github'] == 'fat-issue':
+                return self.oversized()
             row = issues.get(int(tail[1:]))
             return self.reply(200, row) if row else self.reply(404, {'message': 'Not Found'})
         assert query['state'] == ['open'] and query['sort'] == ['created'] and query['direction'] == ['desc'], query
@@ -125,6 +139,18 @@ class GitHub(http.server.BaseHTTPRequestHandler):
             # Every page is full of pull requests, so only the bound stops it.
             rows = [issue(1000 + page * per_page + i, pull_request={}) for i in range(per_page)]
             return self.reply(200, rows)
+        if mode['github'] == 'resume':
+            # The first 200 rows are pull requests. Older open issues start on page 21.
+            if page <= 20:
+                rows = [issue(10_000 + page * per_page + i, pull_request={}) for i in range(per_page)]
+                return self.reply(200, rows)
+            return self.reply(200, [issue(101), issue(102), issue(103)])
+        if mode['github'] == 'fat':
+            # A page larger than one issue is over the body cap. Issue 210 is
+            # over the cap on its own; the other nine on that page are not.
+            if per_page > 1 or (page - 1) * per_page == 0:
+                return self.oversized()
+            return self.reply(200, [issue(210 - ((page - 1) * per_page))])
         wanted = query.get('labels', [''])[0]
         rows = [issues[n] for n in sorted(issues, reverse=True)
                 if issues[n]['state'] == 'open' and n != 40
@@ -154,8 +180,10 @@ for bad in [{'repository': REPO},
             {'request_key': 'k', 'repository': REPO, 'issues': list(range(1, 12))},
             {'request_key': 'k', 'repository': REPO, 'issues': [3], 'limit': 2},
             {'request_key': 'k', 'repository': REPO, 'issues': [3], 'labels': ['bug']},
+            {'request_key': 'k', 'repository': REPO, 'issues': [3], 'start_page': 2},
             {'request_key': 'k', 'repository': REPO, 'limit': 11},
             {'request_key': 'k', 'repository': REPO, 'limit': 0},
+            {'request_key': 'k', 'repository': REPO, 'start_page': 0},
             {'request_key': 'k', 'repository': REPO, 'priority': -1},
             {'request_key': 'k', 'repository': REPO, 'items': []}]:
     assert imported(bad, status=422)['error']['code'] == 'invalid_input', bad
@@ -185,8 +213,9 @@ with tls_provider(GitHub) as (api_url, ca, _server):
         intake = first['intake']
         assert first['replayed'] is False and intake['filer_id'] == 'captain'
         assert [i['issue_number'] for i in intake['items']] == [29, 28, 27], intake['items']
-        assert intake['import'] == {'repository': REPO, 'selection': {'labels': [], 'limit': 3},
-                                    'priority': 3, 'skipped': [], 'bounded': False}, intake['import']
+        assert intake['import'] == {
+            'repository': REPO, 'selection': {'labels': [], 'limit': 3, 'start_page': 1},
+            'priority': 3, 'skipped': [], 'bounded': False, 'next_page': 1}, intake['import']
         for item in intake['items']:
             assert (item['issue'], item['issue_state'], item['reason']) == (True, 'created', 'imported'), item
             assert item['issue_url'] == f"https://github.com/Acme/Widgets/issues/{item['issue_number']}"
@@ -209,7 +238,12 @@ with tls_provider(GitHub) as (api_url, ca, _server):
         again = imported({'request_key': 'burn-1', 'repository': 'acme/widgets', 'limit': 3, 'priority': 3,
                           'labels': []})
         assert again['replayed'] is True and again['intake']['id'] == intake['id'] and len(gets) == read
+        # An explicit first page is the same normalized request as omitting it.
+        same = imported({'request_key': 'burn-1', 'repository': REPO, 'limit': 3, 'start_page': 1})
+        assert same['replayed'] is True and len(gets) == read
         assert imported({'request_key': 'burn-1', 'repository': REPO, 'limit': 4},
+                        status=409)['error']['code'] == 'conflict'
+        assert imported({'request_key': 'burn-1', 'repository': REPO, 'limit': 3, 'start_page': 2},
                         status=409)['error']['code'] == 'conflict'
         assert len(gets) == read
         # A filing can never replay an import under the same key.
@@ -260,7 +294,37 @@ with tls_provider(GitHub) as (api_url, ca, _server):
         listed = len(gets)
         bounded = imported({'request_key': 'bound-1', 'repository': REPO})['intake']
         assert bounded['items'] == [] and bounded['import']['bounded'] is True
+        assert bounded['import']['next_page'] == 21
         assert len(gets) - listed == 20
+
+        # Two hundred skipped rows, then older open issues via the returned page.
+        mode['github'] = 'resume'
+        window = len(gets)
+        stalled = imported({'request_key': 'resume-1', 'repository': REPO, 'limit': 3})['intake']
+        assert stalled['items'] == [] and stalled['import']['bounded'] is True
+        assert stalled['import']['next_page'] == 21
+        assert [int(q['page'][0]) for _, q in gets[window:]] == list(range(1, 21))
+        resumed = imported({'request_key': 'resume-2', 'repository': REPO, 'limit': 3,
+                            'start_page': stalled['import']['next_page']})['intake']
+        assert [i['issue_number'] for i in resumed['items']] == [101, 102, 103]
+        assert resumed['import']['bounded'] is False and resumed['import']['next_page'] is None
+        assert resumed['import']['selection']['start_page'] == 21
+        assert [int(q['page'][0]) for _, q in gets[window + 20:]] == [21]
+
+        # One oversized body does not hide the rest of its page, and does not
+        # retry as an outage. Issue 210 is unreadable; 209, 208 and 207 are not.
+        mode['github'] = 'fat'
+        fat_at = len(gets)
+        fat = imported({'request_key': 'fat-1', 'repository': REPO, 'limit': 3})['intake']
+        fat_calls = [q for _, q in gets[fat_at:]]
+        assert any(q['per_page'] == ['10'] for q in fat_calls) and any(q['per_page'] == ['1'] for q in fat_calls)
+        assert [i['issue_number'] for i in fat['items']] == [209, 208, 207], fat['items']
+        assert all(int(q['page'][0]) <= 10 for q in fat_calls)
+        mode['github'] = 'fat-issue'
+        before_fat = counts()
+        fat_named = imported({'request_key': 'fat-named', 'repository': REPO, 'issues': [16]}, status=503)
+        assert fat_named['error']['code'] == 'github_unavailable' and fat_named['error']['reason'] == 'too_large', fat_named
+        assert counts() == before_fat
         mode['github'] = 'ok'
 
         # --- Cancel takes back unstarted imported cards; the issue stays. --

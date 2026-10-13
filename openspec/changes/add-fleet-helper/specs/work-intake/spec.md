@@ -59,7 +59,7 @@ For items whose issue flag is true, the server SHALL create the issue outside th
 - **THEN** the intent stays uncertain with that reason and links neither issue
 
 ### Requirement: Import existing issues
-`POST /api/v1/intake/import` SHALL turn existing open GitHub issues in one intake repository into board cards linked to those issues, without creating any issue. The caller SHALL name either 1 to 10 issue numbers, kept in the caller's order, or a list selection of up to 10 issues in GitHub's default open-issue order (newest first), optionally filtered by labels. Pull requests SHALL never be imported. An issue that is closed, missing, a pull request, or already linked to a card that is not cancelled SHALL be skipped and reported, never failed. A list selection SHALL pass over issues already on the board and take the next ones. Cards SHALL be created in the selected order with one caller-chosen priority. The same request key with the same normalized request SHALL return the original result without calling GitHub; a changed request under that key SHALL conflict. A GitHub failure SHALL create nothing.
+`POST /api/v1/intake/import` SHALL turn existing open GitHub issues in one intake repository into board cards linked to those issues, without creating any issue. The caller SHALL name either 1 to 10 issue numbers, kept in the caller's order, or a list selection of up to 10 issues in GitHub's default open-issue order (newest first), optionally filtered by labels. Pull requests SHALL never be imported. An issue that is closed, missing, a pull request, or already linked to a card that is not cancelled SHALL be skipped and reported, never failed. A list selection SHALL pass over issues already on the board and take the next ones. It SHALL read at most 20 pages of 10 from an optional `start_page` (default 1, the top of the list) and SHALL return `next_page`, where the listing stopped, or null when the list is exhausted. `start_page` SHALL be part of the normalized request. Cards SHALL be created in the selected order with one caller-chosen priority. The same request key with the same normalized request SHALL return the original result without calling GitHub; a changed request under that key SHALL conflict. A GitHub failure SHALL create nothing. An issue body over the response cap SHALL fail a named import with a distinct non-retry reason and SHALL NOT fail a list import of the rest of that page.
 
 #### Scenario: Captain asks for an issue burndown
 - **WHEN** the captain imports the first ten open issues of an intake repository and three of them already have cards
@@ -76,6 +76,14 @@ For items whose issue flag is true, the server SHALL create the issue outside th
 #### Scenario: GitHub unavailable during import
 - **WHEN** GitHub is unavailable while the import reads issues
 - **THEN** the request fails and no card or intake record is created
+
+#### Scenario: List window is only skips
+- **WHEN** the first 200 open-list rows are pull requests or already linked and older open issues remain
+- **THEN** the import reports bounded and `next_page`, creates nothing from that window, and a later import with that `start_page` cards the older issues without reading the skipped window
+
+#### Scenario: One issue body exceeds the response cap
+- **WHEN** a list page exceeds the response cap because one issue body is too large
+- **THEN** that page is re-read in smaller chunks within the same 20-page window, the oversized issue is passed over, and the other open issues on the page can still be imported
 
 ### Requirement: Slash command over the same contract
 The Mattermost `/board` command SHALL authenticate the slash-command token, map the Mattermost user to a captain-allowlisted filer, and call the intake and status contracts. It SHALL reply in the invoking channel or thread with card and issue links and SHALL refuse unmapped users without creating anything. It SHALL be unavailable while the intake flag is off.
