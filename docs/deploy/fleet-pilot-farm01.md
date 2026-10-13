@@ -3,8 +3,10 @@
 Operator runbook for `add-fleet-helper` task 6.1: one fleet on farm01 goes from
 dry run to live with `max_seats` 2. A helper (a chat bot, or the captain CLI
 until helper tokens ship) files three issues on a sandbox repository. Two seats
-launch in Herdr on the operator's Mac, claim the cards, open PRs, and are reaped
-after merge.
+launch in Herdr on the operator's Mac, claim the cards and open PRs. After
+merge, `agentboard seat reap --apply` (or the seat-ops timer) closes each
+finished pane and returns its lease. The pilot pool has to be in that Mac's
+`treehouse_roots` or the lease is never read.
 
 Every step that changes farm01, GitHub or the Mac is the captain's call. Stop at
 any step that does not match what this page says and record the difference.
@@ -35,17 +37,30 @@ the pilot uses its own allowlist file and leaves the agentboard one alone.
 
 ## 1. Release
 
-Schema 47 (seat supply) is on main at `8dae47b`. Wait for the helper-access
-lane (helper tokens and `fleet status`) and intake import if the pilot should
-use them; otherwise release what is on main. Tag the merged commit, publish,
-and install the CLI on the Mac (the Mac's installed CLI predates every fleet
-command):
+The Mac's installed CLI is 0.2.0 and has none of the fleet commands. Publish
+v0.4.0 only after a separate release-bump pull request is on main, following
+[the release process](../release.md). That commit sets version `0.4.0` in
+`web/mix.exs`, sets `org.opencontainers.image.version` to `0.4.0` and names the
+CLI archive `agentboard-cli-0.4.0.tar.gz` in `build/release/BUILD.bazel`, uses
+that same archive name in the unpack path in `scripts/publish-release`, and
+changes both `test "$RELEASE_TAG" = v0.3.0` checks (`.github/workflows/release.yml`
+and `scripts/publish-release`) to `v0.4.0`. The workflow checks out the tag, so
+the checks are the tagged tree. `8dae47b` still accepts only `v0.3.0`: tagging
+it fails `release.yml` before a draft exists, and `gh release edit` then has
+nothing to publish. Wait for the helper-access lane (helper tokens and `fleet
+status`) and intake import when the pilot should use them; the bump is those
+pins plus the fleet code you intend to ship.
+
+Tag the merged bump commit. Pushing a `v*` tag publishes images through
+[`.github/workflows/images.yml`](../../.github/workflows/images.yml) (`sha-<commit>`
+and `v0.4.0`). That workflow is separate from the manual `release.yml` run.
 
 ```sh
-git fetch origin && git tag v0.4.0 origin/main && git push origin v0.4.0
-gh workflow run release.yml -f tag=v0.4.0          # agentboard-release environment
-gh release edit v0.4.0 --draft=false --prerelease  # after reviewing the draft
-agentboard version                                  # on the Mac, after installing the release binary
+git fetch origin
+git tag v0.4.0 <bump-commit> && git push origin v0.4.0   # also starts images.yml
+gh workflow run release.yml -f tag=v0.4.0                # agentboard-release environment
+gh release edit v0.4.0 --draft=false --prerelease        # after the draft exists and you have reviewed it
+agentboard version                                        # on the Mac, after installing the release binary
 ```
 
 Record the dashboard digest from the release notes.
@@ -111,14 +126,24 @@ nothing: no fleet is activated yet.
 
 ## 4. Seats, scopes and the loadout
 
-Register each seat identity once (kind `seat`, its real harness), give it a
-managed scope on the sandbox repository, then save the fleet:
+Register each seat identity once (kind `seat`, its real harness and model) and
+give it a managed scope on the sandbox repository, then save the fleet. Both
+writes require `AGENT_ID`, `AGENTBOARD_HARNESS` and `AGENTBOARD_MODEL`. Leave
+off `--backend herdr` here: that flag renames the calling pane, so a captain
+inside Herdr would name their own pane after the seat and the later launch
+would fail. The seat names its pane when it registers with `--backend herdr`
+from its own tab.
 
 ```sh
-for seat in claude-app-testing-seat-1:claude codex-app-testing-seat-2:codex; do
-  id=${seat%:*}; h=${seat#*:}
-  AGENT_ID=$id AGENTBOARD_HARNESS=$h agentboard agent register --kind seat --backend herdr
-  agentboard agent scope set $id --repo carverauto/app-testing --revision 0 --json
+for seat in \
+  claude-app-testing-seat-1:claude:claude-opus-5-5 \
+  codex-app-testing-seat-2:codex:gpt-5.5
+do
+  id=${seat%%:*}; rest=${seat#*:}; h=${rest%%:*}; model=${rest#*:}
+  AGENT_ID=$id AGENTBOARD_HARNESS=$h AGENTBOARD_MODEL=$model \
+    agentboard agent register --kind seat
+  AGENT_ID=$id AGENTBOARD_HARNESS=$h AGENTBOARD_MODEL=$model \
+    agentboard agent scope set "$id" --repo carverauto/app-testing --revision 0 --json
 done
 ```
 
@@ -141,10 +166,10 @@ done
 agentboard fleet loadout set pilot --file pilot-loadout.json --json
 ```
 
-Registration counts as a heartbeat. Until it is older than the roster
-threshold (10 minutes by default), seat supply counts both seats as live and
-launches nothing, and refill would assign to them. Do not activate before
-`agentboard agent list` shows both seats stale.
+Registration does not set `last_heartbeat`. `agentboard agent list` shows both
+seats `stale=true` immediately. A seat that has never heartbeated is not live,
+so seat supply launches it. Refill assigns nothing until that seat heartbeats
+from its own tab. The dry run in step 7 stays empty for the same reason.
 
 ## 5. The Mac as a fleet host
 
@@ -152,6 +177,21 @@ launches nothing, and refill would assign to them. Do not activate before
 git clone git@github.com:carverauto/app-testing.git ~/src/app-testing
 mkdir -p /Volumes/Build/app-testing-seats-v3   # first launch-seat creates the v3 pool
 agentboard fleet host set HOST_ID --launch-cap 2 --token-file ~/.config/agentboard/fleet/host.token
+```
+
+Add the pilot pool to `treehouse_roots` in
+`~/.config/agentboard/seat/config.json` ([seat reap](../setup/seat-nudge.md)).
+Keep the file's other fields, and keep the existing agentboard pool on the
+list. Lease return reads only listed roots, so a missing pilot root leaves
+that lease held after the pane is gone.
+
+```json
+{
+  "treehouse_roots": [
+    "/Volumes/Build/agentboard-seats-v3",
+    "/Volumes/Build/app-testing-seats-v3"
+  ]
+}
 ```
 
 `~/.config/agentboard/fleet/pilot-harnesses.json` (0600, owned by you):
@@ -222,14 +262,17 @@ Expected, in order (record a timestamp for each):
    `codex-app-testing-seat-2`; each runs `launch-seat`, leases a worktree under
    `/Volumes/Build/app-testing-seats-v3` and starts its harness.
 3. Intents move to `launched` with pane and lease identity.
-4. The seats register and heartbeat. Refill assigns one card per seat per pass
-   and sends a `task_order`; the third card waits.
+4. Each seat registers from its own pane and then heartbeats. Refill assigns
+   one card per live seat per pass and sends a `task_order`; the third card waits.
 5. Each seat claims within the 30 minute deadline (a miss returns the card and
    is counted in `fleet refill status`).
 6. Each seat opens a PR and links it to its card. The third card goes to the
    first seat that finishes or has queue room.
-7. After the captain merges, `seat reap` closes the finished pane and returns
-   its lease; the daemon reports the intent `closed`.
+7. After the captain merges, `agentboard seat reap --apply` closes the finished
+   pane and returns its lease from the pilot pool added to `treehouse_roots`
+   in step 5. The [seat-ops timer](../setup/seat-nudge.md#schedule) does the
+   same on its interval. Without `--apply`, reap is a dry run and closes
+   nothing. The daemon reports the intent `closed` only after that pane is gone.
 
 ## 9. Record and close
 
