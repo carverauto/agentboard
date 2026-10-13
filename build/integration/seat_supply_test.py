@@ -154,6 +154,9 @@ listed = api('fleet-hosts/host-a/launch-intents', bearer=host_token)
 assert listed['intents'] == [] and listed['host']['launch_cap'] == 0, listed
 api('fleet-hosts/host-a/launch-intents', bearer='wrong-token-0123456789abcdefghijklmno', status=401)
 api('fleet-hosts/host-a/launch-intents', status=401)
+# A dry-run intent is not reservable even if a host guesses its id.
+dry_id = intents("state='dry_run'")[0]['id']
+api('fleet-hosts/host-a/launch-intents/' + dry_id + '/reserve', {}, bearer=host_token, status=409)
 
 # Live: dry-run intents are superseded and one pending intent per missing seat
 # is written; repeated passes add none while they are outstanding.
@@ -260,9 +263,9 @@ harnesses.write_text(json.dumps({'version': 1, 'launcher': str(launcher), 'repo'
 harnesses.chmod(0o600)
 
 
-def serve():
+def serve(journal=None):
     result = cli('host', 'fleet', 'serve', '--host-id', 'host-a', '--token-file', str(host_token_file),
-                 '--harnesses', str(harnesses), '--journal', str(TMP / 'journal.json'), '--once',
+                 '--harnesses', str(harnesses), '--journal', str(journal or (TMP / 'journal.json')), '--once',
                  '--lease-wait', '1s', env={'AGENTBOARD_HERDR_BIN': str(fake / 'herdr'),
                                             'AGENTBOARD_TREEHOUSE_BIN': str(fake / 'treehouse')})
     assert host_token not in result.stdout + result.stderr, 'Host token leaked'
@@ -322,6 +325,108 @@ assert status['seat_supply_enabled'] is True and status['demand'] is None
 assert status['activation']['requested_seats'] == 2 and status['activation']['max_seats'] == 2
 assert [h['host_id'] for h in status['hosts']] == ['host-a'] and status['hosts'][0]['enrolled'] is True
 assert 'token_hash' not in json.dumps(status)
+
+# Host tokens stay the only credential on these routes in every auth mode.
+for mode in ('observe', 'enforce'):
+    rpc('Application.put_env(:agentboard, :agent_auth_mode, ' + json.dumps(mode) + ')')
+    listed = api('fleet-hosts/host-a/launch-intents', bearer=host_token)
+    assert listed['host']['host_id'] == 'host-a' and 'token_hash' not in json.dumps(listed), listed
+    assert all('argv' not in intent for intent in listed['intents']), listed
+    api('fleet-hosts/host-a/launch-intents', bearer='wrong-token-0123456789abcdefghijklmno', status=401)
+    api('fleet-hosts/host-a/launch-intents', bearer=CAPTAIN, status=401)
+    api('fleet-hosts/host-a/launch-intents', status=401)
+rpc('Application.put_env(:agentboard, :agent_auth_mode, "off")')
+
+
+def age(intent_id, column, interval):
+    sql("UPDATE fleet_launch_intents SET " + column + "=clock_timestamp()-interval '" + interval
+        + "' WHERE id='" + intent_id + "'")
+
+
+def open_ids(seat):
+    return intents("seat_id='" + seat + "' AND closed_at IS NULL")
+
+
+# Pending intents expire after 10 minutes and a successor is written. A
+# reserved intent the same age keeps the seat, and so does an uncertain one.
+cli('fleet', 'activate', FLEET, '--mode', 'live', '--requested-seats', '2', '--max-seats', '2')
+stale_seats()
+run_pass()
+pending_ids = {i['seat']: i['id'] for i in intents("state='pending'")}
+assert set(pending_ids) == {'seat-a', 'seat-b'}, pending_ids
+cli('fleet', 'host', 'set', 'host-a', '--launch-cap', '1')
+api('fleet-hosts/host-a/launch-intents/' + pending_ids['seat-a'] + '/reserve', {}, bearer=host_token)
+for seat in ('seat-a', 'seat-b'):
+    age(pending_ids[seat], 'created_at', '11 minutes')
+run_pass()
+still_a = open_ids('seat-a')
+assert len(still_a) == 1 and still_a[0]['id'] == pending_ids['seat-a'] and still_a[0]['state'] == 'reserved', still_a
+expired_b = intents("seat_id='seat-b' AND state='expired'")
+assert expired_b and '600' in (expired_b[-1]['reason'] or ''), expired_b
+reborn_b = open_ids('seat-b')
+assert len(reborn_b) == 1 and reborn_b[0]['state'] == 'pending' and reborn_b[0]['id'] != pending_ids['seat-b'], reborn_b
+api('fleet-hosts/host-a/launch-intents/' + pending_ids['seat-a'] + '/report',
+    {'state': 'uncertain', 'reason': 'pane may exist', 'pane_id': 'manual:old'}, bearer=host_token)
+age(pending_ids['seat-a'], 'created_at', '11 minutes')
+run_pass()
+still_uncertain = open_ids('seat-a')
+assert len(still_uncertain) == 1 and still_uncertain[0]['id'] == pending_ids['seat-a'] and still_uncertain[0]['state'] == 'uncertain', still_uncertain
+
+# A failed launch occupies the cooldown: 14 minutes is still too soon for a
+# successor, 16 minutes lets the next pass write one.
+cli('fleet', 'supply', 'abandon', FLEET, pending_ids['seat-a'], '--reason', 'free the cap')
+api('fleet-hosts/host-a/launch-intents/' + reborn_b[0]['id'] + '/reserve', {}, bearer=host_token)
+api('fleet-hosts/host-a/launch-intents/' + reborn_b[0]['id'] + '/report',
+    {'state': 'failed', 'reason': 'harness refused'}, bearer=host_token)
+run_pass()
+assert open_ids('seat-b') == [], open_ids('seat-b')
+age(reborn_b[0]['id'], 'closed_at', '14 minutes')
+run_pass()
+assert open_ids('seat-b') == [], 'successor written inside the 15 minute cooldown'
+age(reborn_b[0]['id'], 'closed_at', '16 minutes')
+run_pass()
+cooled = open_ids('seat-b')
+assert len(cooled) == 1 and cooled[0]['state'] == 'pending', cooled
+
+# The daemon relaunches the same reserved intent only when the journal shows
+# pane creation never started. A spawning entry with no pane stays uncertain.
+for row in intents("closed_at IS NULL"):
+    if row['state'] != 'pending':
+        cli('fleet', 'supply', 'abandon', FLEET, row['id'], '--reason', 'clear before journal check')
+cli('fleet', 'host', 'set', 'host-a', '--launch-cap', '0')
+# Drop leftover occupying intents so the pass can write fresh pending ones.
+for row in list(intents("closed_at IS NULL")):
+    cli('fleet', 'supply', 'abandon', FLEET, row['id'], '--reason', 'clear before journal check')
+stale_seats()
+run_pass()
+fresh = {i['seat']: i['id'] for i in intents("state='pending'")}
+assert set(fresh) == {'seat-a', 'seat-b'}, fresh
+cli('fleet', 'host', 'set', 'host-a', '--launch-cap', '1')
+api('fleet-hosts/host-a/launch-intents/' + fresh['seat-a'] + '/reserve', {}, bearer=host_token)
+cli('fleet', 'host', 'set', 'host-a', '--launch-cap', '0')
+state.write_text(json.dumps({'workspaces': [], 'tabs': [], 'panes': [], 'leases': [], 'runs': []}))
+relaunch_journal = TMP / 'journal-relaunch.json'
+relaunch_journal.write_text(json.dumps({'intents': {fresh['seat-a']: {'agent': 'seat-a', 'step': 'reserving',
+                                                                       'updated_at': '2026-10-13T00:00:00Z'}}}))
+relaunch = serve(relaunch_journal)
+assert [(a['agent'], a['action']) for a in relaunch['actions']] == [('seat-a', 'launched')], relaunch
+assert [t['label'] for t in json.loads(state.read_text())['tabs']] == ['seat-a']
+assert open_ids('seat-b')[0]['state'] == 'pending'
+cli('fleet', 'host', 'set', 'host-a', '--launch-cap', '1')
+api('fleet-hosts/host-a/launch-intents/' + fresh['seat-b'] + '/reserve', {}, bearer=host_token)
+cli('fleet', 'host', 'set', 'host-a', '--launch-cap', '0')
+tabs_before = len(json.loads(state.read_text())['tabs'])
+stuck_journal = TMP / 'journal-spawning.json'
+stuck_journal.write_text(json.dumps({'intents': {fresh['seat-b']: {'agent': 'seat-b', 'step': 'spawning',
+                                                                    'updated_at': '2026-10-13T00:00:00Z'}}}))
+stuck = serve(stuck_journal)
+assert [(a['agent'], a['action']) for a in stuck['actions'] if a['agent'] == 'seat-b'] == [('seat-b', 'uncertain')], stuck
+assert len(json.loads(state.read_text())['tabs']) == tabs_before
+again = serve(stuck_journal)
+assert [(a['agent'], a['action']) for a in again['actions'] if a['agent'] == 'seat-b'] == [('seat-b', 'kept')], again
+assert len(json.loads(state.read_text())['tabs']) == tabs_before
+assert open_ids('seat-b')[0]['id'] == fresh['seat-b'] and open_ids('seat-b')[0]['state'] == 'uncertain'
+
 print('Seat supply: default off, dry run, captain seat counts and host enrollment, cap, fencing, '
       'report state machine, host daemon launch with fake Herdr/Treehouse, pane-gone and stale '
-      'identity close, abandon and deactivation verified.')
+      'identity close, expiry, cooldown, journal relaunch, auth modes, abandon and deactivation verified.')

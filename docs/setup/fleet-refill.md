@@ -65,6 +65,6 @@ When `--claim-deadline` is omitted, the fleet keeps its recorded deadline. Activ
 agentboard fleet deactivate example-fleet
 ```
 
-Deactivation stops new assignments and deadline returns for that fleet. It does not release claims, stop seats or touch existing assignments. Assignments waiting for a claim stay with their seats; on reactivation their deadlines apply again. Setting `AGENTBOARD_REFILL_ENABLED=false` and restarting turns refill off for every fleet. Captain activations are kept but have no effect.
+Deactivation stops new assignments and deadline returns for that fleet. It does not release claims, stop seats or touch existing assignments. It also stops new [seat-supply](fleet-host.md) intents and does not delete the ones already written. Assignments waiting for a claim stay with their seats; on reactivation their deadlines apply again. Setting `AGENTBOARD_REFILL_ENABLED=false` and restarting turns refill off for every fleet. Captain activations are kept but have no effect.
 
-All three commands use the protected captain capability (`AGENTBOARD_CAPTAIN_TOKEN_FILE`) and need schema 46. The HTTP contract is in the [API reference](../api.md#fleet-activation-and-backlog-refill-schema-46).
+All three commands use the protected captain capability (`AGENTBOARD_CAPTAIN_TOKEN_FILE`) and need schema 46. Passing `--requested-seats` or `--max-seats` needs schema 47. The HTTP contract is in the [API reference](../api.md#fleet-activation-and-backlog-refill-schema-46).

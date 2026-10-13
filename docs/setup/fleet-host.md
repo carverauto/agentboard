@@ -17,7 +17,7 @@ maximum seats above 0, and an enrolled host whose launch cap is above 0.
 
 1. Every minute the server computes, per activated fleet,
    `wanted = min(requested_seats, max_seats, live seats + eligible backlog)`.
-   A seat is live when its identity heartbeats or an open intent holds it.
+   A seat is live when its identity heartbeats within the roster threshold, or a pending, reserved, uncertain or launched intent holds it.
    Eligible backlog is the open, unassigned cards in the fleet seats' managed
    repositories, the same cards [backlog refill](fleet-refill.md) assigns.
 2. For each missing seat, in seat order, it writes one `pending` intent bound
