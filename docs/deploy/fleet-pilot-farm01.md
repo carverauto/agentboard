@@ -229,7 +229,9 @@ that lease held after the pane is gone.
 }
 ```
 
-One pass by hand, before any activation. It must report nothing to do:
+One pass by hand, before any activation. It exits 0 and prints a SupplyReport
+such as `{"seat_supply_enabled":true,"launch_cap":2,"actions":[]}`. An empty
+`actions` list is the expected result:
 
 ```sh
 AGENTBOARD_URL=https://agentboard.farm01.carverauto.dev \
@@ -317,7 +319,7 @@ Expected, in order (record a timestamp for each):
    7's two `dry_run` rows in `open`. That is not a mismatch. That pass
    supersedes them and writes `pending`. The daemon can reserve those before
    the next read, so the first status after the pass may already show them
-   `reserved` by `HOST_ID`, with the superseded `dry_run` rows under `recent`.
+   `reserved` by `HOST_ID`, with those rows under `recent` in state `superseded`.
    An empty `open` list after step 7's rows existed is the mismatch.
 2. Herdr workspace `fleet-pilot` gains tabs `claude-app-testing-seat-1` and
    `codex-app-testing-seat-2`; each runs `launch-seat`, leases a worktree under
