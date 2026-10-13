@@ -35,8 +35,9 @@ maximum seats above 0, and an enrolled host whose launch cap is above 0.
 5. The seat registers, checks in, and receives cards from backlog refill.
 6. When [`seat reap`](seat-nudge.md) closes the finished seat's pane, the
    daemon sees the pane gone and reports the intent `closed`. Reap itself
-   stays board-free. The server also closes a launched intent whose identity
-   went stale after it had registered, or was retired.
+   stays board-free. The server also closes a launched intent when that
+   identity was seen alive after launch and has since gone stale, or when it
+   was retired. A seat that has not heartbeated since launch is left alone.
 
 A dry-run fleet records `dry_run` would-launch intents and nothing else. No host
 ever sees them.
@@ -105,13 +106,21 @@ reserves, `spawning` before the Herdr call that can create a pane, and
 `spawned` with the pane once Herdr returns it. A lock on the journal keeps two
 daemons on one host from running at once. After a restart:
 
-- An intent whose journal shows pane creation never started launches again.
-  It is the same intent, never a second one.
+- An intent whose journal shows pane creation never started launches again,
+  and only while seat supply is enabled and that intent's fleet is still
+  live. Otherwise it stays occupied and no tab opens. It is the same intent,
+  never a second one.
 - An intent whose pane exists is adopted and reported `launched` once its
   lease appears.
 - An intent whose pane creation started and whose pane is missing, or that has
   no journal entry at all, is reported `uncertain` and keeps its seat until
   the captain abandons it.
+
+The board returns at most 200 of this host's intents, with `reserved` and
+`uncertain` ahead of `pending` and `launched`. When that page is full, a
+journal entry the page omits stays put, and a launched intent that did not
+fit is not watched for a closed pane until a later pass. The HTTP fields are
+in the [API reference](../api.md#seat-supply-schema-47).
 
 ## launchd (macOS)
 
