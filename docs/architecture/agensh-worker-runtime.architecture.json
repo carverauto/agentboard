@@ -2,12 +2,12 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "Worker runtime first release: red CI returns to its owner",
+    "title": "Worker runtime v0.3.0: CI accountability and the Mattermost plane",
     "locale": "en",
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/carverauto/agentboard",
-      "revision": "56a5a74f5948159766809d240bb124b193e1ad5f"
+      "revision": "088d5e2e1fd9212720fd481e97583a1ece0ea14b"
     },
     "viewBox": [
       1360,
@@ -23,18 +23,19 @@
           "account",
           "ledger"
         ],
-        "note": "The server polls current-head checks and records one failure episode plus a repair obligation."
+        "note": "Current-head checks are polled; a confirmed red head records one failure episode and a repair obligation."
       },
       {
         "id": "deliver",
-        "label": "Obligation to idle worker",
+        "label": "Obligation to worker",
         "focus": [
           "account",
           "coop",
           "host",
-          "pi"
+          "native",
+          "manual"
         ],
-        "note": "A durable delivery is frozen into an attempt, woken at an idle native boundary and closed only by exact handled receipts."
+        "note": "Deliveries freeze into epoch-checked attempts; only exact handled receipts close them. Manual harnesses check in explicitly."
       },
       {
         "id": "escalate",
@@ -47,15 +48,27 @@
         "note": "Four reminders per hour without progress escalate to the captain; replaced-epoch attempts need resolve_attempt."
       },
       {
+        "id": "mattermost",
+        "label": "Mattermost plane",
+        "focus": [
+          "ledger",
+          "outbound",
+          "mattermost",
+          "inbound",
+          "coop"
+        ],
+        "note": "Outbox and spool rows post through one shared bot; inbound catch-up becomes body-free Cooperation notices."
+      },
+      {
         "id": "repair",
         "label": "Repair and resolve",
         "focus": [
-          "pi",
+          "native",
           "github",
           "observe",
           "account"
         ],
-        "note": "Only a green current head resolves the obligation; the repair task stays assigned."
+        "note": "Handling is not repair: only a green current head resolves the obligation."
       }
     ]
   },
@@ -66,12 +79,12 @@
       "label": "GitHub PR",
       "sublabel": "Current-head checks",
       "pos": [
-        40,
-        80
+        10,
+        100
       ],
       "size": [
-        220,
-        90
+        190,
+        80
       ],
       "sources": [
         {
@@ -87,12 +100,12 @@
       "label": "CI observation",
       "sublabel": "AshOban per-PR polls",
       "pos": [
-        400,
-        80
+        290,
+        100
       ],
       "size": [
-        220,
-        90
+        190,
+        80
       ],
       "sources": [
         {
@@ -111,14 +124,14 @@
       "id": "account",
       "type": "backend",
       "label": "Accountability",
-      "sublabel": "Episode + repair obligation",
+      "sublabel": "Obligation, reminders",
       "pos": [
-        760,
-        80
+        590,
+        100
       ],
       "size": [
-        220,
-        90
+        190,
+        80
       ],
       "sources": [
         {
@@ -136,50 +149,62 @@
     {
       "id": "captain",
       "type": "frontend",
-      "label": "Captain + /prs",
-      "sublabel": "Escalation, attempt decisions",
+      "label": "Captain + dashboard",
+      "sublabel": "/prs, history, Shared context",
       "pos": [
-        1100,
-        80
+        860,
+        100
       ],
       "size": [
-        220,
-        90
+        190,
+        80
       ],
       "sources": [
-        {
-          "path": "web/lib/agentboard_web/live/pr_live.ex",
-          "line": 335,
-          "label": "obligation rows"
-        },
         {
           "path": "web/lib/agentboard_web/worker_controller.ex",
           "line": 7,
           "label": "resolve_attempt"
+        },
+        {
+          "path": "web/lib/agentboard_web/message_export_controller.ex",
+          "line": 11,
+          "label": "message history export"
+        },
+        {
+          "path": "web/lib/agentboard_web/live/board_live.ex",
+          "line": 1011,
+          "label": "task Shared context"
         }
       ]
     },
     {
-      "id": "ledger",
-      "type": "database",
-      "label": "PostgreSQL",
-      "sublabel": "Obligations, deliveries, receipts",
+      "id": "inbound",
+      "type": "backend",
+      "label": "Inbound catch-up",
+      "sublabel": "WebSocket + REST inbox",
       "pos": [
-        400,
-        290
+        290,
+        300
       ],
       "size": [
-        220,
-        90
+        190,
+        80
       ],
       "sources": [
         {
-          "path": "web/lib/agentboard/delivery/obligation.ex",
-          "label": "Obligation resource"
+          "path": "web/lib/agentboard/mattermost/inbound_stream.ex",
+          "line": 1,
+          "label": "shared-bot WebSocket owner"
         },
         {
-          "path": "web/lib/agentboard/cooperation/receipt.ex",
-          "label": "Receipt resource"
+          "path": "web/lib/agentboard/mattermost/inbound.ex",
+          "line": 157,
+          "label": "reconcile/1 catch-up"
+        },
+        {
+          "path": "web/lib/agentboard/mattermost/inbound_store.ex",
+          "line": 162,
+          "label": "body-free notification key"
         }
       ]
     },
@@ -189,49 +214,144 @@
       "label": "Cooperation runtime",
       "sublabel": "Frozen attempts, epochs",
       "pos": [
-        760,
-        290
+        590,
+        300
       ],
       "size": [
-        220,
-        90
+        190,
+        80
       ],
       "sources": [
         {
           "path": "web/lib/agentboard/cooperation/runtime.ex",
-          "line": 192,
+          "line": 196,
           "label": "request/5"
         },
         {
           "path": "web/lib/agentboard/cooperation/runtime.ex",
-          "line": 139,
+          "line": 143,
           "label": "resolve_attempt/2"
+        },
+        {
+          "path": "web/lib/agentboard/cooperation/idle_continuation.ex",
+          "line": 1,
+          "label": "idle continuation"
         }
       ]
     },
     {
-      "id": "pi",
-      "type": "frontend",
-      "label": "Pi native adapter",
-      "sublabel": "check_in + exact ack tools",
+      "id": "outbound",
+      "type": "messagebus",
+      "label": "Shared-bot outbound",
+      "sublabel": "Lifecycle bridge, agent chat",
       "pos": [
-        400,
+        290,
         500
       ],
       "size": [
-        220,
-        90
+        190,
+        80
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/mattermost/bridge.ex",
+          "line": 41,
+          "label": "lifecycle capture/6"
+        },
+        {
+          "path": "web/lib/agentboard/mattermost/chat_spool.ex",
+          "line": 44,
+          "label": "outbound spool reserve/1"
+        },
+        {
+          "path": "web/lib/agentboard/message_mode.ex",
+          "line": 24,
+          "label": "sole mattermost mode refused"
+        }
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Receipts, outbox, spool",
+      "pos": [
+        590,
+        500
+      ],
+      "size": [
+        190,
+        80
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/delivery/obligation.ex",
+          "label": "Obligation resource"
+        },
+        {
+          "path": "web/lib/agentboard/cooperation/receipt.ex",
+          "label": "Receipt resource"
+        },
+        {
+          "path": "web/lib/agentboard/mattermost/outbox.ex",
+          "label": "Lifecycle outbox"
+        }
+      ]
+    },
+    {
+      "id": "mattermost",
+      "type": "external",
+      "label": "Mattermost",
+      "sublabel": "One shared agentboard bot",
+      "pos": [
+        10,
+        500
+      ],
+      "size": [
+        190,
+        80
+      ],
+      "sources": [
+        {
+          "path": "web/lib/agentboard/mattermost/inbound_http.ex",
+          "line": 19,
+          "label": "bounded REST/WS connect"
+        },
+        {
+          "path": "web/lib/agentboard/mattermost/agent_routes.ex",
+          "line": 70,
+          "label": "private route resolve/2"
+        }
+      ]
+    },
+    {
+      "id": "native",
+      "type": "frontend",
+      "label": "Native adapters",
+      "sublabel": "pi-native-v1, claude-hook-v1",
+      "pos": [
+        1130,
+        100
+      ],
+      "size": [
+        190,
+        80
       ],
       "sources": [
         {
           "path": "internal/worker/pi-native.mjs",
           "line": 103,
-          "label": "idle wake"
+          "label": "Pi idle wake"
         },
         {
           "path": "internal/worker/pi-native.mjs",
           "line": 208,
           "label": "agentboard_ack"
+        },
+        {
+          "path": "internal/worker/claude-native/bridge.mjs",
+          "line": 31,
+          "label": "Claude prompt boundary"
         }
       ]
     },
@@ -239,14 +359,14 @@
       "id": "host",
       "type": "backend",
       "label": "agentboard worker serve",
-      "sublabel": "launchd host, crash journal",
+      "sublabel": "LaunchAgent/systemd, journal",
       "pos": [
-        760,
-        500
+        1130,
+        300
       ],
       "size": [
-        220,
-        90
+        190,
+        80
       ],
       "sources": [
         {
@@ -257,12 +377,43 @@
         {
           "path": "internal/worker/journal.go",
           "line": 12,
-          "label": "Journal"
+          "label": "crash Journal"
         },
         {
           "path": "internal/worker/install.go",
           "line": 72,
-          "label": "LaunchAgent"
+          "label": "LaunchAgent / systemd unit"
+        }
+      ]
+    },
+    {
+      "id": "manual",
+      "type": "frontend",
+      "label": "Manual harnesses",
+      "sublabel": "Explicit check-in, seat nudge",
+      "pos": [
+        1130,
+        500
+      ],
+      "size": [
+        190,
+        80
+      ],
+      "sources": [
+        {
+          "path": "internal/worker/config.go",
+          "line": 25,
+          "label": "manual adapter"
+        },
+        {
+          "path": "internal/cli/worker.go",
+          "line": 60,
+          "label": "worker check-in"
+        },
+        {
+          "path": "internal/cli/seat_ops.go",
+          "line": 23,
+          "label": "seat nudge / reap"
         }
       ]
     }
@@ -270,21 +421,24 @@
   "boundaries": [
     {
       "kind": "region",
-      "label": "farm01 Phoenix / Ash server",
+      "label": "farm01 Phoenix / Ash server (dual mode)",
       "wraps": [
         "observe",
         "account",
         "captain",
-        "ledger",
-        "coop"
+        "inbound",
+        "coop",
+        "outbound",
+        "ledger"
       ]
     },
     {
       "kind": "security-group",
-      "label": "Worker host (arrakis)",
+      "label": "Worker host",
       "wraps": [
-        "pi",
-        "host"
+        "native",
+        "host",
+        "manual"
       ]
     }
   ],
@@ -311,76 +465,109 @@
       "variant": "security"
     },
     {
-      "id": "intents",
+      "id": "alerts",
       "from": "account",
       "to": "coop",
-      "label": "alert intents",
+      "label": "CI alerts",
       "variant": "emphasis",
       "labelAt": [
-        870,
-        230
+        685,
+        240
       ]
-    },
-    {
-      "id": "durable",
-      "from": "coop",
-      "to": "ledger",
-      "label": "receipts"
     },
     {
       "id": "attempt",
       "from": "coop",
       "to": "host",
-      "label": "HTTPS attempt",
-      "variant": "emphasis",
-      "labelAt": [
-        870,
-        440
-      ]
+      "label": "frozen attempt",
+      "variant": "emphasis"
     },
     {
       "id": "wake",
       "from": "host",
-      "to": "pi",
-      "label": "idle wake",
+      "to": "native",
+      "label": "wake / prompt",
+      "variant": "emphasis"
+    },
+    {
+      "id": "checkin",
+      "from": "manual",
+      "to": "host",
+      "label": "check-in, ack"
+    },
+    {
+      "id": "durable",
+      "from": "coop",
+      "to": "ledger",
+      "label": "receipts",
+      "labelAt": [
+        685,
+        440
+      ]
+    },
+    {
+      "id": "outbox",
+      "from": "ledger",
+      "to": "outbound",
+      "label": "outbox, spool"
+    },
+    {
+      "id": "posts",
+      "from": "outbound",
+      "to": "mattermost",
+      "label": "bot posts"
+    },
+    {
+      "id": "catchup",
+      "from": "mattermost",
+      "to": "inbound",
+      "label": "WS + REST",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "notices",
+      "from": "inbound",
+      "to": "coop",
+      "label": "body-free notices",
       "variant": "emphasis"
     },
     {
       "id": "repair",
-      "from": "pi",
+      "from": "native",
       "to": "github",
       "label": "repair push",
       "variant": "dashed",
-      "fromSide": "left",
-      "toSide": "bottom"
+      "fromSide": "top",
+      "toSide": "top"
     }
   ],
   "cards": [
     {
       "dot": "emerald",
-      "title": "Live proof, PR #224 (2026-10-12)",
+      "title": "Released v0.3.0, farm01 in dual mode",
       "items": [
-        "Red lint to pending ci_failure delivery in ~75 s",
-        "Idle Pi wake; 102 deliveries handled by exact ID",
-        "Four reminders, then captain escalation; green head resolved it"
+        "Inbound and private routes on; sole mattermost mode refused",
+        "Image sha256:d356c8b9\u2026; CLI checksums in SHA256SUMS",
+        "Image and message-mode rollback tested, no data loss"
       ]
     },
     {
       "dot": "amber",
-      "title": "Accountability rules",
+      "title": "Adapter capability matrix",
       "items": [
-        "Only handled closes an attempt; handling is not repair",
-        "Missing required checks stay degraded, never green",
-        "Stale-epoch receipts refused; repair task stays assigned"
+        "pi-native-v1 idle wake; claude-hook-v1 prompt boundary",
+        "manual explicit check-in: Grok, Muse, AGY, Codex",
+        "Codex native owner disabled (to 4.6); Herdr adapter disabled"
       ]
     },
     {
       "dot": "slate",
-      "title": "Merged after the gate, default off",
+      "title": "Accountability rules",
       "items": [
-        "#219 Shared context, #222 private routes + chat spool",
-        "#223 idle continuation, #225 history, #230 Pi socket",
-        "Not covered: other harnesses (6.3 to 6.5), 3.4 rollout"
+        "Only handled closes an attempt; handling is not repair",
+        "Stale-epoch receipts refused; captain resolve_attempt",
+        "Idle continuation ships default off, not on farm01"
       ]
     }
   ]
