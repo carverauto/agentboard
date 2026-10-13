@@ -260,10 +260,12 @@ defmodule Agentboard.Mattermost.Conversations do
 
   defp read_channel(_cfg, _agent_id, channel_id), do: {:ok, channel_id}
 
-  # Explicit coverage receipt (kept for compatibility with headless
-  # catch-up loops that observe without the reads path). The caller must
-  # be the registered agent it reports for; the controller enforces the
-  # path/header match before this runs.
+  # Client-reported coverage for headless catch-up loops that observe without
+  # the reads path. It records only what the caller claims to have seen and is
+  # never authoritative: server inbound catch-up coverage (InboundStore,
+  # surfaced by the worker mattermost_inbox read) owns whether a channel is
+  # actually covered. The caller must be the registered agent it reports for;
+  # the controller enforces the path/header match before this runs.
   def report_coverage(caller, channel_id, last_post_id, last_version, opts \\ []) do
     with {:ok, agent_id} <- registered_agent(caller),
          {:ok, channel_id} <- channel_param(channel_id),

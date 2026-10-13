@@ -355,9 +355,10 @@ assert ab('msg', 'read', str(private['id']), actor='bridge-peer')['message'] == 
 rpc('Application.put_env(:agentboard, :message_mode, "mattermost")')
 status = mode_status()
 assert status['activation_refused'] and not status['cutover_ready'] and status['effective'] == 'board', status
-assert {'private_recipient_routes_disabled', 'inbox_catch_up_unavailable_5_3', 'coordinator_decision_path_unavailable_80', 'legacy_unread_disposition_unverified_80', 'delivery_adapter_readiness_unverified'} <= set(status['blockers']), status
-# 5.1 attribution and 5.2 spooled send/read shipped; only measured readiness remains.
-assert not {'peer_identities_unavailable_5_1', 'headless_send_read_unavailable_5_2'} & set(status['blockers']), status
+assert {'private_recipient_routes_disabled', 'mattermost_inbound_disabled', 'coordinator_decision_path_unavailable_80', 'legacy_unread_disposition_unverified_80', 'delivery_adapter_readiness_unverified'} <= set(status['blockers']), status
+# 5.1 attribution, 5.2 spooled send/read and 5.3 inbound catch-up shipped; only
+# measured readiness remains (inbound is off in this fixture).
+assert not {'peer_identities_unavailable_5_1', 'headless_send_read_unavailable_5_2', 'inbox_catch_up_unavailable_5_3'} & set(status['blockers']), status
 fallback = ab('msg', 'send', '--to', 'bridge-peer', '--body', 'Refused cutover preserves inbox')['message']
 assert fallback['id'] in [m['id'] for m in ab('msg', 'list', '--unread', actor='bridge-peer')['messages']]
 assert sql(f"SELECT count(*) FROM mattermost_outbox WHERE source_key='message:{fallback['id']}'") == '0'

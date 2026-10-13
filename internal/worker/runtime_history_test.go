@@ -29,7 +29,8 @@ func TestStepHistoricalReconciliation(t *testing.T) {
 		{name: "resolved", complete: true, change: func(e, b map[string]any) {
 			e["resolved"], b["status"] = true, "submitted"
 		}},
-		{name: "legacy_replay_evidence", complete: true, change: func(e, b map[string]any) {
+		// Historical answers never authorize replay; replay_allowed is not evidence.
+		{name: "historical_replay_without_status", change: func(e, b map[string]any) {
 			e["replay_allowed"] = true
 			delete(b, "status")
 		}},

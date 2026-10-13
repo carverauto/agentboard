@@ -40,7 +40,7 @@ func workerFixture(t *testing.T) worker.Config {
 		Version: worker.Protocol, URL: "https://board.example", JournalDir: filepath.Join(dir, "journal"),
 		AccessServiceTokenFile: accessFile,
 		Bindings: []worker.Binding{{
-			Agent: "worker-auth", Model: "fixture-model", Harness: "codex", Host: "host", Server: "server",
+			Agent: "worker-auth", Model: "fixture-model", Harness: "codex", Host: "host",
 			Session: "session", Generation: "fixture-generation", Adapter: "manual", Epoch: 1,
 			Socket: filepath.Join(dir, "worker.sock"), TokenFile: tokenFile,
 		}},
@@ -56,6 +56,39 @@ func loadFixture(t *testing.T, cfg worker.Config) (worker.Config, error) {
 	path := filepath.Join(t.TempDir(), "worker.json")
 	protectedFixture(t, path, string(data))
 	return worker.Load(path)
+}
+
+func TestLoadAdmitsOnlyKnownAdaptersWithMatchingHarness(t *testing.T) {
+	t.Setenv("AGENTBOARD_ACCESS_SERVICE_TOKEN_FILE", "")
+	for _, tt := range []struct {
+		adapter, harness, server string
+		ok                       bool
+	}{
+		{adapter: worker.ManualAdapter, harness: "codex", ok: true},
+		{adapter: worker.ManualAdapter, harness: "codex", server: "existing-config-server", ok: true},
+		{adapter: worker.PiAdapterVersion, harness: "pi", ok: true},
+		{adapter: worker.ClaudeAdapterVersion, harness: "claude", ok: true},
+		{adapter: worker.ClaudeAdapterVersion, harness: "codex"},
+		{adapter: worker.CodexAdapterVersion, harness: "codex", ok: true},
+		{adapter: worker.CodexAdapterVersion, harness: "pi"},
+		{adapter: "herdr", harness: "claude"},
+		{adapter: "", harness: "codex"},
+	} {
+		t.Run(tt.adapter+"/"+tt.harness+"/"+tt.server, func(t *testing.T) {
+			cfg := workerFixture(t)
+			cfg.Bindings[0].Adapter, cfg.Bindings[0].Harness, cfg.Bindings[0].Server = tt.adapter, tt.harness, tt.server
+			if _, err := loadFixture(t, cfg); (err == nil) != tt.ok {
+				t.Fatalf("admission = %v, want ok=%v", err, tt.ok)
+			}
+		})
+	}
+}
+
+func TestAdapterCallRefusesManualBindingWithoutSocketIO(t *testing.T) {
+	cfg := workerFixture(t)
+	if _, err := worker.AdapterCall(context.Background(), cfg.Bindings[0], "inspect", nil); err == nil || !strings.Contains(err.Error(), "explicit check-in") {
+		t.Fatalf("manual adapter call: %v", err)
+	}
 }
 
 func TestOpenAPIAccessPreservesHostAndReceiptCapabilities(t *testing.T) {

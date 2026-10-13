@@ -18,6 +18,10 @@ defmodule Agentboard.Cooperation.Runtime do
   require Ash.Query
   @system %{"agent" => "cooperation", "model" => "system", "harness" => "ash"}
   @capabilities ~w(idle_wake turn_start tool_return receipt recovery)
+  # A healthy connector reports at least this often; older evidence is stale.
+  @connector_stale_after_s 90
+  # Native adapters whose submission path proves exact safe input injection.
+  @safe_input_adapters ~w(pi-native-v1 claude-hook-v1)
 
   def provision(data) do
     with true <- is_map(data) and Input.slug?(data["worker_id"]),
@@ -828,7 +832,10 @@ defmodule Agentboard.Cooperation.Runtime do
     {d, event} = receipt_delivery!(id, s)
 
     if kind == "handled" and event.context_id do
-      context_receipt(event.context_id, s, stamp)
+      Agentboard.Context.ensure_receipt(
+        %{"agent" => s.id, "model" => s.model, "harness" => s.harness},
+        event.context_id
+      )
     end
 
     if kind == "handled" do
@@ -1368,23 +1375,6 @@ defmodule Agentboard.Cooperation.Runtime do
     end)
   end
 
-  defp context_receipt(entry_id, s, _stamp) do
-    lock("context-receipt:#{s.id}:#{entry_id}")
-
-    prior =
-      Agentboard.Context.Receipt
-      |> Ash.Query.filter(entry_id == ^entry_id and source_agent_id == ^s.id)
-      |> Ash.read_one!()
-
-    unless prior do
-      actor = %{"agent" => s.id, "model" => s.model, "harness" => s.harness}
-
-      Agentboard.Context.Receipt
-      |> Ash.Changeset.for_create(:acknowledge, %{entry_id: entry_id}, actor: actor)
-      |> Ash.create!()
-    end
-  end
-
   defp state(s, b) do
     attempt = if b.active_attempt_id, do: get(Attempt, b.active_attempt_id)
     if attempt, do: expire_attempt(attempt, get(Batch, attempt.batch_id))
@@ -1413,6 +1403,13 @@ defmodule Agentboard.Cooperation.Runtime do
     |> Map.put("availability", Agentboard.Availability.effective(agent))
   end
 
+  def connector_stale?(binding, now),
+    do:
+      is_nil(binding.reported_at) or
+        DateTime.diff(now, binding.reported_at) > @connector_stale_after_s
+
+  def safe_input_adapter?(adapter), do: adapter in @safe_input_adapters
+
   defp reasons(s, b) do
     []
     |> add_reason(not enabled?(s), "cooperation_disabled")
@@ -1420,10 +1417,7 @@ defmodule Agentboard.Cooperation.Runtime do
     |> add_reason(is_nil(b.session_id), "unbound")
     |> add_reason(b.adapter_state != "ready", "adapter_#{b.adapter_state}")
     |> add_reason(b.connector_state != "healthy", "connector_#{b.connector_state}")
-    |> add_reason(
-      is_nil(b.reported_at) or DateTime.diff(Ops.now(), b.reported_at) > 90,
-      "connector_stale"
-    )
+    |> add_reason(connector_stale?(b, Ops.now()), "connector_stale")
   end
 
   defp add_reason(list, true, reason), do: list ++ [reason]

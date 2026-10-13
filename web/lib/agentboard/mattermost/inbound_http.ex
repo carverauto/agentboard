@@ -3,7 +3,7 @@ defmodule Agentboard.Mattermost.InboundHTTP do
   alias Mint.HTTP
   @max_bytes 2_097_152
 
-  def segment?(id), do: is_binary(id) and Regex.match?(~r/^[a-zA-Z0-9_-]{1,128}$/, id)
+  def segment?(id), do: is_binary(id) and Regex.match?(~r/\A[a-zA-Z0-9_-]{1,128}\z/, id)
 
   def destination(cfg) do
     uri = URI.parse(cfg.base_url)

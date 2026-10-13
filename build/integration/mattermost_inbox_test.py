@@ -440,19 +440,23 @@ def transport_blockers():
         return json.load(response)['message_transport']['blockers']
 
 
-assert 'mattermost_inbound_repo_invalid' not in transport_blockers()
+# Enabled and fully configured inbound clears the measured 5.3 blocker; sole
+# Mattermost mode stays refused on the unmeasured prerequisites.
+assert not any(b.startswith('mattermost_inbound_') for b in transport_blockers()), transport_blockers()
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
 wait(lambda: sql("SELECT reason FROM mattermost_inbound_runs") == 'disabled')
+assert 'mattermost_inbound_disabled' in transport_blockers(), transport_blockers()
 rpc('Application.delete_env(:agentboard, :mattermost_inbound_repo)')
 rpc('Application.delete_env(:agentboard, :mattermost_inbound_history_start_ms)')
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, true)')
 assert 'mattermost_inbound_repo_invalid' in transport_blockers()
 web_log = Path(os.environ['TEST_TMPDIR']) / 'web.log'
 wait(lambda: b'not subscribed: mattermost_inbound_repo_invalid' in web_log.read_bytes())
-# The same missing scope is not an operator blocker while inbound is off.
+# The same missing scope is not reported while inbound is off; only the
+# disabled blocker is.
 rpc('Application.put_env(:agentboard, :mattermost_inbound_enabled, false)')
 wait(lambda: sql("SELECT reason FROM mattermost_inbound_runs") == 'disabled')
-assert not any(b.startswith('mattermost_inbound_') for b in transport_blockers()), transport_blockers()
+assert [b for b in transport_blockers() if b.startswith('mattermost_inbound_')] == ['mattermost_inbound_disabled'], transport_blockers()
 # A valid repository with a bad history cutoff is a different blocker, still local, still unsubscribed.
 rpc('Application.put_env(:agentboard, :mattermost_inbound_repo, "fixture/repo")')
 rpc('Application.put_env(:agentboard, :mattermost_inbound_history_start_ms, -1)')

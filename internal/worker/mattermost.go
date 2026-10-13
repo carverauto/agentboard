@@ -39,22 +39,31 @@ func (a *API) MattermostRead(ctx context.Context, item InboxItem) (json.RawMessa
 	return a.Call(ctx, http.MethodPost, "mattermost_read", nil, item)
 }
 
-// MattermostAck explicitly handles exact inbox versions. The server makes the
-// batch atomic and retains the first handling attribution on retries.
-func (a *API) MattermostAck(ctx context.Context, items []InboxItem) (json.RawMessage, error) {
+// ValidateAck checks one acknowledgement batch: 1 to 50 exact inbox versions
+// with no inbox UUID repeated.
+func ValidateAck(items []InboxItem) error {
 	if len(items) < 1 || len(items) > 50 {
-		return nil, errors.New("Mattermost acknowledgement requires 1 to 50 exact inbox items")
+		return errors.New("Mattermost acknowledgement requires 1 to 50 exact inbox items")
 	}
 	seen := make(map[string]bool, len(items))
 	for _, item := range items {
 		if err := item.Validate(); err != nil {
-			return nil, err
+			return err
 		}
 		id := strings.ToLower(item.ID)
 		if seen[id] {
-			return nil, errors.New("Mattermost acknowledgement requires unique inbox items")
+			return errors.New("Mattermost acknowledgement requires unique inbox items")
 		}
 		seen[id] = true
+	}
+	return nil
+}
+
+// MattermostAck explicitly handles exact inbox versions. The server makes the
+// batch atomic and retains the first handling attribution on retries.
+func (a *API) MattermostAck(ctx context.Context, items []InboxItem) (json.RawMessage, error) {
+	if err := ValidateAck(items); err != nil {
+		return nil, err
 	}
 	return a.Call(ctx, http.MethodPost, "mattermost_ack", nil, map[string]any{"items": items})
 }

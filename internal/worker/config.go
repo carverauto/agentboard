@@ -4,6 +4,7 @@ package worker
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,17 +14,40 @@ import (
 )
 
 const Protocol = 1
-const AdapterVersion = "pi-native-v1"
-const ClaudeAdapterVersion = "claude-hook-v1"
-const CodexAdapterVersion = "codex-app-server-v1"
 const MaxFrameBytes = 16 << 10
 
+// Worker binding adapters. The native adapters answer on a protected local
+// socket; ManualAdapter has none and works only through explicit check-in.
+const (
+	PiAdapterVersion     = "pi-native-v1"
+	ClaudeAdapterVersion = "claude-hook-v1"
+	CodexAdapterVersion  = "codex-app-server-v1"
+	ManualAdapter        = "manual"
+)
+
+// nativeAdapterHarness is the single table of automatic native adapters and
+// the harness attribution each requires ("" when any harness may host it).
+var nativeAdapterHarness = map[string]string{
+	PiAdapterVersion:     "",
+	ClaudeAdapterVersion: "claude",
+	CodexAdapterVersion:  "codex",
+}
+
+// nativeAdapter reports whether a binding adapter answers on a native socket.
+func nativeAdapter(adapter string) bool {
+	_, ok := nativeAdapterHarness[adapter]
+	return ok
+}
+
+// Binding is one supervised worker session. Server (server_id) is optional and
+// unused; it stays decodable so existing configs still load under the strict
+// unknown-field check.
 type Binding struct {
 	Agent      string   `json:"agent_id"`
 	Model      string   `json:"model"`
 	Harness    string   `json:"harness"`
 	Host       string   `json:"host_id"`
-	Server     string   `json:"server_id"`
+	Server     string   `json:"server_id,omitempty"`
 	Session    string   `json:"session_id"`
 	Generation string   `json:"adapter_generation"`
 	Adapter    string   `json:"adapter"`
@@ -65,17 +89,15 @@ func Load(path string) (Config, error) {
 	}
 	seen := map[string]bool{}
 	for _, b := range cfg.Bindings {
-		if !config.ValidID(b.Agent) || b.Host == "" || b.Server == "" || b.Session == "" || b.Generation == "" || b.Model == "" || b.Harness == "" || b.Epoch < 0 || !filepath.IsAbs(b.Socket) || !filepath.IsAbs(b.TokenFile) || seen[b.Agent] {
+		if !config.ValidID(b.Agent) || b.Host == "" || b.Session == "" || b.Generation == "" || b.Model == "" || b.Harness == "" || b.Epoch < 0 || !filepath.IsAbs(b.Socket) || !filepath.IsAbs(b.TokenFile) || seen[b.Agent] {
 			return cfg, errors.New("invalid or duplicate worker binding")
 		}
-		if b.Adapter != AdapterVersion && b.Adapter != ClaudeAdapterVersion && b.Adapter != CodexAdapterVersion && b.Adapter != "manual" && b.Adapter != "herdr" {
+		harness, native := nativeAdapterHarness[b.Adapter]
+		if !native && b.Adapter != ManualAdapter {
 			return cfg, errors.New("unknown worker adapter")
 		}
-		if b.Adapter == ClaudeAdapterVersion && b.Harness != "claude" {
-			return cfg, errors.New("Claude native adapter requires Claude harness attribution")
-		}
-		if b.Adapter == CodexAdapterVersion && b.Harness != "codex" {
-			return cfg, errors.New("Codex native adapter requires Codex harness attribution")
+		if harness != "" && b.Harness != harness {
+			return cfg, fmt.Errorf("%s native adapter requires %s harness attribution", b.Adapter, harness)
 		}
 		seen[b.Agent] = true
 	}

@@ -250,13 +250,6 @@ defmodule Agentboard.Mattermost.Transport do
     end
   end
 
-  def channel_ok?(cfg, channel_id) do
-    case request(cfg, :get, "/api/v4/channels/#{channel_id}", nil) do
-      {:ok, 200, _} -> true
-      _ -> false
-    end
-  end
-
   # Phase 2 elastic bot admin calls. These run with the server-held
   # provisioner credential, never an agent credential. Bodies are small
   # maps; responses are matched by shape, never logged.

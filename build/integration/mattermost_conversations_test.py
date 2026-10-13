@@ -651,7 +651,8 @@ def transport():
 blockers = set(transport()['blockers'])
 assert 'private_recipient_routes_disabled' in blockers, blockers
 assert not blockers & {'peer_identities_unavailable_5_1', 'headless_send_read_unavailable_5_2'}, blockers
-assert 'inbox_catch_up_unavailable_5_3' in blockers, blockers
+# 5.3 inbound catch-up readiness is measured: inbound is off here.
+assert 'mattermost_inbound_disabled' in blockers and 'inbox_catch_up_unavailable_5_3' not in blockers, blockers
 status, body = api('POST', SEND, {'to': 'worker-b', 'body': 'routes off'}, WA)
 assert status == 422 and body['error']['code'] == 'invalid_context', (status, body)
 rpc('Application.put_env(:agentboard, :message_mode, "dual")')

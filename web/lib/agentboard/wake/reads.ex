@@ -230,11 +230,8 @@ defmodule Agentboard.Wake.Reads do
       |> reason(is_nil(b.session_id), "unbound")
       |> reason(b.adapter_state != "ready", "adapter_" <> b.adapter_state)
       |> reason(b.connector_state != "healthy", "connector_" <> b.connector_state)
-      |> reason(
-        is_nil(b.reported_at) or DateTime.diff(stamp, b.reported_at) > 90,
-        "connector_stale"
-      )
-      |> reason(b.adapter not in ~w(pi-native-v1 claude-hook-v1), "safe_input_unproven")
+      |> reason(Runtime.connector_stale?(b, stamp), "connector_stale")
+      |> reason(not Runtime.safe_input_adapter?(b.adapter), "safe_input_unproven")
 
     %{
       host_id: s.host_id,

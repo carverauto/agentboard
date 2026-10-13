@@ -101,7 +101,7 @@ Protected config shape, with invented identities and references only:
   "journal_dir":"/ABSOLUTE/PRIVATE/DIR/journal",
   "bindings":[{
     "agent_id":"example-worker","model":"actual-model","harness":"pi",
-    "host_id":"example-host","server_id":"example-pi-server",
+    "host_id":"example-host",
     "session_id":"NATIVE_SESSION_UUID","adapter_generation":"NATIVE_GENERATION_UUID",
     "adapter":"pi-native-v1","socket_path":"/ABSOLUTE/PRIVATE/DIR/pi.sock",
     "token_file":"/ABSOLUTE/PRIVATE/DIR/host-token","binding_epoch":0
@@ -221,8 +221,7 @@ credential (`POST attempts/:attempt/reconcile` with the frozen epoch, generation
 and hash, no adapter I/O, no result write, no receipt credential). Only an
 explicit resolved answer or canonical `batch.status: not_submitted` evidence
 with the original frozen batch retires that journal. Historical responses never
-authorize replay; older servers' positive `replay_allowed` evidence remains
-compatible only after the same frozen-batch validation. The same rule applies
+authorize replay, and `replay_allowed` is not retirement evidence. The same rule applies
 when a newer dispatch generation supersedes a journal within one binding epoch;
 unresolved historical evidence never triggers native I/O or a result write.
 The attempt, batch ID, epoch, dispatch generation, payload bytes/hash and ordered delivery membership must match the protected
@@ -234,8 +233,7 @@ records possible duplicate effects; it is never a host retry heuristic.
 
 Deploy the updated CLI with the server. An older host can retain a historical
 non-submission journal until upgraded; same-epoch recovery may still attempt a
-result retry that the server rejects. The updated CLI remains compatible with
-older servers' `replay_allowed` evidence after exact frozen-batch validation.
+result retry that the server rejects.
 
 `worker pause`, `resume` and `unbind` are explicit epoch-fenced actions that retain
 server deliveries. Native callbacks reread durable pause and current identity

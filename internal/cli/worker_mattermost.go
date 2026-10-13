@@ -45,23 +45,16 @@ func workerMattermostCommands(load func() (worker.Config, worker.Binding, error)
 	ack := &cobra.Command{
 		Use: "mattermost-ack", Short: "Explicitly handle exact inbox versions; no task or CI completion", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if len(pairs) < 1 || len(pairs) > 50 {
-				return errors.New("supply 1 to 50 --item UUID:VERSION pairs")
-			}
 			items := make([]worker.InboxItem, 0, len(pairs))
-			seen := make(map[string]bool, len(pairs))
 			for _, pair := range pairs {
 				id, version, ok := strings.Cut(pair, ":")
-				item := worker.InboxItem{ID: id, Version: version}
-				if !ok || item.Validate() != nil {
+				if !ok {
 					return errors.New("each --item must name an exact inbox UUID:SHA256_VERSION pair")
 				}
-				canonicalID := strings.ToLower(item.ID)
-				if seen[canonicalID] {
-					return errors.New("Mattermost acknowledgement requires unique inbox items")
-				}
-				seen[canonicalID] = true
-				items = append(items, item)
+				items = append(items, worker.InboxItem{ID: id, Version: version})
+			}
+			if err := worker.ValidateAck(items); err != nil {
+				return err
 			}
 			cfg, binding, err := load()
 			if err != nil {
