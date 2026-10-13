@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -35,7 +36,7 @@ type fleetSeatInput struct {
 }
 
 func (c *commands) fleetCommands() *cobra.Command {
-	group := &cobra.Command{Use: "fleet", Short: "Captain-owned dormant fleet configuration"}
+	group := &cobra.Command{Use: "fleet", Short: "Captain-owned fleet configuration, activation and refill status"}
 	loadout := &cobra.Command{Use: "loadout", Short: "Store desired seats without activating workers"}
 	show := &cobra.Command{Use: "show FLEET_ID", Short: "Show a dormant loadout using the protected captain capability", Args: idArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -55,8 +56,62 @@ func (c *commands) fleetCommands() *cobra.Command {
 		}}
 	set.Flags().StringVar(&file, "file", "", "UTF-8 JSON replacement with revision, idempotency_key and seats (up to 1 MiB)")
 	loadout.AddCommand(show, set)
-	group.AddCommand(loadout)
+	group.AddCommand(loadout, c.fleetActivateCommand(), c.fleetDeactivateCommand(), c.fleetRefillCommand())
 	return group
+}
+
+func (c *commands) fleetActivateCommand() *cobra.Command {
+	var mode string
+	var deadline time.Duration
+	cmd := &cobra.Command{Use: "activate FLEET_ID --mode dry-run|live [--claim-deadline DURATION]", Short: "Captain: let backlog refill use this fleet's seats (dry-run records would-assign pairs only)", Args: idArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := fleetActivation(mode, deadline, cmd.Flags().Changed("claim-deadline"))
+			if err != nil {
+				return err
+			}
+			return c.request(cmd, http.MethodPost, "fleets/"+args[0]+"/activate", nil, payload)
+		}}
+	cmd.Flags().StringVar(&mode, "mode", "", "dry-run (record would-assign pairs, write nothing) or live (assign and order)")
+	cmd.Flags().DurationVar(&deadline, "claim-deadline", 0, "Return an unclaimed refill assignment to the backlog after this long, 1m to 24h (default 30m on first activation, otherwise unchanged)")
+	return cmd
+}
+
+func (c *commands) fleetDeactivateCommand() *cobra.Command {
+	return &cobra.Command{Use: "deactivate FLEET_ID", Short: "Captain: stop new refill assignments; never releases claims or stops seats", Args: idArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return c.request(cmd, http.MethodPost, "fleets/"+args[0]+"/deactivate", nil, map[string]any{})
+		}}
+}
+
+func (c *commands) fleetRefillCommand() *cobra.Command {
+	group := &cobra.Command{Use: "refill", Short: "Inspect deterministic backlog refill"}
+	status := &cobra.Command{Use: "status FLEET_ID", Short: "Captain: activation, last pass pairs, pending claim deadlines and per-seat misses", Args: idArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return c.request(cmd, http.MethodGet, "fleets/"+args[0]+"/refill", nil, nil)
+		}}
+	group.AddCommand(status)
+	return group
+}
+
+// fleetActivation validates flags before any request. The CLI spells the
+// dry-run mode with a hyphen; the API value is dry_run.
+func fleetActivation(mode string, deadline time.Duration, deadlineSet bool) (map[string]any, error) {
+	payload := map[string]any{}
+	switch mode {
+	case "dry-run":
+		payload["mode"] = "dry_run"
+	case "live":
+		payload["mode"] = "live"
+	default:
+		return nil, errors.New("--mode must be dry-run or live")
+	}
+	if deadlineSet {
+		if deadline%time.Second != 0 || deadline < time.Minute || deadline > 24*time.Hour {
+			return nil, errors.New("--claim-deadline must be whole seconds from 1m to 24h")
+		}
+		payload["claim_deadline_seconds"] = int64(deadline / time.Second)
+	}
+	return payload, nil
 }
 
 func readFleetLoadout(path string) (fleetLoadoutInput, error) {

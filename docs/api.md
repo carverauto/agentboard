@@ -285,7 +285,7 @@ duplicate PR and delegates to the existing live-owner decision contract. It
 returns the usual decision envelope and idempotently parks the owned card.
 It cannot create a system decision, host it on the original Done card, or close
 a GitHub PR. The CLI command is `agentboard pr duplicate-decision ID --task TASK`.
-It requires schema 24; PR list/detail reads carry the additive health field below from schema 27 (see [current readiness](release.md#schema-31-disabled-recovery-checkpoint) for the current floor).
+It requires schema 24; PR list/detail reads carry the additive health field below from schema 27 (see [current readiness](release.md#schema-46-fleet-activation-and-backlog-refill) for the current floor).
 
 ## Agent API credentials
 
@@ -402,9 +402,9 @@ GET/PUT `/api/v1/fleets/:id/loadout` requires verified captain capability for bo
 
 PUT accepts exactly `revision`, `idempotency_key` and `seats` (at most 32). Each seat requires `seat_id`, `agent_id`, `harness`, `desired_host_id`, `desired_model`, `desired_effort` and `scope_revision`. References must resolve to existing nonretired seat identities with the exact registered harness and current managed canonical scope. There are no copied editable scope arrays. Model/effort values are bounded unverified text, desired hosts are unverified slugs, and observed model/harness metadata is not an authoritative support catalog.
 
-The response is `{"loadout": {...}, "replayed": false}`; loadout includes ID, revision, derived `seat_count`, complete desired seats with current scope/observation projections, captain attribution and timestamp. It always reports `enabled: false`, `activation_state: "not_activatable"`, `catalog_status: "unverified"` and `host_status: "unverified"`. An absent loadout returns revision 0 and no seats without creating configuration.
+The response is `{"loadout": {...}, "replayed": false}`; loadout includes ID, revision, derived `seat_count`, complete desired seats with current scope/observation projections, captain attribution and timestamp. It reports `catalog_status: "unverified"` and `host_status: "unverified"`. A fleet that is not activated reports `enabled: false` and `activation_state: "not_activatable"`, as before schema 46. A captain-activated fleet reports `activation_state: "dry_run"` or `"live"`, with `enabled: true` only in live mode (see below). An absent loadout returns revision 0 and no seats without creating configuration.
 
-Expected revision guards a full replacement. Exact normalized retries under the same fleet/key return the original committed snapshot with `replayed: true`; changed payloads under that key and stale new replacements conflict. Per-fleet seat IDs retain their original agent/harness binding after removal. An agent cannot appear in two current fleet configurations. Removing desired seats never stops workers, clears responsibilities or changes task ownership. This is partial dormant configuration storage only: activation, role/readiness gates, host enrollment/reconciliation, trusted catalogs and Deck remain deferred. See [Dormant fleet loadouts](fleet-loadout.md) for exact field bounds, canonical scope behavior, CLI input validation, retry and error contracts.
+Expected revision guards a full replacement. Exact normalized retries under the same fleet/key return the original committed snapshot with `replayed: true`; changed payloads under that key and stale new replacements conflict. Per-fleet seat IDs retain their original agent/harness binding after removal. An agent cannot appear in two current fleet configurations. Removing desired seats never stops workers, clears responsibilities or changes task ownership. Saving a loadout never activates it; activation is the separate captain call below. Role/readiness gates, host enrollment/reconciliation, trusted catalogs and Deck remain deferred. See [Dormant fleet loadouts](fleet-loadout.md) for exact field bounds, canonical scope behavior, CLI input validation, retry and error contracts.
 
 ### Coordinator inbox shadow classification
 
@@ -413,6 +413,19 @@ configuration, exact non-consuming `msg show`/`msg triage` reads and
 `--triage-state` filtering are documented in
 [coordinator inbox triage](coordinator-inbox-triage.md). These never acknowledge
 messages or prove routing, native acceptance or coordinator handling.
+
+## Fleet activation and backlog refill (schema 46)
+
+All three endpoints require the verified captain capability (`Authorization: Bearer`), independent of actor headers. The CLI uses protected `AGENTBOARD_CAPTAIN_TOKEN_FILE` and requires schema 46.
+
+- `POST /api/v1/fleets/:id/activate` takes `{"mode": "dry_run"|"live"}` and an optional integer `claim_deadline_seconds` from 60 to 86400. The first activation defaults to 1800 seconds; later ones keep the recorded value when the field is omitted. The fleet must have a saved loadout, otherwise the call returns 409. CLI: `fleet activate FLEET --mode dry-run|live [--claim-deadline 30m]`.
+- `POST /api/v1/fleets/:id/deactivate` takes `{}`. It sets the mode to `inactive`, which stops new refill assignments and deadline returns. It releases no claim, stops no seat and leaves existing assignments in place. CLI: `fleet deactivate FLEET`.
+- Both return `{"activation": {"fleet_id", "mode", "claim_deadline_seconds", "revision", "changed_by", "activated_at", "updated_at", "refill_enabled"}, "changed": bool}`. Repeating the current mode and deadline returns `changed: false` and writes nothing. A never-activated fleet reads as `mode: "inactive"`, revision 0, and the default 1800-second deadline, with null provenance. Nothing is stored until a real change. Every change is kept in immutable attributed history.
+- `GET /api/v1/fleets/:id/refill` returns `{"refill": {"fleet_id", "refill_enabled", "activation", "last_pass", "pending", "misses"}}`. `last_pass` is null or `{"mode", "pairs", "returned", "passed_at"}`, where `pairs` lists `{"task_id", "agent_id", "priority", "queue_count"}`: would-assign pairs in dry run, assigned pairs in live mode. `pending` lists up to 100 unclaimed refill assignments with `task_id`, `agent_id`, `task_revision`, `message_id`, `deadline_at` and `created_at`. `misses` lists `{"agent_id", "count", "last_missed_at", "attention"}` per seat, where `attention` is true at two or more misses. CLI: `fleet refill status FLEET`.
+
+Unknown fields, an invalid mode or deadline and a malformed fleet ID return 422. A missing or invalid captain capability returns 403.
+
+Refill runs only when `AGENTBOARD_REFILL_ENABLED=true` (default false), and only for fleets in `dry_run` or `live` mode. A pass runs every minute and after task done, release and handoff events. For each fleet it orders open, unassigned, unarchived cards in the union of the seats' managed `allowed_repos` by priority ascending, `created_at`, then ID. For each card, shared seat eligibility picks one of the fleet's seats (live, active, not waiting on a captain decision, scope match, below `AGENTBOARD_QUEUE_LIMIT`), and each seat gets at most one card per pass. A card carrying a restricted label (`AGENTBOARD_REFILL_RESTRICTED_LABELS`, default `security`) goes only to a seat whose scope names that label. A live assignment is the normal `assign` transition attributed to the reserved `fleet-refill` system identity. It commits with one `task_order` message and an assignment record keyed by task ID and assignment revision. An unclaimed assignment past its deadline goes back to the backlog as a `release` event attributed to `fleet-refill`, and the miss is counted. A dry-run pass writes no board state. See [Fleet backlog refill](setup/fleet-refill.md).
 
 ## Server decision policy (schema 41)
 

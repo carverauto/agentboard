@@ -1,5 +1,5 @@
 defmodule Agentboard.FleetLoadout.Configuration do
-  @moduledoc "Captain-owned dormant fleet configuration; never an operational worker resource."
+  @moduledoc "Captain-owned desired fleet configuration; refill reads it only for a captain-activated fleet."
   use Ash.Resource,
     domain: Agentboard.Board,
     data_layer: AshPostgres.DataLayer,

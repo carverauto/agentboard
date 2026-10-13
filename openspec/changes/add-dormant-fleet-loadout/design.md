@@ -4,6 +4,8 @@
 
 Both reads and full replacements require verified captain authority. No caller-controlled field or CLI option can enable a fleet. The response always derives `enabled: false`, `activation_state: not_activatable`, `catalog_status: unverified`, `host_status: unverified` and seat count. The boundary stores configuration only; no scheduler or runtime consumer is added.
 
+Superseded in part by `add-fleet-helper` (schema 46): a separate captain activation (`fleet activate FLEET --mode dry-run|live`) now exists. For an activated fleet only, the loadout reports `activation_state` `dry_run` or `live` and `enabled: true` only in live mode, and backlog refill reads its seats. Fleets that are not activated keep the projection above, and no loadout field or replacement activates a fleet.
+
 Each desired seat contains exactly `seat_id`, `agent_id`, `harness`, `desired_host_id`, `desired_model`, `desired_effort` and `scope_revision`. Fleet/seat/agent/host IDs are slugs. Harness is bounded exact registered metadata, not a fixed support catalog. Model/effort hints remain explicitly catalog-unverified, and desired host remains unverified. References must resolve to nonretired identities of kind seat and the current managed canonical SeatScope revision. Scope arrays are projected on reads rather than copied into configuration.
 
 ## Replacement and invariants

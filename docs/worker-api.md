@@ -2,7 +2,7 @@
 
 Status: agreed server implementation contract; packaged acceptance evidence is
 recorded separately. API namespace `/api/v1/workers`. Protocol revision is `1`,
-and the server requires database schema `44` (worker routes were introduced at schema `11`). The host uses HTTPS
+and the server requires database schema `46` (worker routes were introduced at schema `11`). The host uses HTTPS
 only. Successful state/bind records include `binding.binding_epoch` (also `epoch`),
 `worker.enabled` (not revoked), and `/state.active_batch` for lost-response recovery.
 Reconcile includes `resolved` for all handled/suppressed batch members.

@@ -510,3 +510,14 @@ off keep `recipient_route_unavailable` and are never replayed later. Generic
 `chat send` now answers an unresolved outcome with HTTP 202 and a `state`
 field instead of a 503; verified sends and legacy `msg` contracts are
 unchanged. See the [agent-chat runbook](setup/mattermost-agent-chat-runbook.md#outbound-spool-and-uncertain-sends).
+
+## Schema 46: fleet activation and backlog refill
+
+Migration `20261008004600` adds `fleet_activations` with immutable version
+history, `fleet_refill_assignments` and `fleet_refill_passes`. It inserts the
+reserved `fleet-refill` agent and refuses to migrate when that id already
+exists. Existing fleets gain no activation row, so they stay inactive.
+The stamp uses `GREATEST(version, 46)` and does not define schema 45.
+Readiness requires schema 46. The down migration raises; roll back by
+deploying a compatible image and keeping the new tables. Behavior is in
+[Fleet backlog refill](setup/fleet-refill.md).
