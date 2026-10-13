@@ -33,7 +33,7 @@ access to the intake repositories only. The server uses it to create an issue
 and, after a create that may have reached GitHub, to list issues that this
 same credential opened: it resolves the login once with `GET /user`, then
 lists `creator=<login>` since that first create attempt (minus a small clock
-skew), newest first, a few issues per page. Calls stay inside
+skew), newest first, ten per page. Calls stay inside
 `AGENTBOARD_INTAKE_REPOSITORIES`.
 
 Without a token, issue items stay `pending` with `github_unconfigured` until one
@@ -88,11 +88,13 @@ Each issue body ends with a hidden marker,
 `<!-- agentboard-intake:ITEM_ID -->`. After any create that may have reached
 GitHub, the outbox lists issues this credential created since that attempt
 and adopts one issue carrying the marker before it creates again, so a lost
-response never makes a second issue. The list is read until it is exhausted.
-Pull requests are not matches. If that listing still cannot be finished
-(the safety bound of 1000 rows, or a page that cannot be read), the item
-parks `uncertain` with `marker_search_incomplete` instead of retrying the
-same lookup. Adopting an issue, reconciling, or backing off clears
+response never makes a second issue. The list is read until a short page
+shows it is exhausted. Pull requests are not matches and do not count toward
+the bound. The item parks `uncertain` with `marker_search_incomplete` when a
+full page reaches 1000 issues, when the walk reaches 1000 pages, or when a
+page exceeds the shared 1 MiB response body bound. A transient read failure
+stays `pending` and
+retries. Adopting an issue, reconciling, or backing off clears
 `duplicate_issue_urls`.
 
 To clear an `uncertain` item that was not cancelled, fix the cause on GitHub

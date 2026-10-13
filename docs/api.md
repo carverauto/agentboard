@@ -421,11 +421,12 @@ captain still receives 404 while intake is off. Responses carry
 
 `POST /api/v1/intake` takes exactly `request_key` (1-128 bytes, trimmed) and
 `items` (1-10). Each item takes `repository` (`owner/repo`, required),
-`title` (required, at most 256 characters), `body` (default empty), `priority`
-(integer >= 0, default 3, lower is more urgent), `labels` (up to 20, each at
-most 50 characters) and `issue` (boolean, default `true`; `false` files a card
-only). Unknown fields, a body containing an `agentboard-intake:` marker and
-any other shape return 422 `invalid_input`. Every repository must be in the
+`title` (required, at most 256 characters), `body` (default empty, at most
+60,000 characters), `priority` (integer from 0 through 2147483647, default 3,
+lower is more urgent), `labels` (up to 20, each at most 50 characters) and
+`issue` (boolean, default `true`; `false` files a card only). Unknown fields,
+a body containing an `agentboard-intake:` marker and any other shape return
+422 `invalid_input`. Every repository must be in the
 server's `AGENTBOARD_INTAKE_REPOSITORIES`, otherwise the whole request is
 refused with 403 `forbidden` and nothing is created.
 
@@ -454,9 +455,10 @@ issues that login created since the first create attempt, newest first, and
 adopts a single marker match before creating again. The creator listing is
 read until a short page; pull requests are not matches. Transient failures stay
 `pending` with backoff. Definitive rejections, more than one marked issue, a
-lookup that hits its 1000-row bound or cannot be read
+lookup that hits its issue bound or a page over the 1 MiB response body bound
 (`marker_search_incomplete`, keeping any marker URLs already seen), or a
 repository removed from the list park the item `uncertain` with a `reason`.
+The bound is defined in [work intake](setup/intake.md).
 Adopting a survivor, reconciling, or backing off clears `duplicate_issue_urls`.
 The `system-intake` identity links the card to the created issue and never
 replaces another link.
