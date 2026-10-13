@@ -14,6 +14,7 @@ import os
 import subprocess
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -30,6 +31,27 @@ MISSING = object()
 def sql(query):
     return subprocess.check_output([os.environ['FIXTURE_PSQL'], '-At', '-v', 'ON_ERROR_STOP=1',
                                     '-c', query], text=True).strip()
+
+
+# Cancel takes this shared admission lock after its unlocked card read and
+# before the locked re-read. Holding the exclusive lock parks that window.
+ADMISSION_LOCK = 48_713_081
+
+
+def wait_until(predicate, seconds=15):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.05)
+    raise AssertionError('timed out')
+
+
+def advisory_locks(mode, granted):
+    return sql(
+        "SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND classid=0 "
+        f"AND objid={ADMISSION_LOCK} AND objsubid=1 AND mode='{mode}' AND granted={granted}"
+    )
 
 
 def rpc(expression):
@@ -462,6 +484,57 @@ with tls_provider(GitHub) as (api_url, ca, _server):
         assert again['cancelled'] == [] and again['skipped'] == [{'id': cancel_me['id'], 'reason': 'already_cancelled'}]
         api('intake/' + pair['id'] + '/cancel', {'items': ['00000000-0000-4000-8000-000000000000']}, status=404)
         api('intake/' + pair['id'] + '/cancel', {'items': 'all'}, status=422)
+
+        # A claim that lands after the unlocked read and before the locked
+        # re-read skips that card and still cancels the other one.
+        race = file('cancel-race', [{'repository': REPO, 'title': 'Claimed during cancel'},
+                                    {'repository': REPO, 'title': 'Still open'}])['intake']
+        raced, keep = race['items']
+        holder = {}
+
+        def cancel_race():
+            try:
+                holder['body'] = api('intake/' + race['id'] + '/cancel', {})[0]
+            except Exception as exc:
+                holder['error'] = exc
+
+        lock = subprocess.Popen([os.environ['FIXTURE_PSQL'], '-v', 'ON_ERROR_STOP=1', '-At'],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        thread = threading.Thread(target=cancel_race)
+        started = False
+        try:
+            lock.stdin.write(f'SELECT pg_advisory_lock({ADMISSION_LOCK});\n')
+            lock.stdin.flush()
+            wait_until(lambda: advisory_locks('ExclusiveLock', 'true') != '0')
+            thread.start()
+            started = True
+            wait_until(lambda: advisory_locks('ShareLock', 'false') != '0')
+            claimed = sql(
+                "UPDATE tasks SET status='in_progress', assignee_id='intake-seat', "
+                "claimed_at=clock_timestamp(), claim_expires_at=clock_timestamp()+interval '1 hour', "
+                "revision=revision+1 WHERE id='" + raced['task_id'] + "' AND status='open' RETURNING id"
+            )
+            assert claimed == raced['task_id'], claimed
+        finally:
+            if lock.poll() is None:
+                try:
+                    lock.stdin.write(f'SELECT pg_advisory_unlock({ADMISSION_LOCK});\n')
+                    lock.stdin.flush()
+                    lock.stdin.close()
+                    lock.wait(timeout=15)
+                except (OSError, subprocess.TimeoutExpired):
+                    lock.kill()
+                    lock.wait(timeout=5)
+            if started:
+                thread.join(timeout=30)
+        assert not thread.is_alive() and 'error' not in holder, holder.get('error')
+        result = holder['body']
+        assert result['cancelled'] == [keep['id']], result
+        assert result['skipped'] == [{'id': raced['id'], 'reason': 'card_started'}], result
+        assert task(raced['task_id'])['status'] == 'in_progress'
+        assert task(keep['task_id'])['status'] == 'cancelled'
+        assert item_row(raced['id'])['issue_state'] == 'pending' and item_row(raced['id'])['cancelled_at'] is None
+        assert item_row(keep['id'])['issue_state'] == 'cancelled'
 
         # --- CLI over the same contract (captain capability file). ----------
         with tempfile.TemporaryDirectory() as home:

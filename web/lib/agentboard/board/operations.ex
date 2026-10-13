@@ -334,17 +334,18 @@ defmodule Agentboard.Board.Operations do
     lock_task(task_id)
     task = fetch!(Task, task_id, "Task not found")
 
-    unless task.status == "open" and is_nil(task.assignee_id),
-      do: reject("conflict", "Only an open, unassigned card can be cancelled through intake")
+    if task.status == "open" and is_nil(task.assignee_id) do
+      stamp = now()
 
-    stamp = now()
+      attrs =
+        Agentboard.Board.Transition.attributes(task, "update", actor["agent"], data, stamp)
+        |> Map.merge(Agentboard.Availability.admit(task, "update", actor, data))
 
-    attrs =
-      Agentboard.Board.Transition.attributes(task, "update", actor["agent"], data, stamp)
-      |> Map.merge(Agentboard.Availability.admit(task, "update", actor, data))
-
-    changed = update(task, :update, attrs, actor, task.revision)
-    result(changed, task, "update", actor, data, stamp)
+      changed = update(task, :update, attrs, actor, task.revision)
+      result(changed, task, "update", actor, data, stamp)
+    else
+      {:skipped, "card_started"}
+    end
   end
 
   defp admit_action!(action, actor, data) do

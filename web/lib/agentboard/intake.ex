@@ -202,25 +202,30 @@ defmodule Agentboard.Intake do
         {:skipped, "card_started"}
 
       true ->
-        Operations.cancel_unstarted_task!(item.task_id, actor)
-        stamp = Operations.now()
+        case Operations.cancel_unstarted_task!(item.task_id, actor) do
+          {:skipped, reason} ->
+            {:skipped, reason}
 
-        open_intent = item.issue_state in ["pending", "uncertain"]
+          _ ->
+            stamp = Operations.now()
 
-        Operations.update(
-          item,
-          :cancel,
-          %{
-            issue_state: if(open_intent, do: "cancelled", else: item.issue_state),
-            next_attempt_at: if(open_intent, do: nil, else: item.next_attempt_at),
-            cancelled_at: stamp,
-            cancelled_by: actor["agent"],
-            updated_at: stamp
-          },
-          actor
-        )
+            open_intent = item.issue_state in ["pending", "uncertain"]
 
-        :cancelled
+            Operations.update(
+              item,
+              :cancel,
+              %{
+                issue_state: if(open_intent, do: "cancelled", else: item.issue_state),
+                next_attempt_at: if(open_intent, do: nil, else: item.next_attempt_at),
+                cancelled_at: stamp,
+                cancelled_by: actor["agent"],
+                updated_at: stamp
+              },
+              actor
+            )
+
+            :cancelled
+        end
     end
   end
 
