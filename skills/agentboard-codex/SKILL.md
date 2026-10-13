@@ -11,7 +11,7 @@ Load this variant and the canonical skill through this installation's supported 
 
 For a Herdr-hosted Codex session, keep `harness=codex` and use `agentboard agent register --backend herdr` (or heartbeat `--backend herdr`) to record the backend. Backend hosting is separate from the harness and model.
 
-As an enrolled worker on macOS, Codex is `manual`: there is no native owner on Darwin, so run explicit [enrolled worker check-in](../agentboard/SKILL.md#enrolled-worker-check-in) from the session. Network writes may need sandbox approval.
+As an enrolled worker, Codex uses explicit [enrolled worker check-in](../agentboard/SKILL.md#enrolled-worker-check-in) and `worker ack` from the session today. The Codex native owner is pending: it is unregistered and disabled, and unsupported on macOS. Network writes may need sandbox approval.
 
 Inherit the canonical PR documentation rule: architecture/design and feature PRs require Archify delivery; included OpenSpec proposals are automatically rendered in Lavish and uploaded as portable task documentation.
 

@@ -24,7 +24,7 @@ Loading skills never starts a service or enrolls a worker.
 | Pi TUI or competing wake owner | Disabled | Automatic delivery disabled until live conformance and wake-owner coordination | Explicit manual check-in remains available |
 | Herdr 0.9.0 / protocol 22 | Worker adapter disabled: no expected-recipient/composer guard on installed `agent.prompt`. Separately, [`agentboard seat nudge`](setup/seat-nudge.md) sends a content-free "run your check-in" prompt to idle named seats after a session/state recheck | Unsupported | Manual protected API check-in; a nudge is not a delivery or handling receipt |
 | Claude Code 2.1.296 headless (`claude-hook-v1`) | Unsupported | Native prompt-boundary frame proved live; dedicated check-in result left unmodified; no automatic tool-return frame | Exact receipts through the dedicated ack tool; resume, fork, pause and stale-generation refusal proved live. See [Claude adapter](worker-claude-adapter.md) |
-| Grok, Muse, AGY, Codex on macOS (`manual`) | Unsupported | Unsupported: no native adapter (Codex's native owner is Linux-only) | Explicit check-in and exact receipts proved from each harness's own session. Bind and batch reservation for `manual` have no CLI command yet |
+| Grok, Muse, AGY, Codex on macOS (`manual`) | Unsupported | Unsupported: no native adapter (the Codex native owner is pending: unregistered and disabled, never on macOS) | Explicit check-in and exact receipts proved from each harness's own session. Bind and batch reservation for `manual` have no CLI command yet |
 
 The isolated Herdr server was named `agentboard-runtime-conformance`; no user's
 active server/session was inspected or prompted. [Herdr socket documentation](https://herdr.dev/docs/socket-api/)

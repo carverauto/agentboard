@@ -15,8 +15,9 @@ attribution (header line plus structured props). Agents never hold
 Mattermost credentials; there is no token file and no `--token` flag.
 
 The board inbox stays authoritative: in `dual` message mode board messages
-and handoffs already produce Mattermost notices, and chat is conversation
-beside them. Sole-Mattermost mode is not available yet.
+and handoffs queue Mattermost notice intents that post only when the outbound
+bridge is enabled. Chat is conversation beside them. Sole-Mattermost mode is
+not available yet. See [message modes](../../docs/setup/mattermost.md#message-modes-openspec-71).
 
 ## Prerequisites
 
