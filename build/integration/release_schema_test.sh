@@ -16,6 +16,8 @@ export PHX_SERVER=false
 [[ "$(fixture_psql 'SELECT version FROM board_schema WHERE id = 1')" == 46 ]]
 [[ "$(fixture_psql 'SELECT count(*) FROM mattermost_agent_bots')" == 0 ]]
 [[ "$(fixture_psql 'SELECT (SELECT count(*) FROM conversation_spool) + (SELECT count(*) FROM mattermost_agent_routes)')" == 0 ]]
+[[ "$(fixture_psql 'SELECT (SELECT count(*) FROM intake_requests) + (SELECT count(*) FROM intake_items)')" == 0 ]]
+[[ "$(fixture_psql "SELECT kind||','||harness FROM agents WHERE id='system-intake'")" == system,ash ]]
 
 fixture_psql "INSERT INTO agents (id, name, model, harness) VALUES ('worker','Worker','model-1','codex')" >/dev/null
 fixture_psql "INSERT INTO tasks (id, title) VALUES ('sample','Sample')" >/dev/null
@@ -347,7 +349,7 @@ for initial_marker in 34 99; do
   INSERT INTO seat_scopes(agent_id,allowed_repos,required_labels,allowed_labels,revision,changed_by,updated_at) VALUES ('fleet-retained',ARRAY['fixture/fleet'],ARRAY['fleet'],'{}',1,'captain',clock_timestamp());
   INSERT INTO seat_scopes_versions(id,version_source_id,version_action_type,version_action_name,changes,provenance,version_inserted_at,version_updated_at) VALUES (gen_random_uuid(),'fleet-retained','create','create_scope','{}','{\"agent\":\"captain\"}',clock_timestamp(),clock_timestamp());
   UPDATE board_schema SET version=$initial_marker WHERE id=1" >/dev/null
-  fleet_history_query="SELECT jsonb_build_object('agents',(SELECT jsonb_agg(t ORDER BY id) FROM agents t WHERE id NOT IN ('system-decision-policy','fleet-refill')),'tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM task_events t),'documents',(SELECT jsonb_agg(t ORDER BY id) FROM task_documents t),'messages',(SELECT jsonb_agg(t ORDER BY id) FROM messages t),'audit',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t),'scopes',(SELECT jsonb_agg(t ORDER BY agent_id) FROM seat_scopes t),'scope_versions',(SELECT jsonb_agg(t ORDER BY id) FROM seat_scopes_versions t))"
+  fleet_history_query="SELECT jsonb_build_object('agents',(SELECT jsonb_agg(t ORDER BY id) FROM agents t WHERE id NOT IN ('system-decision-policy','fleet-refill','system-intake')),'tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM task_events t),'documents',(SELECT jsonb_agg(t ORDER BY id) FROM task_documents t),'messages',(SELECT jsonb_agg(t ORDER BY id) FROM messages t),'audit',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t),'scopes',(SELECT jsonb_agg(t ORDER BY agent_id) FROM seat_scopes t),'scope_versions',(SELECT jsonb_agg(t ORDER BY id) FROM seat_scopes_versions t))"
   before_fleet="$(fleet_psql "$fleet_history_query")"
   # Include every cooperation, delivery and wake table, even as those evolve.
   operational_tables="$(fleet_psql "SELECT tablename FROM pg_tables WHERE schemaname='public' AND (tablename LIKE 'cooperation_%' OR tablename LIKE 'delivery_%' OR tablename LIKE 'wake_%') ORDER BY tablename")"
@@ -412,7 +414,7 @@ for initial_marker in 35 99; do
   INSERT INTO tasks(id,title,repo) VALUES ('triage-retained-task','Retained task','fixture/triage');
   INSERT INTO messages(sender_id,model,harness,recipient_id,task_id,body) VALUES ('triage-retained','fixture','codex','triage-retained','triage-retained-task','Retained exact inbox body');
   UPDATE board_schema SET version=$initial_marker WHERE id=1" >/dev/null
-  triage_history_query="SELECT jsonb_build_object('messages',(SELECT jsonb_agg(t ORDER BY id) FROM messages t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t),'tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'agents',(SELECT jsonb_agg(t ORDER BY id) FROM agents t WHERE id NOT IN ('system-decision-policy','fleet-refill')))"
+  triage_history_query="SELECT jsonb_build_object('messages',(SELECT jsonb_agg(t ORDER BY id) FROM messages t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t),'tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'agents',(SELECT jsonb_agg(t ORDER BY id) FROM agents t WHERE id NOT IN ('system-decision-policy','fleet-refill','system-intake')))"
   before_triage="$(triage_psql "$triage_history_query")"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
@@ -441,7 +443,7 @@ for initial_marker in 36 99; do
   INSERT INTO delivery_pull_requests(id,owner,repo,number,url,created_at) VALUES (repeat('e',64),'fixture','pins','101','https://github.com/fixture/pins/pull/101',clock_timestamp());
   INSERT INTO delivery_poll_states(id,enabled,lifecycle,ci_state,generation,next_poll_at,registered_at) VALUES (repeat('e',64),true,'open','unknown',0,clock_timestamp()+interval '1 hour',clock_timestamp());
   UPDATE board_schema SET version=$initial_marker WHERE id=1" >/dev/null
-  pins_history_query="SELECT jsonb_build_object('messages',(SELECT jsonb_agg(t ORDER BY id) FROM messages t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t),'tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'agents',(SELECT jsonb_agg(t ORDER BY id) FROM agents t WHERE id NOT IN ('system-decision-policy','fleet-refill')),'prs',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests t),'polls',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_poll_states t),'workflows',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_workflow_runs t),'loadouts',(SELECT jsonb_agg(t ORDER BY id) FROM fleet_loadouts t),'triage',(SELECT jsonb_agg(t ORDER BY message_id) FROM coordinator_inbox_triage t))"
+  pins_history_query="SELECT jsonb_build_object('messages',(SELECT jsonb_agg(t ORDER BY id) FROM messages t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM board_action_events t),'tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'agents',(SELECT jsonb_agg(t ORDER BY id) FROM agents t WHERE id NOT IN ('system-decision-policy','fleet-refill','system-intake')),'prs',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_pull_requests t),'polls',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_poll_states t),'workflows',(SELECT jsonb_agg(t ORDER BY id) FROM delivery_workflow_runs t),'loadouts',(SELECT jsonb_agg(t ORDER BY id) FROM fleet_loadouts t),'triage',(SELECT jsonb_agg(t ORDER BY message_id) FROM coordinator_inbox_triage t))"
   before_pins="$(pins_psql "$pins_history_query")"
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
   "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()'
@@ -626,7 +628,7 @@ for initial_marker in 44 99 collision; do
   if [[ "$initial_marker" == collision ]]; then
     refill_psql "INSERT INTO agents(id,name,model,harness,kind) VALUES ('fleet-refill','Squatter','model','codex','seat')" >/dev/null
   fi
-  refill_history="SELECT jsonb_build_object('agents',(SELECT jsonb_agg(t ORDER BY id) FROM agents t WHERE id NOT IN ('system-decision-policy','fleet-refill')),'tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM task_events t),'messages',(SELECT jsonb_agg(t ORDER BY id) FROM messages t),'loadouts',(SELECT jsonb_agg(t ORDER BY id) FROM fleet_loadouts t),'scopes',(SELECT jsonb_agg(t ORDER BY agent_id) FROM seat_scopes t))"
+  refill_history="SELECT jsonb_build_object('agents',(SELECT jsonb_agg(t ORDER BY id) FROM agents t WHERE id NOT IN ('system-decision-policy','fleet-refill','system-intake')),'tasks',(SELECT jsonb_agg(t ORDER BY id) FROM tasks t),'events',(SELECT jsonb_agg(t ORDER BY id) FROM task_events t),'messages',(SELECT jsonb_agg(t ORDER BY id) FROM messages t),'loadouts',(SELECT jsonb_agg(t ORDER BY id) FROM fleet_loadouts t),'scopes',(SELECT jsonb_agg(t ORDER BY agent_id) FROM seat_scopes t))"
   before_refill="$(refill_psql "$refill_history")"
   if [[ "$initial_marker" == collision ]]; then
     if "$release_root/bin/agentboard" eval 'Agentboard.Release.migrate()' >"$TEST_TMPDIR/refill-collision.log" 2>&1; then

@@ -91,6 +91,9 @@ defmodule Agentboard.Auth.APIAuthPolicy do
 
   def boundary(%{plug: AgentboardWeb.FleetLoadoutController}), do: :captain
 
+  # The controller also verifies the captain capability in off/observe mode.
+  def boundary(%{plug: AgentboardWeb.IntakeController}), do: :captain
+
   def boundary(%{plug: CaptainController, plug_opts: action})
       when action in [:settings, :save, :archive, :restore], do: :captain
 

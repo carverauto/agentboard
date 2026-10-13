@@ -511,13 +511,26 @@ off keep `recipient_route_unavailable` and are never replayed later. Generic
 field instead of a 503; verified sends and legacy `msg` contracts are
 unchanged. See the [agent-chat runbook](setup/mattermost-agent-chat-runbook.md#outbound-spool-and-uncertain-sends).
 
+## Schema 45: work intake
+
+Migration `20261008004500` adds `intake_requests` and `intake_items` and seeds
+the reserved `system-intake` identity that attributes card-to-issue links. It
+is additive: existing tasks, events and outbox rows are untouched. Both tables
+have no PUBLIC grant. Its `down` refuses to drop them, because pending or
+uncertain issue intents are evidence against a blind replay; roll back by
+deploying a compatible image, since older code ignores both tables.
+
+Intake stays off until `AGENTBOARD_INTAKE_ENABLED=true`, and while off its
+routes are unavailable and its outbox does not run. See
+[work intake](setup/intake.md).
+
 ## Schema 46: fleet activation and backlog refill
 
 Migration `20261008004600` adds `fleet_activations` with immutable version
 history, `fleet_refill_assignments` and `fleet_refill_passes`. It inserts the
 reserved `fleet-refill` agent and refuses to migrate when that id already
 exists. Existing fleets gain no activation row, so they stay inactive.
-The stamp uses `GREATEST(version, 46)` and does not define schema 45.
+The stamp uses `GREATEST(version, 46)`.
 Readiness requires schema 46. The down migration raises; roll back by
 deploying a compatible image and keeping the new tables. Behavior is in
 [Fleet backlog refill](setup/fleet-refill.md).
