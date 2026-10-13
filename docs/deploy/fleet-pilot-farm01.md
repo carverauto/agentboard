@@ -224,10 +224,43 @@ AGENTBOARD_URL=https://agentboard.farm01.carverauto.dev \
   --harnesses ~/.config/agentboard/fleet/pilot-harnesses.json --once
 ```
 
-Install the launchd agent from [fleet seat supply](../setup/fleet-host.md#launchd-macos)
-with the same `--host-id`, `--token-file` and `--harnesses` arguments, and load
-it with `launchctl bootstrap gui/$(id -u) …`. It must run in your login session
-to reach the Herdr server.
+Install `~/Library/LaunchAgents/com.agentboard.fleet-host.plist`. launchd
+expands neither `~` nor `$HOME`, so the binary, token file and harness
+allowlist are absolute. `ProgramArguments` starts with the CLI
+`agentboard version` just printed (`~/.local/bin/agentboard` on this Mac).
+`PATH` includes that directory and Herdr (`/opt/homebrew/bin` when Homebrew
+installed it). The URL is the farm01 board, not the example in
+[fleet seat supply](../setup/fleet-host.md#launchd-macos).
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.agentboard.fleet-host</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/YOU/.local/bin/agentboard</string>
+    <string>host</string><string>fleet</string><string>serve</string>
+    <string>--host-id</string><string>HOST_ID</string>
+    <string>--token-file</string><string>/Users/YOU/.config/agentboard/fleet/host.token</string>
+    <string>--harnesses</string><string>/Users/YOU/.config/agentboard/fleet/pilot-harnesses.json</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>AGENTBOARD_URL</key><string>https://agentboard.farm01.carverauto.dev</string>
+    <key>PATH</key><string>/Users/YOU/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/YOU/Library/Logs/agentboard-fleet-host.log</string>
+  <key>StandardErrorPath</key><string>/Users/YOU/Library/Logs/agentboard-fleet-host.log</string>
+</dict>
+</plist>
+```
+
+Load it with `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.agentboard.fleet-host.plist`.
+It must run in your login session to reach the Herdr server.
 
 ## 6. File three issues
 
