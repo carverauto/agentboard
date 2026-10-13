@@ -24,6 +24,7 @@ defmodule Agentboard.Intake.Github do
   # created since the attempt are few, so a short page is the whole lookup.
   @page_size 10
   @max_pages 3
+  @max_login_bytes 255
 
   def configured?, do: match?({:ok, _}, destination())
 
@@ -147,13 +148,13 @@ defmodule Agentboard.Intake.Github do
     case GithubHTTP.exchange(destination, "GET", "/user", [@user_agent], nil, @timeout) do
       {:ok, 200, _headers, body} ->
         case Jason.decode(body) do
-          {:ok, %{"login" => login}} ->
-            if login?(login) do
-              :persistent_term.put({__MODULE__, :creator}, {digest, login})
-              {:ok, login}
-            else
-              {:rejected, "creator_unreadable"}
-            end
+          {:ok, %{"login" => login}}
+          when is_binary(login) and byte_size(login) in 1..@max_login_bytes ->
+            :persistent_term.put({__MODULE__, :creator}, {digest, login})
+            {:ok, login}
+
+          {:ok, %{"login" => _}} ->
+            {:rejected, "creator_unreadable"}
 
           _ ->
             {:retry, "creator_unreadable", 60}
@@ -172,11 +173,6 @@ defmodule Agentboard.Intake.Github do
         {:retry, "creator_unavailable", 60}
     end
   end
-
-  defp login?(login) when is_binary(login),
-    do: String.match?(login, ~r/\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\z/)
-
-  defp login?(_), do: false
 
   defp matches(found), do: Enum.map(found, &%{number: &1["number"], url: &1["html_url"]})
 

@@ -146,11 +146,11 @@ class GitHub(http.server.BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == '/user':
             user_lookups.append(parsed.path)
-            return self.reply(200, {'login': 'intake-bot'})
+            return self.reply(200, {'login': 'mona_acme'})
         query = urllib.parse.parse_qs(parsed.query)
         lists.append(parsed.path)
         per_page = int(query['per_page'][0])
-        assert query['state'] == ['all'] and query['creator'] == ['intake-bot'], query
+        assert query['state'] == ['all'] and query['creator'] == ['mona_acme'], query
         assert query['sort'] == ['created'] and query['direction'] == ['desc'] and 'since' in query, query
         assert 1 <= per_page <= 10, per_page
         if mode['list'] == 'outage':
