@@ -285,7 +285,7 @@ duplicate PR and delegates to the existing live-owner decision contract. It
 returns the usual decision envelope and idempotently parks the owned card.
 It cannot create a system decision, host it on the original Done card, or close
 a GitHub PR. The CLI command is `agentboard pr duplicate-decision ID --task TASK`.
-It requires schema 24; PR list/detail reads carry the additive health field below from schema 27 (see [current readiness](release.md#schema-31-disabled-recovery-checkpoint) for the current floor).
+It requires schema 24; PR list/detail reads carry the additive health field below from schema 27 (see [current readiness](release.md#schema-46-fleet-activation-and-backlog-refill) for the current floor).
 
 ## Agent API credentials
 
@@ -420,7 +420,7 @@ All three endpoints require the verified captain capability (`Authorization: Bea
 
 - `POST /api/v1/fleets/:id/activate` takes `{"mode": "dry_run"|"live"}` and an optional integer `claim_deadline_seconds` from 60 to 86400. The first activation defaults to 1800 seconds; later ones keep the recorded value when the field is omitted. The fleet must have a saved loadout, otherwise the call returns 409. CLI: `fleet activate FLEET --mode dry-run|live [--claim-deadline 30m]`.
 - `POST /api/v1/fleets/:id/deactivate` takes `{}`. It sets the mode to `inactive`, which stops new refill assignments and deadline returns. It releases no claim, stops no seat and leaves existing assignments in place. CLI: `fleet deactivate FLEET`.
-- Both return `{"activation": {"fleet_id", "mode", "claim_deadline_seconds", "revision", "changed_by", "activated_at", "updated_at", "refill_enabled"}, "changed": bool}`. Repeating the current mode and deadline returns `changed: false` and writes nothing. A never-activated fleet reads as `mode: "inactive"`, revision 0. Every change is kept in immutable attributed history.
+- Both return `{"activation": {"fleet_id", "mode", "claim_deadline_seconds", "revision", "changed_by", "activated_at", "updated_at", "refill_enabled"}, "changed": bool}`. Repeating the current mode and deadline returns `changed: false` and writes nothing. A never-activated fleet reads as `mode: "inactive"`, revision 0, and the default 1800-second deadline, with null provenance. Nothing is stored until a real change. Every change is kept in immutable attributed history.
 - `GET /api/v1/fleets/:id/refill` returns `{"refill": {"fleet_id", "refill_enabled", "activation", "last_pass", "pending", "misses"}}`. `last_pass` is null or `{"mode", "pairs", "returned", "passed_at"}`, where `pairs` lists `{"task_id", "agent_id", "priority", "queue_count"}`: would-assign pairs in dry run, assigned pairs in live mode. `pending` lists up to 100 unclaimed refill assignments with `task_id`, `agent_id`, `task_revision`, `message_id`, `deadline_at` and `created_at`. `misses` lists `{"agent_id", "count", "last_missed_at", "attention"}` per seat, where `attention` is true at two or more misses. CLI: `fleet refill status FLEET`.
 
 Unknown fields, an invalid mode or deadline and a malformed fleet ID return 422. A missing or invalid captain capability returns 403.

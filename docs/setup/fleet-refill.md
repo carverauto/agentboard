@@ -33,7 +33,7 @@ Refill never claims work for a seat, chooses a seat by name, merges, deploys or 
 
 ## Claim deadline
 
-Every refill assignment has a claim deadline (`--claim-deadline`, 1m to 24h, default 30m). A seat that does not claim its card by then loses the assignment. The refill pass moves the card back to the backlog through the normal release transition, attributed to `fleet-refill` with a note naming the seat and the deadline. The card is eligible again on the next pass. A card held by an open captain decision is not returned.
+Every refill assignment has a claim deadline (`--claim-deadline`, 1m to 24h, default 30m). A seat that does not claim its card by then loses the assignment. The refill pass moves the card back to the backlog through the normal release transition, attributed to `fleet-refill`. The release note names the seat and the claim interval stored on that assignment (`deadline_at` minus `created_at`, in seconds). A later change to the fleet deadline does not rewrite it. The card is eligible again on the next pass. A card held by an open captain decision is not returned.
 
 Misses are counted per seat. `fleet refill status` lists them, and any seat with two or more misses is flagged `attention: true` for the captain.
 

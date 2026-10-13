@@ -1,9 +1,11 @@
 # Dormant fleet loadout
 
+Superseded in part by schema 46. Captain activation is a separate resource; the note in [design.md](../design.md) is the current statement. The requirements below still govern loadout storage. No loadout field or loadout command activates a fleet.
+
 ## ADDED Requirements
 
 ### Requirement: Captain owns dormant desired configuration
-The system SHALL require verified captain capability for GET and PUT loadout operations. It SHALL expose only disabled, not-activatable, catalog-unverified and host-unverified configuration, derive seat count and perform no runtime or identity/credential operations.
+The system SHALL require verified captain capability for GET and PUT loadout operations. It SHALL expose catalog-unverified and host-unverified configuration, derive seat count and perform no runtime or identity/credential operations. A fleet that is not activated stays disabled and not-activatable. An activated fleet reports `dry_run` or `live` as described in the design note, with `enabled` true only in live mode.
 
 #### Scenario: Missing loadout
 - WHEN a captain reads an unused fleet slug
@@ -11,7 +13,7 @@ The system SHALL require verified captain capability for GET and PUT loadout ope
 
 #### Scenario: Caller requests activation
 - WHEN input includes enabled, activation or another unrecognized field
-- THEN reject without mutation; no endpoint or CLI flag enables a fleet.
+- THEN reject without mutation; no loadout field or loadout CLI flag activates a fleet.
 
 ### Requirement: Seats reference canonical authority
 Each desired seat SHALL reference an existing nonretired seat-kind agent, its exact harness and current managed SeatScope revision. The system SHALL store no duplicate editable scope arrays and SHALL expose current scope and observed model/retirement projections without treating them as model-catalog or host authority.

@@ -2,7 +2,7 @@
 
 A FleetLoadout stores captain-owned desired seat configuration. Every response has `catalog_status: "unverified"` and `host_status: "unverified"`. A fleet that is not activated keeps the dormant state: `enabled: false` and `activation_state: "not_activatable"`.
 
-Saving a loadout cannot start or stop a worker, enroll a host, create an identity or credential, claim or assign a task, or change task ownership. Since schema 46, a captain can activate a saved fleet separately (`agentboard fleet activate FLEET --mode dry-run|live`). That supersedes the always-`not_activatable` response for that fleet only: it reports `activation_state: "dry_run"` or `"live"`, and `enabled: true` only in live mode. Activation lets [backlog refill](https://github.com/carverauto/agentboard/blob/main/docs/setup/fleet-refill.md) assign cards to the fleet's seats; deactivation returns the fleet to the dormant projection. Neither PUT nor any loadout field activates a fleet. Role policy, automatic readiness and admission gates, a trusted model/effort catalog, host validation/reconciliation and Deck integration remain deferred.
+Saving a loadout cannot start or stop a worker, enroll a host, create an identity or credential, claim or assign a task, or change task ownership. Since schema 46, a captain can activate a saved fleet separately (`agentboard fleet activate FLEET --mode dry-run|live`). That supersedes the always-`not_activatable` response for that fleet only: it reports `activation_state: "dry_run"` or `"live"`, and `enabled: true` only in live mode. Activation lets [backlog refill](setup/fleet-refill.md) assign cards to the fleet's seats; deactivation returns the fleet to the dormant projection. Neither PUT nor any loadout field activates a fleet. Role policy, automatic readiness and admission gates, a trusted model/effort catalog, host validation/reconciliation and Deck integration remain deferred.
 
 ## Authority and seat references
 
@@ -65,7 +65,7 @@ GET and PUT `/api/v1/fleets/FLEET_ID/loadout` are captain-only. PUT requires exa
 
 Text length limits apply before normalization. The server trims surrounding whitespace from the key, desired model and desired effort, and sorts seats by `seat_id`. It does not normalize harness spelling or infer missing fields.
 
-An empty replacement returns this envelope:
+An empty replacement of a fleet that is not activated returns this envelope:
 
 ```json
 {
@@ -84,6 +84,8 @@ An empty replacement returns this envelope:
   "replayed": false
 }
 ```
+
+When the fleet is already activated, the same replacement reports the current activation instead of the dormant pair above: `activation_state` is `dry_run` or `live`, and `enabled` is true only in live mode.
 
 For a nonempty loadout, `seats` contains exactly `seat_count` entries, each with all desired fields plus current canonical `scope`, `current_scope_revision`, `observed_model` and `observed_retired_at`. The saved `scope_revision` remains the revision approved in that replacement; GET projects newer current scope/observation data without changing the saved loadout revision. These projections describe current records and confer no activation authority.
 
