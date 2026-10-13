@@ -81,7 +81,7 @@ intents, files no issues, assigns nothing and opens no tabs.
 - `work-intake`: idempotent filing of board cards and GitHub issues from any authorized client, including the `/board` slash command.
 - `helper-access`: the scoped helper credential and the fleet status digest.
 - `backlog-refill`: deterministic assignment of backlog cards to idle eligible seats.
-- `seat-supply`: server seat-launch intents and the host fleet daemon that starts, reconciles and reaps seats.
+- `seat-supply`: server seat-launch intents and the host fleet daemon that starts and reconciles seats. Existing board-free seat reap closes the pane; the server closes the intent after it observes that.
 
 ### Modified Capabilities
 

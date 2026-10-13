@@ -28,7 +28,7 @@ Intake, intake cancel, intake status and `GET /api/v1/fleet/status` SHALL requir
 Backlog refill, seat supply, reaping, CI repair delivery and peer coordination SHALL run without any helper connected. A helper's disconnection or loss of context SHALL NOT stall assignment, launches or reminders.
 
 #### Scenario: Helper goes silent
-- **WHEN** no helper has called the API for a day, the refill and seat-supply flags are on, and a live fleet has requested seats and host cap above its live seats
+- **WHEN** no helper has called the API for a day, the refill and seat-supply flags are on, and a live fleet has requested seats and host cap above its live seats and unassigned open cards above its live seats
 - **THEN** idle seats still receive backlog cards and wanted seats are still launched
 
 ### Requirement: Fleet status digest

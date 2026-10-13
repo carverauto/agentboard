@@ -158,8 +158,9 @@ running seats or deletes intents.
   Launch does not type into an existing pane. The existing content-free seat
   nudge remains the reminder.
 - **GitHub issue duplicates.** Covered by the body marker and adopt-before-retry
-  (D1). A non-unique marker stays uncertain. Unresolved creates stay uncertain
-  rather than retried blindly.
+  (D1). A transient failure stays pending and is retried after GitHub recovers.
+  A definitive rejection or a non-unique marker stays uncertain. Any other
+  unresolved create stays uncertain until reconciled or abandoned.
 - **Assignments a seat cannot do.** The refill job's claim deadline returns them
   to the backlog; repeated misses for one seat mark it for captain attention in
   the digest.
