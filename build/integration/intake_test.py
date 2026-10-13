@@ -196,7 +196,7 @@ class GitHub(http.server.BaseHTTPRequestHandler):
 # --- Default off: routes unavailable, nothing written. ----------------------
 assert api('meta', captain=False)[0]['intake_enabled'] is False
 meta = api('meta', captain=False)[0]
-assert meta['schema_version'] == meta['required_schema_version'] == 46
+assert meta['schema_version'] == meta['required_schema_version'] == 47
 assert sql("SELECT kind||','||harness FROM agents WHERE id='system-intake'") == 'system,ash'
 body, _ = api('intake', {'request_key': 'off', 'items': [{'repository': REPO, 'title': 'x'}]}, status=404)
 assert body['error']['code'] == 'intake_disabled'

@@ -124,7 +124,8 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	// not the caller's self-reported actor environment.
 	fleetLoadout := strings.HasPrefix(path, "fleets/") && strings.HasSuffix(path, "/loadout")
 	fleetRefill := strings.HasPrefix(path, "fleets/") && (strings.HasSuffix(path, "/activate") || strings.HasSuffix(path, "/deactivate") || strings.HasSuffix(path, "/refill"))
-	fleetCaptain := fleetLoadout || fleetRefill
+	fleetSupply := strings.HasPrefix(path, "fleets/") && (strings.HasSuffix(path, "/supply") || strings.Contains(path, "/launch-intents/")) || strings.HasPrefix(path, "fleet-hosts/")
+	fleetCaptain := fleetLoadout || fleetRefill || fleetSupply
 	// Intake is captain-only until scoped helper credentials exist.
 	intake := path == "intake" || strings.HasPrefix(path, "intake/")
 	decisionConversation := isDecisionConversationPath(path)
@@ -230,6 +231,9 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	if fleetRefill {
 		required = 46
 	}
+	if fields, ok := payload.(map[string]any); fleetSupply || ok && fleetRefill && (fields["requested_seats"] != nil || fields["max_seats"] != nil) {
+		required = 47
+	}
 	if fields, ok := payload.(map[string]any); ok {
 		if kind, ok := fields["kind"].(string); ok && (kind == "seat" || kind == "human" || kind == "system" || kind == "fixture") {
 			required = 30
@@ -293,7 +297,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "scope", "loadout", "activation", "refill", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "send", "sends", "decision", "decisions", "wake", "wakes"} {
+	for _, key := range []string{"agent", "agents", "scope", "loadout", "activation", "refill", "supply", "host", "intent", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "send", "sends", "decision", "decisions", "wake", "wakes"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue

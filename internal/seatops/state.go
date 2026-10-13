@@ -76,8 +76,11 @@ func LoadState(path string) (State, error) {
 }
 
 // Save writes atomically: temp file, fsync, rename.
-func (s State) Save(path string) error {
-	raw, err := json.MarshalIndent(s, "", " ")
+func (s State) Save(path string) error { return saveJSON(path, s) }
+
+// saveJSON writes value as indented JSON atomically: temp file, fsync, rename.
+func saveJSON(path string, value any) error {
+	raw, err := json.MarshalIndent(value, "", " ")
 	if err != nil {
 		return err
 	}

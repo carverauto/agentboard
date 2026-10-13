@@ -16,7 +16,7 @@ func (c *commands) hostCommands() *cobra.Command {
 	path := filepath.Join(home, ".config", "agentboard", "host", "config.json")
 	id, cursor := "", ""
 	dryRun := true
-	group := &cobra.Command{Use: "host", Short: "Scoped wake shadow inspection; native activation remains disabled"}
+	group := &cobra.Command{Use: "host", Short: "Scoped wake shadow inspection and fleet seat supply; native activation remains disabled"}
 	group.PersistentFlags().StringVar(&path, "config", path, "Protected worker-compatible host manifest with repository scopes")
 	run := &cobra.Command{Use: "run", Short: "Poll bounded shadow pages with shared worker custody and backoff", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if !dryRun {
@@ -59,6 +59,6 @@ func (c *commands) hostCommands() *cobra.Command {
 	}}
 	preview.Flags().StringVar(&platform, "platform", platform, "linux systemd or darwin launchd")
 	preview.Flags().StringVar(&installHome, "home", home, "Local preview home; no installation")
-	group.AddCommand(preview)
+	group.AddCommand(preview, c.hostFleetCommand())
 	return group
 }

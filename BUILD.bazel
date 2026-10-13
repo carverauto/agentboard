@@ -103,6 +103,7 @@ test_suite(
         "//build/integration:idle_continuation_test",
         "//build/integration:fleet_refill_test",
         "//build/integration:intake_test",
+        "//build/integration:seat_supply_test",
         "//build/integration:ci_accountability_test",
         "//build/integration:default_branch_workflows_test",
         "//build/integration:repository_metadata_test",

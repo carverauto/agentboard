@@ -41,6 +41,19 @@ type SpawnedSeat struct {
 // ErrSeatExists means the host already has a pane or tab with the seat's name.
 var ErrSeatExists = errors.New("seat already exists on this host")
 
+// notStarted marks a spawn error raised before the host created any tab or
+// pane, so retrying the same launch cannot open a second one.
+type notStarted struct{ error }
+
+func (e notStarted) Unwrap() error { return e.error }
+
+// NotStarted reports whether err refused a spawn before the host created a
+// tab or pane.
+func NotStarted(err error) bool {
+	var refused notStarted
+	return errors.As(err, &refused)
+}
+
 // DefaultSpawnConfigPath is ~/.config/agentboard/fleet/harnesses.json.
 func DefaultSpawnConfigPath() string {
 	home, _ := os.UserHomeDir()
@@ -203,7 +216,7 @@ func checkLauncher(path string) error {
 }
 
 // SpawnOptions are one spawn's caller inputs. Repo and Root override the
-// allowlist defaults; an empty Brief generates one.
+// allowlist defaults; an empty Brief generates one, which needs Task.
 type SpawnOptions struct {
 	Task, Agent, Harness string
 	Brief                string
@@ -213,7 +226,7 @@ type SpawnOptions struct {
 
 // SpawnPlan is everything a spawn would do, decided before any host call.
 type SpawnPlan struct {
-	Task      string            `json:"task"`
+	Task      string            `json:"task,omitempty"`
 	Agent     string            `json:"agent"`
 	Harness   string            `json:"harness"`
 	Model     string            `json:"model"`
@@ -230,7 +243,7 @@ type SpawnPlan struct {
 // which leases the Treehouse worktree, writes the STOP brief and runs the
 // harness there; the tab itself opens in the source checkout.
 func PlanSpawn(cfg SpawnConfig, opts SpawnOptions) (SpawnPlan, error) {
-	if !seatSlug.MatchString(opts.Agent) || !seatSlug.MatchString(opts.Task) {
+	if !seatSlug.MatchString(opts.Agent) || (opts.Task != "" || opts.Brief == "") && !seatSlug.MatchString(opts.Task) {
 		return SpawnPlan{}, errors.New("refuses: agent and task IDs must be lowercase slugs")
 	}
 	h, ok := cfg.Harnesses[opts.Harness]
@@ -303,11 +316,11 @@ func Spawn(ctx context.Context, host Host, plan SpawnPlan, apply bool) (SpawnRep
 	report := SpawnReport{DryRun: !apply, SpawnPlan: plan}
 	panes, err := host.Agents(ctx)
 	if err != nil {
-		return report, fmt.Errorf("refuses: seat host unavailable: %w", err)
+		return report, notStarted{fmt.Errorf("refuses: seat host unavailable: %w", err)}
 	}
 	for _, p := range panes {
 		if p.Name == plan.Agent {
-			return report, fmt.Errorf("refuses: pane %s is already named %s: %w", p.Pane, plan.Agent, ErrSeatExists)
+			return report, notStarted{fmt.Errorf("refuses: pane %s is already named %s: %w", p.Pane, plan.Agent, ErrSeatExists)}
 		}
 	}
 	if !apply {
@@ -315,7 +328,7 @@ func Spawn(ctx context.Context, host Host, plan SpawnPlan, apply bool) (SpawnRep
 	}
 	if plan.BriefText != "" {
 		if err := writePrivate(plan.Brief, plan.BriefText); err != nil {
-			return report, fmt.Errorf("write brief: %w", err)
+			return report, notStarted{fmt.Errorf("write brief: %w", err)}
 		}
 	}
 	seat, err := host.Spawn(ctx, SpawnRequest{Label: plan.Agent, Workspace: plan.Workspace, Cwd: plan.Cwd, Env: plan.Env, Argv: plan.Argv})

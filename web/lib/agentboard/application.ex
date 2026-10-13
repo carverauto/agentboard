@@ -31,7 +31,8 @@ defmodule Agentboard.Application do
            mattermost_sender: [limit: 2, paused: not bridge_enabled?()],
            mattermost_provision: [limit: 1],
            fleet_refill: [limit: 1, paused: not refill_enabled?()],
-           intake: [limit: 2, paused: not intake_enabled?()]
+           intake: [limit: 2, paused: not intake_enabled?()],
+           seat_supply: [limit: 1, paused: not supply_enabled?()]
          ],
          plugins: [Oban.Plugins.Cron, Oban.Plugins.Pruner]
        )},
@@ -52,6 +53,8 @@ defmodule Agentboard.Application do
   defp refill_enabled?, do: Agentboard.FleetRefill.enabled?()
 
   defp intake_enabled?, do: Agentboard.Intake.enabled?()
+
+  defp supply_enabled?, do: Agentboard.SeatSupply.enabled?()
 
   defp worker_config(options) do
     config =
@@ -82,6 +85,7 @@ defmodule Agentboard.Application do
               {_, Agentboard.Mattermost.RoutePending, _} -> not bridge_enabled?()
               {_, Agentboard.FleetRefill.RefillFleets, _} -> not refill_enabled?()
               {_, Agentboard.Intake.DispatchDue, _} -> not intake_enabled?()
+              {_, Agentboard.SeatSupply.SupplyFleets, _} -> not supply_enabled?()
               _ -> false
             end)
 

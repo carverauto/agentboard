@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -36,7 +37,7 @@ type fleetSeatInput struct {
 }
 
 func (c *commands) fleetCommands() *cobra.Command {
-	group := &cobra.Command{Use: "fleet", Short: "Captain-owned fleet configuration, activation and refill status"}
+	group := &cobra.Command{Use: "fleet", Short: "Captain-owned fleet configuration, activation, refill and seat supply"}
 	loadout := &cobra.Command{Use: "loadout", Short: "Store desired seats without activating workers"}
 	show := &cobra.Command{Use: "show FLEET_ID", Short: "Show a dormant loadout using the protected captain capability", Args: idArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -56,24 +57,117 @@ func (c *commands) fleetCommands() *cobra.Command {
 		}}
 	set.Flags().StringVar(&file, "file", "", "UTF-8 JSON replacement with revision, idempotency_key and seats (up to 1 MiB)")
 	loadout.AddCommand(show, set)
-	group.AddCommand(loadout, c.fleetActivateCommand(), c.fleetDeactivateCommand(), c.fleetRefillCommand())
+	group.AddCommand(loadout, c.fleetActivateCommand(), c.fleetDeactivateCommand(), c.fleetRefillCommand(), c.fleetSupplyCommand(), c.fleetHostCommand())
 	return group
 }
 
 func (c *commands) fleetActivateCommand() *cobra.Command {
 	var mode string
 	var deadline time.Duration
-	cmd := &cobra.Command{Use: "activate FLEET_ID --mode dry-run|live [--claim-deadline DURATION]", Short: "Captain: let backlog refill use this fleet's seats (dry-run records would-assign pairs only)", Args: idArgs,
+	var requested, maximum int
+	cmd := &cobra.Command{Use: "activate FLEET_ID --mode dry-run|live [--claim-deadline DURATION] [--requested-seats N] [--max-seats N]", Short: "Captain: let backlog refill and seat supply use this fleet's seats (dry-run records would-assign pairs and would-launch intents only)", Args: idArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, err := fleetActivation(mode, deadline, cmd.Flags().Changed("claim-deadline"))
 			if err != nil {
 				return err
 			}
+			for flag, value := range map[string]int{"requested-seats": requested, "max-seats": maximum} {
+				if !cmd.Flags().Changed(flag) {
+					continue
+				}
+				if value < 0 || value > 32 {
+					return fmt.Errorf("--%s must be from 0 to 32", flag)
+				}
+				payload[strings.ReplaceAll(flag, "-", "_")] = value
+			}
 			return c.request(cmd, http.MethodPost, "fleets/"+args[0]+"/activate", nil, payload)
 		}}
-	cmd.Flags().StringVar(&mode, "mode", "", "dry-run (record would-assign pairs, write nothing) or live (assign and order)")
+	cmd.Flags().StringVar(&mode, "mode", "", "dry-run (record would-assign pairs and would-launch intents, write nothing else) or live (assign, order and launch)")
 	cmd.Flags().DurationVar(&deadline, "claim-deadline", 0, "Return an unclaimed refill assignment to the backlog after this long, 1m to 24h (default 30m on first activation, otherwise unchanged)")
+	cmd.Flags().IntVar(&requested, "requested-seats", 0, "Seats seat supply should keep live, 0 to 32 (default 0 on first activation, otherwise unchanged)")
+	cmd.Flags().IntVar(&maximum, "max-seats", 0, "Most live seats seat supply may reach, 0 to 32 (default 0 on first activation, otherwise unchanged)")
 	return cmd
+}
+
+func (c *commands) fleetSupplyCommand() *cobra.Command {
+	group := &cobra.Command{Use: "supply", Short: "Inspect seat supply launch intents"}
+	status := &cobra.Command{Use: "status FLEET_ID", Short: "Captain: activation seat counts, demand, host enrollment, open and recent launch intents", Args: idArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return c.request(cmd, http.MethodGet, "fleets/"+args[0]+"/supply", nil, nil)
+		}}
+	var reason string
+	abandon := &cobra.Command{Use: "abandon FLEET_ID INTENT_ID --reason TEXT", Short: "Captain: close an open launch intent (for example a stuck uncertain one) so its seat can be supplied again", Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !config.ValidID(args[0]) {
+				return errors.New("FLEET_ID must be a lowercase slug")
+			}
+			if !fleetText(reason, 500) {
+				return errors.New("--reason must be nonblank, control-free text of at most 500 bytes")
+			}
+			return c.request(cmd, http.MethodPost, "fleets/"+args[0]+"/launch-intents/"+url.PathEscape(args[1])+"/abandon", nil, map[string]any{"reason": reason})
+		}}
+	abandon.Flags().StringVar(&reason, "reason", "", "Why the intent is abandoned (recorded on it)")
+	group.AddCommand(status, abandon)
+	return group
+}
+
+func (c *commands) fleetHostCommand() *cobra.Command {
+	group := &cobra.Command{Use: "host", Short: "Enroll seat-supply hosts"}
+	var launchCap int
+	var rotate bool
+	var tokenFile string
+	set := &cobra.Command{Use: "set HOST_ID --launch-cap N [--token-file PATH] [--rotate-token]", Short: "Captain: enroll a host or change its launch cap; a new token is written only to --token-file", Args: idArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if launchCap < 0 || launchCap > 32 {
+				return errors.New("--launch-cap must be from 0 to 32")
+			}
+			if tokenFile != "" {
+				if _, err := os.Lstat(tokenFile); !errors.Is(err, os.ErrNotExist) {
+					return errors.New("--token-file must name a new file; move the old token aside first")
+				}
+			}
+			raw, err := c.call(cmd, http.MethodPut, "fleet-hosts/"+args[0], nil, map[string]any{"launch_cap": launchCap, "rotate_token": rotate})
+			if err != nil {
+				return err
+			}
+			return c.output(cmd.OutOrStdout(), storeHostToken(raw, tokenFile, cmd))
+		}}
+	set.Flags().IntVar(&launchCap, "launch-cap", 0, "Launches this host may run at once, 0 to 32 (0 launches nothing)")
+	set.Flags().BoolVar(&rotate, "rotate-token", false, "Issue a new token; the old one stops working")
+	set.Flags().StringVar(&tokenFile, "token-file", "", "New file (mode 0600) that receives an issued token; required on first enrollment and with --rotate-token")
+	_ = set.MarkFlagRequired("launch-cap")
+	group.AddCommand(set)
+	return group
+}
+
+// storeHostToken writes an issued token to tokenFile with mode 0600 and
+// removes it from the output, so the token never reaches a terminal or log.
+// Without a token file an issued token is withheld and reported as lost.
+func storeHostToken(raw json.RawMessage, tokenFile string, cmd *cobra.Command) json.RawMessage {
+	var response map[string]json.RawMessage
+	if json.Unmarshal(raw, &response) != nil {
+		return raw
+	}
+	encoded, issued := response["token"]
+	if !issued {
+		return raw
+	}
+	delete(response, "token")
+	var token string
+	if json.Unmarshal(encoded, &token) == nil && tokenFile != "" {
+		if err := writeNewPrivate(tokenFile, token+"\n"); err == nil {
+			response["token_file"], _ = json.Marshal(tokenFile)
+		} else {
+			fmt.Fprintln(cmd.ErrOrStderr(), "warning: issued token was not stored: "+err.Error()+"; rotate it with --rotate-token --token-file NEW")
+		}
+	} else {
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning: an issued token was withheld because --token-file is unset; rotate it with --rotate-token --token-file PATH")
+	}
+	out, err := json.Marshal(response)
+	if err != nil {
+		return raw
+	}
+	return out
 }
 
 func (c *commands) fleetDeactivateCommand() *cobra.Command {
@@ -112,6 +206,19 @@ func fleetActivation(mode string, deadline time.Duration, deadlineSet bool) (map
 		payload["claim_deadline_seconds"] = int64(deadline / time.Second)
 	}
 	return payload, nil
+}
+
+// writeNewPrivate creates path with mode 0600, refusing an existing file.
+func writeNewPrivate(path, text string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := file.WriteString(text); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 func readFleetLoadout(path string) (fleetLoadoutInput, error) {
