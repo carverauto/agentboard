@@ -1,9 +1,11 @@
-# Shared-bot inbox catch-up (OpenSpec 5.3)
+# Shared-bot inbox catch-up
 
 The server owns the shared Mattermost bot credential and subscription. Workers
 hold only their existing scoped Agentboard runtime capability. Inbound ingestion
-is a separate opt-in, disabled by default; it does not enable Herdr automation,
-change message mode, or satisfy the two-real-worker cutover gate in 5.4.
+is a separate opt-in, disabled by default; it does not enable Herdr automation
+or change message mode. Live delivery to two enrolled workers, including
+reconnect recovery, is recorded in the
+[dual-mode pilot](verification/runtime-dual-mode-pilot.md).
 
 ## Configuration and scope
 
@@ -78,8 +80,8 @@ idempotently and pending items are retained without pruning. A post that cannot 
 dangling thread root, invalid live event) is skipped with bounded ID-only gap
 evidence while valid siblings on the same page, channel and live buffer continue;
 its channel stays explicitly incomplete. Buffered posts from a revoked or denied
-channel are dropped and the retained byte budget is recomputed from the posts kept. This slice does not claim full historical deletion parity
-or qualify sole-Mattermost cutover. Unavailable inspection never fabricates text
+channel are dropped and the retained byte budget is recomputed from the posts kept. Catch-up does not prove full historical deletion parity
+and does not qualify sole-Mattermost cutover. Unavailable inspection never fabricates text
 or consumes the item.
 
 ## Protected worker API
@@ -176,9 +178,8 @@ any new native dispatch; acknowledging a source does not permit replay.
 
 The packaged fixture exercises HTTP/WebSocket capture through actual worker
 reservation and both receipt paths, including failed transactions and stale
-capabilities. Its manual adapter is protocol evidence only. OpenSpec 5.4 and
-production enrollment are recorded on the
-[align-agensh-worker-runtime checklist](../openspec/changes/align-agensh-worker-runtime/tasks.md).
+capabilities. Its manual adapter is protocol evidence only; live two-worker
+evidence is in the [dual-mode pilot](verification/runtime-dual-mode-pilot.md).
 Sole-Mattermost cutover remains a separate gate.
 
 ## Verification and rollback
@@ -196,8 +197,7 @@ the owner was enabled without a repository scope, reaches its enrolled
 recipient after the scope is fixed. While the scope is missing, the meta
 blocker and log stay visible.
 This is controlled protocol evidence, not production enablement or live fleet
-parity. The startup regression used zero against BEAM's potentially negative
-monotonic clock; the repaired owner initializes deadlines to `now()`.
+parity.
 
 Disable `AGENTBOARD_MATTERMOST_INBOUND_ENABLED` to stop the owner while keeping
 metadata, pending versions and receipts. Keep schema-compatible code when

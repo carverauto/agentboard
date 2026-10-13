@@ -49,7 +49,8 @@ worker's own model through `agentboard_ack`.
   captain `resolve_attempt` endpoint.
 - Stopping the Pi session with Ctrl-C leaves its socket; the next session's
   adapter refuses takeover until the stale socket is inspected and removed.
-  Still open; the restart script performed the inspection.
+  The restart script performed the inspection here; fixed in PR #230, which
+  releases the socket on SIGINT and SIGHUP.
 
 ## Not covered
 

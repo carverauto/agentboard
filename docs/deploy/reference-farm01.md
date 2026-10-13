@@ -537,7 +537,7 @@ private routes + chat spool, message history, idle continuation, worker
 handled guidance; schema 44) was rolled to farm01 using dashboard digest
 `sha256:5fb1093224553621c3398da79f99a6410b8398296116280e83be5fb014df6560`
 from [Container images run 38280047187](https://github.com/carverauto/agentboard/actions/runs/38280047187).
-This is the current operator image pin.
+It was later replaced by the v0.3.0 pin below.
 
 No pre-migration database backup was taken, by explicit maintainer decision
 (pre-release development data). The maintainer applied migration Job
@@ -566,6 +566,22 @@ boolean flags to `false` with a restart, keeping the additive schema 44.
 Leaving `AGENTBOARD_MATTERMOST_INBOUND_REPO` set is harmless while inbound is
 disabled. The [dual-mode pilot](../verification/runtime-dual-mode-pilot.md)
 records the later outage check on this deployment.
+
+## Release v0.3.0 and tested rollback
+
+On 2026-10-13 UTC the maintainer rolled the published
+[v0.3.0](https://github.com/carverauto/agentboard/releases/tag/v0.3.0) dashboard
+digest `sha256:d356c8b98197843dfb0951e0122fae71c86de982f3c1debffe3a74a3e07a8ac8`
+(main `d803171`, schema 44, no migration) over `37d496e`
+(`sha256:aa015aaf…`). This is the current operator image pin.
+
+The same run tested rollback: image back to `37d496e`, then message mode
+`dual` → `board` with inbound and private routes off, then the recorded
+ConfigMap restored and v0.3.0 rolled forward again. Row counts of all 108
+public tables never decreased between stages, and a canary task written on
+v0.3.0 survived every stage. A write on the rolled-back image was not proved:
+it hit the few-second 503 window of the single-replica pod swap. Details are in
+the [rollout receipt](../verification/farm01-v0.3.0-rollout.json).
 
 ## Coordinator attribution
 

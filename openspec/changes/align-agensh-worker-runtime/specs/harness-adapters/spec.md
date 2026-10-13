@@ -27,7 +27,7 @@ Bindings SHALL use stable board agent identity, explicit host/session/transport 
 - **THEN** previous-generation callbacks are retired and only the verified new binding can consume new frames
 
 ### Requirement: Safe Herdr transport
-Herdr automation SHALL require negotiated installed-server capabilities and a verified recipient/safe-input boundary. It SHALL defer working, blocked, unknown, paused or occupied-composer sessions. Herdr state SHALL NOT become board roster, ownership or batch-handling authority.
+Herdr submission of delivery frames or source text SHALL require negotiated installed-server capabilities and a verified recipient/safe-input boundary, and SHALL defer working, blocked, unknown, paused or occupied-composer sessions. Content-free check-in reminders to idle named seats are governed by the seat-nudge capability (`add-seat-nudge-reap`), carry no delivery content and are never a receipt. Herdr state SHALL NOT become board roster, ownership or batch-handling authority.
 
 #### Scenario: Approval dialog active
 - **WHEN** a delivery targets a Herdr agent waiting for approval
@@ -37,16 +37,12 @@ Herdr automation SHALL require negotiated installed-server capabilities and a ve
 - **WHEN** the installed Herdr server cannot prove safe automatic submission for the selected session
 - **THEN** automatic prompting stays disabled with an explicit reason and manual/native check-in remains available
 
-#### Scenario: Herdr reports done
-- **WHEN** Herdr observes the bound session as done after a submission
-- **THEN** the runtime treats that as lifecycle evidence and still requires exact Agentboard handling receipts
-
 ### Requirement: Truthful per-adapter capabilities
 Each binding SHALL report versioned support for idle wake, turn-start delivery, tool-return delivery, native receipts and recovery, with unsupported/degraded reasons. A model change SHALL NOT imply a harness feature. Unsupported native adapters SHALL retain verified fallback/check-in without a claim of mid-turn parity.
 
 #### Scenario: Muse or AGY has no validated hook contract
-- **WHEN** it can use a verified Herdr transport but lacks native boundary proof
-- **THEN** the dashboard reports idle delivery/check-in support and explicitly marks native mid-turn delivery unsupported
+- **WHEN** a harness has no verified native adapter and is enrolled as `manual`
+- **THEN** every native capability is reported unsupported with a reason, automatic binding is refused, and explicit check-in with exact receipts remains available
 
 ### Requirement: Boundary delivery preserves existing tools
 Ordinary events SHALL enter at an eligible turn boundary. Urgent DMs/new relevant Context SHALL enter supported infrastructure-tool return boundaries in delimited source frames preserving the original tool result. Existing CLI JSON/NDJSON contracts SHALL remain unchanged, and arbitrary running processes SHALL NOT be interrupted.
@@ -60,7 +56,7 @@ Ordinary events SHALL enter at an eligible turn boundary. Urgent DMs/new relevan
 - **THEN** its stdout remains compatible JSON/NDJSON without appended runtime prose
 
 ### Requirement: Harness-owned continuation mechanisms
-Native adapters SHALL use the installed harness's supported completion/hooks/extensions with one wake owner and generation-aware cleanup. Codex fallback SHALL use bounded foreground checkpoints; native background wake SHALL be advertised only with a verified completion callback. Detached shell backgrounding SHALL NOT stand in for a supported wake path.
+Native adapters SHALL use the installed harness's supported completion/hooks/extensions with one wake owner and generation-aware cleanup. A harness without a verified native wake SHALL fall back to explicit check-in (`manual`) and report its unsupported capabilities; native background wake SHALL be advertised only with a verified completion callback. Detached shell backgrounding SHALL NOT stand in for a supported wake path.
 
 #### Scenario: Tracked callback capability absent
 - **WHEN** a harness cannot prove a native background completion resumes the correct session

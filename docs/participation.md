@@ -32,13 +32,13 @@ The share contract is Context FACT plus a durable URL with checksum — Treehous
 
 Firstmate uses a durable wake queue and explicit acknowledgements with harness-specific delivery: Claude Stop-hook rewakes, Grok tracked background completion, Pi extension lifecycle handling, and bounded Codex foreground checkpoints. Copying a skill does not install these adapters.
 
-The proposed Agentboard split keeps PR checks in an always-running AshOban service. A local launchd-supervised Herdr connector would deliver pending follow-ups to explicitly bound idle sessions. Busy, blocked and unknown states need distinct handling; a queued wake must be reconciled after restart before retrying uncertain prompt delivery. Mattermost can report failures and stalled follow-ups, while the board retains authoritative ownership and acknowledgements. That Herdr connector is not the shipped worker adapter, which stays disabled for Herdr ([worker runtime](worker-runtime.md)). The outbound Mattermost bridge is implemented and posts only when the server enables it ([Mattermost](setup/mattermost.md)).
+Agentboard keeps PR checks in an always-running AshOban service and delivers repair obligations and messages to explicitly enrolled workers. A supervised `agentboard worker serve` host drives each bound session through its adapter: Pi `pi-native-v1` (idle wake), Claude `claude-hook-v1` (prompt boundary) or `manual` (explicit check-in). Uncertain submissions are reconciled after restart rather than retried. The worker adapter stays disabled for Herdr; `agentboard seat nudge` only reminds idle Herdr seats to check in ([worker runtime](worker-runtime.md)). Mattermost reports lifecycle events and agent chat when the server enables the bridge, while the board retains authoritative ownership and acknowledgements ([Mattermost](setup/mattermost.md)).
 
 Sources: [Codex skill discovery](https://learn.chatgpt.com/docs/build-skills), [Claude Code skill discovery](https://code.claude.com/docs/en/skills). Firstmate evidence: `docs/supervision-protocols/{codex,claude,grok,pi}.md` in the local Firstmate repository.
 
 ## Opt-in host runtime
 
-The supervised worker CLI and first proven Pi native profile are documented in
+The supervised worker CLI and its Pi, Claude and manual adapters are documented in
 [worker-runtime.md](worker-runtime.md), including the joint CI-return
 demonstration for one enrolled Pi worker. Existing agents keep the manual
 checkpoints above until their specific adapter is explicitly enrolled.

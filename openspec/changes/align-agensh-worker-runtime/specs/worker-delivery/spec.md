@@ -42,7 +42,7 @@ The system SHALL capture a source intent atomically with relevant board changes 
 - **THEN** it resumes unfinished routing and preserves prior unique recipient deliveries
 
 ### Requirement: Explicit enrollment and bounded bootstrap
-Workers SHALL enroll with explicit repository/goal scopes. Bootstrap SHALL present current responsibilities, unresolved obligations and bounded relevant Context with continuation links. Subscriptions and received source text SHALL NOT grant task ownership or permission for unrelated work, merge, deployment or lease recovery.
+Workers SHALL enroll with explicit repository scopes. Bootstrap SHALL present current responsibilities, unresolved obligations and bounded relevant Context with continuation links. Subscriptions and received source text SHALL NOT grant task ownership or permission for unrelated work, merge, deployment or lease recovery.
 
 #### Scenario: Restart after conversation compaction
 - **WHEN** an enrolled worker resumes without remembering its prior tasks
