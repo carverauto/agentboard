@@ -328,11 +328,15 @@ Expected, in order (record a timestamp for each):
    `/Volumes/Build/app-testing-seats-v3` and starts its harness.
 3. Intents move to `launched` with pane and lease identity.
 4. Each seat registers from its own pane and then heartbeats. Refill assigns
-   one card per live seat per pass and sends a `task_order`; the third card waits.
+   one card per live seat per pass and sends a `task_order`. With the default
+   queue limit of 2, that first pass leaves the third card unassigned. About a
+   minute later the next refill pass assigns it to a seat that still has queue
+   room, so that seat may hold two cards.
 5. Each seat claims within the 30 minute deadline (a miss returns the card and
    is counted in `fleet refill status`).
-6. Each seat opens a PR and links it to its card. The third card goes to the
-   first seat that finishes or has queue room.
+6. Each seat opens a PR and links it to its card. The third card is already
+   on a seat: the refill pass about a minute after the first assignment gives
+   it to a seat that still has queue room, and that seat may hold two cards.
 7. After the captain merges, the card stays in review until it is done or
    released. Once Herdr reports the pane idle for `reap_after` (default 30m),
    the seat owns no open, assigned, in-progress, blocked or review task, it
@@ -355,7 +359,7 @@ step, and anything that needed the captain. Tick 6.1 in
 | Goal | Action |
 | --- | --- |
 | Stop new launches on the Mac | `agentboard fleet host set HOST_ID --launch-cap 0` |
-| Stop assignments and launches for the fleet | `agentboard fleet deactivate pilot` (running seats, claims and intents stay) |
+| Stop assignments and launches for the fleet | `agentboard fleet deactivate pilot` stops new intents and launches. Open `dry_run` rows stay. A `pending` intent is closed `superseded` when the daemon next polls. `reserved`, `uncertain` and `launched` intents and running seats stay. |
 | Free a stuck seat | `agentboard fleet supply abandon pilot INTENT_ID --reason "..."` after checking the pane by hand |
 | Stop the daemon | `launchctl bootout gui/$(id -u)/com.agentboard.fleet-host` |
 | Turn the features off | Set the three `*_ENABLED` literals to `false` and restart |
