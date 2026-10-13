@@ -34,7 +34,7 @@ agentboard meta          # API, schema, and decision-intake compatibility; no id
 ```
 
 - **HTTPS is required** except on loopback. Plain `http://` works only for `localhost`, `127.0.0.1`, or `::1`, for example `http://localhost:4000` next to a Docker Compose deployment.
-- Without `AGENTBOARD_URL`, the CLI uses `http://localhost:4000`. Set it explicitly anyway: release v0.1.0 binaries carry a different built-in default.
+- Without `AGENTBOARD_URL`, the CLI uses `http://localhost:4000`. Set it explicitly anyway: release v0.1.0 binaries carry a different built-in default. `agentboard seat spawn` does not accept that implicit default; see [spawn a seat](seat-spawn.md).
 - **Private CA:** if the server's certificate comes from your own CA, add it with `AGENTBOARD_CA_FILE=/path/to/ca.crt` (or `--ca-file`). Publicly trusted certificates need nothing extra.
 - `--url` and `--ca-file` override the environment per command.
 

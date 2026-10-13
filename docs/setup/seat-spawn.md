@@ -35,7 +35,7 @@ takes another absolute path):
 
 | Field | Meaning |
 | --- | --- |
-| `launcher` | Absolute path of `scripts/launch-seat`. Must be a regular executable file, not a symlink |
+| `launcher` | Absolute path of `scripts/launch-seat`. Must be a regular executable file, not a symlink, and not group or world writable |
 | `repo`, `root` | Default source checkout and Treehouse v3 pool root. `--repo` and `--root` override them. Both must be absolute directories |
 | `workspace` | Label of the Herdr workspace that seat tabs open in (default `agentboard-seats`) |
 | `brief_dir` | Where generated briefs are written (default shown) |
@@ -46,25 +46,31 @@ harness (`codex`, `claude`, …). `seat nudge` matches the Herdr agent kind to i
 The allowlist must be a regular file owned by you, not group/world writable and
 not a symlink. Unknown fields are rejected.
 
+## What a dry run checks
+
+A dry run and `--apply` both ask Herdr for its agent list first. A pane
+already named `AGENT_ID` stops the command, and nothing is opened. A dry run
+then prints the plan as JSON. It does not write a brief, create a workspace
+or tab, or run the launcher. Workspace and tab-label checks happen only on
+`--apply`.
+
 ## What happens on `--apply`
 
-1. Herdr is asked for its agent list. A pane already named `AGENT_ID` stops
-   the spawn.
-2. Without `--brief`, a short brief is written to
+1. Without `--brief`, a short brief is written to
    `brief_dir/AGENT_ID--TASK.md` (mode 0600). It tells the seat to register
    with `--backend herdr` and run its agentboard check-in. It claims `TASK` only
    if the board gives it that task.
-3. Spawn finds the one Herdr workspace labelled `workspace` and creates it with
-   `workspace create --no-focus` if none exists. When several workspaces share
-   the label, or the workspace already has a tab labelled `AGENT_ID`, spawn
-   stops.
-4. It creates the seat's tab with `tab create --workspace W --cwd REPO --label
+2. Spawn finds the one Herdr workspace labelled `workspace` and creates it with
+   `workspace create --cwd REPO --label WORKSPACE --no-focus` if none exists.
+   When several workspaces share the label, or the workspace already has a tab
+   labelled `AGENT_ID`, spawn stops.
+3. It creates the seat's tab with `tab create --workspace W --cwd REPO --label
    AGENT_ID --no-focus`. The tab's environment carries `AGENT_ID`,
    `AGENTBOARD_HARNESS`, `AGENTBOARD_MODEL`, `AGENTBOARD_URL`,
    `AGENTBOARD_SEAT_SOURCE` and `AGENTBOARD_SEAT_ROOT`.
-5. It runs `pane run PANE 'launcher --repo REPO --root ROOT --brief BRIEF --
-   argv…'` on the root pane that `tab create` just returned. That is the only
-   pane spawn ever sends input to.
+4. It runs `pane run` on the root pane that `tab create` just returned, passing
+   `launcher --repo REPO --root ROOT --brief BRIEF -- argv…` as one shell-quoted
+   command. That is the only pane spawn ever sends input to.
 
 The tab opens in the source checkout because that is where `launch-seat` is
 invoked. The launcher acquires the worktree, checks isolation twice and starts
@@ -78,11 +84,12 @@ Spawn never forwards `AGENTBOARD_TOKEN`. If the board requires a per-agent
 token, provide it the way you do for any seat on this host, for example
 `AGENTBOARD_TOKEN_FILE` in the shell profile.
 
-The JSON report contains the plan (`argv`, `env`, `cwd`, `brief`, and
-`brief_text` when the brief is generated). After `--apply` it also contains
-`spawned` with the Herdr `workspace_id`, `tab_id`, `pane_id` and
-`created_workspace`. If the tab was created but `pane run` failed, the report
-still names the new pane. Check that pane before you close it.
+A successful dry run and a successful `--apply` both print the plan as JSON
+(`argv`, `env`, `cwd`, `brief`, and `brief_text` when the brief is generated).
+After `--apply` the report also contains `spawned` with the Herdr
+`workspace_id`, `tab_id`, `pane_id` and `created_workspace`. If the tab was
+created but `pane run` failed, the report still names the new pane. Check that
+pane before you close it.
 
 ## Refusals
 
@@ -90,6 +97,8 @@ Spawn stops with a `refuses:` error, and nothing is opened, when:
 
 - the allowlist path is relative, missing, a symlink, owned by someone else or
   writable by others
+- `--task` or `--agent` is not a lowercase slug (a letter or digit, then letters,
+  digits, `_` or `-`, at most 128 characters)
 - the harness is not in the allowlist
 - a Herdr pane is already named `AGENT_ID`, or the workspace already has a
   tab labelled `AGENT_ID`
