@@ -152,7 +152,7 @@ class GitHub(http.server.BaseHTTPRequestHandler):
         per_page = int(query['per_page'][0])
         assert query['state'] == ['all'] and query['creator'] == ['mona_acme'], query
         assert query['sort'] == ['created'] and query['direction'] == ['desc'] and 'since' in query, query
-        assert per_page == 100, per_page
+        assert 1 <= per_page <= 10, per_page
         if mode['list'] == 'outage':
             return self.reply(503, {'message': 'fixture outage'})
         page = int(query['page'][0])

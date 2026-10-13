@@ -20,8 +20,11 @@ defmodule Agentboard.Intake.Github do
 
   @user_agent {"user-agent", "agentboard-intake"}
   @timeout 15_000
-  @page_size 100
-  @max_pages 10
+  # One page must fit the shared 1 MiB observation cap. The listing is read
+  # until a short page. The safety bound is 1000 issues; pull requests do not
+  # count toward it.
+  @page_size 10
+  @max_issues 1_000
   @max_login_bytes 255
 
   def configured?, do: match?({:ok, _}, destination())
@@ -72,11 +75,17 @@ defmodule Agentboard.Intake.Github do
   def find_marker(repository, marker, since) do
     with {:ok, destination} <- destination(),
          {:ok, login} <- creator_login(destination) do
-      scan(destination, repository, login, marker, DateTime.to_iso8601(since), 1, [])
+      scan(destination, repository, login, marker, DateTime.to_iso8601(since), 1, [], 0)
     end
   end
 
-  defp scan(destination, repository, login, marker, since, page, found) do
+  # A pull-request-only listing never reaches the issue bound, so the page
+  # index stops the walk as well.
+  defp scan(_destination, _repository, _login, _marker, _since, page, found, _seen)
+       when page > @max_issues,
+       do: {:incomplete, matches(found)}
+
+  defp scan(destination, repository, login, marker, since, page, found, seen) do
     query =
       URI.encode_query(%{
         "state" => "all",
@@ -100,11 +109,12 @@ defmodule Agentboard.Intake.Github do
         case Jason.decode(body) do
           {:ok, issues} when is_list(issues) ->
             found = found ++ Enum.filter(issues, &marked?(&1, marker))
+            seen = seen + Enum.count(issues, &issue?/1)
 
             cond do
               length(issues) < @page_size -> {:ok, matches(found)}
-              page >= @max_pages -> {:incomplete, matches(found)}
-              true -> scan(destination, repository, login, marker, since, page + 1, found)
+              seen >= @max_issues -> {:incomplete, matches(found)}
+              true -> scan(destination, repository, login, marker, since, page + 1, found, seen)
             end
 
           _ ->
@@ -171,6 +181,10 @@ defmodule Agentboard.Intake.Github do
   end
 
   defp matches(found), do: Enum.map(found, &%{number: &1["number"], url: &1["html_url"]})
+
+  defp issue?(%{"pull_request" => _}), do: false
+  defp issue?(%{"number" => number}) when is_integer(number), do: true
+  defp issue?(_), do: false
 
   defp marked?(%{"body" => body, "number" => number, "html_url" => url} = issue, marker)
        when is_binary(body) and is_integer(number) and is_binary(url),
