@@ -4,9 +4,13 @@ Operator runbook for `add-fleet-helper` task 6.1: one fleet on farm01 goes from
 dry run to live with `max_seats` 2. A helper (a chat bot, or the captain CLI
 until helper tokens ship) files three issues on a sandbox repository. Two seats
 launch in Herdr on the operator's Mac, claim the cards and open PRs. After
-merge, `agentboard seat reap --apply` (or the seat-ops timer) closes each
-finished pane and returns its lease. The pilot pool has to be in that Mac's
-`treehouse_roots` or the lease is never read.
+merge, reap waits until the card is done or released, Herdr has reported the
+pane idle for `reap_after` (default 30m), the seat owns no open, assigned,
+in-progress, blocked or review task, it has no unread message, and its checkout
+has landed. Then `agentboard seat reap --apply` (or the seat-ops timer) closes
+the pane and returns its lease, and the daemon reports the intent `closed`.
+The pilot pool has to be in that Mac's `treehouse_roots` or the lease is never
+read.
 
 Every step that changes farm01, GitHub or the Mac is the captain's call. Stop at
 any step that does not match what this page says and record the difference.
@@ -39,17 +43,17 @@ the pilot uses its own allowlist file and leaves the agentboard one alone.
 
 The Mac's installed CLI is 0.2.0 and has none of the fleet commands. Publish
 v0.4.0 only after a separate release-bump pull request is on main, following
-[the release process](../release.md). That commit sets version `0.4.0` in
-`web/mix.exs`, sets `org.opencontainers.image.version` to `0.4.0` and names the
-CLI archive `agentboard-cli-0.4.0.tar.gz` in `build/release/BUILD.bazel`, uses
-that same archive name in the unpack path in `scripts/publish-release`, and
-changes both `test "$RELEASE_TAG" = v0.3.0` checks (`.github/workflows/release.yml`
-and `scripts/publish-release`) to `v0.4.0`. The workflow checks out the tag, so
-the checks are the tagged tree. `8dae47b` still accepts only `v0.3.0`: tagging
-it fails `release.yml` before a draft exists, and `gh release edit` then has
-nothing to publish. Wait for the helper-access lane (helper tokens and `fleet
-status`) and intake import when the pilot should use them; the bump is those
-pins plus the fleet code you intend to ship.
+[the release process](../release.md). That pull request changes every `v0.3.0`
+and `0.3.0` release pin in the tree, passes `//:acceptance` remotely, and
+merges before the tag. Find the pins with:
+
+```sh
+git grep -n '0\.3\.0' -- .github/workflows scripts build web/mix.exs internal/cli/root.go build/integration
+```
+
+`8dae47b` still carries those pins, so tagging it fails the release job
+before a draft exists. Wait for the helper-access lane (helper tokens and
+`fleet status`) and intake import when the pilot should use them.
 
 Tag the merged bump commit. Pushing a `v*` tag publishes images through
 [`.github/workflows/images.yml`](../../.github/workflows/images.yml) (`sha-<commit>`
@@ -60,7 +64,7 @@ git fetch origin
 git tag v0.4.0 <bump-commit> && git push origin v0.4.0   # also starts images.yml
 gh workflow run release.yml -f tag=v0.4.0                # agentboard-release environment
 gh release edit v0.4.0 --draft=false --prerelease        # after the draft exists and you have reviewed it
-agentboard version                                        # on the Mac, after installing the release binary
+agentboard version                                        # 0.4.0 on the Mac, after installing the release binary
 ```
 
 Record the dashboard digest from the release notes.
@@ -169,7 +173,8 @@ agentboard fleet loadout set pilot --file pilot-loadout.json --json
 Registration does not set `last_heartbeat`. `agentboard agent list` shows both
 seats `stale=true` immediately. A seat that has never heartbeated is not live,
 so seat supply launches it. Refill assigns nothing until that seat heartbeats
-from its own tab. The dry run in step 7 stays empty for the same reason.
+from its own tab, so step 7's would-assign list stays empty. Seat supply still
+records two `dry_run` would-launch intents.
 
 ## 5. The Mac as a fleet host
 
@@ -268,11 +273,14 @@ Expected, in order (record a timestamp for each):
    is counted in `fleet refill status`).
 6. Each seat opens a PR and links it to its card. The third card goes to the
    first seat that finishes or has queue room.
-7. After the captain merges, `agentboard seat reap --apply` closes the finished
-   pane and returns its lease from the pilot pool added to `treehouse_roots`
-   in step 5. The [seat-ops timer](../setup/seat-nudge.md#schedule) does the
-   same on its interval. Without `--apply`, reap is a dry run and closes
-   nothing. The daemon reports the intent `closed` only after that pane is gone.
+7. After the captain merges, the card stays in review until it is done or
+   released. Once Herdr reports the pane idle for `reap_after` (default 30m),
+   the seat owns no open, assigned, in-progress, blocked or review task, it
+   has no unread message, and its checkout has landed, `agentboard seat reap
+   --apply` closes the pane and returns its lease from the pilot pool in
+   `treehouse_roots` (step 5). The [seat-ops timer](../setup/seat-nudge.md#schedule)
+   does the same on its interval. Without `--apply`, reap is a dry run and
+   closes nothing. The daemon then reports the intent `closed`.
 
 ## 9. Record and close
 
