@@ -412,6 +412,17 @@ pre-migration backup (maintainer decision; pre-release development data).
 Verification was public HTTPS plus the worker API (health/`/`/`/prs`/meta 200,
 effective `dual`, worker healthy/ready with inbox enabled). The 18:25 image
 roll is in the [rollout receipt](verification/farm01-358c8a3-rollout.json).
-Current overlay literals, including the inbound repository scope added later
-that day, are in the
+The message-mode literals from that roll, including the inbound repository
+scope added later that day, are in the
 [operator runbook](deploy/reference-farm01.md#dual-message-mode-rollout-358c8a3).
+The image pin was replaced by the v0.3.0 roll below.
+
+## Release v0.3.0 rollout (2026-10-13 UTC)
+
+The maintainer rolled published v0.3.0, dashboard digest
+`sha256:d356c8b98197843dfb0951e0122fae71c86de982f3c1debffe3a74a3e07a8ac8`
+(main `d803171`), over `37d496e` with no migration. The same run tested image
+and message-mode rollback. Full results are in the
+[rollout receipt](verification/farm01-v0.3.0-rollout.json). The current
+operator image pin is in the
+[operator runbook](deploy/reference-farm01.md#release-v030-and-tested-rollback).
