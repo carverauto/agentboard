@@ -513,7 +513,7 @@ with tls_provider(GitHub) as (api_url, ca, _server):
                 "UPDATE tasks SET status='in_progress', assignee_id='intake-seat', "
                 "claimed_at=clock_timestamp(), claim_expires_at=clock_timestamp()+interval '1 hour', "
                 "revision=revision+1 WHERE id='" + raced['task_id'] + "' AND status='open' RETURNING id"
-            )
+            ).splitlines()[0]
             assert claimed == raced['task_id'], claimed
         finally:
             if lock.poll() is None:
