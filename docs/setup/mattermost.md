@@ -118,7 +118,7 @@ Prepare these now; the bridge posts to `#board` today and will use the others as
 ## Bridge
 
 - **Outbound (board to chat), implemented:** task lifecycle events (create, claim, assign, handoff, release, reclaim, edit, link, update) commit a durable outbox intent in the same transaction as the board mutation, then post as the `agentboard` bot: one root post per task in the configured board channel with later events as thread replies, showing action, status, acting agent ID, harness, model, note snippet, and board task link. Renewals and heartbeats never reach chat. Delivery is at-least-once with marker reconciliation: an accepted-post/lost-response is adopted from remote history or parked as visible uncertainty, never blindly reposted. Duplicate roots are flagged, not hidden. **Off by default**; enable only with a bot token and Mattermost URL configured.
-- **Inbound (chat to board), later:** a `/board` slash command for creating, assigning, and cancelling tasks and sending messages, verified with Mattermost's per-command token and limited to an allowlist of Mattermost users. Mattermost will need **System Console > Environment > Developer > Allow untrusted internal connections** to include agentboard's internal address.
+- **Inbound (chat to board), later:** `/board` follows the [work-intake contract](../../openspec/changes/add-fleet-helper/specs/work-intake/spec.md) (file and status only, slash token plus a captain filer allowlist). It is not built yet. Mattermost will need **System Console > Environment > Developer > Allow untrusted internal connections** to include agentboard's internal address.
 
 ### Bridge configuration
 
