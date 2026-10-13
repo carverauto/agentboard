@@ -359,7 +359,7 @@ step, and anything that needed the captain. Tick 6.1 in
 | Goal | Action |
 | --- | --- |
 | Stop new launches on the Mac | `agentboard fleet host set HOST_ID --launch-cap 0` |
-| Stop assignments and launches for the fleet | `agentboard fleet deactivate pilot` stops new intents and launches. Open `dry_run` rows stay. A `pending` intent is closed `superseded` when the daemon next polls. `reserved`, `uncertain` and `launched` intents and running seats stay. |
+| Stop assignments and launches for the fleet | `agentboard fleet deactivate pilot` stops new intents and launches. Open `dry_run` rows stay. A `pending` intent is closed `superseded` only when the daemon reserves it. With launch cap 0 the daemon does not reserve, so a `pending` intent stays open until the captain closes it with `agentboard fleet supply abandon pilot INTENT_ID --reason "..."`. `reserved`, `uncertain` and `launched` intents and running seats stay. |
 | Free a stuck seat | `agentboard fleet supply abandon pilot INTENT_ID --reason "..."` after checking the pane by hand |
 | Stop the daemon | `launchctl bootout gui/$(id -u)/com.agentboard.fleet-host` |
 | Turn the features off | Set the three `*_ENABLED` literals to `false` and restart |
