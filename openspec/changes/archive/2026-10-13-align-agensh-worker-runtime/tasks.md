@@ -4,7 +4,7 @@ Remote-only builds/tests use `./scripts/bazel` (injects `--config=remote`). The 
 
 ## Status
 
-Released as v0.3.0 (pre-release) and live on farm01 in `dual` mode. Every task owned by this change is complete; the only remaining step is archiving. Three items are owned by other changes by maintainer decision and do not block archive: 5.1b (`mm-elastic-agent-bots` task 7), 6.4 (`add-codex-worker-adapter` task 4.6) and 8.2 (`adopt-ash-and-monitor-pr-ci`).
+Released as v0.3.0 (pre-release) and live on farm01 in `dual` mode. Every task owned by this change is complete. Archived 2026-10-13; its requirements now live in the main specs `openspec/specs/{worker-delivery,harness-adapters,mattermost-coordination,cooperation-visibility}`. Three items are owned by other changes by maintainer decision and did not block archive: 5.1b (`mm-elastic-agent-bots` task 7), 6.4 (`add-codex-worker-adapter` task 4.6) and 8.2 (`adopt-ash-and-monitor-pr-ci`).
 
 ## 1. Server observes CI after the owner moves on
 
@@ -72,17 +72,17 @@ Released as v0.3.0 (pre-release) and live on farm01 in `dual` mode. Every task o
 
 | Tasks | Evidence |
 | --- | --- |
-| 1.1 | [polling/inventory/discovery](https://carverauto.buildbuddy.io/invocation/dfa54af4-ad05-40dd-9d9c-f71c1e42360c), [migrations](https://carverauto.buildbuddy.io/invocation/b99cbebd-2f59-460a-bff4-6bfd125a4609), [stage contracts](../../../docs/ci-polling.md) |
+| 1.1 | [polling/inventory/discovery](https://carverauto.buildbuddy.io/invocation/dfa54af4-ad05-40dd-9d9c-f71c1e42360c), [migrations](https://carverauto.buildbuddy.io/invocation/b99cbebd-2f59-460a-bff4-6bfd125a4609), [stage contracts](../../../../docs/ci-polling.md) |
 | 1.2 | [18-target acceptance](https://carverauto.buildbuddy.io/invocation/c39b75ed-fca7-4114-b78c-4992a52d3ed9) |
-| 1.3 | [19-target acceptance](https://carverauto.buildbuddy.io/invocation/ba9ffc78-3106-4bc0-bbdd-44b101eecadb), [collector contracts](../../../docs/github-ci-observation.md) |
+| 1.3 | [19-target acceptance](https://carverauto.buildbuddy.io/invocation/ba9ffc78-3106-4bc0-bbdd-44b101eecadb), [collector contracts](../../../../docs/github-ci-observation.md) |
 | 1.4, 1.5 | [24-target acceptance](https://carverauto.buildbuddy.io/invocation/c8f398e3-cc92-40df-b364-31ae6e5191a5) |
-| 2.1–2.3, 3.1 | [20-target acceptance](https://carverauto.buildbuddy.io/invocation/95a37bdf-86ab-4ed1-83f3-3d1769cfa6df), [worker API](../../../docs/worker-api.md) |
-| 2.4–2.6 | [packaged API/CLI and isolated Pi](../../../docs/verification/worker-packaged-api.md) |
+| 2.1–2.3, 3.1 | [20-target acceptance](https://carverauto.buildbuddy.io/invocation/95a37bdf-86ab-4ed1-83f3-3d1769cfa6df), [worker API](../../../../docs/worker-api.md) |
+| 2.4–2.6 | [packaged API/CLI and isolated Pi](../../../../docs/verification/worker-packaged-api.md) |
 | 2.7 | [connected full-render export](https://carverauto.buildbuddy.io/invocation/c54bd1e1-f572-44e9-8823-355a83ff8612) |
-| 3.2–3.4 | [first-release pilot](../../../docs/verification/runtime-first-release-pilot.md), [v0.3.0 rollout and rollback](../../../docs/verification/farm01-v0.3.0-rollout.json) |
-| 4.3, 5.4 | [dual-mode pilot and outage](../../../docs/verification/runtime-dual-mode-pilot.md) |
-| 5.3, 5.3a | [five-suite inbound acceptance](https://carverauto.buildbuddy.io/invocation/b27ab228-1cd2-424d-8b4a-ba0b8f2df7b4), [inbox contracts](../../../docs/mattermost-inbox.md) |
-| 6.3, 6.5 | [harness readiness](../../../docs/verification/runtime-harness-readiness.md) |
-| 7.1 | [five packaged suites](https://carverauto.buildbuddy.io/invocation/47eef25c-8114-4679-b5f8-931289b3191e), [mode prerequisites](../../../docs/setup/mattermost.md#message-modes-openspec-71) |
+| 3.2–3.4 | [first-release pilot](../../../../docs/verification/runtime-first-release-pilot.md), [v0.3.0 rollout and rollback](../../../../docs/verification/farm01-v0.3.0-rollout.json) |
+| 4.3, 5.4 | [dual-mode pilot and outage](../../../../docs/verification/runtime-dual-mode-pilot.md) |
+| 5.3, 5.3a | [five-suite inbound acceptance](https://carverauto.buildbuddy.io/invocation/b27ab228-1cd2-424d-8b4a-ba0b8f2df7b4), [inbox contracts](../../../../docs/mattermost-inbox.md) |
+| 6.3, 6.5 | [harness readiness](../../../../docs/verification/runtime-harness-readiness.md) |
+| 7.1 | [five packaged suites](https://carverauto.buildbuddy.io/invocation/47eef25c-8114-4679-b5f8-931289b3191e), [mode prerequisites](../../../../docs/setup/mattermost.md#message-modes-openspec-71) |
 | 8.1 | [fresh 90-test acceptance](https://carverauto.buildbuddy.io/invocation/20daf68a-bd98-4c54-a459-795259a61a5f) |
-| 8.3 | [Archify review](../../../docs/architecture/agensh-worker-runtime.visual-review.json) (document 209), [portable OpenSpec review](../../../docs/architecture/align-agensh-worker-runtime-openspec.review.json) (document 210), [v0.3.0 rollout and rollback](../../../docs/verification/farm01-v0.3.0-rollout.json), [harness readiness](../../../docs/verification/runtime-harness-readiness.md) |
+| 8.3 | [Archify review](../../../../docs/architecture/agensh-worker-runtime.visual-review.json) (document 209), [portable OpenSpec review](../../../../docs/architecture/align-agensh-worker-runtime-openspec.review.json) (document 210), [v0.3.0 rollout and rollback](../../../../docs/verification/farm01-v0.3.0-rollout.json), [harness readiness](../../../../docs/verification/runtime-harness-readiness.md) |

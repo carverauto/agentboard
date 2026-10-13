@@ -104,7 +104,7 @@ Context history. Do not rewind a numeric cursor, auto-reclaim tasks or clear
 uncertainty. Keep merge order collector → server → worker and use no-mistakes for
 PR delivery. Production activation and the controlled failed-PR/restart/recovery
 proof are recorded on the
-[align-agensh-worker-runtime checklist](../openspec/changes/align-agensh-worker-runtime/tasks.md).
+[align-agensh-worker-runtime checklist](../openspec/changes/archive/2026-10-13-align-agensh-worker-runtime/tasks.md).
 
 ## Verification scope
 
