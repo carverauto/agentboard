@@ -12,7 +12,7 @@ Actual Pi0.99.2 isolated RPC model runs are recorded in `worker-pi-live.json` an
 
 Installed Herdr0.9.0 protocol22 lacks expected occupant/composer guard fields; automatic prompt is disabled. The named conformance server was inspected and stopped without input. This snapshot treated installed Codex/Claude/Grok/Muse/AGY sessions as manual/unsupported and made no universal automatic claims. Current per-harness readiness is [runtime-harness-readiness.md](runtime-harness-readiness.md).
 
-Packaged Phoenix plus host interoperability is proved separately; the controlled failed-PR → reminder → connector/session restart → repaired qualifying head proof for OpenSpec 3.2/3.3 is recorded in `runtime-first-release-pilot.md`. Production task 3.4 is recorded on the align-agensh-worker-runtime checklist (`openspec/changes/align-agensh-worker-runtime/tasks.md`). Merge order is collector → server → worker. Captain/coordinator owns rollout.
+Packaged Phoenix plus host interoperability is proved separately; the controlled failed-PR → reminder → connector/session restart → repaired qualifying head proof for OpenSpec 3.2/3.3 is recorded in `runtime-first-release-pilot.md`. Production task 3.4 is recorded on the align-agensh-worker-runtime checklist (`openspec/changes/archive/2026-10-13-align-agensh-worker-runtime/tasks.md`). Merge order is collector → server → worker. Captain/coordinator owns rollout.
 
 ## Maintainability review
 

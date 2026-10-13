@@ -601,7 +601,7 @@ The assigned preparation card is `agentboard-main-ci-routing-activation`.
 This patch neither changes the image digest nor provisions a secret, registers a
 webhook, applies manifests or enrolls a worker. It does not answer runtime task
 3.4; that checklist is
-`openspec/changes/align-agensh-worker-runtime/tasks.md`. #156/#164 recovery
+`openspec/changes/archive/2026-10-13-align-agensh-worker-runtime/tasks.md`. #156/#164 recovery
 activation stays a separate hold.
 
 ### Intake mode and exact GitHub settings
@@ -695,7 +695,7 @@ credential permissions were not inspected or changed.
    redeliver any missed hook; verify rate-limit/provider deferral stays pending
    rather than being reported green. Do not change worker enrollment or
    Herdr/restart activation as part of this roll. Runtime task 3.4 is tracked on
-   `openspec/changes/align-agensh-worker-runtime/tasks.md`.
+   `openspec/changes/archive/2026-10-13-align-agensh-worker-runtime/tasks.md`.
 
 ### Rollback and verification limits
 

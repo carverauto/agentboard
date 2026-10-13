@@ -15,7 +15,7 @@ Authority: captain decision `6f947f2e-62ee-4f73-a36b-c44aeb8c4cd6`, task orders1
 
 #154 must supply actual approved policy versions and authority, replacing supplied dry-run policy snapshots. #156 must supply authenticated host enrollment/intents/results, transactional task -> decision -> worker admission, journal/process fencing and real public #141 seat attachment. #155 must turn the reducer's stable escalation identity into one durable human notification independent of coordinator liveness.
 
-No detector scheduling or activation switch is provided here. Native kill/restart, isolated-cwd startup, canonical answer catch-up and exact native gate apply/renew/ack require later real integration proof; these tests only verify the reducer's contract for those inputs. Original claim/decision IDs are retained data, not evidence of a completed native gate. The local nudger remains in service. Services, hooks and secret activation remain captain-gated. Worker-runtime 3.4 (production enrollment) was completed under the maintainer's captain decision (`openspec/changes/align-agensh-worker-runtime/tasks.md`).
+No detector scheduling or activation switch is provided here. Native kill/restart, isolated-cwd startup, canonical answer catch-up and exact native gate apply/renew/ack require later real integration proof; these tests only verify the reducer's contract for those inputs. Original claim/decision IDs are retained data, not evidence of a completed native gate. The local nudger remains in service. Services, hooks and secret activation remain captain-gated. Worker-runtime 3.4 (production enrollment) was completed under the maintainer's captain decision (`openspec/changes/archive/2026-10-13-align-agensh-worker-runtime/tasks.md`).
 
 ## Test ownership
 

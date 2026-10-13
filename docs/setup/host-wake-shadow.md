@@ -59,7 +59,7 @@ writes nor loads services, installs hooks, provisions secrets nor replaces an
 existing supervision file. Existing foreign files are retained and replacement
 is refused. No instruction here authorizes production enrollment or service
 activation. Runtime task 3.4 is tracked on
-`openspec/changes/align-agensh-worker-runtime/tasks.md`.
+`openspec/changes/archive/2026-10-13-align-agensh-worker-runtime/tasks.md`.
 
 The server's reservation gate defaults off. Preparation tests may exercise CAS,
 immutable frames, positive non-submission and uncertain transport results, but
