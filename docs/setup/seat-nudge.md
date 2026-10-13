@@ -4,6 +4,8 @@
 has work for them. `agentboard seat reap` closes seats that have finished. Both
 run on the machine that hosts the Herdr server, usually from a 3-minute launchd
 or systemd timer. Neither writes to the board.
+To start a new seat in its own Herdr tab, see
+[spawn a seat](seat-spawn.md).
 
 ## How a seat is found
 
@@ -124,7 +126,8 @@ access file if the board requires one).
 
 ## Other hosts
 
-The nudge and reap logic talks to the host through a small interface: list
-agents with a status, a name and a native session ID; read recent output;
-prompt; close. Herdr is the only implementation today. Another terminal or
-desktop host can be added by implementing that interface.
+The nudge, reap and [spawn](seat-spawn.md) logic talks to the host through a
+small interface: list agents with a status, a name and a native session ID;
+read recent output; prompt; close; open a new tab that runs one command. Herdr
+is the only implementation today. Another terminal or desktop host can be added
+by implementing that interface.

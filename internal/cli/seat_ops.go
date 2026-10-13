@@ -74,6 +74,55 @@ identities: expired claims and finished identities are reported for the captain.
 	return cmd
 }
 
+func (c *commands) seatSpawn() *cobra.Command {
+	cmd := &cobra.Command{Use: "spawn", Args: cobra.NoArgs,
+		Short: "Open a new Herdr tab that launches one seat from the host harness allowlist (dry run unless --apply)",
+		Long: `Spawn opens a new Herdr tab labelled with the seat's agent ID and runs
+scripts/launch-seat there, which leases a Treehouse v3 worktree, writes the
+STOP brief and starts the harness in that worktree. The harness argv, model,
+launcher, source checkout and pool come only from the host-local allowlist
+(default ~/.config/agentboard/fleet/harnesses.json); nothing comes from the
+board. Spawn never types into an existing pane and refuses when a pane or tab
+already carries the agent ID. It never writes to the board.`}
+	opts := seatops.SpawnOptions{}
+	apply, dryRun, configPath := false, false, seatops.DefaultSpawnConfigPath()
+	cmd.Flags().StringVar(&opts.Task, "task", "", "Board task the seat is started for")
+	cmd.Flags().StringVar(&opts.Agent, "agent", "", "Agent ID of the new seat (tab label and pane name)")
+	cmd.Flags().StringVar(&opts.Harness, "harness", "", "Allowlisted harness name")
+	cmd.Flags().StringVar(&opts.Brief, "brief", "", "Brief file (default: a generated check-in brief)")
+	cmd.Flags().StringVar(&opts.Repo, "repo", "", "Source checkout (default: allowlist repo)")
+	cmd.Flags().StringVar(&opts.Root, "root", "", "Treehouse v3 pool root (default: allowlist root)")
+	cmd.Flags().StringVar(&configPath, "config", configPath, "Absolute path of the host-local harness allowlist")
+	cmd.Flags().BoolVar(&apply, "apply", false, "Open the tab and start the seat; without it nothing changes")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Only report what would run (the default)")
+	for _, name := range []string{"task", "agent", "harness"} {
+		_ = cmd.MarkFlagRequired(name)
+	}
+	cmd.MarkFlagsMutuallyExclusive("apply", "dry-run")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		cfg, err := seatops.LoadSpawnConfig(configPath)
+		if err != nil {
+			return err
+		}
+		opts.BoardURL = ""
+		if os.Getenv("AGENTBOARD_URL") != "" || cmd.Root().PersistentFlags().Changed("url") {
+			opts.BoardURL = c.cfg.URL
+		}
+		plan, err := seatops.PlanSpawn(cfg, opts)
+		if err != nil {
+			return err
+		}
+		report, err := seatops.Spawn(cmd.Context(), seatops.HerdrCLI{Bin: os.Getenv("AGENTBOARD_HERDR_BIN")}, plan, apply)
+		if report.Spawned != nil || err == nil {
+			if encodeErr := json.NewEncoder(cmd.OutOrStdout()).Encode(report); encodeErr != nil {
+				return encodeErr
+			}
+		}
+		return err
+	}
+	return cmd
+}
+
 func (c *commands) seatOps(cmd *cobra.Command, configPath string, run func(context.Context, seatops.Board, seatops.Config) (any, error)) error {
 	cfg, err := seatops.LoadConfig(configPath)
 	if err != nil {
