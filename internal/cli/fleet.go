@@ -98,7 +98,7 @@ func (c *commands) fleetRefillCommand() *cobra.Command {
 func fleetActivation(mode string, deadline time.Duration, deadlineSet bool) (map[string]any, error) {
 	payload := map[string]any{}
 	switch mode {
-	case "dry-run", "dry_run":
+	case "dry-run":
 		payload["mode"] = "dry_run"
 	case "live":
 		payload["mode"] = "live"

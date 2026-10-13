@@ -30,7 +30,6 @@ defmodule Agentboard.FleetRefill do
   }
   @default_deadline 1800
   @card_limit 100
-  @fleet_limit 100
 
   def enabled?, do: Application.get_env(:agentboard, :refill_enabled, false) == true
 
@@ -241,7 +240,6 @@ defmodule Agentboard.FleetRefill do
         Activation
         |> Ash.Query.filter(mode in ["dry_run", "live"])
         |> Ash.Query.sort(fleet_id: :asc)
-        |> Ash.Query.limit(@fleet_limit)
         |> Ash.read!()
 
       passes =
@@ -524,9 +522,11 @@ defmodule Agentboard.FleetRefill do
       updated_at: stamp
     }
 
+    seconds = DateTime.diff(row.deadline_at, row.created_at, :second)
+
     data = %{
       "note" =>
-        "Returned to the backlog: #{row.agent_id} did not claim it within fleet #{plan.fleet_id}'s #{plan.deadline}s claim deadline."
+        "Returned to the backlog: #{row.agent_id} did not claim it within fleet #{plan.fleet_id}'s #{seconds}s claim deadline."
     }
 
     result = Ops.apply_system(task, "release", @system, attrs, data, stamp)

@@ -112,6 +112,7 @@ func TestFleetActivateRejectsBadFlagsBeforeHTTP(t *testing.T) {
 	for _, args := range [][]string{
 		{"activate", "example"},
 		{"activate", "example", "--mode", "on"},
+		{"activate", "example", "--mode", "dry_run"},
 		{"activate", "example", "--mode", "live", "--claim-deadline", "30s"},
 		{"activate", "example", "--mode", "live", "--claim-deadline", "25h"},
 		{"activate", "example", "--mode", "live", "--claim-deadline", "90500ms"},
