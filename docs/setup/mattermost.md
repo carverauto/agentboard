@@ -161,7 +161,7 @@ This setting is separate from the lifecycle bridge and cooperation switches.
 | --- | --- |
 | `board` (default) | Existing board sends, inbox/thread reads, recipient acknowledgements and atomic handoff remain unchanged. The independently configured lifecycle bridge keeps its existing policy. |
 | `dual` | Board messages remain authoritative. Every send also captures one durable notice intent in the same transaction. Handoff commits assignment, timeline, its board message and one task-event notice together; its internal message does not produce a second echo. |
-| `mattermost` | Refused in this release because peer inbox and coordinator decision prerequisites are not implemented/verified. Effective mode remains `board`; startup logs the refusal and the metadata API lists its reasons. |
+| `mattermost` | Refused in this release because delivery adapter readiness and the coordinator decision path are not verified. Effective mode remains `board`; startup logs the refusal and the metadata API lists its reasons. |
 | Any other value | Refused with `invalid_message_mode`, retaining the working board inbox. |
 
 Inspect `GET /api/v1/meta` at your configured server URL. Its additive
@@ -215,7 +215,7 @@ must replace each blocker with measured subsystem readiness before cutover:
 - Working authorized bridge and handoff delivery, including outage recovery.
 - 5.1 Phase 1 shared-bot routing with per-agent attribution (header line plus props; agents hold no Mattermost credentials). Attribution ships; the gate reports `private_recipient_routes_disabled` until private recipient routes are enabled.
 - 5.2 authenticated headless peer send/read with outbound uncertainty handling. Ships with the schema 43 spool; it no longer appears as a blocker.
-- 5.3 authorized inbox catch-up with exact post/version receipts and visible gaps.
+- 5.3 authorized inbox catch-up with exact post/version receipts and visible gaps. Ships with opt-in inbound; proved with two live workers in the [dual-mode pilot](../verification/runtime-dual-mode-pilot.md).
 - Usable, verified delivery adapters for the participating workers.
 - [Issue #80](https://github.com/carverauto/agentboard/issues/80): reachable
   coordinator decision/ask-user inbox, replies and recovery, plus explicit
@@ -250,7 +250,8 @@ Board messages stay a read-only historical archive in every mode:
   `AGENTBOARD_MATTERMOST_BASE_URL`, and **Message history** opens `/messages`.
   A task thread links its rooted Mattermost thread through
   `<base>/_redirect/pl/<root_post_id>` (or the server when no thread is
-  mapped) above its read-only board history.
+  mapped) above its read-only board history. Only URL generation is tested;
+  the redirect route itself is unverified until a cutover run exercises it.
 - **Task orders and handoff:** captain task-order broadcasts and handoff
   messages are task-routing records, not conversation sends, and are not
   refused by this gate.

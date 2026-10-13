@@ -1,33 +1,10 @@
 # Tasks
 
-Unchecked boxes describe remaining implementation. Each group lands its own focused acceptance and documentation. Remote-only builds/tests use `./scripts/bazel` (injects `--config=remote`); new acceptance targets belong alongside the packaged API/CLI fixtures in `build/integration/`. Each PR starts from freshly fetched main.
+Remote-only builds/tests use `./scripts/bazel` (injects `--config=remote`). The first release gate was group 3. Existing Ash/CI tasks remain authoritative for provider truth, diagnostics and completion gates; completing a subset here does not mark their larger tasks complete.
 
-The **first release gate is group 3**, an actual failed PR returning to its responsible running worker. Groups 4–8 must not delay that release. Existing Ash/CI tasks remain authoritative for provider truth, diagnostics and completion gates; completing a subset here does not mark their larger tasks complete without all required evidence.
+## Status
 
-## Next Agent Prompt
-
-Status 2026-10-12: v0.3.0 is published as a pre-release. 3.4, 6.3 and 6.5 are done.
-6.4 stays open. Established so far: Darwin Codex native is unsupported by
-design; Grok has no supported native completion integration (manual check-in
-only); Codex manual check-in with exact receipts is proved against farm01
-(docs/verification/runtime-harness-readiness.md). Remaining: the Codex native
-owner is still unregistered and live-disabled (docs/worker-codex-owner.md), so a
-packaged Linux owner/FD proof on a fixture runner plus the cancellation,
-compaction, correct-session callback and no-detached-watcher checks are still
-required. 3.2/3.3 are in docs/verification/runtime-first-release-pilot.md.
-farm01's current pin is 358c8a3 (schema 44); see docs/deploy/reference-farm01.md.
-5.4 and 4.3 are in docs/verification/runtime-dual-mode-pilot.md. 3.5 is in PR
-#232. Pilot workers `worker-agentboard-farm01-1` and `worker-agentboard-farm01-2`
-are paused, with their LaunchAgents stopped and their Herdr sessions closed;
-they keep their enrollment and pending work. Harness-proof workers are revoked.
-
-Priority order:
-1. Async-journal fix (in flight).
-2. 7.3 docs/skills/OpenSpec reconcile (in flight).
-3. 6.4 packaged Linux owner/FD proof and the cancellation, compaction,
-   correct-session callback and no-detached-watcher checks.
-4. 8.1 fresh acceptance and 8.3 final artifacts. 5.1b's remote proof belongs to
-   `mm-elastic-agent-bots` task 7; 8.2 stays with `adopt-ash-and-monitor-pr-ci`.
+Released as v0.3.0 (pre-release) and live on farm01 in `dual` mode. Remaining before archive: the 8.3 architecture and portable review refresh with document uploads. Three items are owned by other changes by maintainer decision and do not block archive: 5.1b (`mm-elastic-agent-bots` task 7), 6.4 (`add-codex-worker-adapter` task 4.6) and 8.2 (`adopt-ash-and-monitor-pr-ci`).
 
 ## 1. Server observes CI after the owner moves on
 
@@ -52,7 +29,7 @@ Priority order:
 - [x] 3.1 Add obligation reminder/escalation scheduling with defaults from design D9; verify acknowledgement without progress, progress postponement, blocker, pause, duplicate reminder jobs, four-per-hour bound and new failure episodes remotely, and document the captain escalation path.
 - [x] 3.2 Run a controlled live PR failure after its recorded owner starts another issue; measure detection/eligible-boundary delivery, inspect failed-head/job links, record an exact receipt and show the still-red obligation in the dashboard. Then leave it without progress to prove bounded reminder/escalation. Proved live on farm01 2026-10-12 with PR #224 and `worker-agentboard-farm01-1`: failure to unresolved obligation and pending alert in ~75 s, idle native wake, exact `handled` receipts, four reminders then captain escalation at 17:00:00Z. See docs/verification/runtime-first-release-pilot.md. The pilot found and PR #226 fixed missing handled guidance.
 - [x] 3.3 Restart the host connector and selected agent session during the same controlled obligation; verify pending recovery, stale-generation rejection, no automatic lease recovery and retained repair responsibility. Repair/rerun CI and verify canonical current-head recovery without silent follow-up task completion. Proved in the same run: two explicit rebinds (epochs 2 and 3) with connector and session restarts, captain `resolve_attempt` decisions for replaced attempts, stale-epoch ack refused, no lease recovery, `degraded` (never green) while required checks were missing, and current-head resolution at 17:26:22Z with the repair task still assigned.
-- [x] 3.4 Publish remote-built immutable service/CLI assets, enroll the selected worker explicitly and enable observation/delivery only after the proof; verify production service health/pause/rollback and update participation skills with actual check-in/repair/receipt commands. Record unsupported agents separately. Published v0.3.0 (pre-release, remote-built, `SHA256SUMS`, dashboard `sha256:d356c8b9…`) from the #238 merge. `worker-agentboard-farm01-1` was enrolled on 2026-10-08, and farm01 already had observation, cooperation and the bridge enabled before this proof, so the enable-after-proof ordering was not followed literally; the proof ran on that already-enabled deployment. Live pause/resume was verified in docs/verification/runtime-first-release-pilot.md. docs/verification/farm01-358c8a3-rollout.json records the config rollback steps. The c39b9c7 roll points at the general image-restore procedure in docs/deploy/reference-farm01.md. Both receipts record that rollback was not performed. Skills carry the check-in/ack/repair commands. Unsupported harnesses are recorded separately in docs/verification/runtime-harness-readiness.md.
+- [x] 3.4 Publish remote-built immutable service/CLI assets, enroll the selected worker explicitly and enable observation/delivery only after the proof; verify production service health/pause/rollback and update participation skills with actual check-in/repair/receipt commands. Record unsupported agents separately. Published v0.3.0 (pre-release, remote-built, `SHA256SUMS`, dashboard `sha256:d356c8b9…`) from the #238 merge. `worker-agentboard-farm01-1` was enrolled on 2026-10-08, and farm01 already had observation, cooperation and the bridge enabled before this proof, so the enable-after-proof ordering was not followed literally; the proof ran on that already-enabled deployment. Live pause/resume was verified in docs/verification/runtime-first-release-pilot.md. Image and message-mode rollback were tested without data loss when v0.3.0 was rolled to farm01 (docs/verification/farm01-v0.3.0-rollout.json). Skills carry the check-in/ack/repair commands. Unsupported harnesses are recorded separately in docs/verification/runtime-harness-readiness.md.
 - [x] 3.5 Deliver this first release's Archify JSON/HTML and portable Lavish proposal with separate deterministic/browser/perceptual evidence; upload from the live claimed task, link the PR and verify the sandboxed viewers. Keep the broader implementation checklist open. Delivered in PR #232: Archify architecture (board document 207) and portable OpenSpec review (document 208), uploaded from the live claimed task with separate deterministic, browser and perceptual evidence.
 
 ## 4. Outbound Mattermost bridge, independent of CI wake delivery
@@ -64,7 +41,7 @@ Priority order:
 ## 5. Worker identities and real peer inboxes
 
 - [x] 5.1 Phase 1 shared-bot identity: server posts every agent message through the ONE shared `agentboard` bot with per-post `override_username` (agent id), `override_icon_url`, structured props (`agent_id`, `task_id`, `kind`, `msg_id` plus retry key) and a readable `[<agent-id> · <task-id>]` header line; props are the source of truth, never the display name. Agents hold NO Mattermost credentials; `agentboard chat` calls the Agentboard API. Verify override on/off behavior (header plus props carry identity when overrides are off), retry-key adoption, and machine-readable output remotely. Keep the server posting seam pluggable for phase 2. Private recipient routes through the shared bot shipped in PR #222 (off by default; `AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED`); MessageMode no longer lists the 5.1 blocker.
-- [ ] 5.1b Phase 2 elastic per-agent bots (GH #82, board task agentboard-mm-elastic-agent-bots): lazy bot per agent on first `agent register`, AshCloak-encrypted tokens in Postgres, roster-GC retirement. Explicitly NOT blocking `dual` mode; the phase 1/2 swap stays transparent to agents.
+- [ ] 5.1b **Owned by `mm-elastic-agent-bots` task 7.** Phase 2 elastic per-agent bots (GH #82, board task agentboard-mm-elastic-agent-bots): lazy bot per agent on first `agent register`, AshCloak-encrypted tokens in Postgres, roster-GC retirement. Explicitly NOT blocking `dual` mode; the phase 1/2 swap stays transparent to agents.
 - [x] 5.2 Add `agentboard chat send/read` over the Agentboard API with protected server-side outbound spool and source references; verify exact retry keys, uncertain sends, own-send/bridge echo suppression by `props.agent_id` plus `msg_id`, and machine-readable output remotely, and preserve legacy `msg` contracts until cutover. Protected outbound chat spool with retry-key adoption, uncertain parking and expiry shipped in PR #222 (schema 43), with remote packaged acceptance.
 - [x] 5.3 Implement shared-bot server WebSocket plus paginated REST catch-up with a per-worker metadata inbox and persisted coverage/version ledger; verify equal-time posts, edits, concurrent page/live arrival, newly discovered DM channels, outage, retention gap and deleted posts remotely, and expose incomplete coverage explicitly.
 - [x] 5.3a Connect exact inbound inbox versions to recipient-scoped, body-free Cooperation notifications; prove atomic capture, frozen reservation, version isolation and two-way receipt reconciliation in packaged HTTP/WS acceptance. This does not close the separate live-worker gate below. Shipped in PR #189 (`Cooperation.Runtime.recover_mattermost/1`, `InboundStore` notification capture); [6/6 remote runs](https://carverauto.buildbuddy.io/invocation/d389db57-498b-4979-86b1-3f0113bbe66d) after fixing a non-UTF-8 log decode flake in `mattermost_inbox_test`.
@@ -75,7 +52,7 @@ Priority order:
 - [x] 6.1 Wire scoped Context source intents/priority frames and atomic existing Context receipts; verify receipt rollback, own-entry suppression, task-independent repository findings, bounded/fair backlog and late commits remotely, and document findings versus chat/ownership. Source intents, own-entry suppression, repository scope and atomic Context receipts shipped with 2.1–2.3 (`Runtime.capture_context`); [remote cooperation acceptance](https://carverauto.buildbuddy.io/invocation/90667998-b1c9-490b-8bbf-68dc3b7fb7b8); findings versus chat/ownership documented in docs/context.md.
 - [x] 6.2 Add the 20-entry task Shared context section through `Agentboard.Context.recent`, filtered link and independent error handling; verify empty/long/escaped entries, read-without-ack and section failure remotely and in a real browser, keeping documents/timeline separate. Task detail Shared context section shipped in PR #219 with packaged LiveView acceptance (empty/long/escaped, read-without-ack, section failure).
 - [x] 6.3 Add generation-aware Claude hook integration and Pi extension integration, reusing the first-release adapter where applicable; verify session/new/resume/fork, one wake owner, pause, foreign-hook preservation and tool-result preservation in remote conformance plus isolated live harness sessions. Proved in docs/verification/runtime-harness-readiness.md (PR #237): Claude hook adapter against farm01 with a fresh native session, resume (same session, new generation) and fork (new session), stale epochs/generations refused, no replay, pause holding the frame, foreign hooks and the check-in tool result preserved; Pi pause/resume and epoch rebinds proved in the first-release pilot (docs/verification/runtime-first-release-pilot.md). Signal-safe Pi socket release in PR #230.
-- [ ] 6.4 Add Codex checkpoint/dedicated infrastructure-tool boundary integration and Grok supported completion integration only against installed capability evidence; verify cancellation, compaction, correct-session callback and absence of detached shell watchers, and document App/CLI and headless limitations. Established so far: Darwin Codex native is unsupported by design; Grok has no supported native completion integration (manual check-in only); Codex manual check-in with exact receipts is proved against farm01 (docs/verification/runtime-harness-readiness.md). Remaining: the Codex native owner is still unregistered and live-disabled (docs/worker-codex-owner.md), so a packaged Linux owner/FD proof on a fixture runner plus the cancellation, compaction, correct-session callback and no-detached-watcher checks are still required.
+- [ ] 6.4 **Transferred to `add-codex-worker-adapter` task 4.6** (maintainer decision 2026-10-12). Add Codex checkpoint/dedicated infrastructure-tool boundary integration and Grok supported completion integration only against installed capability evidence; verify cancellation, compaction, correct-session callback and absence of detached shell watchers, and document App/CLI and headless limitations. Established so far: Darwin Codex native is unsupported by design; Grok has no supported native completion integration (manual check-in only); Codex manual check-in with exact receipts is proved against farm01 (docs/verification/runtime-harness-readiness.md). Remaining: the Codex native owner is still unregistered and live-disabled (docs/worker-codex-owner.md), so a packaged Linux owner/FD proof on a fixture runner plus the cancellation, compaction, correct-session callback and no-detached-watcher checks are still required.
 - [x] 6.5 Validate Muse/AGY and remaining workers through the supported transport; report native boundary unsupported where appropriate, verify explicit receipt/check-in on each installed harness, and publish per-worker readiness instead of claiming blanket parity. Grok, Muse, AGY and Codex each completed explicit check-in with exact received/handled receipts against farm01 (AGY round 1 only), with native boundaries reported unsupported and per-worker readiness published in docs/verification/runtime-harness-readiness.md (PR #237).
 - [x] 6.6 Add bounded authorized idle/no-findings continuation and cooldown; verify no work/no new finding, paused/blocked/quota-exhausted worker, outage and repeated no-progress turns remotely, and document suppression/escalation rather than forcing publications. Bounded idle/no-findings continuation with cooldown and escalation shipped in PR #223 (schema 44, default off: `AGENTBOARD_IDLE_CONTINUATION_ENABLED`).
 
@@ -83,138 +60,28 @@ Priority order:
 
 - [x] 7.1 Add default `board`, explicit `dual` and readiness-gated `mattermost` modes with atomic handoff event/outbox behavior; verify offline handoff, recipient explicit claim, disabled jobs and no partial assignment remotely, and document mode prerequisites.
 - [x] 7.2 Add read-only historical board-message archive/export while retaining recipient acknowledgement and migration errors for legacy sends; verify pending legacy messages, pagination, export escaping, rollback and no data loss remotely, then update primary navigation/task thread links. Read-only message history/export and mattermost-mode send migration error shipped in PR #225; the `mattermost` mode path is exercised with a stand-in because activation is still refused.
-- [ ] 7.3 Reconcile completed/active `board-messaging`, `agent-workflows` and handoff deltas with the chosen transport before archive/cutover; update README, PRD #1, #37/#41, API and canonical/harness/captain skills. Validate OpenSpec and verify documented commands against the remote-built CLI; preserve all uncompleted Ash/CI tasks.
+- [x] 7.3 Reconcile completed/active `board-messaging`, `agent-workflows` and handoff deltas with the chosen transport before archive/cutover; update README, PRD #1, #37/#41, API and canonical/harness/captain skills. Validate OpenSpec and verify documented commands against the remote-built CLI; preserve all uncompleted Ash/CI tasks. Reconciled in PR #239 and PR #241: `implement-agentboard-v1` deltas keep the board inbox primary in `board`/`dual`; README, API, setup docs and all skills updated; 197 documented CLI flags matched the remote-built 0.3.0 `--help`; `openspec validate --strict` passes; issue #1, #37 and #41 comments posted.
 
 ## 8. Wider integration and final evidence
 
-- [ ] 8.1 Run remote packaged API/CLI acceptance covering legacy board/context/document/watch contracts, additive upgrades, multi-replica routing, shared budgets and independent provider/session failures; record exact BuildBuddy invocations and report any unsupported live adapter as untested.
-- [ ] 8.2 Complete the remaining CI provider policy, BuildBuddy diagnostics and completion-guard gates through `adopt-ash-and-monitor-pr-ci`; prove no false green/early completion and available/degraded evidence, without replacing its task checklist with notification success.
-- [ ] 8.3 Update architecture and portable proposal artifacts for implemented behavior, upload/link immutable versions and verify live sandbox rendering; record final mode, image/CLI digests, enrollment capability matrix and a tested no-data-loss rollback before marking the whole runtime change complete.
+- [x] 8.1 Run remote packaged API/CLI acceptance covering legacy board/context/document/watch contracts, additive upgrades, multi-replica routing, shared budgets and independent provider/session failures; record exact BuildBuddy invocations and report any unsupported live adapter as untested. [`//:acceptance` with `--nocache_test_results`](https://carverauto.buildbuddy.io/invocation/20daf68a-bd98-4c54-a459-795259a61a5f) on main 2b0110f executed all 90 tests and passed: board/context/document/watch (`board_api_test`, `context_api_test`), additive upgrades (`release_schema_test`, `*_upgrade_test`), cross-replica fencing through shared PostgreSQL reservations and budgets (`delivery_scheduling_test`, `poll_budget_fairness_test`, `wake_intents_test`), and independent provider/session failures (`delivery_github_test`, `mattermost_bridge_test`, `worker_runtime_test`). Multi-replica routing is proved through those shared-database fences, not two live Phoenix pods. Untested live adapters: Codex native owner (6.4), Herdr worker adapter (disabled), Grok/Muse/AGY native boundaries (manual only).
+- [ ] 8.2 **Owned by `adopt-ash-and-monitor-pr-ci`.** Complete the remaining CI provider policy, BuildBuddy diagnostics and completion-guard gates through `adopt-ash-and-monitor-pr-ci`; prove no false green/early completion and available/degraded evidence, without replacing its task checklist with notification success.
+- [ ] 8.3 Update architecture and portable proposal artifacts for implemented behavior, upload/link immutable versions and verify live sandbox rendering; record final mode, image/CLI digests, enrollment capability matrix and a tested no-data-loss rollback before marking the whole runtime change complete. Recorded: final mode `dual` with inbound and private routes, v0.3.0 dashboard digest and rollback test in docs/verification/farm01-v0.3.0-rollout.json, CLI checksums in the v0.3.0 release `SHA256SUMS`, enrollment capability matrix in docs/verification/runtime-harness-readiness.md. Remaining: the architecture and portable review refresh with document uploads.
 
-## Reservation foundation evidence
+## Evidence index
 
-Task 1.1 adds a mutable Ash PollState, atomic submission enrollment, bounded
-120-second per-PR reservations, generations/attempt UUIDs and fenced persistent
-failure backoff, with observation default-off. [Remote polling/inventory/discovery
-proof](https://carverauto.buildbuddy.io/invocation/dfa54af4-ad05-40dd-9d9c-f71c1e42360c)
-passed those three targets; that first run's additional schema target failed on
-an omitted BM25 extension in the new upgrade fixture. After correcting the
-fixture, [fresh/repeat/schema-4/schema-7 migration proof](https://carverauto.buildbuddy.io/invocation/b99cbebd-2f59-460a-bff4-6bfd125a4609)
-passed. See [stage contracts](../../../docs/ci-polling.md).
-
-The reservation foundation alone has no due scheduler. Task 1.2 now adds scheduling as documented below; GitHub collection, failure obligations, worker connectors and automatic reminders remain pending. Existing Ash/CI tasks 1.3 and
-4.2–4.4 remain open; 1.2 covers only the scheduling subset of 4.2.
-The first release gate and the remaining 34 runtime tasks remain open.
-
-After remote formatting, [full 17-target acceptance](https://carverauto.buildbuddy.io/invocation/9f599f54-8769-466d-8de4-1e88b8fe7368) passed (12 executed, five unchanged cached targets). Archify foundation: 9/9 showcase checks, zero errors/warnings, all four desktop containment measurements, and separate light/dark image review. No live runtime or provider result is implied.
-
-## Scheduling evidence
-
-Task 1.2 adds immediate transactional per-PR Oban jobs, a bounded minute AshOban scheduler, missing-state reconciliation from all canonical inventory, independent queues, and shared PostgreSQL provider admission windows. [Full 18-target remote acceptance](https://carverauto.buildbuddy.io/invocation/c39b75ed-fca7-4114-b78c-4992a52d3ed9) proves restart, archived/terminal and previously-green PR scheduling, recovery across 100 rows, disabled queued jobs, atomic enqueue rollback, independent shared budgets and schema-8 backoff preservation during schema-9 upgrade. Actual pacing and unavailable defer limits are in [stage contracts](../../../docs/ci-polling.md).
-
-No provider HTTP collector, CI verdict writer, repair obligation, wake connector or reminder is delivered yet. Existing Ash/CI 4.2–4.4 remain open for their broader observation requirements. The first release gate remains group 3; observation remains default-off. The approved exported proposal remains the historical planning snapshot.
-
-After remote formatting, [full 18-target acceptance](https://carverauto.buildbuddy.io/invocation/eb4b683e-7e3d-42d1-ae45-9412e467059b) passed. Scheduling Archify passed 9/9 showcase checks with zero errors/warnings, four desktop containment measurements, and separate actual light/dark image review; viewer interactions are not covered by that image review.
-
-
-## Current-head collection evidence
-
-Task 1.3 now samples bounded current-head GitHub metadata, all check-suite/run
-and status pages, latest numeric attempt IDs, failed-job source links and
-head/base/lifecycle rechecks. Schema 10 retains immutable fenced snapshots and
-provider-wide cooldown. [Full 19-target remote acceptance](https://carverauto.buildbuddy.io/invocation/ba9ffc78-3106-4bc0-bbdd-44b101eecadb)
-passed (14 executed, five unchanged cached targets). The TLS fixture drives the
-packaged Ash poll action against invented provider responses and PostgreSQL;
-see [collector contracts](../../../docs/github-ci-observation.md).
-
-A complete head failure can be failing, a nonterminal latest attempt pending,
-and every clean/empty/security-only observation remains unknown without policy.
-Required repository rules, workflow/test-ref identity, passing certification,
-Actions job details and BuildBuddy correlation remain unchecked in the broader
-Ash/CI change, which remains 9/37. Obligations, receipts, adapters, reminders and
-the controlled first-release proof remain open. The runtime is 3/36 complete.
-
-Merged PR45 is separately rolled to farm01 at schema 9/API 1 with discovery and
-observation explicitly false; its operator pin and retained-data receipt ship
-with this collector PR to avoid an extra maintenance-only PR. The collector
-schema 10 and provider calls are not deployed or enabled by that record.
-
-
-Collector Archify: source-linked implementation evidence, 9/9 showcase checks,
-zero errors/warnings, four desktop containment measurements and separate actual
-light/dark screenshot review. Viewer interactions are not implied.
-## Server delivery and reminder evidence
-
-Tasks 2.1–2.3 and 3.1 are implemented on the server. [Twenty-target remote
-acceptance](https://carverauto.buildbuddy.io/invocation/95a37bdf-86ab-4ed1-83f3-3d1769cfa6df)
-passed after named source-capture attributes and isolated enrollment/receipt helpers.
-The packaged runtime proves scoped/revoked credentials, exact immutable receipt
-attribution, atomic Context receipt/source rollback, late lower-ID commits,
-interrupted 205-recipient fan-out, bounded fairness, dispatch expiry with retained
-uncertainty, read-only historical reconciliation, independent blocked recipients,
-and four-per-hour reminders with duplicate jobs/progress/blocker/pause fences.
-The global switch gates reservations and reminder wakes while preserving evidence.
-The [pre-fix reminder predicate](https://carverauto.buildbuddy.io/invocation/ef8a16a9-22f0-41d2-8257-0a0015da3c04)
-fails specifically on a disabled flag producing a reminder; fixed behavior is
-included in the passing acceptance above.
-
-Tasks 1.4/1.5 are now implemented through the published collector transaction.
-[Combined 24-target acceptance](https://carverauto.buildbuddy.io/invocation/c8f398e3-cc92-40df-b364-31ae6e5191a5)
-proves fenced concurrent commits, atomic snapshot/projection/episode/task/source rollback,
-configured complete-head recovery without task completion, recurrence, and actual schema-10
-upgrade preserving evidence. Separate Chrome draft checks cover eight desktop/mobile
-light/dark measurements with two inspected screenshots; missing/malformed or foreign-head
-draft is never inferred. Task 2.7 is proved by [connected full-render export](https://carverauto.buildbuddy.io/invocation/c54bd1e1-f572-44e9-8823-355a83ff8612)
-and eight actual Chrome desktop/mobile light/dark checks; stale heartbeat, fresh
-connector reports and live task leases remain separately visible. Architecture and historical portable planning viewers
-are [document 63](https://agentboard.farm01.carverauto.dev/documents/63) and
-[document 64](https://agentboard.farm01.carverauto.dev/documents/64); final PR-bound
-immutable versions remain a delivery requirement. Protocol 1 is documented in
-[worker API](../../../docs/worker-api.md). This does not complete the live release
-gate, host conformance, provider merge-ref/BuildBuddy diagnostics, completion guard,
-or the broader Ash/CI dashboard checklists.
-
-## Message mode 7.1 evidence
-
-Default board and explicit dual source capture are implemented without changing
-the messages table or production flags. Sole-Mattermost activation is refused
-with explicit missing 5.1/5.2/5.3, adapter and #80 decision-path reasons; the
-working board inbox remains primary. Private recipient notices retain scoped
-pending intents rather than using a public-channel fallback. This is not peer
-inbox parity or a production cutover. Tasks 7.2/7.3 and the wider runtime remain
-open. See [mode prerequisites and rollback](../../../docs/setup/mattermost.md#message-modes-openspec-71).
-
-[Five packaged remote suites](https://carverauto.buildbuddy.io/invocation/47eef25c-8114-4679-b5f8-931289b3191e)
-passed board/cooperation compatibility, atomic dual sends/handoff, disabled jobs,
-private-route fencing, explicit claim, outbox/message rollback, outage isolation
-and cold-start mode configuration. A
-[disabled capture producer](https://carverauto.buildbuddy.io/invocation/986f466a-f6ca-4974-bdab-106b35a91d03)
-fails specifically on the missing message intent. Archify has separate 9/9
-deterministic, desktop browser containment and light/dark screenshot review
-receipts. Publication/current-head CI and immutable PR-bound document uploads
-are separate delivery gates.
-
-## Shared-bot inbound 5.3 evidence
-
-[Five-suite packaged remote acceptance](https://carverauto.buildbuddy.io/invocation/b27ab228-1cd2-424d-8b4a-ba0b8f2df7b4)
-proves authenticated subscribe-before-history, overlapping equal-time pages/live
-arrival, same-time edits, verified thread-root and plain-mention routing,
-agent_id+msg_id/bridge echo suppression, new DM discovery, downtime recovery,
-missing/revoked source handling, scoped exact receipts and the real Go CLI
-checkpoint seam. Schema18 stores metadata/hashes only; inbound defaults off.
-A stable history scan still exposes historical_deletions_unprovable, because
-ordinary bot history cannot prove unknown offline deletions. Bodies remain
-Mattermost-authoritative; unavailable versions are not fabricated or consumed.
-See [implemented contracts](../../../docs/mattermost-inbox.md). Task5.4, chat
-cutover, live fleet parity, Herdr activation and PR publication/CI remain distinct
-gates; this checkbox does not imply production enablement.
-
-## Host packaged acceptance evidence
-
-Tasks 2.4–2.6 now have shipped host/native implementation and [fresh real packaged
-API/CLI acceptance plus isolated Pi evidence](../../../docs/verification/worker-packaged-api.md).
-Five focused remote suites passed; actual Pi0.99.2 exclusive-RPC idle wake and busy
-dedicated-tool-return passed with exact receipts and generation replacement.
-Disposable launchd/systemd files were inspected without service activation.
-Herdr unsafe prompt/TUI and universal harness parity remain unsupported.
-When this packaged acceptance was recorded, production task 3.4 was still captain-gated and controlled joint tasks 3.2–3.3 were still open.
+| Tasks | Evidence |
+| --- | --- |
+| 1.1 | [polling/inventory/discovery](https://carverauto.buildbuddy.io/invocation/dfa54af4-ad05-40dd-9d9c-f71c1e42360c), [migrations](https://carverauto.buildbuddy.io/invocation/b99cbebd-2f59-460a-bff4-6bfd125a4609), [stage contracts](../../../docs/ci-polling.md) |
+| 1.2 | [18-target acceptance](https://carverauto.buildbuddy.io/invocation/c39b75ed-fca7-4114-b78c-4992a52d3ed9) |
+| 1.3 | [19-target acceptance](https://carverauto.buildbuddy.io/invocation/ba9ffc78-3106-4bc0-bbdd-44b101eecadb), [collector contracts](../../../docs/github-ci-observation.md) |
+| 1.4, 1.5 | [24-target acceptance](https://carverauto.buildbuddy.io/invocation/c8f398e3-cc92-40df-b364-31ae6e5191a5) |
+| 2.1–2.3, 3.1 | [20-target acceptance](https://carverauto.buildbuddy.io/invocation/95a37bdf-86ab-4ed1-83f3-3d1769cfa6df), [worker API](../../../docs/worker-api.md) |
+| 2.4–2.6 | [packaged API/CLI and isolated Pi](../../../docs/verification/worker-packaged-api.md) |
+| 2.7 | [connected full-render export](https://carverauto.buildbuddy.io/invocation/c54bd1e1-f572-44e9-8823-355a83ff8612) |
+| 3.2–3.4 | [first-release pilot](../../../docs/verification/runtime-first-release-pilot.md), [v0.3.0 rollout and rollback](../../../docs/verification/farm01-v0.3.0-rollout.json) |
+| 4.3, 5.4 | [dual-mode pilot and outage](../../../docs/verification/runtime-dual-mode-pilot.md) |
+| 5.3, 5.3a | [five-suite inbound acceptance](https://carverauto.buildbuddy.io/invocation/b27ab228-1cd2-424d-8b4a-ba0b8f2df7b4), [inbox contracts](../../../docs/mattermost-inbox.md) |
+| 6.3, 6.5 | [harness readiness](../../../docs/verification/runtime-harness-readiness.md) |
+| 7.1 | [five packaged suites](https://carverauto.buildbuddy.io/invocation/47eef25c-8114-4679-b5f8-931289b3191e), [mode prerequisites](../../../docs/setup/mattermost.md#message-modes-openspec-71) |
+| 8.1 | [fresh 90-test acceptance](https://carverauto.buildbuddy.io/invocation/20daf68a-bd98-4c54-a459-795259a61a5f) |

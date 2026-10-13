@@ -50,7 +50,9 @@ Other harnesses are outside this pilot. Later evidence is in [runtime-harness-re
 
 Findings 1 and 3 describe image `358c8a3`. The repaired history scan and the
 operator-visible subscription blockers are in
-[shared-bot inbox catch-up](../mattermost-inbox.md).
+[shared-bot inbox catch-up](../mattermost-inbox.md). Finding 2 is fixed in
+PR #233: the Pi wake text now asks the model to read Mattermost items before
+handling them.
 
 ## Mattermost outage (OpenSpec 4.3)
 

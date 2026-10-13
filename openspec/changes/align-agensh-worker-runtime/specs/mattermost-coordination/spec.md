@@ -12,7 +12,7 @@ The bridge SHALL use one service bot, one durable task-thread mapping and unique
 - **THEN** assignment, history and notification intent commit atomically, and chat delivery stays pending for recovery
 
 ### Requirement: Remote-write uncertainty is explicit
-The bridge SHALL reconcile an accepted-post/lost-response case against durable event markers and authorized remote history before retrying. An unresolved outcome SHALL remain visibly uncertain. Client retry metadata SHALL NOT be represented as an unverified exactly-once receiver guarantee.
+The lifecycle bridge and agent chat sends SHALL reconcile an accepted-post/lost-response case against durable event markers and authorized remote history before retrying. An agent chat send is spooled before Mattermost sees it; an unresolved send is reported as such (HTTP 202, CLI exit 5) and settles only through explicit reconcile, retry or abandon, and a repeated send with the same retry key reconciles instead of posting again. An unresolved outcome SHALL remain visibly uncertain. Client retry metadata SHALL NOT be represented as an unverified exactly-once receiver guarantee.
 
 #### Scenario: Remote post accepted before timeout
 - **WHEN** Mattermost stores a post but its response is lost

@@ -2,7 +2,7 @@
 
 ## Context
 
-See `proposal.md` for motivation. This is a proposed architecture, not evidence that adapters, a bridge, or CI observation are deployed.
+See `proposal.md` for motivation. This is the design record written at planning time; "proposed" below refers to that state. What shipped (release v0.3.0) and its live evidence are recorded in `tasks.md` and `docs/verification/`.
 
 Inspected baseline: fresh `origin/main`, `05e11f63a528b35415f7bbe293735b6af5f00f56` (2026-10-06). There are no archived main specs yet; completed and active change deltas remain relevant contracts.
 
@@ -186,7 +186,7 @@ Default host fallback poll 30 seconds, server reconcile 60 seconds, reconnect ex
 1. **CI observation and visible ownership:** complete the necessary existing Ash/CI provider/reservation/failure-obligation tasks with a compact responsible-agent/CI row and source-intent capture. Observe before notifying; keep board primary. Record old spec conflicts without removing contracts.
 2. **CI delivery core and one proven adapter:** add scoped runtime resources/receipts, supervised host service and one real safely bound session. Validate Herdr safe-input support; if unavailable, implement a known supported native path (Claude/Pi) instead of treating manual check-in as automatic success. Demonstrate a controlled failing PR after its owner moves to another issue, receipt, overdue reminder/escalation, restart recovery and successful repair. This is the first release gate.
 3. **Outbound Mattermost bridge:** additive outbox/thread mappings, bot/Secret/channel preparation and independent queue. Prove multi-pod duplicate jobs, late commits, outage catch-up and accepted-post uncertainty. CI delivery continues directly through the worker API even if Mattermost is down.
-4. **Worker identities and conversations:** independent worker bots/REST/WebSocket/tools. Run `dual`; prove two workers can send/receive/handle channel and urgent DM traffic headlessly through downtime. Existing legacy unread items remain recoverable.
+4. **Worker identities and conversations:** the one shared bot with per-agent attribution (phase 1, D7), REST/WebSocket/tools; per-agent bots are phase 2 (GH #82). Run `dual`; prove two workers can send/receive/handle channel and urgent DM traffic headlessly through downtime. Existing legacy unread items remain recoverable.
 5. **Context/native boundaries and fleet enrollment:** task Context clarity, scoped findings delivery, Claude/Pi boundaries, Codex/Grok capability-specific paths and verified Muse/AGY fallback. Test each installed version/session generation; report each of the six workers' actual capabilities and gaps, not blanket parity. Finish remaining CI guards/diagnostics through the existing proposal in parallel with these later releases.
 6. **Cutover:** only after peer identity/DM/catch-up, handoff outbox, supported delivery, historical inbox and rollback gates pass, select `mattermost`. Reconcile `board-messaging`, `agent-workflows`, related handoff requirements, README/PRD #1/#37/#41/API/skills with new authoritative transport. Never archive contradictory specs as simultaneously current.
 
@@ -194,4 +194,4 @@ Rollback disables dispatch and bridge jobs through runtime fences, pauses host s
 
 ## Open Questions
 
-No unresolved architectural choice blocks this proposal. Deployment-time values (host names, Mattermost team/channel IDs, actual adapter versions and credential references) are enrollment inputs. Installed Herdr safe-input/session correlation and harness boundary support are explicit conformance gates with defined fallback, not assumptions. Outbound bridge uses one service bot; peer messaging uses per-worker bots; dual-run ends on evidence; all prose conversation moves to Mattermost, with legacy board history preserved read-only.
+No unresolved architectural choice blocks this proposal. Deployment-time values (host names, Mattermost team/channel IDs, actual adapter versions and credential references) are enrollment inputs. Installed Herdr safe-input/session correlation and harness boundary support are explicit conformance gates with defined fallback, not assumptions. Outbound bridge and phase-1 peer messaging use one shared bot with per-agent attribution (per-agent bots are phase 2, GH #82); dual-run ends on evidence; all prose conversation moves to Mattermost, with legacy board history preserved read-only.

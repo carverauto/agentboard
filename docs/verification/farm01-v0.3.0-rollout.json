@@ -1,0 +1,92 @@
+{
+ "release": "v0.3.0",
+ "commit": "d803171",
+ "image": "registry.carverauto.dev/agentboard/dashboard@sha256:d356c8b98197843dfb0951e0122fae71c86de982f3c1debffe3a74a3e07a8ac8",
+ "previous_commit": "37d496e",
+ "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:aa015aafc1c305ad8e62039722e65dbb1b681054f681b4e2846829a42eea5d18",
+ "release_url": "https://github.com/carverauto/agentboard/releases/tag/v0.3.0",
+ "cli_checksums": "SHA256SUMS asset of the v0.3.0 release",
+ "schema": {
+  "before": 44,
+  "after": 44,
+  "api_version": 1,
+  "migration": "none (image only)"
+ },
+ "pre_migration_backup": "none: maintainer decision (pre-release development data)",
+ "applied_by": "maintainer, scratchpad script farm01-v0.3.0-rollback-test.sh",
+ "window": "2026-10-13T00:47:26Z to 2026-10-13T00:48:10Z",
+ "rollback_test": {
+  "stages": [
+   "1. set image v0.3.0; canary task pilot-rollback-a-20261012 written",
+   "2. image rollback to previous_image; canary a read back",
+   "3. message-mode rollback on previous_image: AGENTBOARD_MESSAGE_MODE=board, AGENTBOARD_MATTERMOST_INBOUND_ENABLED=false, AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED=false, rollout restart; meta effective board; canary a read back",
+   "4. recorded ConfigMap values restored, rollout restart; meta effective dual",
+   "5. set image v0.3.0 (final); canary a read back"
+  ],
+  "row_counts": "row count of every public table (108) on the CNPG primary at each stage",
+  "tables_shrunk_between_any_adjacent_stages": [],
+  "tables_changed_start_to_end": {
+   "board_action_events": [
+    16370,
+    16373
+   ],
+   "cooperation_events": [
+    3011,
+    3012
+   ],
+   "delivery_poll_credits": [
+    0,
+    1
+   ],
+   "mattermost_outbox": [
+    1983,
+    1984
+   ],
+   "mattermost_outbox_versions": [
+    1983,
+    1984
+   ],
+   "mattermost_post_versions": [
+    2039,
+    2040
+   ],
+   "mattermost_task_threads": [
+    262,
+    263
+   ],
+   "mattermost_task_threads_versions": [
+    262,
+    263
+   ],
+   "oban_jobs": [
+    216,
+    430
+   ],
+   "task_events": [
+    3543,
+    3544
+   ],
+   "tasks": [
+    311,
+    312
+   ],
+   "tasks_versions": [
+    3349,
+    3350
+   ]
+  },
+  "data_loss": false,
+  "canary_written_on_v0.3.0_survived_all_stages": true,
+  "gap": "a second canary meant to be written on previous_image got HTTP 503 during the single-replica pod swap and was never created, so no write was proved on the rolled-back image; reads on it succeeded in stages 2 and 3",
+  "observation": "one replica gives a few-second 503 window per rollout; rollout status returned before the new pod served /api/v1/meta",
+  "config_restored": true
+ },
+ "final_state": {
+  "image": "v0.3.0 digest above",
+  "schema_version": 44,
+  "message_transport_effective": "dual",
+  "verified_at": "2026-10-13T00:48:10Z",
+  "verified_by": "claude-agentboard-herdr-nudge (public /api/v1/meta)"
+ },
+ "new_secrets_required": []
+}
