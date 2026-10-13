@@ -315,13 +315,14 @@ agentboard fleet activate pilot --mode live
 
 Expected, in order (record a timestamp for each):
 
-1. Until the next seat-supply minute, `fleet supply status` still lists step
-   7's two `dry_run` rows in `open`. That is not a mismatch. That pass
-   supersedes them and writes `pending`. The daemon can reserve the new intents
-   before the next read, so `open` holds those new ids as `pending` or
-   `reserved` by `HOST_ID`, and `recent` holds step 7's closed `dry_run` ids
-   in state `superseded`.
-   An empty `open` list after step 7's rows existed is the mismatch.
+1. After going live, each of the two new intents (new ids) moves `pending`,
+   then `reserved` by `HOST_ID`, then `launched`. While the lease is still
+   pending the state is `uncertain`, and a later pass moves it to `launched`.
+   Any read may land at any point in that sequence, including already
+   `launched` with pane and lease identity. On the first supply pass, step 7's
+   old `dry_run` intents move to `recent` in state `superseded`. A mismatch is
+   only an empty `open` list once those rows have been superseded, a `failed`
+   intent, or an intent still `uncertain` after several minutes.
 2. Herdr workspace `fleet-pilot` gains tabs `claude-app-testing-seat-1` and
    `codex-app-testing-seat-2`; each runs `launch-seat`, leases a worktree under
    `/Volumes/Build/app-testing-seats-v3` and starts its harness.
