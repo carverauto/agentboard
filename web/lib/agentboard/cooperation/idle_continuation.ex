@@ -259,10 +259,7 @@ defmodule Agentboard.Cooperation.IdleContinuation do
     |> reason(decision_pending?(s.id), "captain_decision_pending")
     |> reason(b.adapter_state not in ~w(ready blocked), "adapter_" <> b.adapter_state)
     |> reason(b.connector_state != "healthy", "connector_" <> b.connector_state)
-    |> reason(
-      is_nil(b.reported_at) or DateTime.diff(now, b.reported_at) > 90,
-      "connector_stale"
-    )
+    |> reason(Runtime.connector_stale?(b, now), "connector_stale")
     |> reason(agent.reported_status != "idle", "agent_not_idle")
     |> reason(not is_nil(b.active_attempt_id), "submission_requires_reconciliation")
     |> reason(adapter_failure?(s.id), "adapter_failure_cooldown")

@@ -29,7 +29,7 @@ func TestStepConflictDispatchBeforeNativeIO(t *testing.T) {
 				t.Fatal(err)
 			}
 			binding := cfg.Bindings[0]
-			binding.Adapter = worker.AdapterVersion
+			binding.Adapter = worker.PiAdapterVersion
 			cfg.Bindings[0] = binding
 			if err := worker.PrivateDir(cfg.JournalDir); err != nil {
 				t.Fatal(err)

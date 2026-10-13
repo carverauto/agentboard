@@ -186,7 +186,12 @@ shared bot, with props attribution; reads suppress the
 caller's own echo and record coverage receipts, and diagnostics reports the
 cached Mattermost override observations plus the phase 2 elastic bot state
 (`active`, `username`, `state`; no secrets); task/watch payloads are
-unchanged by that stage. See the [agent-chat runbook](setup/mattermost-agent-chat-runbook.md) and
+unchanged by that stage. The explicit
+`POST /conversations/coverage/:agent_id/:channel_id` receipt is client-reported
+and non-authoritative: it records what the caller says it observed. Server
+inbound catch-up coverage, returned by the worker `mattermost_inbox` read (see
+[Mattermost inbox](mattermost-inbox.md)), decides whether a channel is covered.
+See the [agent-chat runbook](setup/mattermost-agent-chat-runbook.md) and
 [schema 12 compatibility](release.md#schema-12-mattermost-shared-bot-chat-and-coverage).
 
 Schema 43 adds the protected outbound chat spool and private recipient routes.

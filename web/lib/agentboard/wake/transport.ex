@@ -181,11 +181,8 @@ defmodule Agentboard.Wake.Transport do
       b.adapter_state != "ready" or b.connector_state != "healthy",
       "native_boundary_unavailable"
     )
-    |> reason(
-      is_nil(b.reported_at) or DateTime.diff(stamp, b.reported_at) > 90,
-      "connector_stale"
-    )
-    |> reason(b.adapter not in ~w(pi-native-v1 claude-hook-v1), "safe_input_unproven")
+    |> reason(Runtime.connector_stale?(b, stamp), "connector_stale")
+    |> reason(not Runtime.safe_input_adapter?(b.adapter), "safe_input_unproven")
     |> reason(get_in(b.capabilities, ["idle_wake", "supported"]) != true, "idle_wake_unsupported")
     |> reason(source != "pending", "source_" <> source)
     |> reason(row.state not in ~w(pending deferred), "intent_requires_reconciliation")

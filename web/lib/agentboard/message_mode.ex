@@ -4,16 +4,14 @@ defmodule Agentboard.MessageMode do
   cutover capabilities have real producers and acceptance evidence. Neither
   the lifecycle bot nor operator-supplied readiness flags prove peer parity.
   """
-  alias Agentboard.Mattermost.{Bridge, Delivery}
+  alias Agentboard.Mattermost.{Bridge, Delivery, Inbound}
   require Logger
 
-  # These implementations are not yet present in this release. Replace each
-  # blocker with its owning subsystem's measured readiness when it lands;
-  # never expose a configuration boolean that bypasses these prerequisites.
-  # 5.1 shared-bot attribution and 5.2 spooled headless send/read are present
-  # in this release; 5.1 private recipient delivery is measured below.
+  # Prerequisites with no measured readiness producer yet. Replace each with
+  # its owning subsystem's measured readiness when it lands; never expose a
+  # configuration boolean that bypasses them. 5.1 private recipient routes and
+  # 5.3 inbound catch-up are measured below.
   @missing_capabilities [
-    "inbox_catch_up_unavailable_5_3",
     "delivery_adapter_readiness_unverified",
     "coordinator_decision_path_unavailable_80",
     "legacy_unread_disposition_unverified_80"
@@ -62,14 +60,14 @@ defmodule Agentboard.MessageMode do
       else: ["private_recipient_routes_disabled"]
   end
 
-  # Inbound opted in but unable to subscribe (missing/invalid repository scope,
-  # history cutoff or bot config): no worker inbox is being captured.
+  # 5.3 inbound catch-up: disabled, or opted in but unable to subscribe
+  # (missing/invalid repository scope, history cutoff or bot config), means no
+  # worker inbox is being captured.
   defp inbound_blockers do
-    with true <- Agentboard.Mattermost.Inbound.enabled?(),
-         blocker when is_binary(blocker) <- Agentboard.Mattermost.Inbound.configuration_blocker() do
-      [blocker]
-    else
-      _ -> []
+    cond do
+      Inbound.enabled?() != true -> ["mattermost_inbound_disabled"]
+      blocker = Inbound.configuration_blocker() -> [blocker]
+      true -> []
     end
   end
 

@@ -9,7 +9,9 @@ No native safe-input, restart or production activation is advertised.
 Use an existing captain-authorized enrollment. Keep its host credential only in
 a protected local token file. Do not print or copy token values into commands,
 frames, documents or board messages. The daemon's protected manifest uses the
-existing worker format with explicit repository scopes:
+existing worker format with explicit repository scopes. The dry run never calls
+an adapter, so the binding uses the `manual` (explicit check-in) adapter; the
+worker config has no Herdr adapter value:
 
 ```json
 {
@@ -21,10 +23,9 @@ existing worker format with explicit repository scopes:
     "model": "<actual-model>",
     "harness": "<actual-harness>",
     "host_id": "<enrolled-host-id>",
-    "server_id": "<locally-verified-native-server-id>",
     "session_id": "<exact-bound-native-session>",
     "adapter_generation": "<exact-bound-pane-generation>",
-    "adapter": "herdr",
+    "adapter": "manual",
     "socket_path": "/absolute/local/registered-native.sock",
     "token_file": "/absolute/private/agentboard/host-token",
     "binding_epoch": 1,

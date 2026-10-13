@@ -202,22 +202,7 @@ defmodule Agentboard.Context do
          {:ok, entry} <- Ash.get(Entry, id, not_found_error?: false),
          false <- is_nil(entry) do
       Agentboard.Board.Operations.transaction(fn ->
-        <<key::signed-64, _::binary>> =
-          :crypto.hash(:sha256, "agentboard-context-receipt:#{actor["agent"]}:#{id}")
-
-        Agentboard.Repo.statement!("SELECT pg_advisory_xact_lock($1)", [key])
-
-        existing =
-          Ash.get!(Receipt, %{entry_id: id, source_agent_id: actor["agent"]},
-            not_found_error?: false
-          )
-
-        unless existing,
-          do:
-            Receipt
-            |> Ash.Changeset.for_create(:acknowledge, %{entry_id: id}, actor: actor)
-            |> Ash.create!()
-
+        ensure_receipt(actor, id)
         %{acknowledged: id}
       end)
     else
@@ -225,6 +210,29 @@ defmodule Agentboard.Context do
       {:error, _, _} = error -> error
       {:error, error} -> failure(error)
     end
+  end
+
+  @doc """
+  Creates the actor's receipt for one entry if absent. Call inside the caller's
+  transaction: every receipt writer serializes on the same advisory lock, so
+  concurrent acknowledgements never race the create.
+  """
+  def ensure_receipt(%{"agent" => agent} = actor, entry_id) do
+    <<key::signed-64, _::binary>> =
+      :crypto.hash(:sha256, "agentboard-context-receipt:#{agent}:#{entry_id}")
+
+    Agentboard.Repo.statement!("SELECT pg_advisory_xact_lock($1)", [key])
+
+    existing =
+      Ash.get!(Receipt, %{entry_id: entry_id, source_agent_id: agent}, not_found_error?: false)
+
+    unless existing do
+      Receipt
+      |> Ash.Changeset.for_create(:acknowledge, %{entry_id: entry_id}, actor: actor)
+      |> Ash.create!()
+    end
+
+    :ok
   end
 
   defp matching_actor(actor) do

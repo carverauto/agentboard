@@ -16,6 +16,9 @@ frontend_mode = System.get_env("AGENTBOARD_FRONTEND_AUTH_MODE", "off")
 if frontend_mode not in ["off", "cloudflare_access"],
   do: raise("AGENTBOARD_FRONTEND_AUTH_MODE must be off or cloudflare_access")
 
+# One boolean flag parser: every feature flag accepts the same truthy values.
+env_flag = fn name -> System.get_env(name, "false") in ["true", "1"] end
+
 allowlist = fn name ->
   System.get_env(name, "") |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
 end
@@ -85,23 +88,23 @@ config :agentboard,
 # Inventory catch-up only. Provider observation and CI gates are separate stages.
 config :agentboard,
        :pr_discovery_enabled,
-       System.get_env("AGENTBOARD_PR_DISCOVERY_ENABLED", "false") in ["true", "1"]
+       env_flag.("AGENTBOARD_PR_DISCOVERY_ENABLED")
 
 # Registered-branch recovery uses the existing discovery queue and provider
 # budget. Keep disabled until its separate rollout is authorized.
 config :agentboard,
        :publication_recovery_enabled,
-       System.get_env("AGENTBOARD_PUBLICATION_RECOVERY_ENABLED", "false") in ["true", "1"]
+       env_flag.("AGENTBOARD_PUBLICATION_RECOVERY_ENABLED")
 
 # Independent scheduler/poll queues; keep off until provider/delivery acceptance.
 config :agentboard,
        :pr_observation_enabled,
-       System.get_env("AGENTBOARD_PR_OBSERVATION_ENABLED", "false") in ["true", "1"]
+       env_flag.("AGENTBOARD_PR_OBSERVATION_ENABLED")
 
 # Outbound Mattermost lifecycle bridge; keep off until bot/channel enablement.
 config :agentboard,
        :mattermost_bridge_enabled,
-       System.get_env("AGENTBOARD_MATTERMOST_BRIDGE_ENABLED", "false") in ["true", "1"]
+       env_flag.("AGENTBOARD_MATTERMOST_BRIDGE_ENABLED")
 
 # Non-secret bridge destination pins. The bot token is a secret reference and
 # never belongs in config: prefer a token file, fall back to the environment.
@@ -157,7 +160,7 @@ config :agentboard,
 # notices captured while off stay parked and are never replayed later.
 config :agentboard,
        :mattermost_private_routes_enabled,
-       System.get_env("AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED", "false") in ["true", "1"]
+       env_flag.("AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED")
 
 # Outbound chat spool body retention in seconds (default one day, max 30 days).
 chat_spool_ttl =
@@ -289,7 +292,7 @@ config :agentboard,
 
 if config_env() == :prod do
   config :agentboard, AgentboardWeb.Endpoint,
-    server: System.get_env("PHX_SERVER") in ["true", "1"],
+    server: env_flag.("PHX_SERVER"),
     url: [
       host: System.get_env("PHX_HOST", "localhost"),
       port: 443,
@@ -301,19 +304,19 @@ end
 
 config :agentboard,
        :cooperation_enabled,
-       System.get_env("AGENTBOARD_COOPERATION_ENABLED") == "true"
+       env_flag.("AGENTBOARD_COOPERATION_ENABLED")
 
 # Idle/no-findings continuation is a separate opt-in on top of cooperation;
 # enabling cooperation alone never starts continuation reminders.
 config :agentboard,
        :idle_continuation_enabled,
-       System.get_env("AGENTBOARD_IDLE_CONTINUATION_ENABLED", "false") == "true"
+       env_flag.("AGENTBOARD_IDLE_CONTINUATION_ENABLED")
 
 # Approval records alone never activate native connection authority. No deployed
 # configuration is changed here; fixture tests enable only their isolated server.
 config :agentboard,
        :native_authority_enabled,
-       System.get_env("AGENTBOARD_NATIVE_AUTHORITY_ENABLED", "false") == "true"
+       env_flag.("AGENTBOARD_NATIVE_AUTHORITY_ENABLED")
 
 # Preserve invalid entries so policy classification fails closed instead of applying defaults.
 ci_policies =
@@ -327,7 +330,7 @@ config :agentboard, :ci_policies, ci_policies
 # Shared-bot inbound is a separate opt-in; deploying code does not activate chat cutover.
 config :agentboard,
        :mattermost_inbound_enabled,
-       System.get_env("AGENTBOARD_MATTERMOST_INBOUND_ENABLED", "false") in ["true", "1"]
+       env_flag.("AGENTBOARD_MATTERMOST_INBOUND_ENABLED")
 
 config :agentboard, :mattermost_inbound_repo, System.get_env("AGENTBOARD_MATTERMOST_INBOUND_REPO")
 # Unset means each worker's enrollment time. An explicit non-negative epoch
@@ -348,12 +351,12 @@ config :agentboard, :mattermost_inbound_history_start_ms, history_start
 
 config :agentboard,
        :decision_cleanup_enabled,
-       System.get_env("AGENTBOARD_DECISION_CLEANUP_ENABLED") == "true"
+       env_flag.("AGENTBOARD_DECISION_CLEANUP_ENABLED")
 
 # Presentation-only opt-in. This never activates provider collection or cooperation.
 config :agentboard,
        :branch_flow_enabled,
-       System.get_env("AGENTBOARD_BRANCH_FLOW_ENABLED") == "true"
+       env_flag.("AGENTBOARD_BRANCH_FLOW_ENABLED")
 
 # Typed decision chat routing is unset by default and never activates participation.
 config :agentboard,

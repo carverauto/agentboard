@@ -358,8 +358,7 @@ func finishHistoricalReconciliation(cfg Config, b Binding, j *Journal, r Report,
 		return r, errors.New("historical reconcile immutable batch mismatch; journal retained")
 	}
 	// Historical non-submission retires this journal, never replays its payload.
-	// Older servers reported that same positive evidence through replay_allowed.
-	if e.Resolved || e.Batch.Status == "not_submitted" || e.Replay {
+	if e.Resolved || e.Batch.Status == "not_submitted" {
 		j.Phase = "complete"
 		r.State = "reconciled"
 		r.Attempt = j.Batch.Attempt
