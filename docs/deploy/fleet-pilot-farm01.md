@@ -82,7 +82,7 @@ agentboard admin rollout registry.carverauto.dev/agentboard/dashboard@sha256:DIG
   --migration-job k8s/base/migration.yaml --migration-job-name agentboard-migrate \
   --cnpg-cluster agentboard-db \
   --record-out docs/verification/farm01-v0.4.0-rollout.json
-agentboard meta --json   # schema_version 47 (48 if helper access shipped)
+agentboard meta --json   # schema_version at least 47, the @required in the released tree's web/lib/agentboard/schema_version.ex
 ```
 
 Check: intake routes answer 404 `intake_disabled`, `fleet refill status` and
