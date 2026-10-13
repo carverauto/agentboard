@@ -1,5 +1,5 @@
 defmodule Agentboard.Delivery.GithubHTTP do
-  @moduledoc "Read-only operator-pinned HTTPS transport. No redirects, raw-body errors or implicit retry."
+  @moduledoc "Operator-pinned GitHub HTTPS transport. No redirects, raw-body errors or implicit retry; CI observation only reads."
   alias Agentboard.Delivery.ProviderAdmission
 
   @body_limit 1_048_576
@@ -7,57 +7,20 @@ defmodule Agentboard.Delivery.GithubHTTP do
   def get(path, timeout, options \\ []) do
     config = Application.get_env(:agentboard, :github, [])
 
-    with {:ok, base, token} <- destination(config),
+    with {:ok, destination} <- destination(config),
          {:ok, %{allowed: true} = admission} <- admit(options[:credit]) do
-      headers = [
-        {"accept", "application/vnd.github+json"},
-        {"accept-encoding", "identity"},
-        {"authorization", "Bearer " <> token},
-        {"user-agent", "agentboard-ci-observer"},
-        {"x-github-api-version", "2022-11-28"}
-      ]
+      headers =
+        [{"user-agent", "agentboard-ci-observer"}] ++ Keyword.get(options, :conditional, [])
 
-      headers = headers ++ Keyword.get(options, :conditional, [])
-      deadline = System.monotonic_time(:millisecond) + min(timeout, 10_000)
-      ssl = [verify: :verify_peer, timeout: min(timeout, 5_000)]
-
-      ssl =
-        if config[:ca_file],
-          do: Keyword.put(ssl, :cacertfile, config[:ca_file]),
-          else: Keyword.put(ssl, :cacertfile, CAStore.file_path())
-
-      # Connection belongs to this job process; no singleton request/query broker.
-      case Mint.HTTP.connect(:https, base.host, base.port,
-             mode: :passive,
-             protocols: [:http1],
-             transport_opts: ssl,
-             max_header_list_size: 16_384
-           ) do
-        {:ok, conn} ->
-          try do
-            case Mint.HTTP.request(conn, "GET", path, headers, nil) do
-              {:ok, conn, ref} ->
-                receive_response(conn, ref, deadline, %{
-                  status: nil,
-                  headers: %{},
-                  chunks: [],
-                  bytes: 0,
-                  done: false
-                })
-                |> then(fn
-                  {:not_modified, headers} ->
-                    {:not_modified, headers, Map.get(admission, :window_end)}
-
-                  response ->
-                    response
-                end)
-
-              {:error, _, _} ->
-                {:error, "unavailable", 60}
-            end
-          after
-            Mint.HTTP.close(conn)
+      case exchange(destination, "GET", path, headers, nil, timeout) do
+        {:ok, status, headers, body} ->
+          case response(status, headers, body) do
+            {:not_modified, headers} -> {:not_modified, headers, Map.get(admission, :window_end)}
+            response -> response
           end
+
+        {:error, :too_large} ->
+          {:error, "incomplete", 60}
 
         {:error, _} ->
           {:error, "unavailable", 60}
@@ -70,6 +33,67 @@ defmodule Agentboard.Delivery.GithubHTTP do
     end
   end
 
+  @doc """
+  One bounded HTTPS exchange with an operator-pinned destination. Callers own
+  admission and status mapping. Returns `{:ok, status, headers, body}` or
+  `{:error, :connect | :request | :timeout | :too_large | :receive}`; only
+  `:connect` proves the request never left this process.
+  """
+  def exchange(
+        %{base: base, token: token, ca_file: ca_file},
+        method,
+        path,
+        headers,
+        body,
+        timeout
+      ) do
+    headers =
+      [
+        {"accept", "application/vnd.github+json"},
+        {"accept-encoding", "identity"},
+        {"authorization", "Bearer " <> token},
+        {"x-github-api-version", "2022-11-28"}
+      ] ++ headers
+
+    deadline = System.monotonic_time(:millisecond) + min(timeout, 10_000)
+    ssl = [verify: :verify_peer, timeout: min(timeout, 5_000)]
+
+    ssl =
+      if ca_file,
+        do: Keyword.put(ssl, :cacertfile, ca_file),
+        else: Keyword.put(ssl, :cacertfile, CAStore.file_path())
+
+    # Connection belongs to this job process; no singleton request/query broker.
+    case Mint.HTTP.connect(:https, base.host, base.port,
+           mode: :passive,
+           protocols: [:http1],
+           transport_opts: ssl,
+           max_header_list_size: 16_384
+         ) do
+      {:ok, conn} ->
+        try do
+          case Mint.HTTP.request(conn, method, path, headers, body) do
+            {:ok, conn, ref} ->
+              receive_response(conn, ref, deadline, %{
+                status: nil,
+                headers: %{},
+                chunks: [],
+                bytes: 0,
+                done: false
+              })
+
+            {:error, _, _} ->
+              {:error, :request}
+          end
+        after
+          Mint.HTTP.close(conn)
+        end
+
+      {:error, _} ->
+        {:error, :connect}
+    end
+  end
+
   defp admit(nil), do: ProviderAdmission.acquire("github")
   defp admit(credit), do: ProviderAdmission.spend(credit)
 
@@ -77,7 +101,7 @@ defmodule Agentboard.Delivery.GithubHTTP do
     remaining = deadline - System.monotonic_time(:millisecond)
 
     if remaining <= 0 do
-      {:error, "unavailable", 60}
+      {:error, :timeout}
     else
       case Mint.HTTP.recv(conn, 0, remaining) do
         {:ok, conn, replies} ->
@@ -85,21 +109,18 @@ defmodule Agentboard.Delivery.GithubHTTP do
 
           cond do
             result.bytes > @body_limit ->
-              {:error, "incomplete", 60}
+              {:error, :too_large}
 
             result.done ->
-              response(
-                result.status,
-                result.headers,
-                result.chunks |> Enum.reverse() |> IO.iodata_to_binary()
-              )
+              {:ok, result.status, result.headers,
+               result.chunks |> Enum.reverse() |> IO.iodata_to_binary()}
 
             true ->
               receive_response(conn, ref, deadline, result)
           end
 
         {:error, _, _, _} ->
-          {:error, "unavailable", 60}
+          {:error, :receive}
       end
     end
   end
@@ -127,7 +148,8 @@ defmodule Agentboard.Delivery.GithubHTTP do
   defp part({:done, ref}, result, ref), do: %{result | done: true}
   defp part(_, result, _), do: result
 
-  defp destination(config) do
+  @doc "Validated HTTPS destination for a GitHub configuration keyword list."
+  def destination(config) do
     base = URI.parse(config[:api_url] || "https://api.github.com")
     token = config[:token]
 
@@ -135,7 +157,7 @@ defmodule Agentboard.Delivery.GithubHTTP do
          is_nil(base.userinfo) and is_nil(base.query) and is_nil(base.fragment) and
          base.path in [nil, "", "/"] and is_binary(token) and token != "" and
          not String.contains?(token, ["\r", "\n"]) do
-      {:ok, %{base | path: nil}, token}
+      {:ok, %{base: %{base | path: nil}, token: token, ca_file: config[:ca_file]}}
     else
       {:error, "unauthorized"}
     end

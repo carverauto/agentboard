@@ -83,7 +83,7 @@ func NewRoot() *cobra.Command {
 	}})
 	root.AddCommand(c.doctor())
 	root.AddCommand(c.coordinatorCommands())
-	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.hostCommands(), c.chat(), c.prs(), c.publications(), c.decisions(), c.seat(), c.adminCommands(), c.fleetCommands())
+	root.AddCommand(c.agents(), c.tasks(), c.messages(), c.quota(), c.documents(), c.skills(), c.contextCommands(), c.workerCommands(), c.hostCommands(), c.chat(), c.prs(), c.publications(), c.decisions(), c.seat(), c.adminCommands(), c.fleetCommands(), c.intakeCommands())
 	return root
 }
 func env(key, fallback string) string {
@@ -125,8 +125,10 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	fleetLoadout := strings.HasPrefix(path, "fleets/") && strings.HasSuffix(path, "/loadout")
 	fleetRefill := strings.HasPrefix(path, "fleets/") && (strings.HasSuffix(path, "/activate") || strings.HasSuffix(path, "/deactivate") || strings.HasSuffix(path, "/refill"))
 	fleetCaptain := fleetLoadout || fleetRefill
+	// Intake is captain-only until scoped helper credentials exist.
+	intake := path == "intake" || strings.HasPrefix(path, "intake/")
 	decisionConversation := isDecisionConversationPath(path)
-	if (method != http.MethodGet || decisionConversation) && !fleetCaptain {
+	if (method != http.MethodGet || decisionConversation) && !fleetCaptain && !intake {
 		if err := c.cfg.Actor.Validate(); err != nil {
 			return nil, err
 		}
@@ -136,7 +138,7 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	captain, _ := cmd.Flags().GetBool("captain")
 	// Fleet configuration is captain-only for reads as well as writes. There is
 	// no command flag that can downgrade this transport to an ordinary bearer.
-	captain = captain || fleetCaptain
+	captain = captain || fleetCaptain || intake
 	// Typed conversation participation always uses the caller's ordinary bearer,
 	// never a protected captain capability or a worker runtime receipt.
 	if decisionConversation {
@@ -258,6 +260,9 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	}
 	if fields, ok := payload.(map[string]any); ok && path == "conversations/send" && fields["to"] != nil {
 		required = 43
+	}
+	if intake {
+		required = 45
 	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return nil, &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}

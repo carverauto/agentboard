@@ -10,7 +10,8 @@ config :agentboard,
     Agentboard.Housekeeping,
     Agentboard.Context,
     Agentboard.Mattermost,
-    Agentboard.Cooperation
+    Agentboard.Cooperation,
+    Agentboard.Intake
   ]
 
 config :ash,
@@ -24,7 +25,8 @@ config :agentboard, :rate_limits,
   max_buckets: 20_000,
   watch_ip: 20,
   watch_agent: 5,
-  max_watches: 1_000
+  max_watches: 1_000,
+  intake: 30
 
 config :agentboard, :roster, stale_after: "20m"
 

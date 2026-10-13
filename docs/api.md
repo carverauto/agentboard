@@ -406,6 +406,70 @@ The response is `{"loadout": {...}, "replayed": false}`; loadout includes ID, re
 
 Expected revision guards a full replacement. Exact normalized retries under the same fleet/key return the original committed snapshot with `replayed: true`; changed payloads under that key and stale new replacements conflict. Per-fleet seat IDs retain their original agent/harness binding after removal. An agent cannot appear in two current fleet configurations. Removing desired seats never stops workers, clears responsibilities or changes task ownership. Saving a loadout never activates it; activation is the separate captain call below. Role/readiness gates, host enrollment/reconciliation, trusted catalogs and Deck remain deferred. See [Dormant fleet loadouts](fleet-loadout.md) for exact field bounds, canonical scope behavior, CLI input validation, retry and error contracts.
 
+## Work intake (schema 45)
+
+Off unless the server sets `AGENTBOARD_INTAKE_ENABLED=true`; while off every
+intake route returns 404 `intake_disabled`. `GET /api/v1/meta` reports
+`intake_enabled`. Each route verifies the captain capability
+(`Authorization: Bearer`) itself, so intake stays authenticated even when
+`AGENTBOARD_AUTH_MODE` is `off`; anything else gets 403 `forbidden`. Responses
+carry `Cache-Control: no-store`. Setup, credentials and the issue state table:
+[work intake](setup/intake.md).
+
+`POST /api/v1/intake` takes exactly `request_key` (1-128 bytes, trimmed) and
+`items` (1-10). Each item takes `repository` (`owner/repo`, required),
+`title` (required, at most 256 characters), `body` (default empty), `priority`
+(integer >= 0, default 3, lower is more urgent), `labels` (up to 20, each at
+most 50 characters) and `issue` (boolean, default `true`; `false` files a card
+only). Unknown fields, a body containing an `agentboard-intake:` marker and
+any other shape return 422 `invalid_input`. Every repository must be in the
+server's `AGENTBOARD_INTAKE_REPOSITORIES`, otherwise the whole request is
+refused with 403 `forbidden` and nothing is created.
+
+The request record, every card and every pending issue intent commit in one
+transaction. Normalization decides replay: repository lowercased, title and
+body trimmed, integer priority, labels trimmed, sorted and deduplicated,
+boolean issue flag. The same filer and key with the same normalized items
+returns the original request with `replayed: true`; a different payload under
+that key returns 409 `conflict`. Cards are ordinary tasks (`repo`, `labels`,
+`priority`, `description` from the item) attributed to the filer, so claim,
+lease, PR-link and CI rules apply unchanged.
+
+The response, also returned by `GET /api/v1/intake/:id`, is
+`{"intake": {"id", "request_key", "filer_id", "created_at", "items": [...]}, "replayed": bool}`.
+Each item has `id`, `position`, `task_id`, `task_status`, `repository`,
+`title`, `issue`, `issue_state` (`none|pending|creating|created|uncertain|abandoned|cancelled`),
+`issue_url`, `issue_number`, `duplicate_issue_urls`, `reason`, `last_error`,
+`attempts`, `next_attempt_at`, `cancelled_at`, `resolved_at` and `updated_at`.
+Unknown or invisible requests return 404.
+
+GitHub issues are created afterwards by an AshOban outbox job, outside the
+board transaction, with the hidden body marker
+`<!-- agentboard-intake:ITEM_ID -->`. Once a create may have reached GitHub,
+the job lists the repository's issues for the marker and adopts a single match
+before creating again. Transient failures stay `pending` with backoff;
+definitive rejections, more than one marked issue, or a repository removed
+from the list park the item `uncertain` with a `reason`. The `system-intake`
+identity links the card to the created issue and never replaces another link.
+
+`POST /api/v1/intake/:id/cancel` takes `{}` (all items) or
+`{"items": [ITEM_ID, ...]}` and cancels cards that are still open and
+unassigned. The response adds `cancelled` (item IDs) and `skipped`
+(`{"id", "reason"}` with `card_started`, `issue_create_in_flight` or
+`already_cancelled`). A pending issue intent becomes `cancelled`; a created
+issue is not closed. Unknown item IDs return 404.
+
+`POST /api/v1/intake/:id/items/:item_id/reconcile` returns an `uncertain`
+item to the outbox, which scans for the marker before any create.
+`POST /api/v1/intake/:id/items/:item_id/abandon` stops a `pending` or
+`uncertain` item. Other states return 409; another action returns 422.
+
+Intake writes (file, cancel, reconcile, abandon) also spend a per-filer budget
+of `API_RATE_LIMIT_INTAKE` per minute (default 30) and answer 429 with
+`Retry-After` when it is exhausted. CLI: `agentboard intake file|status|cancel|resolve`
+always uses `AGENTBOARD_CAPTAIN_TOKEN_FILE`, needs schema 45, exits 4 on a
+conflict and `intake status` exits 5 while an item is `uncertain`.
+
 ### Coordinator inbox shadow classification
 
 The schema-36 optional note `triage` contract, captain-only off/shadow

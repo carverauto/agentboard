@@ -228,6 +228,37 @@ config :agentboard, :github,
   token: System.get_env("GITHUB_TOKEN"),
   ca_file: System.get_env("AGENTBOARD_GITHUB_CA_FILE")
 
+# Work intake is off by default and fully disabled while off: its routes are
+# unavailable and its outbox queue and sweep do not run. Its GitHub credential
+# is separate from the read-only CI observer token and is used only to create
+# and find issues in the captain-listed intake repositories.
+intake_repositories =
+  System.get_env("AGENTBOARD_INTAKE_REPOSITORIES", "")
+  |> String.split(",", trim: true)
+  |> Enum.map(&String.trim/1)
+  |> Enum.reject(&(&1 == ""))
+  |> Enum.map(fn repository ->
+    # Same canonical form as seat scopes: owner/repo, lowercased.
+    if byte_size(repository) <= 256 and
+         Regex.match?(~r/\A[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9_.-]+\z/, repository) and
+         List.last(String.split(repository, "/")) not in [".", ".."],
+       do: String.downcase(repository),
+       else: raise("AGENTBOARD_INTAKE_REPOSITORIES entries must be owner/repo")
+  end)
+  |> Enum.uniq()
+
+config :agentboard,
+       :intake_enabled,
+       System.get_env("AGENTBOARD_INTAKE_ENABLED", "false") == "true"
+
+config :agentboard, :intake_repositories, intake_repositories
+
+config :agentboard, :intake_github,
+  api_url: System.get_env("AGENTBOARD_GITHUB_API_URL", "https://api.github.com"),
+  token: System.get_env("AGENTBOARD_INTAKE_GITHUB_TOKEN"),
+  token_file: System.get_env("AGENTBOARD_INTAKE_GITHUB_TOKEN_FILE"),
+  ca_file: System.get_env("AGENTBOARD_GITHUB_CA_FILE")
+
 config :agentboard, :rate_limits,
   ip: String.to_integer(System.get_env("API_RATE_LIMIT_IP", "120")),
   agent: String.to_integer(System.get_env("API_RATE_LIMIT_AGENT", "60")),
@@ -235,7 +266,8 @@ config :agentboard, :rate_limits,
   max_buckets: 20_000,
   watch_ip: String.to_integer(System.get_env("API_WATCH_LIMIT_IP", "20")),
   watch_agent: String.to_integer(System.get_env("API_WATCH_LIMIT_AGENT", "5")),
-  max_watches: 1_000
+  max_watches: 1_000,
+  intake: String.to_integer(System.get_env("API_RATE_LIMIT_INTAKE", "30"))
 
 config :agentboard, :roster, stale_after: System.get_env("AGENTBOARD_ROSTER_STALE_AFTER", "20m")
 

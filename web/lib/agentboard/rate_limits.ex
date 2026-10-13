@@ -25,6 +25,13 @@ defmodule Agentboard.RateLimits do
     check_subjects([{:agent, agent, config[:agent]}], config)
   end
 
+  # Intake writes have their own per-filer budget on top of request admission:
+  # one accepted request may create up to ten cards and issue intents.
+  def check_intake(filer) when is_binary(filer) do
+    config = settings()
+    check_subjects([{:intake, filer, Keyword.get(config, :intake, 30)}], config)
+  end
+
   defp check_subjects(subjects, config) do
     window = Keyword.fetch!(config, :window_ms)
     now = System.monotonic_time(:millisecond)

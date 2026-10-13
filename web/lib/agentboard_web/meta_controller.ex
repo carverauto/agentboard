@@ -18,6 +18,7 @@ defmodule AgentboardWeb.MetaController do
       decision_policy_protocol_revision: 1,
       message_transport: Agentboard.MessageMode.status(),
       message_history: Agentboard.MessageHistory.status(),
+      intake_enabled: Agentboard.Intake.enabled?(),
       schema_version: current,
       required_schema_version: Agentboard.SchemaVersion.required()
     })

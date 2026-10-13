@@ -236,29 +236,10 @@ defmodule Agentboard.Board.Operations do
          :ok <- Input.task(action, data),
          true <- Input.slug?(id) do
       transaction(fn ->
-        Agentboard.Availability.lock_admission()
-        identity!(actor)
-
-        Agentboard.QueueAdmission.lock_action(action, actor, data)
+        admit_action!(action, actor, data)
 
         if action == "create" do
-          stamp = now()
-
-          attrs =
-            Map.merge(
-              %{"description" => "", "priority" => 3, "labels" => []},
-              Map.delete(data, "id")
-            )
-            |> Map.merge(%{
-              "id" => id,
-              "status" => "open",
-              "revision" => 1,
-              "created_at" => stamp,
-              "updated_at" => stamp
-            })
-
-          task = create(Task, :create, attrs, actor)
-          result(task, nil, action, actor, data, stamp)
+          insert_task!(id, actor, data)
         else
           lock_task(id)
           task = fetch!(Task, id, "Task not found")
@@ -300,6 +281,96 @@ defmodule Agentboard.Board.Operations do
       false -> {:error, "invalid_input", "Invalid task ID"}
       error -> error
     end
+  end
+
+  # Same admission, audit and capture path as `task create`, for callers that
+  # own a larger transaction (an intake request files its cards atomically).
+  # `data` must already pass `Input.task("create", data)`.
+  def create_task!(id, actor, data) do
+    admit_action!("create", actor, data)
+    insert_task!(id, actor, data)
+  end
+
+  # Server-attributed card link for an issue the intake outbox created. It
+  # never overwrites a link someone else made and never touches terminal
+  # cards; the caller records why a link was skipped. Caller owns the
+  # transaction.
+  def link_issue!(task_id, issue_url, actor) do
+    lock_task(task_id)
+    task = fetch!(Task, task_id, "Task not found")
+
+    cond do
+      task.issue_url == issue_url ->
+        :already_linked
+
+      task.status in ~w(done cancelled) ->
+        {:skipped, "card_terminal"}
+
+      is_binary(task.issue_url) ->
+        {:skipped, "card_linked_elsewhere"}
+
+      true ->
+        stamp = now()
+
+        changed =
+          update(
+            task,
+            :link,
+            %{issue_url: issue_url, revision: task.revision + 1, updated_at: stamp},
+            actor,
+            task.revision
+          )
+
+        result(changed, task, "link", actor, %{"issue_url" => issue_url}, stamp)
+        :linked
+    end
+  end
+
+  # Cancels an unstarted card on behalf of its intake filer. Ownership rules
+  # are the board's own: only an open, unassigned card is unstarted.
+  def cancel_unstarted_task!(task_id, actor) do
+    data = %{"status" => "cancelled", "note" => "Cancelled by its intake filer"}
+    admit_action!("update", actor, data)
+    lock_task(task_id)
+    task = fetch!(Task, task_id, "Task not found")
+
+    unless task.status == "open" and is_nil(task.assignee_id),
+      do: reject("conflict", "Only an open, unassigned card can be cancelled through intake")
+
+    stamp = now()
+
+    attrs =
+      Agentboard.Board.Transition.attributes(task, "update", actor["agent"], data, stamp)
+      |> Map.merge(Agentboard.Availability.admit(task, "update", actor, data))
+
+    changed = update(task, :update, attrs, actor, task.revision)
+    result(changed, task, "update", actor, data, stamp)
+  end
+
+  defp admit_action!(action, actor, data) do
+    Agentboard.Availability.lock_admission()
+    identity!(actor)
+    Agentboard.QueueAdmission.lock_action(action, actor, data)
+  end
+
+  defp insert_task!(id, actor, data) do
+    stamp = now()
+
+    attrs =
+      Map.merge(
+        %{"description" => "", "priority" => 3, "labels" => []},
+        Map.delete(data, "id")
+      )
+      |> Map.merge(%{
+        "id" => id,
+        "status" => "open",
+        "revision" => 1,
+        "created_at" => stamp,
+        "updated_at" => stamp
+      })
+
+    task = create(Task, :create, attrs, actor)
+    result(task, nil, "create", actor, data, stamp)
   end
 
   # Called only by the merge watcher inside its task -> PollState transaction.
@@ -765,7 +836,9 @@ defmodule Agentboard.Board.Operations do
              Agentboard.Delivery.RepositoryMetadata,
              Agentboard.Delivery.WorkflowRun,
              Agentboard.Delivery.WorkflowHealth,
-             Agentboard.Delivery.RebaseFollowUp
+             Agentboard.Delivery.RebaseFollowUp,
+             Agentboard.Intake.Request,
+             Agentboard.Intake.Item
            ],
            fun,
            timeout: Repo.write_timeout()
