@@ -53,7 +53,10 @@ git grep -n '0\.3\.0' -- .github/workflows scripts build web/mix.exs internal/cl
 
 `8dae47b` still carries those pins, so tagging it fails the release job
 before a draft exists. Wait for the helper-access lane (helper tokens and
-`fleet status`) and intake import when the pilot should use them.
+`fleet status`) when the pilot should use them. Intake import (PR #252, the
+agentboard intake import command for issue burndown, user-requested; not yet
+on main) is an optional wait: it imports existing open issues into cards, and
+this pilot files its three issues with `intake file`.
 
 Tag the merged bump commit. Pushing a `v*` tag publishes images through
 [`.github/workflows/images.yml`](../../.github/workflows/images.yml) (`sha-<commit>`
