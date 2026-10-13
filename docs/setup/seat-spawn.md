@@ -96,7 +96,7 @@ Spawn stops with a `refuses:` error, and nothing is opened, when:
 - several Herdr workspaces carry the configured label
 - Herdr is not installed or its server is not answering
 - the source checkout, pool root or `--brief` file does not exist, or
-  `AGENTBOARD_URL` is unset
+  neither `AGENTBOARD_URL` nor `--url` sets the board URL
 
 `--apply` and `--dry-run` cannot be combined. Without either flag the command
 is a dry run.

@@ -104,7 +104,10 @@ already carries the agent ID. It never writes to the board.`}
 		if err != nil {
 			return err
 		}
-		opts.BoardURL = c.cfg.URL
+		opts.BoardURL = ""
+		if os.Getenv("AGENTBOARD_URL") != "" || cmd.Root().PersistentFlags().Changed("url") {
+			opts.BoardURL = c.cfg.URL
+		}
 		plan, err := seatops.PlanSpawn(cfg, opts)
 		if err != nil {
 			return err

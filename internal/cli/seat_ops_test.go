@@ -255,6 +255,39 @@ func TestSeatSpawnIsADryRunUnlessApplied(t *testing.T) {
 	}
 }
 
+func TestSeatSpawnRefusesWhenBoardURLIsUnset(t *testing.T) {
+	config, brief, log := spawnHost(t, "codex-a")
+	t.Setenv("AGENTBOARD_URL", "")
+	out, err := runSeatSpawn(config, "--harness", "codex", "--apply")
+	if err == nil || !strings.Contains(err.Error(), "AGENTBOARD_URL is required") {
+		t.Fatalf("err = %v, out = %s", err, out)
+	}
+	if calls := herdrCalls(t, log); len(calls) != 0 {
+		t.Fatalf("unset URL ran herdr %q", calls)
+	}
+	if _, statErr := os.Stat(brief); !os.IsNotExist(statErr) {
+		t.Fatalf("unset URL wrote the brief: %v", statErr)
+	}
+
+	out, err = runSeatSpawn(config, "--harness", "codex", "--url", "https://board.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		DryRun bool              `json:"dry_run"`
+		Env    map[string]string `json:"env"`
+	}
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if !report.DryRun || report.Env["AGENTBOARD_URL"] != "https://board.example" {
+		t.Fatalf("explicit --url report = %s", out)
+	}
+	if calls := herdrCalls(t, log); len(calls) != 1 || calls[0] != "agent list" {
+		t.Fatalf("explicit --url herdr calls = %q", calls)
+	}
+}
+
 func TestSeatSpawnRefusals(t *testing.T) {
 	for name, tc := range map[string]struct {
 		pane, want string
