@@ -297,7 +297,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "scope", "loadout", "activation", "refill", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "send", "sends", "decision", "decisions", "wake", "wakes"} {
+	for _, key := range []string{"agent", "agents", "scope", "loadout", "activation", "refill", "supply", "host", "intent", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "send", "sends", "decision", "decisions", "wake", "wakes"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue

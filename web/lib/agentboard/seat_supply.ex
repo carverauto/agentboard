@@ -36,6 +36,9 @@ defmodule Agentboard.SeatSupply do
   @pending_ttl 600
   # After a failed launch the seat waits this long before a successor intent.
   @failure_cooldown 900
+  # Host list bound. In-progress intents come first so a full page cannot hide
+  # a reserved or pending seat behind older launched ones.
+  @host_page 200
   # These states occupy their seat; the partial unique index allows one.
   @occupying ~w(pending reserved uncertain launched)
   # A host launch is in progress, and counts toward the host cap, in these.
@@ -258,27 +261,58 @@ defmodule Agentboard.SeatSupply do
 
   ## Host daemon
 
-  # Live intents a host may reserve plus every intent it holds, so a restarted
-  # daemon can reconcile. Dry-run intents are never listed to a host.
+  # In-progress intents, then pending, then launched, oldest first within each
+  # group, up to @host_page. Dry-run intents are never listed. intents_complete
+  # is false when the page is full, so a missing id is not proof the intent closed.
   def host_intents(host_id, token) do
     with {:ok, host} <- host(host_id, token) do
       Ops.transaction(fn ->
-        intents =
-          Intent
-          |> Ash.Query.filter(
-            host_id == ^host_id and state in ["pending", "reserved", "uncertain", "launched"]
-          )
-          |> Ash.Query.sort(created_at: :asc, id: :asc)
-          |> Ash.Query.limit(200)
-          |> Ash.read!()
+        intents = host_intent_page(host_id)
+        modes = fleet_modes(intents)
 
         %{
           "host" => host_view(host),
           "seat_supply_enabled" => enabled?(),
-          "intents" => Enum.map(intents, &intent_view/1)
+          "intents_complete" => length(intents) < @host_page,
+          "intents" => Enum.map(intents, &host_intent_view(&1, modes))
         }
       end)
     end
+  end
+
+  defp host_intent_page(host_id) do
+    in_progress = host_intent_states(host_id, ~w(reserved uncertain), @host_page)
+    pending = host_intent_states(host_id, ~w(pending), @host_page - length(in_progress))
+
+    launched =
+      host_intent_states(host_id, ~w(launched), @host_page - length(in_progress) - length(pending))
+
+    in_progress ++ pending ++ launched
+  end
+
+  defp host_intent_states(_host_id, _states, limit) when limit <= 0, do: []
+
+  defp host_intent_states(host_id, states, limit) do
+    Intent
+    |> Ash.Query.filter(host_id == ^host_id and state in ^states)
+    |> Ash.Query.sort(created_at: :asc, id: :asc)
+    |> Ash.Query.limit(limit)
+    |> Ash.read!()
+  end
+
+  defp fleet_modes([]), do: %{}
+
+  defp fleet_modes(intents) do
+    ids = intents |> Enum.map(& &1.fleet_id) |> Enum.uniq()
+
+    Activation
+    |> Ash.Query.filter(fleet_id in ^ids)
+    |> Ash.read!()
+    |> Map.new(&{&1.fleet_id, &1.mode})
+  end
+
+  defp host_intent_view(intent, modes) do
+    Map.put(intent_view(intent), "fleet_mode", Map.get(modes, intent.fleet_id, "inactive"))
   end
 
   def reserve(host_id, token, id) do

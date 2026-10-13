@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // supplyServer is an in-memory seat-supply server for one host.
@@ -75,7 +76,7 @@ func supplyFixture(t *testing.T, cap int, intents ...LaunchIntent) (*Supplier, *
 	t.Helper()
 	cfg, dir := spawnFixture(t)
 	server := &supplyServer{}
-	server.view.Enabled, server.view.Host.ID, server.view.Host.LaunchCap = true, "host-a", cap
+	server.view.Enabled, server.view.Complete, server.view.Host.ID, server.view.Host.LaunchCap = true, true, "host-a", cap
 	server.view.Intents = intents
 	host := &supplyHost{}
 	s := &Supplier{Server: server, Host: host, Config: cfg, BoardURL: "https://board.example",
@@ -85,7 +86,7 @@ func supplyFixture(t *testing.T, cap int, intents ...LaunchIntent) (*Supplier, *
 }
 
 func intent(id, state string) LaunchIntent {
-	return LaunchIntent{ID: id, FleetID: "main", SeatID: "seat-b", AgentID: "codex-b", Harness: "codex", State: state}
+	return LaunchIntent{ID: id, FleetID: "main", SeatID: "seat-b", AgentID: "codex-b", Harness: "codex", State: state, FleetMode: "live"}
 }
 
 func writeJournal(t *testing.T, path string, entries map[string]journalEntry) {
@@ -226,6 +227,20 @@ func TestSupplyRestartReconciliation(t *testing.T) {
 			t.Fatalf("spawned %d reports %+v", len(host.spawned), server.reports)
 		}
 	})
+	t.Run("fleet is not live", func(t *testing.T) {
+		for _, mode := range []string{"dry_run", "inactive", ""} {
+			in := intent("i1", "reserved")
+			in.FleetMode = mode
+			s, server, host := supplyFixture(t, 1, in)
+			writeJournal(t, s.Journal, map[string]journalEntry{"i1": {Agent: "codex-b", Step: "reserving"}})
+			if _, err := s.Tick(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if len(host.spawned) != 0 || len(server.reports) != 0 || len(server.reserved) != 0 {
+				t.Fatalf("mode %q spawned %d reports %+v", mode, len(host.spawned), server.reports)
+			}
+		}
+	})
 	t.Run("no journal entry", func(t *testing.T) {
 		s, server, host := supplyFixture(t, 1, intent("i1", "reserved"))
 		if _, err := s.Tick(context.Background()); err != nil {
@@ -272,6 +287,21 @@ func TestSupplyReportsUncertainUntilTheLeaseAppears(t *testing.T) {
 	}
 	if len(server.reports) != 2 || server.reports[1].State != "launched" || server.reports[1].Lease != "/pool/.treehouse/7/repo" {
 		t.Fatalf("reports %+v", server.reports)
+	}
+}
+
+func TestSupplyClipsReportReasons(t *testing.T) {
+	s, server, host := supplyFixture(t, 1, intent("i1", "pending"))
+	host.spawnErr = errors.New("timeout\nbefore " + strings.Repeat("é", 400))
+	if _, err := s.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(server.reports) != 1 || len(host.spawned) != 1 {
+		t.Fatalf("spawned %d reports %+v", len(host.spawned), server.reports)
+	}
+	reason := server.reports[0].Reason
+	if server.reports[0].State != "uncertain" || strings.ContainsAny(reason, "\n\r") || len(reason) > 500 || !utf8.ValidString(reason) || !strings.Contains(reason, "timeout") {
+		t.Fatalf("reason %q (%d bytes)", reason, len(reason))
 	}
 }
 

@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // LaunchIntent is one server seat-launch intent as its host sees it. It names
@@ -23,13 +26,19 @@ type LaunchIntent struct {
 	Workspace string `json:"workspace_id"`
 	Tab       string `json:"tab_id"`
 	Pane      string `json:"pane_id"`
+	// FleetMode is the fleet's activation mode. A reserved intent is launched
+	// again only while this is live.
+	FleetMode string `json:"fleet_mode"`
 }
 
 // HostIntents is the server's view for one enrolled host: its launch cap and
 // every live intent it may reserve or already holds.
 type HostIntents struct {
 	Enabled bool `json:"seat_supply_enabled"`
-	Host    struct {
+	// Complete is false when the server omitted intents to stay inside its page.
+	// An unlisted journal id is closed only when Complete is true.
+	Complete bool `json:"intents_complete"`
+	Host     struct {
 		ID        string `json:"host_id"`
 		LaunchCap int    `json:"launch_cap"`
 	} `json:"host"`
@@ -148,10 +157,13 @@ func (s Supplier) Tick(ctx context.Context) (SupplyReport, error) {
 			pending = append(pending, in)
 		}
 	}
-	// The server lists every intent this host holds; the rest are closed.
-	for id := range j.Intents {
-		if !listed[id] {
-			delete(j.Intents, id)
+	// A short page is the whole set. A full page can hide launched intents, so
+	// an unlisted id is not closed.
+	if view.Complete {
+		for id := range j.Intents {
+			if !listed[id] {
+				delete(j.Intents, id)
+			}
 		}
 	}
 	p.save()
@@ -233,8 +245,12 @@ func (p *pass) reconcile(ctx context.Context, in LaunchIntent, enabled bool) str
 	entry, ok := p.journal.Intents[in.ID]
 	switch {
 	case ok && entry.Step == "reserving":
-		if !enabled {
-			p.act(in, "kept", "seat supply is disabled; launch deferred")
+		if !enabled || in.FleetMode != "live" {
+			why := "seat supply is disabled; launch deferred"
+			if enabled {
+				why = "fleet is " + in.FleetMode + "; launch deferred until it is live"
+			}
+			p.act(in, "kept", why)
 			return in.State
 		}
 		return p.launch(ctx, in)
@@ -307,8 +323,8 @@ func (p *pass) send(ctx context.Context, in LaunchIntent, r LaunchReport) string
 		p.act(in, "kept", r.Reason)
 		return in.State
 	}
-	if len(r.Reason) > 500 {
-		r.Reason = r.Reason[:500]
+	if r.Reason != "" || r.State == "uncertain" || r.State == "failed" || r.State == "closed" {
+		r.Reason = clipReason(r.Reason)
 	}
 	got, err := p.Server.Report(ctx, in.ID, r)
 	if err != nil {
@@ -439,4 +455,34 @@ func errText(err error) string {
 		return "no pane returned"
 	}
 	return err.Error()
+}
+
+// clipReason makes a host report acceptable to the server: no control or
+// format characters, and at most 500 bytes without splitting a rune.
+func clipReason(reason string) string {
+	var b strings.Builder
+	b.Grow(len(reason))
+	for _, r := range reason {
+		if unicode.Is(unicode.Cc, r) || unicode.Is(unicode.Cf, r) {
+			b.WriteByte(' ')
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	cleaned := strings.TrimSpace(b.String())
+	if cleaned == "" {
+		cleaned = "unspecified"
+	}
+	if len(cleaned) <= 500 {
+		return cleaned
+	}
+	cut := 500
+	for cut > 0 && !utf8.RuneStart(cleaned[cut]) {
+		cut--
+	}
+	cleaned = strings.TrimSpace(cleaned[:cut])
+	if cleaned == "" {
+		return "unspecified"
+	}
+	return cleaned
 }
