@@ -34,7 +34,7 @@ The primary remote fixture drives the packaged release's public Ash poll action 
 
 The quality scan reports module growth in PollState/Polling, six pagination accumulator parameters and a small DateTime parser idiom shared with quota. They retain the resource/action, reservation and pagination boundaries rather than exporting a quota helper or splitting modules to satisfy a length metric. Dynamic Ash actions/migration callbacks marked as unused are exercised remotely. This is a recorded tradeoff, not a claim of a clean quality scan.
 
-See [the collector architecture](architecture/github-ci-observation.html), [reservation/scheduling contracts](ci-polling.md), and [the approved runtime checklist](../openspec/changes/archive/2026-10-13-align-agensh-worker-runtime/tasks.md). The portable proposal remains the immutable approved planning snapshot; current progress lives in Markdown.
+See [the collector architecture](architecture/github-ci-observation.html), [reservation/scheduling contracts](ci-polling.md), and [the archived runtime checklist](../openspec/changes/archive/2026-10-13-align-agensh-worker-runtime/tasks.md). The portable proposal remains the immutable approved planning snapshot; the archived checklist is the Markdown record of what shipped.
 
 
 The [full 19-target remote acceptance](https://carverauto.buildbuddy.io/invocation/ba9ffc78-3106-4bc0-bbdd-44b101eecadb)
