@@ -440,7 +440,7 @@ that key returns 409 `conflict`. Cards are ordinary tasks (`repo`, `labels`,
 lease, PR-link and CI rules apply unchanged.
 
 The response, also returned by `GET /api/v1/intake/:id`, is
-`{"intake": {"id", "request_key", "filer_id", "created_at", "items": [...]}, "replayed": bool}`.
+`{"intake": {"id", "request_key", "filer_id", "created_at", "import", "items": [...]}, "replayed": bool}`.
 Each item has `id`, `position`, `task_id`, `task_status`, `repository`,
 `title`, `issue`, `issue_state` (`none|pending|creating|created|uncertain|abandoned|cancelled`),
 `issue_url`, `issue_number`, `duplicate_issue_urls`, `reason`, `last_error`,

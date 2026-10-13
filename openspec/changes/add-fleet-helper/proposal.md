@@ -97,5 +97,5 @@ refill, seat-launch intents), API routes under the existing rate limits, a new
 credential scope, the Go CLI (`intake`, `host fleet`), `internal/seatops` (a
 `Spawn` host operation), launchd/systemd templates, Mattermost slash-command
 handling, skills for helper bots, and remote acceptance fixtures. The server
-gains a GitHub credential that can only create and search issues in intake
+gains a GitHub credential that can only create and read issues in intake
 repositories. No new external service.

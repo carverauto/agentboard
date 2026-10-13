@@ -88,13 +88,13 @@ agentboard intake import --request-key pick-3 --repo example/project --issue 42 
 Named issues keep the order given; a list selection keeps GitHub's order.
 Cards are created in that order with one priority, so refill offers them in
 that order too. An issue already linked to a card that is not cancelled is
-passed over, which makes a repeated burndown continue where the last one
-stopped. Pull requests are never imported. Named issues that are closed,
+passed over. Pull requests are never imported. Named issues that are closed,
 missing, transferred, pull requests or already on the board are listed as
 `not imported` with the reason. A list selection reads at most 20 pages of
 ten, starting at `--start-page` (the top of the list when omitted). The
-result names the next page. If it stops at the page bound it says so, and
-importing again with that `--start-page` continues. An issue body over the
+result names the next page. Import again with that `--start-page` to
+continue; a request that omits it starts again at the top of the list. If
+the walk stops at the page bound, the result says so. An issue body over the
 1 MiB response cap fails a named import with reason `too_large` and writes
 nothing; a list page over that cap is re-read in smaller chunks, and one
 issue that is still over the cap is passed over so the rest of the page can
