@@ -223,6 +223,7 @@ defmodule Agentboard.Intake.Issues do
       %{
         issue_state: "pending",
         last_error: reason,
+        duplicate_issue_urls: [],
         next_attempt_at: DateTime.add(stamp, delay),
         updated_at: stamp
       }

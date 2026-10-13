@@ -59,7 +59,15 @@ defmodule Agentboard.Intake.Item do
 
     # Explicit filer/captain decision on an unresolved issue intent.
     update :resolve do
-      accept([:issue_state, :reason, :last_error, :next_attempt_at, :resolved_at, :updated_at])
+      accept([
+        :issue_state,
+        :duplicate_issue_urls,
+        :reason,
+        :last_error,
+        :next_attempt_at,
+        :resolved_at,
+        :updated_at
+      ])
     end
   end
 

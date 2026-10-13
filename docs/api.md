@@ -451,11 +451,13 @@ board transaction, with the hidden body marker
 `<!-- agentboard-intake:ITEM_ID -->`. Once a create may have reached GitHub,
 the job resolves the intake credential's login once (`GET /user`) and lists
 issues that login created since the first create attempt, newest first, and
-adopts a single marker match before creating again. Transient failures stay
+adopts a single marker match before creating again. The creator listing is
+read until a short page; pull requests are not matches. Transient failures stay
 `pending` with backoff. Definitive rejections, more than one marked issue, a
-bounded lookup that cannot finish (`marker_search_incomplete`, keeping any
-marker URLs already seen), or a repository removed from the list park the item
-`uncertain` with a `reason`. Adopting a survivor clears `duplicate_issue_urls`.
+lookup that hits its 1000-row bound or cannot be read
+(`marker_search_incomplete`, keeping any marker URLs already seen), or a
+repository removed from the list park the item `uncertain` with a `reason`.
+Adopting a survivor, reconciling, or backing off clears `duplicate_issue_urls`.
 The `system-intake` identity links the card to the created issue and never
 replaces another link.
 
@@ -463,11 +465,12 @@ replaces another link.
 `{"items": [ITEM_ID, ...]}` and cancels cards that are still open and
 unassigned. The response adds `cancelled` (item IDs) and `skipped`
 (`{"id", "reason"}` with `card_started`, `issue_create_in_flight` or
-`already_cancelled`). A pending issue intent becomes `cancelled`; a created
-issue is not closed. Unknown item IDs return 404.
+`already_cancelled`). A pending or uncertain issue intent becomes `cancelled`;
+a created issue is not closed. Unknown item IDs return 404.
 
 `POST /api/v1/intake/:id/items/:item_id/reconcile` returns an `uncertain`
-item to the outbox, which scans for the marker before any create.
+item that was not cancelled to the outbox, which scans for the marker before
+any create. A cancelled item is terminal and reconcile returns 409.
 `POST /api/v1/intake/:id/items/:item_id/abandon` stops a `pending` or
 `uncertain` item. Other states return 409; another action returns 422.
 

@@ -82,20 +82,25 @@ true`) and files nothing new. A changed payload under that key is a conflict
 | `created` | The issue exists; `issue_url` is set and the card links it (unless the card was already linked elsewhere or finished, reported in `reason`) |
 | `uncertain` | Needs a decision: GitHub refused the issue (`rejected:422`, `rejected:403`, ...), more than one issue carries the item's marker (`duplicate_marker`, with `duplicate_issue_urls`), the bounded marker lookup could not finish (`marker_search_incomplete`, with any marker URLs already seen), or the repository left the intake list (`repository_out_of_scope`) |
 | `abandoned` | Filer or captain stopped it; no further GitHub calls |
-| `cancelled` | The card was cancelled before its issue was created |
+| `cancelled` | The card was cancelled before its issue was created. A pending or uncertain intent is cancelled with the card and is not returned to the outbox |
 
 Each issue body ends with a hidden marker,
 `<!-- agentboard-intake:ITEM_ID -->`. After any create that may have reached
 GitHub, the outbox lists issues this credential created since that attempt
 and adopts one issue carrying the marker before it creates again, so a lost
-response never makes a second issue. If that bounded list cannot be finished,
-the item parks `uncertain` with `marker_search_incomplete` instead of retrying
-the same lookup. Adopting an issue clears `duplicate_issue_urls`.
+response never makes a second issue. The list is read until it is exhausted.
+Pull requests are not matches. If that listing still cannot be finished
+(the safety bound of 1000 rows, or a page that cannot be read), the item
+parks `uncertain` with `marker_search_incomplete` instead of retrying the
+same lookup. Adopting an issue, reconciling, or backing off clears
+`duplicate_issue_urls`.
 
-To clear an `uncertain` item, fix the cause on GitHub (for example close the
-extra copy of a duplicate, or fix permissions), then `resolve --action
-reconcile`. Reconcile scans for the marker first and only then creates. Use
-`--action abandon` to stop for good; the card stays.
+To clear an `uncertain` item that was not cancelled, fix the cause on GitHub
+(for example close the extra copy of a duplicate, or fix permissions), then
+`resolve --action reconcile`. Reconcile scans for the marker first and only
+then creates. A cancelled item is terminal; reconcile is refused. Use
+`--action abandon` to stop an item that is still `pending` or `uncertain`;
+the card stays.
 
 `cancel` cancels the request's cards that are still open and unassigned. Cards
 someone already took, and items whose issue is being created at that moment,

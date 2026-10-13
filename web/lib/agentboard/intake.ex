@@ -205,14 +205,14 @@ defmodule Agentboard.Intake do
         Operations.cancel_unstarted_task!(item.task_id, actor)
         stamp = Operations.now()
 
+        open_intent = item.issue_state in ["pending", "uncertain"]
+
         Operations.update(
           item,
           :cancel,
           %{
-            issue_state:
-              if(item.issue_state == "pending", do: "cancelled", else: item.issue_state),
-            next_attempt_at:
-              if(item.issue_state == "pending", do: nil, else: item.next_attempt_at),
+            issue_state: if(open_intent, do: "cancelled", else: item.issue_state),
+            next_attempt_at: if(open_intent, do: nil, else: item.next_attempt_at),
             cancelled_at: stamp,
             cancelled_by: actor["agent"],
             updated_at: stamp
@@ -224,6 +224,13 @@ defmodule Agentboard.Intake do
     end
   end
 
+  defp resolve_item(%{cancelled_at: cancelled_at}, "reconcile") when not is_nil(cancelled_at) do
+    Operations.reject(
+      "conflict",
+      "Cannot reconcile a cancelled intake item; cancel is terminal for the outbox"
+    )
+  end
+
   defp resolve_item(%{issue_state: "uncertain"} = item, "reconcile") do
     stamp = Operations.now()
 
@@ -232,6 +239,7 @@ defmodule Agentboard.Intake do
       :resolve,
       %{
         issue_state: "pending",
+        duplicate_issue_urls: [],
         reason: nil,
         last_error: "reconcile_requested",
         next_attempt_at: stamp,

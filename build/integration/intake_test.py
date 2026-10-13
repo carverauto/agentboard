@@ -360,9 +360,18 @@ with tls_provider(GitHub) as (api_url, ca, _server):
         # The status contract surfaces uncertainty (CLI exit 5 below).
         state = api('intake/' + sql("SELECT request_id FROM intake_items WHERE id='" + dup['id'] + "'"))[0]
         assert state['intake']['items'][0]['issue_state'] == 'uncertain'
-        # Reconcile after a human closed one copy: still ambiguous, still parked.
+        # Reconcile clears the old URLs. A search outage then stays pending
+        # without republishing them. After the outage the two markers park again.
         dup_request = state['intake']['id']
         api('intake/' + dup_request + '/items/' + dup['id'] + '/reconcile', {})
+        waiting = api('intake/' + dup_request)[0]['intake']['items'][0]
+        assert waiting['issue_state'] == 'pending' and waiting['duplicate_issue_urls'] == []
+        mode['list'] = 'outage'
+        assert work(dup['id'])['state'] == 'pending'
+        waiting = api('intake/' + dup_request)[0]['intake']['items'][0]
+        assert waiting['issue_state'] == 'pending' and waiting['duplicate_issue_urls'] == []
+        mode['list'] = 'ok'
+        due(dup['id'])
         assert work(dup['id'])['state'] == 'uncertain'
         # After the extra copy is deleted upstream, reconcile adopts the survivor.
         survivor = row['duplicate_issue_urls'][0]
@@ -384,6 +393,20 @@ with tls_provider(GitHub) as (api_url, ca, _server):
         listed = len(lists)
         api('intake/' + rejected['id'] + '/items/' + rejected['items'][0]['id'] + '/reconcile', {})
         assert work(rejected['items'][0]['id'])['state'] == 'created' and len(lists) == listed + 1
+
+        # Cancel of an uncertain intent is terminal. Reconcile is refused and
+        # the outbox does not call GitHub again.
+        terminal = file('cancel-uncertain', [{'repository': REPO, 'title': 'Cancel uncertain'}])['intake']
+        mode['post'] = 'reject'
+        assert work(terminal['items'][0]['id'])['state'] == 'uncertain'
+        mode['post'] = 'ok'
+        api('intake/' + terminal['id'] + '/cancel', {})
+        assert item_row(terminal['items'][0]['id'])['issue_state'] == 'cancelled'
+        api('intake/' + terminal['id'] + '/items/' + terminal['items'][0]['id'] + '/reconcile', {}, status=409)
+        assert item_row(terminal['items'][0]['id'])['issue_state'] == 'cancelled'
+        posted = len(posts)
+        due(terminal['items'][0]['id'])
+        assert work(terminal['items'][0]['id'])['skipped'] == 'not_due' and len(posts) == posted
 
         # Rate limits stay pending with the provider's backoff.
         limited = file('rate-1', [{'repository': REPO, 'title': 'Rate limited'}])['intake']['items'][0]
