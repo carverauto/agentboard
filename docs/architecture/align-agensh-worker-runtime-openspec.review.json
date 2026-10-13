@@ -1,10 +1,10 @@
 {
   "proposal": "align-agensh-worker-runtime",
-  "scope": "Current-state review export of the change (first release proven live; checklist 26/38). Not deployment evidence. The approved planning snapshot agensh-worker-runtime-proposal.html is unchanged.",
+  "scope": "Current-state review export of the change for task 8.3: released as v0.3.0, farm01 in dual mode, checklist 34/38 at main 088d5e2 with 8.3 delivered by this export and 5.1b/6.4/8.2 owned by other changes. Not deployment evidence. The approved planning snapshot agensh-worker-runtime-proposal.html is unchanged.",
   "design_source": "Agentboard dashboard tokens and typography from web/assets/app.css (light and prefers-color-scheme dark), plain inline CSS; no CDN because the document viewer sandbox CSP allows only inline script/style and data: images",
   "deterministic": {
-    "portable_sha256": "e18bb07181cb9308344100c807f60513c811de914e4ed354fb2891431960cd4c",
-    "portable_bytes": 544155,
+    "portable_sha256": "499692ee7729b6df1c74d715dfaa4fa38c4be35828cc775c58754c3199192c06",
+    "portable_bytes": 597884,
     "export": {
       "command": "lavish-axi export",
       "unresolved_local_assets": 0,
@@ -12,30 +12,33 @@
     },
     "rendered_counts": {
       "tasks": 38,
-      "tasks_done": 26,
+      "tasks_done": 34,
       "requirements": 29,
-      "scenarios": 50
+      "scenarios": 49
     },
-    "remote_resources": "none (external URLs are anchors only)",
+    "remote_resources": "none (external URLs are anchors only; zero console messages in the live sandbox)",
+    "embedded_images": "agensh-worker-runtime.visual-check.1440x900.light.png and .dark.png as data: URIs, from the refreshed Archify delivery",
     "source_sha256": {
-      "openspec/changes/align-agensh-worker-runtime/proposal.md": "61dbe05d3d9f6a46119be16f25273392c302df004d12b5f4e0d385616f3c9873",
-      "openspec/changes/align-agensh-worker-runtime/design.md": "a7dc095db5ade73cf9537c643125067971b380df36be77d0d2c7fdb2aa89f04c",
-      "openspec/changes/align-agensh-worker-runtime/tasks.md": "334addd39de867a5ccb97799abc139c3799d6eed48a13cd0ac08a2b8924b5f80",
-      "openspec/changes/align-agensh-worker-runtime/choices.md": "c9e120335d882cb22206056cdc2adb4c43c91ac99fe595db3fd0cd238f2d7173",
+      "openspec/changes/align-agensh-worker-runtime/proposal.md": "e9cbf0d5102540a3c59b05a1758d112cd39dc2c84218479398b693d1d9062a9b",
+      "openspec/changes/align-agensh-worker-runtime/design.md": "47140430de6b136f3ec3125b5ca6b9b7e00c4ca6ebebed5cceabbf0228dd58b3",
+      "openspec/changes/align-agensh-worker-runtime/tasks.md": "0c838ec459f1c09dbcef2313c15b0d409ef6e69da57bbf1228c39b39e62f19e7",
+      "openspec/changes/align-agensh-worker-runtime/choices.md": "96758196ac8f31c67230f647b6b2c69fbbca30cf2cb1aee4c554e56536b5208e",
+      "openspec/changes/align-agensh-worker-runtime/specs/worker-delivery/spec.md": "8324fee505e59192d6580e9d9c75aad353962e2d3d4edbdc0e8dc2e0349e3024",
+      "openspec/changes/align-agensh-worker-runtime/specs/harness-adapters/spec.md": "91a0a0f7417a6c5ed431deca25d080c5bb3c60821f506c41a4244dd20702bc4e",
+      "openspec/changes/align-agensh-worker-runtime/specs/mattermost-coordination/spec.md": "f2f442bf48e38c854a6f9b04f524bd53b39fec76566d6e63c5243e277ae911a1",
       "openspec/changes/align-agensh-worker-runtime/specs/cooperation-visibility/spec.md": "8713fcaa777c1495307d5da35d21e0f7cbbf34c99367f198f7ce31fa9c203117",
-      "openspec/changes/align-agensh-worker-runtime/specs/harness-adapters/spec.md": "e5b6fe47d29596e69ad1f8271b6c24c50c6e13522d23a43d59abf731d06c2dff",
-      "openspec/changes/align-agensh-worker-runtime/specs/mattermost-coordination/spec.md": "a2b39a8309b7cdb615136a6cc5cfb7df5532d7165655829fa388d2aa512c7706",
-      "openspec/changes/align-agensh-worker-runtime/specs/worker-delivery/spec.md": "d2332510d9c2a83564a3e307a24dd2c2ae4b1c7aafc89026f40af8957cefa226",
-      "docs/verification/runtime-first-release-pilot.md": "0797a173c71c02314e711e1116eaf4f073e3da4942944c28c36bb64333128748",
-      "docs/architecture/agensh-worker-runtime.html": "48bbf5426e5491ce3e231aa6cf76db9810fb981ba4c588edd7bfdc553f01b7a8"
-    }
+      "docs/verification/farm01-v0.3.0-rollout.json": "d7e35a390c96f04d41ad7965f4c884401b473cb36086aa0f9a0df9baab7492fd",
+      "docs/verification/runtime-harness-readiness.md": "98d6e0e21d01920c144bbae0059905417553f9401882225de3621e9b022673a3",
+      "docs/verification/runtime-first-release-pilot.md": "c46ddbfaccaaa93562e674bd22a911ab08e9ed108b4eaba7cd81e5e065255901",
+      "docs/verification/runtime-dual-mode-pilot.md": "3633ef618f9c1cfb18cd1a9acf9e6206b9ab64cc6f9f548851b164492572c3c8",
+      "docs/architecture/agensh-worker-runtime.architecture.json": "a057bd4782f9074e8e31d9b0a603f788e75d535edf837b8d1d45206563bdc5f7",
+      "docs/architecture/agensh-worker-runtime.html": "7a1e680a34080cd9352b4ca6fd4393dc069520525ec96c80d60deadf0730e331"
+    },
+    "tasks_snapshot_note": "tasks.md is rendered as it stood at 088d5e2, before this PR ticks 8.3. The tick records this export's own document ID, which exists only after upload, so the committed tasks.md hash differs from source_sha256 by design."
   },
   "lavish_session": {
-    "session": "0809c3b64ce68d34",
-    "rendered": true,
-    "ended_by": "user",
-    "final_feedback": "approved",
-    "note": "Two CSS-only fixes after the session (narrow flag wrapping, anchor scroll margin) were made from the same generator and re-exported; the session was not reopened."
+    "opened": false,
+    "note": "No interactive Lavish review session was opened for this refresh; the export is checked by the browser and perceptual evidence below and by the live sandbox check."
   },
   "browser_checks": [
     {
@@ -72,21 +75,94 @@
     }
   ],
   "browser_method": "headless Chrome via playwright-core on the exported file, prefers-color-scheme emulation",
+  "live_sandbox": {
+    "document_id": 210,
+    "kind": "openspec",
+    "title": "align-agensh-worker-runtime OpenSpec review (v0.3.0)",
+    "task_id": "agentboard-runtime-8-3-artifacts",
+    "source_revision": "088d5e2e1fd9212720fd481e97583a1ece0ea14b",
+    "server_digest": "2ca5d4d69547bd1d37d46aa66004fcf2d9be3292853f47a3270a871fcbfc273b",
+    "created_at": "2026-10-13T02:23:14.253903Z",
+    "viewer_url": "https://agentboard.farm01.carverauto.dev/documents/210",
+    "body_sha256": "499692ee7729b6df1c74d715dfaa4fa38c4be35828cc775c58754c3199192c06",
+    "http": {
+      "viewer": 200,
+      "html": 200,
+      "download": 200
+    },
+    "body_matches_committed_file": true,
+    "csp": "sandbox allow-scripts allow-downloads; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+    "method": "chrome-devtools-axi (headless Chrome via chrome-devtools-mcp) on the live viewer page; viewport and prefers-color-scheme emulation; iframe inspected through the accessibility snapshot because the sandbox is opaque-origin",
+    "checks": [
+      {
+        "viewport": "1440x900",
+        "theme": "light",
+        "page_scroll_width": 1440,
+        "overflow_x": false,
+        "frame_px": "1440x850"
+      },
+      {
+        "viewport": "1440x900",
+        "theme": "dark",
+        "page_scroll_width": 1440,
+        "overflow_x": false,
+        "frame_px": "1440x850"
+      },
+      {
+        "viewport": "390x844 mobile",
+        "theme": "light",
+        "page_scroll_width": 390,
+        "overflow_x": false,
+        "frame_px": "390x740"
+      },
+      {
+        "viewport": "390x844 mobile",
+        "theme": "dark",
+        "page_scroll_width": 390,
+        "overflow_x": false,
+        "frame_px": "390x740"
+      }
+    ],
+    "console": [],
+    "captures": "taken locally in the scratchpad, not committed",
+    "rendered": "inside the sandbox: status, released-runtime panels, theme-matched data: diagram captures, capability matrix, specs, tasks and choices; zero console messages"
+  },
+  "board_documents": {
+    "task": "agentboard-runtime-8-3-artifacts",
+    "archify": {
+      "document_id": 209,
+      "viewer_url": "https://agentboard.farm01.carverauto.dev/documents/209",
+      "body_sha256": "7a1e680a34080cd9352b4ca6fd4393dc069520525ec96c80d60deadf0730e331",
+      "server_digest": "e78bf8fdbe1ada6d6a81ce13381e8e4efbe83e988688be567a1f7c7253c726f3"
+    },
+    "openspec": {
+      "document_id": 210,
+      "viewer_url": "https://agentboard.farm01.carverauto.dev/documents/210",
+      "body_sha256": "499692ee7729b6df1c74d715dfaa4fa38c4be35828cc775c58754c3199192c06",
+      "server_digest": "2ca5d4d69547bd1d37d46aa66004fcf2d9be3292853f47a3270a871fcbfc273b"
+    },
+    "supersedes": {
+      "archify": 207,
+      "openspec": 208
+    },
+    "note": "Board documents are immutable; each upload is a new version with its own ID. Both were pushed with --commit 088d5e2e1fd9212720fd481e97583a1ece0ea14b before the PR existed, so the server records no pr_url; the PR is linked on the task card."
+  },
   "perceptual_review": {
-    "reviewer": "claude-agentboard-runtime-f (claude-opus-5-5, image-capable)",
+    "reviewer": "claude-agentboard-herdr-nudge (claude-opus-5-5, image-capable)",
     "status": "pass",
     "reviewed": [
       "desktop light (align-agensh-worker-runtime-openspec.light.png)",
       "desktop dark (.dark.png)",
       "narrow dark 390x844 (.narrow.png)",
-      "tasks section dark",
-      "requirements section light"
+      "capability matrix dark",
+      "tasks section light",
+      "live document 210 at 1440x900 light and 390x844 dark"
     ],
     "observations": [
-      "Status, pilot timeline and per-group progress read at a glance in both themes",
-      "Theme-matched Archify capture swaps with the color scheme",
-      "Requirements and scenarios are distinguishable; open tasks carry an amber edge"
+      "Status, release flags and the four stats read at a glance in both themes",
+      "Rollout and rollback record sits beside the theme-matched Archify capture; the long image digest wraps without overflow",
+      "Capability matrix stays inside its own scroll container on narrow; transferred and other-change items are flagged in the progress list"
     ],
-    "limitations": "The Archify diagram is embedded as a static capture because the viewer sandbox forbids frames; the interactive diagram is its own archify document. Long page (about 34k px on desktop) by design: all sections are expanded for the sandboxed viewer."
+    "limitations": "The Archify diagram is embedded as a static capture because the viewer sandbox forbids frames; the interactive diagram is document 209. Long page (about 34k px on desktop, 70k px at 390) by design: every section is expanded for the sandboxed viewer."
   }
 }

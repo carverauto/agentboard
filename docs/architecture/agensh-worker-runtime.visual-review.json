@@ -1,13 +1,14 @@
 {
-  "artifact_sha256": "48bbf5426e5491ce3e231aa6cf76db9810fb981ba4c588edd7bfdc553f01b7a8",
-  "artifact_bytes": 716057,
+  "artifact_sha256": "7a1e680a34080cd9352b4ca6fd4393dc069520525ec96c80d60deadf0730e331",
+  "artifact_bytes": 728415,
+  "scope": "Released v0.3.0 runtime (OpenSpec align-agensh-worker-runtime task 8.3). Replaces the first-release topology delivered in PR #232 (document 207).",
   "evidence": {
     "deterministic": {
       "source": "agensh-worker-runtime.receipt.json",
       "command": "archify deliver architecture --quality showcase --repo-root",
       "checks": "9/9",
       "composition": "showcase pass, 0 errors, 0 warnings",
-      "repository_evidence": "16 source references verified at 56a5a74f5948159766809d240bb124b193e1ad5f"
+      "repository_evidence": "31 source references verified at 088d5e2e1fd9212720fd481e97583a1ece0ea14b"
     },
     "browser": {
       "desktop": {
@@ -23,7 +24,8 @@
           "light",
           "dark"
         ],
-        "overflow": "none (scrollWidth/scrollHeight equal the viewport at all four sizes)"
+        "overflow": "none (scrollWidth/scrollHeight equal the viewport at all four sizes)",
+        "min_projected_node_text_px": "6.68 at 1440x900"
       },
       "narrow": {
         "method": "headless Chrome via playwright-core, prefers-color-scheme emulation, exact delivered HTML",
@@ -48,32 +50,90 @@
           "agensh-worker-runtime.narrow.390x844.dark.png"
         ],
         "note": "No horizontal page scroll. The guided-view chapter rail scrolls horizontally inside its own container by design."
+      },
+      "live_sandbox": {
+        "document_id": 209,
+        "kind": "archify",
+        "title": "Worker runtime v0.3.0 architecture",
+        "task_id": "agentboard-runtime-8-3-artifacts",
+        "source_revision": "088d5e2e1fd9212720fd481e97583a1ece0ea14b",
+        "server_digest": "e78bf8fdbe1ada6d6a81ce13381e8e4efbe83e988688be567a1f7c7253c726f3",
+        "created_at": "2026-10-13T02:23:14.043797Z",
+        "viewer_url": "https://agentboard.farm01.carverauto.dev/documents/209",
+        "body_sha256": "7a1e680a34080cd9352b4ca6fd4393dc069520525ec96c80d60deadf0730e331",
+        "http": {
+          "viewer": 200,
+          "html": 200,
+          "download": 200
+        },
+        "body_matches_committed_file": true,
+        "csp": "sandbox allow-scripts allow-downloads; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+        "method": "chrome-devtools-axi (headless Chrome via chrome-devtools-mcp) on the live viewer page; viewport and prefers-color-scheme emulation; iframe inspected through the accessibility snapshot because the sandbox is opaque-origin",
+        "checks": [
+          {
+            "viewport": "1440x900",
+            "theme": "light",
+            "page_scroll_width": 1440,
+            "overflow_x": false,
+            "frame_px": "1440x850"
+          },
+          {
+            "viewport": "1440x900",
+            "theme": "dark",
+            "page_scroll_width": 1440,
+            "overflow_x": false,
+            "frame_px": "1440x850"
+          },
+          {
+            "viewport": "390x844 mobile",
+            "theme": "light",
+            "page_scroll_width": 390,
+            "overflow_x": false,
+            "frame_px": "390x758"
+          },
+          {
+            "viewport": "390x844 mobile",
+            "theme": "dark",
+            "page_scroll_width": 390,
+            "overflow_x": false,
+            "frame_px": "390x758"
+          }
+        ],
+        "console": [
+          "Blocked by CSP: Archify's Google Fonts stylesheet (JetBrains Mono); the viewer falls back to the local monospace stack. The same link was in document 207; it is renderer behavior, not new."
+        ],
+        "captures": "taken locally in the scratchpad, not committed",
+        "rendered": "inside the sandbox the viewer scripts ran: title heading, 5 guided-view chapters, theme/style/present/export controls and the diagram image are in the frame's accessibility tree"
       }
     }
   },
   "visual_review": "passed",
   "perceptual_review": {
-    "reviewer": "claude-agentboard-runtime-f (claude-opus-5-5, image-capable)",
-    "method": "inspected the actual capture files",
+    "reviewer": "claude-agentboard-herdr-nudge (claude-opus-5-5, image-capable)",
+    "method": "inspected the actual capture files and the live sandboxed viewer captures",
     "captures": [
-      "1440x900.light",
+      "1440x900.light (pre-delivery render)",
       "1440x900.dark",
-      "2048x1320.dark",
-      "390x844.dark"
+      "2048x1320.light",
+      "390x844.dark",
+      "live document 209 at 1440x900 dark and 390x844 light"
     ],
     "observations": [
-      "Main path reads left to right then down: GitHub PR, CI observation, Accountability, Cooperation runtime, worker serve, Pi adapter; repair push returns to GitHub without crossing a node.",
-      "Server and worker-host boundaries are distinct; labels clear their routes in both themes; no clipped nodes.",
-      "Large desktop composition fills the first screen with diagram and three conclusion cards; no empty lower band."
+      "Five columns read left to right: externals (GitHub, Mattermost), the farm01 server block, the worker host. The CI path runs GitHub, CI observation, Accountability, Cooperation runtime, worker serve, native adapters; repair push returns over the top to GitHub.",
+      "The Mattermost plane reads bottom-left: PostgreSQL outbox and spool to shared-bot outbound to Mattermost; Mattermost back through inbound catch-up into Cooperation as body-free notices.",
+      "Manual harnesses sit under worker serve with explicit check-in/ack; no edge crosses a node; labels clear their routes in both themes; three cards carry release, capability matrix and accountability rules."
     ],
     "limitations": [
-      "At 1440x900 node sublabels project near 7px: legible but small; the title wraps to two lines.",
-      "At 390x844 the leftmost toolbar button is partly cut off and the diagram opens at desktop scale inside its pan/zoom stage; narrow is readable only by panning. Archify targets desktop; this was not repaired.",
+      "At 1440x900 node sublabels project near 6.7px: legible but small; the title wraps to two lines.",
+      "The repair-push route runs just above the server boundary's top edge; it is distinct but close.",
+      "At 390x844 the leftmost toolbar button is cut off and the diagram opens at desktop scale in its pan/zoom stage; narrow is readable only by panning. Archify targets desktop; not repaired.",
       "Search, focus, passport, presentation and export interactions are not covered by this screenshot review."
     ]
   },
-  "correction_rounds": 1,
+  "correction_rounds": 3,
   "corrections": [
-    "First delivery overflowed 1440x900 (scrollHeight 966) and 1600x1000 (1048); compacted row spacing (viewBox 720 to 630) and shortened conclusion cards, then redelivered."
+    "First candidate: two vertical relationship labels overlapped their source nodes and the Mattermost catch-up route shared the outbound corridor; set labelAt on the two vertical labels and routed catch-up from Mattermost's top.",
+    "A 1500px viewBox failed desktop readability (5.58px projected text); relaid out to 1360x630.",
+    "The worker-host boundary left the canvas; shifted all columns 10px left."
   ]
 }
