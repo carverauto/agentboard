@@ -43,9 +43,6 @@ within each group.
   exclusive-RPC profile has no board tools, so the coordinator performed the
   pilot's claim, PR link and move-on as `worker-agentboard-farm01-1`. Every
   receipt was the worker model's own.
-- **Two replaced-epoch pilot attempts were released with captain
-  `resolve_attempt`**, accepting possible duplicate notices (Context-only
-  batches).
 
 ## Sound, low risk
 
