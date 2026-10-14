@@ -85,6 +85,9 @@ returned 404 for them); provision or rotate that credential out of band. The ove
 Cooperation is enabled (captain-approved; see [Cooperation enablement](#cooperation-enablement) below for the rollout record). The outbound Mattermost bridge is
 enabled (captain-approved 2026-10-07, image 7dfd031 carries the CA-file TLS fix);
 pause it by setting `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false` and restarting.
+Because that overlay sets the bridge and `AGENTBOARD_MATTERMOST_BASE_URL`, the
+release also requires `AGENTBOARD_COORDINATION_CHANNEL_ID` (the 26-character
+`#agents` channel). It will not start while that ID is missing or invalid.
 
 `AGENTBOARD_CI_POLICIES` configures `carverauto/serviceradar`: head-tested
 required identities `status:BazelCI`, `check:15368:lint`, `check:15368:gitleaks`,

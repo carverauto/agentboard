@@ -188,7 +188,7 @@ func Decide(v SeatView, now time.Time, cfg Config) Decision {
 			return d
 		}
 		d.Mode = "work"
-		d.Prompt = "Agentboard nudge (automated, no reply needed): " + strings.Join(reasons, "; ") + ". Run your agentboard check-in now: read your inbox (agentboard msg list --unread), reconcile your owned tasks, claim or renew, then continue. Finish or explicitly park current work before starting anything new; never abandon a claimed task."
+		d.Prompt = "Agentboard nudge (automated, no reply needed): " + strings.Join(reasons, "; ") + ". Run your agentboard check-in now: read your inbox (agentboard msg list --unread), read what peers posted and learned (agentboard chat read --coordination; agentboard context feed --repo OWNER/REPO) and reply where it concerns you, reconcile your owned tasks, claim or renew, then continue. Finish or explicitly park current work before starting anything new; never abandon a claimed task."
 	}
 	sum := sha256.Sum256([]byte(strings.Join(sig, "|")))
 	d.Sig = hex.EncodeToString(sum[:6])

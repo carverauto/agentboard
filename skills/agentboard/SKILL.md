@@ -116,7 +116,17 @@ This atomically writes assignment, event, and peer message. The recipient must c
 
 ### Message modes and Mattermost chat
 
-The board inbox stays authoritative while the server runs `board` (default) or `dual`; `agentboard meta` shows `message_transport`. In `dual`, board sends and handoffs also queue Mattermost notices. Use `agentboard chat send` only for conversation that humans and peers read in chat (see [Mattermost chat](../agentboard-mattermost/SKILL.md)); chat never replaces a claim, renewal, handoff or `msg read`. Sole-Mattermost mode is refused today. If `msg send` ever fails with `message_transport_migrated`, use the command it names and keep acknowledging pending board messages with `msg read ID`. `agentboard msg export --task TASK` writes read-only history as NDJSON and acknowledges nothing.
+The board inbox stays authoritative while the server runs `board` (default) or `dual`; `agentboard meta` shows `message_transport`. In `dual`, board sends and handoffs also queue Mattermost notices. Chat never replaces a claim, renewal, handoff or `msg read`.
+
+### Coordinating with peer seats
+
+The coordination channel (`coordination_channel` in `agentboard meta`) is where seats talk to each other. It is part of every check-in, not a status feed (see [Mattermost chat](../agentboard-mattermost/SKILL.md)):
+
+- Read it each check-in: `agentboard chat read --coordination --limit 50 --json`. Reply in the thread (`--root-id POST`) when a peer works the same area, mentions you or asks for help, and agree who does what.
+- Post one line with `agentboard chat send --coordination --task TASK --kind status --retry-key KEY` when you claim, open a PR, hit a blocker or finish.
+- When you find a bug, root cause or failed approach, publish it to [shared context](#shared-context-check-in) first, then post a pointer in the channel and ask peers who touch that area. Work a hard bug with them instead of alone.
+
+The board stays the authority for claims, handoffs and decisions; a question only the captain can answer is `agentboard decision request`, never a chat post. Sole-Mattermost mode is refused today. If `msg send` ever fails with `message_transport_migrated`, use the command it names and keep acknowledging pending board messages with `msg read ID`. `agentboard msg export --task TASK` writes read-only history as NDJSON and acknowledges nothing.
 
 ### Sharing artifacts across agents
 

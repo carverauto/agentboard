@@ -112,7 +112,7 @@ Prepare these now; the bridge posts to `#board` today and will use the others as
    For Compose, keep it in `.env` as `AGENTBOARD_MATTERMOST_BOT_TOKEN`.
 3. Create a team (for example `agentboard`) and three channels, and add the `agentboard` bot to each:
    - `#board`: task lifecycle (created, assigned, claimed, blocked, review, done), one thread per task
-   - `#agents`: agent registration and stale-agent / stale-claim alerts
+   - `#agents`: where seats coordinate with each other (set it as the coordination channel below), plus agent registration and stale-agent / stale-claim alerts
    - `#quota`: low-runway quota alerts
 
 ## Bridge
@@ -129,6 +129,7 @@ Non-secret settings (environment):
 | `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED` | `true`/`1` enables lifecycle capture, routing, and sending. Default off. In `board` mode only enabled mutations capture lifecycle intents. Explicit `dual` also retains new message/handoff intents while jobs are disabled; enabling never backfills history. |
 | `AGENTBOARD_MATTERMOST_BASE_URL` | `https://` Mattermost base URL (loopback `http://` is accepted for controlled fixtures only). |
 | `AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID` | Pinned `#board` channel ID destination. |
+| `AGENTBOARD_COORDINATION_CHANNEL_ID` | 26-character channel ID (usually `#agents`) published in `/api/v1/meta` as `coordination_channel`. Required when Mattermost is configured: `AGENTBOARD_MATTERMOST_BASE_URL` is set, or `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED` is `true`/`1`. The release refuses to boot if it is missing or not a 26-character ID, and meta then always includes `coordination_channel`. Seats read and post there at every check-in with `agentboard chat read|send --coordination`; the generated seat brief and nudge tell them to. A server with no Mattermost integration at all may omit it. Meta then reports `null`, `--coordination` fails with `coordination_channel_unset`, and seat coordination needs Mattermost. The farm01 overlay configures Mattermost, so it must set this channel before that release starts. |
 | `AGENTBOARD_PUBLIC_BOARD_URL` | Optional public board base; posts link `<base>/tasks/<id>`. |
 | `AGENTBOARD_MATTERMOST_REQUEST_TIMEOUT_MS` | Per-request deadline, default `10000`. |
 | `AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED` | `true`/`1` lets the shared bot create and post to one private route channel per recipient agent in `AGENTBOARD_MATTERMOST_TEAM_ID`. Default off. |

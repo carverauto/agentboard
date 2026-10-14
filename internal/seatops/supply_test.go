@@ -120,7 +120,11 @@ func TestSupplyLaunchesAPendingIntentFromTheAllowlist(t *testing.T) {
 	}
 	// The generated brief is the seat's interface: it names the exact check-in
 	// commands and how to load the seat env, not a bare "check-in".
-	for _, want := range []string{"source .agentboard-seat/agent.env && agentboard", "agentboard msg list --unread --json", `agentboard task list --owner "$AGENT_ID" --json`, "agentboard task claim TASK --json", "do not run agentboard worker check-in"} {
+	for _, want := range []string{"source .agentboard-seat/agent.env && agentboard", "agentboard msg list --unread --json", `agentboard task list --owner "$AGENT_ID" --json`, "agentboard task claim TASK --json", "do not run agentboard worker check-in",
+		// Coordination: read peers and Context every check-in, talk back in the
+		// coordination channel, share bugs through Context.
+		"agentboard chat read --coordination", "agentboard context feed", "agentboard context search",
+		"agentboard chat send --coordination", "agentboard context publish", "--root-id", "agentboard decision request TASK"} {
 		if !strings.Contains(string(text), want) {
 			t.Fatalf("brief lacks %q:\n%s", want, text)
 		}

@@ -301,6 +301,9 @@ board task %s. Claim it only if the board assigns or orders it to you.
 // seatCheckIn spells out the check-in every generated brief asks for. Some
 // harness shells do not inherit the launcher's exports, and a bare "check-in"
 // was read as `agentboard worker check-in`, which only enrolled workers run.
+// Seats that were only told to use the board inbox posted one-way status and
+// never read each other, so the coordination channel and Context are part of
+// every check-in.
 const seatCheckIn = `
 Your working directory is your leased worktree. launch-seat already checked
 isolation: pwd -P equals $AGENTBOARD_SEAT_WORKTREE once the seat env is loaded.
@@ -313,9 +316,22 @@ command as: source .agentboard-seat/agent.env && agentboard ...
    assigned or ordered to you, run agentboard task show TASK --json, then
    agentboard task claim TASK --json, and work it. You are not an enrolled
    worker: do not run agentboard worker check-in.
-3. While busy, heartbeat: agentboard agent heartbeat --status busy --task TASK.
-   Coordinate with other seats through agentboard msg send. The board is the
-   only authority for what you work on.
+3. Every check-in, also read what peers said and learned:
+   agentboard chat read --coordination --limit 50 --json and
+   agentboard context feed --repo OWNER/REPO --json (your origin repository).
+   Before investigating, agentboard context search "TOPIC" --repo OWNER/REPO.
+4. Talk to the other seats in the coordination channel, not only to the board:
+   agentboard chat send --coordination --task TASK --kind status
+   --retry-key KEY --body "..." when you claim, open a PR, hit a blocker or
+   finish. When you find a bug or root cause, publish it first
+   (agentboard context publish, with the PR or URL as evidence) and post a
+   pointer to it. When a peer works the same area or mentions you, reply in
+   that thread (--root-id POST) and agree who does what; ask peers for help
+   on a hard bug instead of working alone.
+5. While busy, heartbeat: agentboard agent heartbeat --status busy --task TASK.
+   The board stays the only authority for claims, handoffs and what you work
+   on. A question only the captain can answer is
+   agentboard decision request TASK, never a chat post.
 `
 
 // SpawnReport is the outcome of one spawn.

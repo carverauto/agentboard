@@ -116,6 +116,34 @@ config :agentboard,
        :mattermost_board_channel_id,
        System.get_env("AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID")
 
+# Seat coordination channel: the Mattermost channel seats read and post in
+# at every check-in (`agentboard chat read|send --coordination`). Required
+# whenever Mattermost is configured (base URL or the outbound bridge), and
+# published in meta as coordination_channel. A server with no Mattermost
+# integration leaves it unset; meta then publishes null.
+mattermost_configured =
+  env_flag.("AGENTBOARD_MATTERMOST_BRIDGE_ENABLED") or
+    String.trim(System.get_env("AGENTBOARD_MATTERMOST_BASE_URL") || "") != ""
+
+coordination_channel_id =
+  case System.get_env("AGENTBOARD_COORDINATION_CHANNEL_ID", "") |> String.trim() do
+    "" ->
+      if mattermost_configured,
+        do:
+          raise(
+            "AGENTBOARD_COORDINATION_CHANNEL_ID is required because Mattermost is configured (AGENTBOARD_MATTERMOST_BASE_URL is set or AGENTBOARD_MATTERMOST_BRIDGE_ENABLED is on). Set it to the 26-character coordination channel ID."
+          ),
+        else: nil
+
+    id ->
+      if Regex.match?(~r/\A[a-z0-9]{26}\z/, id),
+        do: id,
+        else:
+          raise("AGENTBOARD_COORDINATION_CHANNEL_ID must be a 26-character Mattermost channel ID")
+  end
+
+config :agentboard, :coordination_channel_id, coordination_channel_id
+
 config :agentboard,
        :mattermost_bot_token_file,
        System.get_env("AGENTBOARD_MATTERMOST_BOT_TOKEN_FILE")

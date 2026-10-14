@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/carverauto/agentboard/internal/client"
 	"github.com/spf13/cobra"
 )
 
@@ -67,10 +68,35 @@ func (c *commands) chat() *cobra.Command {
 	return group
 }
 
+// coordinationChannel resolves the server's configured seat coordination
+// channel from meta, so seats never hardcode a Mattermost channel ID.
+func (c *commands) coordinationChannel(cmd *cobra.Command) (string, error) {
+	api, err := client.New(c.cfg)
+	if err != nil {
+		return "", err
+	}
+	defer api.Close()
+	raw, err := api.JSON(cmd.Context(), http.MethodGet, "meta", nil, nil)
+	if err != nil {
+		return "", err
+	}
+	var meta struct {
+		Channel *struct {
+			ID string `json:"id"`
+		} `json:"coordination_channel"`
+	}
+	if json.Unmarshal(raw, &meta) != nil || meta.Channel == nil || meta.Channel.ID == "" {
+		return "", &client.Error{Code: "coordination_channel_unset", Message: "this server has no coordination channel; an operator sets AGENTBOARD_COORDINATION_CHANNEL_ID"}
+	}
+	return meta.Channel.ID, nil
+}
+
 func (c *commands) chatSend() *cobra.Command {
 	channel, to, body, task, kind, rootID, retryKey, iconURL := "", "", "", "", "", "", "", ""
+	coordination := false
 	cmd := &cobra.Command{Use: "send", Short: "Post to a channel, thread or peer's private route as the calling agent", Args: cobra.NoArgs}
-	cmd.Flags().StringVar(&channel, "channel", "", "Channel ID to post to (or use --to)")
+	cmd.Flags().StringVar(&channel, "channel", "", "Channel ID to post to (or use --to or --coordination)")
+	cmd.Flags().BoolVar(&coordination, "coordination", false, "Post to the server's seat coordination channel")
 	cmd.Flags().StringVar(&to, "to", "", "Recipient agent ID; posts to its private route (server must enable routes)")
 	cmd.Flags().StringVar(&body, "body", "", "Message text (required)")
 	cmd.Flags().StringVar(&task, "task", "", "Task ID stamped in the header line and props (default general)")
@@ -82,8 +108,14 @@ func (c *commands) chatSend() *cobra.Command {
 		if err := c.cfg.Actor.Validate(); err != nil {
 			return err
 		}
-		if (channel == "") == (to == "") || body == "" {
-			return errors.New("--body and exactly one of --channel or --to are required")
+		if destinations(channel != "", to != "", coordination) != 1 || body == "" {
+			return errors.New("--body and exactly one of --channel, --to or --coordination are required")
+		}
+		if coordination {
+			var err error
+			if channel, err = c.coordinationChannel(cmd); err != nil {
+				return err
+			}
 		}
 		payload := map[string]any{"body": body}
 		if channel != "" {
@@ -118,21 +150,28 @@ func (c *commands) chatSend() *cobra.Command {
 func (c *commands) chatRead() *cobra.Command {
 	channel, since := "", ""
 	limit := 0
-	inbox := false
+	inbox, coordination := false, false
 	cmd := &cobra.Command{Use: "read", Short: "Read recent channel posts with own-echo suppression", Args: cobra.NoArgs}
-	cmd.Flags().StringVar(&channel, "channel", "", "Channel ID to read (or use --inbox)")
+	cmd.Flags().StringVar(&channel, "channel", "", "Channel ID to read (or use --inbox or --coordination)")
 	cmd.Flags().BoolVar(&inbox, "inbox", false, "Read your own private recipient route")
+	cmd.Flags().BoolVar(&coordination, "coordination", false, "Read the server's seat coordination channel")
 	cmd.Flags().IntVar(&limit, "limit", 50, "Newest posts to fetch, 1-200")
 	cmd.Flags().StringVar(&since, "since", "", "Exclusive cursor: stop at this post ID")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if err := c.cfg.Actor.Validate(); err != nil {
 			return err
 		}
-		if (channel == "") == !inbox {
-			return errors.New("exactly one of --channel or --inbox is required")
+		if destinations(channel != "", inbox, coordination) != 1 {
+			return errors.New("exactly one of --channel, --inbox or --coordination is required")
 		}
 		if limit < 1 || limit > 200 {
 			return errors.New("--limit must be between 1 and 200")
+		}
+		if coordination {
+			var err error
+			if channel, err = c.coordinationChannel(cmd); err != nil {
+				return err
+			}
 		}
 		query := url.Values{}
 		if inbox {
@@ -240,4 +279,15 @@ func (c *commands) chatResolve() *cobra.Command {
 		return c.printReceipt(cmd, raw)
 	}
 	return cmd
+}
+
+// destinations counts the mutually exclusive destination flags that are set.
+func destinations(set ...bool) int {
+	n := 0
+	for _, s := range set {
+		if s {
+			n++
+		}
+	}
+	return n
 }

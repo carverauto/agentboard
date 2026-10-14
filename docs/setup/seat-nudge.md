@@ -41,7 +41,13 @@ seat, and only with a reason:
 | Waiting on the captain/coordinator (an owned blocked/review task whose last note says so, or a matching question on screen) | A message arrived after it started waiting. It is never pointed at new work |
 | Busy, approval prompt open, unknown status, or availability not `active` | Never |
 
-The prompt names the reason and asks the seat to run its agentboard check-in. It
+The prompt names the reason and asks the seat to run its agentboard check-in:
+inbox, the coordination channel (`chat read --coordination`) and the Context
+feed, then its owned tasks. The coordination read is unconditional. A
+Mattermost-configured server publishes `coordination_channel` and will not
+boot without `AGENTBOARD_COORDINATION_CHANNEL_ID`. A server with no Mattermost
+integration publishes `null`, and seat coordination waits until Mattermost is
+configured. Mentions in the channel do not wake a seat yet. It
 grants nothing: the seat re-reads the board and acts on what it finds there, so
 a prompt that arrives late or twice costs one turn and nothing else.
 
