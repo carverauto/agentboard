@@ -82,6 +82,9 @@ switches. `dashboard-github-token.yaml` injects `GITHUB_TOKEN` from the required
 carverauto organization so private repositories such as `carverauto/gitops` are
 readable (the earlier personal-owner `agentboard-app`/`github-token` reference
 returned 404 for them); provision or rotate that credential out of band. The overlay contains only its name/key reference.
+`dashboard-intake-token.yaml` injects that same key as
+`AGENTBOARD_INTAKE_GITHUB_TOKEN` (import only). See
+[Fleet burndown rollout](#fleet-burndown-rollout-main-c0cf353).
 Cooperation is enabled (captain-approved; see [Cooperation enablement](#cooperation-enablement) below for the rollout record). The outbound Mattermost bridge is
 enabled (captain-approved 2026-10-07, image 7dfd031 carries the CA-file TLS fix);
 pause it by setting `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false` and restarting.
@@ -576,7 +579,7 @@ On 2026-10-13 UTC the maintainer rolled the published
 [v0.3.0](https://github.com/carverauto/agentboard/releases/tag/v0.3.0) dashboard
 digest `sha256:d356c8b98197843dfb0951e0122fae71c86de982f3c1debffe3a74a3e07a8ac8`
 (main `d803171`, schema 44, no migration) over `37d496e`
-(`sha256:aa015aaf…`). This is the current operator image pin.
+(`sha256:aa015aaf…`). It was later replaced by the c0cf353 pin below.
 
 The same run tested rollback: image back to `37d496e`, then message mode
 `dual` → `board` with inbound and private routes off, then the recorded
@@ -585,6 +588,27 @@ public tables never decreased between stages, and a canary task written on
 v0.3.0 survived every stage. A write on the rolled-back image was not proved:
 it hit the few-second 503 window of the single-replica pod swap. Details are in
 the [rollout receipt](../verification/farm01-v0.3.0-rollout.json).
+
+## Fleet burndown rollout (main c0cf353)
+
+On 2026-10-14 UTC the maintainer rolled main `c0cf353` (v0.4.0 plus #257 helper
+access) with dashboard digest
+`sha256:30320c516e1e0a0f7aa5b0164e9e8c6c338aa96821ea4f82ac6eb7e5dee645fe` over
+v0.3.0, by plain `kubectl`: the migration Job with that digest first, then the
+Deployment image. The c0cf353 migrate applied `20261008004500` WorkIntake,
+`20261008004600` FleetRefill, `20261008004700` SeatSupply and `20261008004800`
+HelperAccess. Live meta read schema 44 before and 48 after. The captured Job
+log tail showed only `20261008004700` and `20261008004800`. No pre-migration
+backup was taken, by captain decision: "i dont really care about backing up a
+database for an app that we're still developing, that is a waste of time"
+(pre-release development data). This is the current operator image pin.
+
+The captain then enabled intake (`carverauto/serviceradar`), backlog refill and seat
+supply for the serviceradar burndown fleet, and set Mattermost `#agents` as the
+coordination channel. Intake reuses the read-only `agentboard-github` token
+through `dashboard-intake-token.yaml`, so it imports open issues but cannot file
+new ones. Roll back by setting the three `*_ENABLED` literals to `false` and
+restarting. Details are in the [rollout receipt](../verification/farm01-c0cf353-rollout.json).
 
 ## Coordinator attribution
 
@@ -661,6 +685,8 @@ token. It is mounted only into the dashboard, not the migration Job.
 
 The existing `agentboard-github` Secret key `GITHUB_TOKEN` remains the server's
 read-only GitHub API credential, injected by `dashboard-github-token.yaml`.
+Intake reuses that key; the standing wiring is under
+[PR discovery and observation](#pr-discovery-and-observation).
 Its required repository access is metadata, Actions read and pull requests read
 for both watched repositories. Do not replace it with the HMAC secret. This
 preparation inspected tracked wiring only; live Secret existence, values and

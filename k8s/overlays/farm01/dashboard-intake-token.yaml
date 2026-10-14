@@ -1,0 +1,18 @@
+# Intake reads open issues with the existing read-only observer token
+# (agentboard-github). Import works with it; filing new issues needs a token
+# with Issues write on the intake repositories.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentboard-dashboard
+spec:
+  template:
+    spec:
+      containers:
+        - name: dashboard
+          env:
+            - name: AGENTBOARD_INTAKE_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agentboard-github
+                  key: GITHUB_TOKEN

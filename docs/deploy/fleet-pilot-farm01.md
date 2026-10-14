@@ -68,66 +68,39 @@ gh release edit v0.4.0 --draft=false --prerelease        # after the draft exist
 agentboard version                                        # 0.4.0 on the Mac, after installing the release binary
 ```
 
-Record the dashboard digest from the release notes.
+Installing that CLI does not move the farm01 image. The live pin stays the
+[burndown record](reference-farm01.md#fleet-burndown-rollout-main-c0cf353).
 
-## 2. Roll farm01 with every new flag off
+## 2. Confirm the farm01 pin
+
+The 2026-10-14 rollout already put main `c0cf353` (schema 48) on farm01 and
+turned intake, refill and seat supply on. Digest, migrations and flag values
+are in the [burndown record](reference-farm01.md#fleet-burndown-rollout-main-c0cf353).
+Re-applying `k8s/overlays/farm01` keeps that pin and those literals. Do not
+roll the image back to v0.3.0, and do not expect intake to answer 404
+`intake_disabled`.
 
 ```sh
-agentboard admin rollout registry.carverauto.dev/agentboard/dashboard@sha256:DIGEST \
-  --overlay k8s/overlays/farm01/kustomization.yaml \
-  --image registry.carverauto.dev/agentboard/dashboard \
-  --deployment agentboard-dashboard --namespace agentboard \
-  --migration-job k8s/base/migration.yaml --migration-job-name agentboard-migrate \
-  --cnpg-cluster agentboard-db \
-  --record-out docs/verification/farm01-v0.4.0-rollout.json
-agentboard meta --json   # schema_version at least 48, the @required in the released tree's web/lib/agentboard/schema_version.ex
+agentboard meta --json   # schema_version 48
 ```
 
-Check: intake routes answer 404 `intake_disabled`, `fleet refill status` and
-`fleet supply status` show no activations, and the board is otherwise
-unchanged.
+`fleet refill status` and `fleet supply status` show no pilot activation until
+step 6. The rest of the board stays as that record left it.
 
-## 3. Turn on intake, refill and seat supply
+## 3. Leave the live intake wiring in place
 
-Create the intake GitHub token: a fine-grained token with Issues read/write on
-the sandbox repository only. Store it as Secret `agentboard-intake-github`
-(key `token`) out of band, and mount it as a file. Add to the overlay:
+Intake is already on for `carverauto/serviceradar`.
+`dashboard-intake-token.yaml` sets `AGENTBOARD_INTAKE_GITHUB_TOKEN` from the
+read-only `agentboard-github` Secret key `GITHUB_TOKEN`. That imports open
+issues and cannot file new ones. Do not replace that patch, and do not change
+`AGENTBOARD_INTAKE_REPOSITORIES` or the three `*_ENABLED` literals. Those
+already match the cluster; the standing description is the
+[burndown record](reference-farm01.md#fleet-burndown-rollout-main-c0cf353).
 
-```yaml
-# k8s/overlays/farm01/dashboard-intake-token.yaml (listed under patches:)
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: agentboard-dashboard
-spec:
-  template:
-    spec:
-      containers:
-        - name: dashboard
-          volumeMounts:
-            - name: intake-github
-              mountPath: /etc/agentboard/intake
-              readOnly: true
-      volumes:
-        - name: intake-github
-          secret:
-            secretName: agentboard-intake-github
-```
-
-and to the `agentboard-config` literals:
-
-```yaml
-      # Captain-approved YYYY-MM-DD: fleet helper pilot (add-fleet-helper 6.1).
-      # Rollback: set the three *_ENABLED values to false.
-      - AGENTBOARD_INTAKE_ENABLED=true
-      - AGENTBOARD_INTAKE_REPOSITORIES=carverauto/app-testing
-      - AGENTBOARD_INTAKE_GITHUB_TOKEN_FILE=/etc/agentboard/intake/token
-      - AGENTBOARD_REFILL_ENABLED=true
-      - AGENTBOARD_SEAT_SUPPLY_ENABLED=true
-```
-
-Apply the reviewed overlay and restart the dashboard. The flags alone do
-nothing: no fleet is activated yet.
+Filing this pilot's three issues on `carverauto/app-testing` needs Issues
+write, which that token does not have. A write token, or adding the sandbox
+repository to the intake list, is a separate captain decision. It must not
+remove the serviceradar import wiring. The flags alone activate no fleet.
 
 ## 4. Seats, scopes and the loadout
 
@@ -361,4 +334,4 @@ step, and anything that needed the captain. Tick 6.1 in
 | Free a stuck seat | `agentboard fleet supply abandon pilot INTENT_ID --reason "..."` after checking the pane by hand |
 | Stop the daemon | `launchctl bootout gui/$(id -u)/com.agentboard.fleet-host` |
 | Turn the features off | Set the three `*_ENABLED` literals to `false` and restart |
-| Roll the server back | Pin the v0.3.0 digest per [rollback](reference-farm01.md#rollback); schemas 45–47 are additive |
+| Roll the server back | Keep the current digest in the [burndown record](reference-farm01.md#fleet-burndown-rollout-main-c0cf353). Schema 48 is additive; v0.3.0 is not a compatible pin. Turn the three flags off per the row above. |
