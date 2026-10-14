@@ -100,7 +100,7 @@ Helpers without the `agentboard` binary can call the JSON API directly over HTTP
   Replaying the same `(filer_id, request_key)` with an equivalent normalized payload returns `200` with `"replayed": true`. Reusing a `request_key` with a different payload returns `409 conflict`.
 
 - **Read own intake status (`GET /api/v1/intake/:id`):**
-  Returns `{ "intake": { "id", "request_key", "filer_id", "items": [...] } }`. Helpers may only read requests where `filer_id` matches their own identity. An unknown request returns 404. Another filer's request returns `403 forbidden`.
+  Returns `{ "intake": { "id", "request_key", "filer_id", "items": [...] } }`. Helpers may only read requests where `filer_id` matches their own identity; unknown or invisible requests return `404 not_found`.
 
 - **Cancel own unstarted intake (`POST /api/v1/intake/:id/cancel`):**
   Body `{}` cancels all unstarted items in that request, or `{"items": ["ITEM_UUID"]}` cancels specific items. Already-claimed or completed cards are skipped with `"reason": "card_started"`.

@@ -459,8 +459,7 @@ Each item has `id`, `position`, `task_id`, `task_status`, `repository`,
 `issue_url`, `issue_number`, `duplicate_issue_urls`, `reason`, `last_error`,
 `attempts`, `next_attempt_at`, `cancelled_at`, `resolved_at` and `updated_at`.
 A helper can only read or cancel requests where `filer_id` matches its own
-identity. An unknown request returns 404. Another filer's request returns
-403 `forbidden`.
+identity; unknown or invisible requests return 404.
 
 GitHub issues are created afterwards by an AshOban outbox job, outside the
 board transaction, with the hidden body marker

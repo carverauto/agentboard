@@ -631,8 +631,8 @@ helper_filed = api('intake', {'request_key': 'helper-1', 'items': [
 ]}, captain=False, token=helper_token, agent=None)[0]['intake']
 assert helper_filed['filer_id'] == 'grok-helper'
 assert api('intake/' + helper_filed['id'], captain=False, token=helper_token, agent=None)[0]['intake']['id'] == helper_filed['id']
-api('intake/' + intake['id'], captain=False, token=helper_token, agent=None, status=403)
-api('intake/' + intake['id'] + '/cancel', {}, captain=False, token=helper_token, agent=None, status=403)
+api('intake/' + intake['id'], captain=False, token=helper_token, agent=None, status=404)
+api('intake/' + intake['id'] + '/cancel', {}, captain=False, token=helper_token, agent=None, status=404)
 api('intake/' + helper_filed['id'] + '/items/' + helper_filed['items'][0]['id'] + '/abandon', {},
     captain=False, token=helper_token, agent=None, status=403)
 cancelled_helper = api('intake/' + helper_filed['id'] + '/cancel',
@@ -723,7 +723,7 @@ with tempfile.TemporaryDirectory() as helper_home:
     assert cli_digest['fleets'][0]['fleet_id'] == 'helper-fleet'
     assert cli_digest['fleets'][0]['requested_seats'] == 2 and cli_digest['fleets'][0]['max_seats'] == 2
     assert [item['seat_id'] for item in cli_digest['fleets'][0]['launch_intents']['dry_run']] == ['seat-1']
-    ab_helper('intake', 'status', intake['id'], code=1)
+    ab_helper('intake', 'status', intake['id'], code=3)
 
 # Helper import attributes a named open issue to the helper and never lets a seat token import.
 class HelperGitHub(http.server.BaseHTTPRequestHandler):

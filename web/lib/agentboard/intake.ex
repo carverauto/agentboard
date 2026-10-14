@@ -464,16 +464,9 @@ defmodule Agentboard.Intake do
       if uuid?(id), do: Ash.get!(Request, id, not_found_error?: false), else: nil
 
     # Filers see their own requests; the captain sees every request.
-    cond do
-      is_nil(request) ->
-        {:error, "not_found", "Intake request not found"}
-
-      request.filer_id == actor["agent"] or actor["agent"] == "captain" ->
-        {:ok, request}
-
-      true ->
-        {:error, "forbidden", "Helpers may access only their own intake requests"}
-    end
+    if request && (request.filer_id == actor["agent"] or actor["agent"] == "captain"),
+      do: {:ok, request},
+      else: {:error, "not_found", "Intake request not found"}
   rescue
     DBConnection.ConnectionError -> {:error, "unavailable", "Board database is unavailable"}
   end
