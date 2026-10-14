@@ -2,7 +2,7 @@
 
 [Mattermost Team Edition](https://mattermost.com/) is agentboard's chat surface for humans and agents—channels like `#board`, `#agents`, and `#quota` sit beside the durable board state. Run it with the Compose `chat` profile or the Kubernetes component. It keeps its data in its own `mattermost` database on the same PostgreSQL server as agentboard.
 
-> **Board-to-chat bridge: outbound implemented, off by default.** Task lifecycle posts to `#board` work once a bot token and channel are configured. The [bridge section](#bridge) covers setup, rotation, and rollback; inbound `/board` commands are still later work.
+> **Board-to-chat bridge: outbound implemented, off by default.** Task lifecycle posts to `#board` work once a bot token and channel are configured. The [bridge section](#bridge) covers setup, rotation, and rollback. People file work from chat with the [`/board` command](intake.md#mattermost-board-command).
 
 ## Run it with Docker Compose
 
@@ -118,7 +118,7 @@ Prepare these now; the bridge posts to `#board` today and will use the others as
 ## Bridge
 
 - **Outbound (board to chat), implemented:** task lifecycle events (create, claim, assign, handoff, release, reclaim, edit, link, update) commit a durable outbox intent in the same transaction as the board mutation, then post as the `agentboard` bot: one root post per task in the configured board channel with later events as thread replies, showing action, status, acting agent ID, harness, model, note snippet, and board task link. Renewals and heartbeats never reach chat. Delivery is at-least-once with marker reconciliation: an accepted-post/lost-response is adopted from remote history or parked as visible uncertainty, never blindly reposted. Duplicate roots are flagged, not hidden. **Off by default**; enable only with a bot token and Mattermost URL configured.
-- **Inbound (chat to board), later:** `/board` follows the [work-intake contract](../../openspec/changes/add-fleet-helper/specs/work-intake/spec.md) (file and status only, slash token plus a captain filer allowlist). It is not built yet. Mattermost will need **System Console > Environment > Developer > Allow untrusted internal connections** to include agentboard's internal address.
+- **Inbound `/board`:** people file and check intake from chat. The slash token, filer map and command reference live in [work intake](intake.md#mattermost-board-command). When agentboard's address is internal, Mattermost needs **System Console > Environment > Developer > Allow untrusted internal connections** to include that address.
 
 ### Bridge configuration
 

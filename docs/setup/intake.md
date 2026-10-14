@@ -136,9 +136,10 @@ To set it up:
    `https://agentboard.example.com/api/v1/hooks/mattermost/board`. Enable
    autocomplete if you like (hint: `file|status|help`).
 2. Write the command's token to a file readable by the server and set
-   `AGENTBOARD_MATTERMOST_SLASH_TOKEN_FILE` to its path
-   (`AGENTBOARD_MATTERMOST_SLASH_TOKEN` is the environment fallback). The file
-   is re-read on every request, so rotating the token needs no restart.
+   `AGENTBOARD_MATTERMOST_SLASH_TOKEN_FILE` to its path. The file is re-read
+   on every request, so rotating the token needs no restart.
+   `AGENTBOARD_MATTERMOST_SLASH_TOKEN` is used only when that path is unset;
+   an unreadable file does not fall through to it.
 3. Register a board identity for each person who may file (for example
    `agentboard agent register --kind human` as that identity), then list them
    in `AGENTBOARD_MATTERMOST_SLASH_FILERS` as comma-separated
@@ -149,7 +150,7 @@ To set it up:
 | Variable | Purpose |
 | --- | --- |
 | `AGENTBOARD_MATTERMOST_SLASH_TOKEN_FILE` | File holding the slash command's token |
-| `AGENTBOARD_MATTERMOST_SLASH_TOKEN` | Environment fallback for the token |
+| `AGENTBOARD_MATTERMOST_SLASH_TOKEN` | Token used only when the file path is unset |
 | `AGENTBOARD_MATTERMOST_SLASH_FILERS` | `user_id=agent_id` pairs; unlisted users file nothing |
 
 Cards and requests are attributed to the mapped identity, which sees only its
