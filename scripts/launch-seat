@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Launch an explicitly requested native seat in a leased Treehouse v3 checkout."""
 import argparse
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -145,6 +146,22 @@ def maybe_return_slot(task, worktree, root, binary, holder):
         note_slot(task, worktree, f"slot retained: return failed at {worktree}; lease still held")
         return
     print(f"Returned Treehouse v{VERSION} lease at {worktree} after task {task} landed.", file=sys.stderr)
+
+
+@contextlib.contextmanager
+def acquisition_lock(common):
+    """Serialize Treehouse acquisition per source repository.
+
+    `treehouse get` fetches origin into the shared Git directory; concurrent
+    launches (seat supply starts several at once) fail on ref locks.
+    """
+    fd = os.open(common / "agentboard-launch-seat.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
+            raise RuntimeError("launch lock is not an owned regular file")
+        fcntl.flock(stream, fcntl.LOCK_EX)
+        yield
 
 
 def repository(source):
@@ -358,7 +375,8 @@ def resolve_bound_seat(mode, task, source, common, root, record, retained, regis
         # A process crash can land between Treehouse's durable allocation and our
         # receipt. Retain a pending marker first, refusing blind reacquisition.
         save_binding(registry, {"allocation_pending": "true", "task_id": task, "source": str(source), "treehouse_root": str(root), "lease_holder": os.environ["AGENT_ID"]})
-        candidate = Path(run([binary, "get", "--lease", "--lease-holder", os.environ["AGENT_ID"], "--root", str(root)], source, timeout=90))
+        with acquisition_lock(common):
+            candidate = Path(run([binary, "get", "--lease", "--lease-holder", os.environ["AGENT_ID"], "--root", str(root)], source, timeout=90))
         if not candidate.is_absolute():
             raise RuntimeError("Treehouse did not return one absolute leased path")
         try:
@@ -538,7 +556,8 @@ def main():
         verified_binding(binding, args.task, source, common, root)
     else:
         binding = None
-        candidate = Path(run([binary, "get", "--lease", "--lease-holder", os.environ["AGENT_ID"], "--root", str(root)], source, timeout=90))
+        with acquisition_lock(common):
+            candidate = Path(run([binary, "get", "--lease", "--lease-holder", os.environ["AGENT_ID"], "--root", str(root)], source, timeout=90))
     if not candidate.is_absolute():
         raise RuntimeError("Treehouse did not return one absolute leased path")
     try:

@@ -27,12 +27,18 @@ maximum seats above 0, and an enrolled host whose launch cap is above 0.
 3. The daemon on that host reserves it (up to its launch cap), writes a short
    brief, and opens a tab labelled with the seat's agent ID that runs
    `scripts/launch-seat`. The launcher leases a Treehouse worktree as that
-   agent and starts the allowlisted harness there.
+   agent and starts the allowlisted harness there. Launches from one source
+   checkout take that lease one at a time, because each fetches origin into
+   the shared Git directory.
 4. The daemon reports `launched` with the pane and the lease, `failed` with a
    reason when nothing was created (unknown harness, a pane already named
    after the seat, Herdr unreachable), or `uncertain` when a pane may exist
    but the outcome is unknown.
 5. The seat registers, checks in, and receives cards from backlog refill.
+   Once Herdr detects the harness in a launched pane, the daemon names that
+   agent after the seat's agent ID, so `seat nudge` and `seat reap` find seats
+   whose harness shell drops `HERDR_PANE_ID`. It never renames a named agent
+   or one of another harness.
 6. When [`seat reap`](seat-nudge.md) closes the finished seat's pane, the
    daemon sees the pane gone and reports the intent `closed`. Reap itself
    stays board-free. The server also closes a launched intent when that

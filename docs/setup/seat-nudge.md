@@ -20,6 +20,10 @@ agentboard agent register --backend herdr --json
 herdr agent rename "$HERDR_PANE_ID" "$AGENT_ID"
 ```
 
+That rename needs `HERDR_PANE_ID`. [Seat supply](fleet-host.md) names a launched
+pane after the seat's agent ID once Herdr detects the harness, which covers a
+shell that never received the variable.
+
 Panes with no name are ignored. Duplicate names, harness mismatches and
 allow/deny scope exclusions are listed as skipped and never touched. Retired
 identities are skipped by the nudge; reap may still close the pane a retired
@@ -68,8 +72,10 @@ native session, agent kind, state sequence or idle/done status changed, or its
 screen turned busy.
 With `treehouse_roots` configured it also returns Treehouse leases whose holder
 has no live pane, owns no open task, has no process in the worktree, and whose
-work has landed. Without `treehouse_roots`, pools are never read; any Git
-checkout works for the pane gate.
+work has landed. Each repository pool under a root is listed from one of its
+own worktrees, so the timer's working directory does not matter. Without
+`treehouse_roots`, pools are never read; any Git checkout works for the pane
+gate.
 
 Reap never releases a claim or retires an identity. It reports expired claims
 whose owner has no live pane and identities with no pane and no open task, so a
@@ -128,6 +134,7 @@ access file if the board requires one).
 
 The nudge, reap and [spawn](seat-spawn.md) logic talks to the host through a
 small interface: list agents with a status, a name and a native session ID;
-read recent output; prompt; close; open a new tab that runs one command. Herdr
-is the only implementation today. Another terminal or desktop host can be added
-by implementing that interface.
+read recent output; prompt; close; name a detected agent; open a new tab that
+runs one command. Herdr is the only implementation today. Another terminal or
+desktop host can be added by implementing that interface. The method list lives
+on `Host` in `internal/seatops/herdr.go`.
