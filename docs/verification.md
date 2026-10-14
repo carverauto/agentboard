@@ -423,6 +423,6 @@ The maintainer rolled published v0.3.0, dashboard digest
 `sha256:d356c8b98197843dfb0951e0122fae71c86de982f3c1debffe3a74a3e07a8ac8`
 (main `d803171`), over `37d496e` with no migration. The same run tested image
 and message-mode rollback. Full results are in the
-[rollout receipt](verification/farm01-v0.3.0-rollout.json). The current
-operator image pin is in the
-[operator runbook](deploy/reference-farm01.md#release-v030-and-tested-rollback).
+[rollout receipt](verification/farm01-v0.3.0-rollout.json). The image pin was
+replaced by the c0cf353 roll. The current operator image pin is in the
+[operator runbook](deploy/reference-farm01.md#fleet-burndown-rollout-main-c0cf353).

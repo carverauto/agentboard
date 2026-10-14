@@ -10,11 +10,14 @@
   "after": 48,
   "api_version": 1,
   "migration": [
+   "20261008004500 Agentboard.Repo.Migrations.WorkIntake",
+   "20261008004600 Agentboard.Repo.Migrations.FleetRefill",
    "20261008004700 Agentboard.Repo.Migrations.SeatSupply",
    "20261008004800 Agentboard.Repo.Migrations.HelperAccess"
-  ]
+  ],
+  "migration_log_tail": "captured Job log tail showed only 20261008004700 SeatSupply and 20261008004800 HelperAccess"
  },
- "pre_migration_backup": "none: maintainer decision (pre-release development data)",
+ "pre_migration_backup": "none: captain decision (pre-release development data): \"i dont really care about backing up a database for an app that we're still developing, that is a waste of time\"",
  "applied_by": "maintainer, plain kubectl: delete+apply migration Job agentboard-migrate with the digest, wait complete, set image deployment/agentboard-dashboard, rollout status",
  "window": "2026-10-14T05:34:00Z to 2026-10-14T05:35:00Z",
  "post_checks": {

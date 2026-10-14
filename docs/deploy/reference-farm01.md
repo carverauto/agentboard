@@ -589,10 +589,13 @@ On 2026-10-14 UTC the maintainer rolled main `c0cf353` (v0.4.0 plus #257 helper
 access) with dashboard digest
 `sha256:30320c516e1e0a0f7aa5b0164e9e8c6c338aa96821ea4f82ac6eb7e5dee645fe` over
 v0.3.0, by plain `kubectl`: the migration Job with that digest first, then the
-Deployment image. Migrations `20261008004700` (seat supply) and `20261008004800`
-(helper access) took the schema from 44 to 48. No pre-migration backup was taken
-(maintainer decision: pre-release development data). This is the current operator
-image pin.
+Deployment image. The c0cf353 migrate applied `20261008004500` WorkIntake,
+`20261008004600` FleetRefill, `20261008004700` SeatSupply and `20261008004800`
+HelperAccess. Live meta read schema 44 before and 48 after. The captured Job
+log tail showed only `20261008004700` and `20261008004800`. No pre-migration
+backup was taken, by captain decision: "i dont really care about backing up a
+database for an app that we're still developing, that is a waste of time"
+(pre-release development data). This is the current operator image pin.
 
 The captain then enabled intake (`carverauto/serviceradar`), backlog refill and seat
 supply for the serviceradar burndown fleet, and set Mattermost `#agents` as the
