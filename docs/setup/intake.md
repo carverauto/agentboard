@@ -47,6 +47,10 @@ and attributed as `captain`. Scoped helper credentials for chat bots are a
 later change; until then a bot that files work holds the captain capability
 and should be treated accordingly.
 
+People in Mattermost can also file through the [`/board`
+command](#mattermost-board-command) as a board identity the captain maps to
+their Mattermost account.
+
 ## File from the CLI
 
 The CLI reads the captain capability from a protected file
@@ -106,6 +110,55 @@ A retry of a request that succeeded replays it without reading GitHub again.
 Imported items show issue state `created` with reason `imported`, and
 `intake cancel` takes back their cards while they are unstarted (the issue
 stays open).
+
+## Mattermost `/board` command
+
+`/board` lets a person file and check intake from Mattermost. It calls the
+same contract as the API, so scope, replay, rate limits and issue handling
+are identical. It is unavailable while intake is off.
+
+```text
+/board file owner/repo "Title" [--body "Text"] [--priority N] [--label L]... [--issue|--no-issue]
+/board status REQUEST_ID
+/board help
+```
+
+A filing asks for a GitHub issue unless `--no-issue` is given. Double or curly
+quotes group a word; inside quotes a backslash escapes the next character.
+The reply links the card (when `AGENTBOARD_PUBLIC_BOARD_URL` is set) and says
+whether the issue is pending; `/board status` shows the issue link once the
+outbox has created it.
+
+To set it up:
+
+1. In Mattermost, create a custom slash command (Integrations → Slash
+   Commands) with trigger word `board`, request method `POST` and request URL
+   `https://agentboard.example.com/api/v1/hooks/mattermost/board`. Enable
+   autocomplete if you like (hint: `file|status|help`).
+2. Write the command's token to a file readable by the server and set
+   `AGENTBOARD_MATTERMOST_SLASH_TOKEN_FILE` to its path. The file is re-read
+   on every request, so rotating the token needs no restart.
+   `AGENTBOARD_MATTERMOST_SLASH_TOKEN` is used only when that path is unset;
+   an unreadable file does not fall through to it.
+3. Register a board identity for each person who may file (for example
+   `agentboard agent register --kind human` as that identity), then list them
+   in `AGENTBOARD_MATTERMOST_SLASH_FILERS` as comma-separated
+   `mattermost_user_id=agent_id` pairs. Mattermost user IDs are the 26-character
+   IDs from the System Console or `GET /api/v4/users/username/NAME`. The server
+   refuses to start on a malformed entry.
+
+| Variable | Purpose |
+| --- | --- |
+| `AGENTBOARD_MATTERMOST_SLASH_TOKEN_FILE` | File holding the slash command's token |
+| `AGENTBOARD_MATTERMOST_SLASH_TOKEN` | Token used only when the file path is unset |
+| `AGENTBOARD_MATTERMOST_SLASH_FILERS` | `user_id=agent_id` pairs; unlisted users file nothing |
+
+Cards and requests are attributed to the mapped identity, which sees only its
+own requests in `/board status`. A retired identity, and reserved identities
+such as `captain` and system agents, are refused. Each Mattermost invocation
+has its own request key (from its `trigger_id`): a redelivered invocation
+replays, and running the command again files again. Mattermost posts
+`in_channel` replies in the thread the command was run from.
 
 ## Issue states
 

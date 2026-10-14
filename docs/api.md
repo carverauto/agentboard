@@ -409,8 +409,8 @@ Expected revision guards a full replacement. Exact normalized retries under the 
 ## Work intake (schema 45)
 
 Off unless the server sets `AGENTBOARD_INTAKE_ENABLED=true`; while off every
-intake route returns 404 `intake_disabled`. `GET /api/v1/meta` reports
-`intake_enabled`. Each route verifies the captain capability
+`/api/v1/intake` route returns 404 `intake_disabled`. `GET /api/v1/meta` reports
+`intake_enabled`. Each `/api/v1/intake` route verifies the captain capability
 (`Authorization: Bearer`) itself, so intake stays authenticated even when
 `AGENTBOARD_AUTH_MODE` is `off`; anything else gets 403 `forbidden`. With
 `AGENTBOARD_AUTH_MODE=enforce`, that 403 is decided before the controller, so
@@ -518,6 +518,27 @@ of `API_RATE_LIMIT_INTAKE` per minute (default 30) and answer 429 with
 `Retry-After` when it is exhausted. CLI: `agentboard intake file|import|status|cancel|resolve`
 always uses `AGENTBOARD_CAPTAIN_TOKEN_FILE`, needs schema 45, exits 4 on a
 conflict and `intake status` exits 5 while an item is `uncertain`.
+
+`POST /api/v1/hooks/mattermost/board` is the Mattermost `/board` slash
+command over the same contract ([setup](setup/intake.md#mattermost-board-command)).
+It is not an agent, captain or helper route: Mattermost posts the command as
+an urlencoded form and the controller compares its `token` field in constant
+time against `AGENTBOARD_MATTERMOST_SLASH_TOKEN_FILE` (re-read per request;
+`AGENTBOARD_MATTERMOST_SLASH_TOKEN` applies only when that path is unset), in every
+`AGENTBOARD_AUTH_MODE`. While intake is off it returns 404 `intake_disabled`
+before it checks the token. Without a configured token (missing, unreadable,
+or shorter than 16 bytes), 503 `unconfigured`; with a wrong or missing token,
+401 `unauthorized`. A body over 64 KiB returns 413 `too_large`; a body that
+cannot be read returns 400 `invalid_body`. A verified command always answers
+200 with a Mattermost command response (`response_type`, `text`). `file`
+applies the `POST /api/v1/intake` filing rules in process as the filer that
+`AGENTBOARD_MATTERMOST_SLASH_FILERS` maps the posting `user_id` to, with
+request key `mattermost-` plus the SHA-256 of the invocation's `trigger_id`,
+so a redelivered invocation replays; the filer's intake rate limit applies.
+`status` applies the `GET /api/v1/intake/:id` read rules in process as that
+filer. Successful filings reply `in_channel`; usage, refusals and status
+reply `ephemeral`. An unmapped user, a retired or reserved filer (including
+`captain`) and a malformed command create nothing.
 
 ### Coordinator inbox shadow classification
 

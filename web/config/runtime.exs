@@ -253,6 +253,38 @@ config :agentboard,
 
 config :agentboard, :intake_repositories, intake_repositories
 
+# Mattermost `/board` slash command over intake. The token is the slash
+# command's own secret (file preferred, re-read per request); the filer list
+# maps Mattermost user IDs to registered board identities as
+# `user_id=agent_id` pairs. An unlisted user files nothing.
+config :agentboard,
+       :mattermost_slash_token_file,
+       System.get_env("AGENTBOARD_MATTERMOST_SLASH_TOKEN_FILE")
+
+config :agentboard,
+       :mattermost_slash_token,
+       System.get_env("AGENTBOARD_MATTERMOST_SLASH_TOKEN")
+
+slash_filers =
+  System.get_env("AGENTBOARD_MATTERMOST_SLASH_FILERS", "")
+  |> String.split(",", trim: true)
+  |> Enum.map(&String.trim/1)
+  |> Enum.reject(&(&1 == ""))
+  |> Map.new(fn entry ->
+    case String.split(entry, "=", parts: 2) do
+      [user_id, agent_id] ->
+        if Regex.match?(~r/\A[a-z0-9]{26}\z/, user_id) and
+             Regex.match?(~r/\A[a-z0-9][a-z0-9_-]{0,127}\z/, agent_id),
+           do: {user_id, agent_id},
+           else: raise("AGENTBOARD_MATTERMOST_SLASH_FILERS entries must be user_id=agent_id")
+
+      _ ->
+        raise("AGENTBOARD_MATTERMOST_SLASH_FILERS entries must be user_id=agent_id")
+    end
+  end)
+
+config :agentboard, :mattermost_slash_filers, slash_filers
+
 config :agentboard, :intake_github,
   api_url: System.get_env("AGENTBOARD_GITHUB_API_URL", "https://api.github.com"),
   token: System.get_env("AGENTBOARD_INTAKE_GITHUB_TOKEN"),

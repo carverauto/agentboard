@@ -257,6 +257,7 @@ defmodule AgentboardWeb.Plugs.AgentAuth do
         AgentboardWeb.CaptainController,
         AgentboardWeb.FleetLoadoutController,
         AgentboardWeb.IntakeController,
+        AgentboardWeb.BoardSlashController,
         AgentboardWeb.FleetHostController,
         AgentboardWeb.AgentTokenController
       ]

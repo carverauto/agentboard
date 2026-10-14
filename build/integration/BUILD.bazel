@@ -381,6 +381,16 @@ sh_test(
 )
 
 sh_test(
+    name = "board_slash_test",
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "board_slash_test.py"},
+    srcs = ["board_api_test.sh"],
+    data = ["board_slash_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
+    size = "large",
+    timeout = "long",
+)
+
+sh_test(
     name = "idle_continuation_test",
     env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "idle_continuation_test.py"},
     srcs = ["board_api_test.sh"],
