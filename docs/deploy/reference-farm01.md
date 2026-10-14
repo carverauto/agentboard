@@ -82,6 +82,9 @@ switches. `dashboard-github-token.yaml` injects `GITHUB_TOKEN` from the required
 carverauto organization so private repositories such as `carverauto/gitops` are
 readable (the earlier personal-owner `agentboard-app`/`github-token` reference
 returned 404 for them); provision or rotate that credential out of band. The overlay contains only its name/key reference.
+`dashboard-intake-token.yaml` injects that same key as
+`AGENTBOARD_INTAKE_GITHUB_TOKEN` (import only). See
+[Fleet burndown rollout](#fleet-burndown-rollout-main-c0cf353).
 Cooperation is enabled (captain-approved; see [Cooperation enablement](#cooperation-enablement) below for the rollout record). The outbound Mattermost bridge is
 enabled (captain-approved 2026-10-07, image 7dfd031 carries the CA-file TLS fix);
 pause it by setting `AGENTBOARD_MATTERMOST_BRIDGE_ENABLED=false` and restarting.
@@ -679,6 +682,8 @@ token. It is mounted only into the dashboard, not the migration Job.
 
 The existing `agentboard-github` Secret key `GITHUB_TOKEN` remains the server's
 read-only GitHub API credential, injected by `dashboard-github-token.yaml`.
+Intake reuses that key; the standing wiring is under
+[PR discovery and observation](#pr-discovery-and-observation).
 Its required repository access is metadata, Actions read and pull requests read
 for both watched repositories. Do not replace it with the HMAC secret. This
 preparation inspected tracked wiring only; live Secret existence, values and
