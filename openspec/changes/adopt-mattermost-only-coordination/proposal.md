@@ -48,45 +48,63 @@ in `dual` mode:
 - **Coordinator runner under non-enforce auth.** An authenticated, explicitly
   issued `coordinator_runner` bearer may use exactly the four coordinator
   protocol operations while global auth is `off` or `observe`. The bearer must
-  belong to the configured coordinator, as it does today. No other route
-  changes behavior, and anonymous callers gain nothing.
-- **Herdr seat delivery adapter.** `agentboard seat nudge` also counts a
-  seat's unread coordination-channel mentions and private-route items, so a
-  chat mention wakes an idle seat. A measured, recent nudge pass per live seat
-  becomes the readiness producer for `delivery_adapter_readiness_unverified`.
+  belong to the configured coordinator, as it does today. It does not authorize
+  decision-conversation routes. Anonymous callers gain nothing.
+- **Decision-conversation notify and reply under non-enforce auth.** While
+  global auth is `off` or `observe`, notify accepts the verified `agent`
+  credential and reply accepts the verified `coordinator_participant`
+  credential that those routes already accept under `enforce`. Anonymous and
+  wrong-scope callers still fail closed. Show, reconcile and every other route
+  keep their current authentication.
+- **Herdr seat delivery adapter.** `agentboard seat nudge` reads a host-scoped
+  unread count per seat (coordination-channel mentions and private-route
+  items). The count returns counts only, does not return message content, and
+  does not advance `conversation_coverage` or mark anything read. `chat read`
+  stays limited to the owning agent. A measured, recent nudge pass per live
+  seat becomes the readiness producer for
+  `delivery_adapter_readiness_unverified`.
 - **Decision path readiness.** `coordinator_decision_path_unavailable_80`
   clears only on measured evidence: an active coordinator heartbeat within the
-  staleness window, plus a completed decision conversation notify/reply
-  round-trip receipt.
+  staleness window, plus a retained decision-conversation notify/reply
+  round-trip receipt. The receipt is not compared to the runner credential.
 - **Legacy unread disposition.** A captain-run drain reports every unread
-  board direct message by recipient. The captain disposes of each one
-  explicitly (handled, forwarded to chat with a receipt, or kept as pending
-  legacy). `legacy_unread_disposition_unverified_80` clears only when no
-  captain or coordinator board DM is left undisposed. `/messages` stays as the
-  read-only archive (7.2).
+  board direct message by recipient. The captain records one disposition per
+  message (`handled`, `forwarded` to the private route with a receipt, or
+  `kept`), attributed to the captain and stored apart from acknowledgement.
+  `handled` and `kept` leave the message unread and acknowledgeable.
+  `legacy_unread_disposition_unverified_80` clears only when every unread
+  captain or coordinator board DM has a disposition record. `/messages` stays
+  the read-only archive (7.2).
 - **Measured cutover gate.** `mattermost` is accepted only when every blocker
-  is replaced by measured readiness. Rollback to `dual` or `board` stays the
-  existing restart.
+  is replaced by measured readiness. A refused `mattermost` request uses
+  effective `dual` when the bridge, private recipient routes and inbound
+  catch-up prerequisites hold, and effective `board` otherwise. Nothing stores
+  a last accepted mode. Mirroring follows effective mode. Rollback to `dual` or
+  `board` stays the existing restart.
 
 ## Capabilities
 
 ### Modified Capabilities
 
 - `mattermost-coordination`: the coordination channel, durable findings in shared Context, coordinator runner
-  access under non-enforce auth, chat-driven seat wake, legacy unread
-  disposition, and the measured cutover gate.
+  access under non-enforce auth, decision-conversation notify/reply under the
+  same auth, a non-consuming host unread count for seat wake, a per-message
+  disposition record, and the measured cutover gate.
 
 ## Impact
 
 - **Server:**
   - `Agentboard.MessageMode`, which replaces `@missing_capabilities` with
     producers.
-  - Coordinator auth plug (scoped exception).
+  - Coordinator auth plug (scoped runner exception).
+  - Decision-conversation notify/reply auth (same principals as `enforce`,
+    while auth is `off` or `observe`).
   - Meta (`coordination_channel`).
-  - A legacy-unread disposition report and actions.
+  - A host-scoped unread-mention count that does not write coverage.
+  - A per-message disposition record, separate from acknowledgement.
 - **CLI:**
   - Seat brief (`internal/seatops`).
-  - `seat nudge` reads chat mentions through `chat read`.
+  - `seat nudge` reads the host-scoped unread count.
   - A captain disposition command.
 - **Skills:** `agentboard`, `agentboard-mattermost`, `ask-user-escalation`,
   and the per-harness variants (claude, codex, agy via `.gemini`, pi, grok).
@@ -94,7 +112,8 @@ in `dual` mode:
   - New config `AGENTBOARD_MATTERMOST_COORDINATION_CHANNEL_ID`.
   - Grokbot's existing runner credential.
   - Cutover is a captain-authorized rollout after the gate reports ready.
-- **Schema:** none expected beyond a disposition table, if the drain needs
-  durable state; decided in design.
+- **Schema:** one disposition record per board direct message (`handled`,
+  `forwarded` or `kept`), attributed to the captain, with the forwarded
+  private-route receipt. Acknowledgement stays on the message.
 - **Out of scope:** per-agent Mattermost bots (mm-elastic-agent-bots) stay a
   separate change. Phase 1 shared-bot attribution suffices.

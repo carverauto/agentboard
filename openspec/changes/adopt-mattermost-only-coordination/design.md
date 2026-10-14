@@ -41,11 +41,12 @@ remains. This change gives each hard-coded blocker a real producer.
 
 4. **The coordinator runner is accepted under `off`/`observe` only with a
    verified runner bearer.**
-   - The exception lives in the coordinator protocol plug and nowhere else.
+   - The runner exception lives in the coordinator protocol plug.
    - The bearer must verify, carry the `coordinator_runner` scope and belong to
      the configured active coordinator. All existing protocol checks are
      unchanged.
-   - Anonymous or wrong-scope callers still fail closed.
+   - Anonymous or wrong-scope callers still fail closed. The runner bearer does
+     not authorize decision-conversation routes.
    - Rejected alternative: flip farm01 to `enforce`. It is global and breaks
      every anonymous seat CLI.
    - Rejected alternative: let the captain capability stand in. The protocol
@@ -53,36 +54,71 @@ remains. This change gives each hard-coded blocker a real producer.
 
 5. **The Herdr seat delivery adapter is seat nudge, not a new daemon.**
    - Nudge already reads Herdr state and board work every three minutes.
-   - It gains coordination-channel mentions of the seat's ID plus private-route
-     items, read through the existing authorized `chat read` path with its
-     cursor.
+   - It gains a host-scoped unread count per seat: coordination-channel
+     mentions of the seat's ID, and private-route items for that seat. The
+     count returns counts only. It does not return message content, advance
+     `conversation_coverage`, or mark anything read.
+   - `chat read` stays the owning agent's path and still records that agent's
+     coverage. The host does not call it as the seat.
    - Readiness comes from a recent nudge pass that covered every live fleet
      seat, reported to the server as a heartbeat-like receipt.
    - Rejected alternative: per-harness native adapters. Five harnesses differ,
      and Herdr is the common surface.
+   - Rejected alternative: widen `chat read` so the host can impersonate a
+     seat. That consumes the seat's coverage before the seat sees the post.
 
 6. **Decision-path readiness is measured by a round-trip.**
    - Coordinator liveness (protocol heartbeat within the staleness window) is
      one half.
-   - The other half is one retained decision conversation notify/reply receipt
-     newer than the coordinator's current credential.
+   - The other half is one retained decision-conversation notify/reply receipt.
+     The receipt is not compared to the runner credential. Rotating the runner
+     leaves a retained receipt valid.
+   - Notify and reply accept, under `off` and `observe`, the verified principal
+     each route already accepts under `enforce`: notify an `agent` credential,
+     reply a `coordinator_participant` credential. Anonymous and wrong-scope
+     callers still fail closed. Show, reconcile and every other non-protocol
+     route keep their current authentication.
    - Captain answers still go through `decision answer`, whose authority is
      captain or coordinator plus the captain capability. Chat replies never
      answer a decision.
 
 7. **Legacy unread disposition is explicit, never bulk.**
    - The drain lists every unread board DM grouped by recipient.
-   - The captain marks each one handled, forwarded (posted to the
-     recipient's private route with a receipt, then acknowledged), or kept.
-     "Kept" is allowed for ordinary seats, whose 7.2 historical path keeps
-     working.
-   - The blocker clears when no captain or coordinator DM is undisposed.
+   - Each disposition is one record keyed by board message id, attributed to
+     the captain: `handled`, `forwarded` (private-route receipt id included),
+     or `kept`. The record is stored apart from message acknowledgement.
+   - Recording a disposition does not acknowledge the message. An
+     acknowledgement does not write a disposition.
+   - `handled` and `kept` leave the direct message unread and acknowledgeable
+     on the 7.2 historical path. `kept` is allowed for ordinary seats.
+   - `forwarded` posts to the recipient's private route, stores the receipt on
+     the disposition record, and leaves acknowledgement as a separate
+     recipient action.
+   - The blocker clears when every unread captain or coordinator DM has a
+     disposition record. A `kept` or `handled` record clears that unread
+     message without acknowledging it.
    - Rejected alternative: automatic acknowledgement at cutover. It silently
      loses decisions, which is issue #80's failure.
+   - Rejected alternative: treat acknowledgement as the disposition. `kept`
+     would then have to ack the message to clear the gate.
 
 8. **No new message tables are dropped.**
    - `/messages` stays the read-only archive with export (7.2).
+   - The only new table is the disposition record in decision 7.
    - Rollback is the existing mode restart.
+
+9. **A refused `mattermost` request falls back to `dual` when dual can run.**
+   - Effective mode is computed from current prerequisites. Nothing stores the
+     last accepted mode.
+   - Bridge, private recipient routes and inbound catch-up are dual's
+     prerequisites. The mattermost-only producers (coordination channel,
+     delivery adapter, decision path, legacy unread disposition) are not.
+   - When `mattermost` is refused and those three hold, effective mode is
+     `dual` and mirroring stays on. When any of the three does not hold,
+     effective mode is `board`.
+   - Mirroring follows effective mode, including the `dual?` check that today
+     reads only the requested env value.
+   - An invalid requested mode stays `board`. Requested `dual` is unchanged.
 
 ## Risks
 
