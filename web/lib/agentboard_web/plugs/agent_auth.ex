@@ -11,8 +11,8 @@ defmodule AgentboardWeb.Plugs.AgentAuth do
     info = route_info(conn)
 
     case Auth.mode() do
-      "off" -> conn
-      "observe" -> observe(conn, info)
+      "off" -> enforce_helper_scope(conn, info)
+      "observe" -> conn |> enforce_helper_scope(info) |> observe_if_open(info)
       "enforce" -> enforce(conn, info)
       _ -> reject(conn, "unavailable", "Authentication configuration is unavailable")
     end
@@ -21,9 +21,24 @@ defmodule AgentboardWeb.Plugs.AgentAuth do
   # This helper is the only controller source of effective attribution. In
   # enforce mode an absent assignment never falls back to caller headers.
   def actor(conn) do
-    if Auth.mode() == "enforce",
+    if Auth.mode() == "enforce" or Map.has_key?(conn.assigns, :trusted_actor),
       do: Map.get(conn.assigns, :trusted_actor, %{}),
       else: legacy_actor(conn)
+  end
+
+  # Used by helper-scoped controllers after their feature-flag check in
+  # off/observe mode, or directly when enforce already ran.
+  def authorize_helper(conn) do
+    if conn.assigns[:api_auth_kind] == :captain or
+         match?(%{scope: "helper"}, conn.assigns[:authenticated_agent]) do
+      {:ok, conn, conn.assigns.trusted_actor}
+    else
+      conn = enforce_helper(fetch_query_params(conn), route_info(conn))
+
+      if conn.halted,
+        do: {:halted, conn},
+        else: {:ok, conn, conn.assigns.trusted_actor}
+    end
   end
 
   def bearer(conn) do
@@ -68,10 +83,38 @@ defmodule AgentboardWeb.Plugs.AgentAuth do
     case boundary do
       boundary when boundary in [:public, :independent] -> conn
       :captain -> enforce_captain(conn, info)
+      :helper -> enforce_helper(fetch_query_params(conn), info)
       :agent -> enforce_agent(fetch_query_params(conn), info)
       :deny -> reject(conn, "forbidden", "API operation has no authentication policy")
     end
   end
+
+  defp enforce_helper_scope(conn, info) do
+    cond do
+      Policy.boundary(info) == :helper and info.plug != AgentboardWeb.IntakeController ->
+        conn
+        |> put_resp_header("cache-control", "no-store")
+        |> fetch_query_params()
+        |> enforce_helper(info)
+
+      Policy.boundary(info) != :helper ->
+        case bearer(conn) do
+          {:ok, "abt_" <> _ = token} ->
+            if match?(%{scope: "helper"}, Auth.helper_principal(token)),
+              do: reject(conn, "forbidden", "Credential scope does not permit this operation"),
+              else: conn
+
+          _ ->
+            conn
+        end
+
+      true ->
+        conn
+    end
+  end
+
+  defp observe_if_open(%{halted: true} = conn, _info), do: conn
+  defp observe_if_open(conn, info), do: observe(conn, info)
 
   defp enforce_captain(conn, info) do
     with {:ok, _} <- bearer(conn),
@@ -81,6 +124,56 @@ defmodule AgentboardWeb.Plugs.AgentAuth do
     else
       false -> reject(conn, "forbidden", "Captain capability required")
       {:error, code, message} -> reject(conn, code, message)
+    end
+  end
+
+  defp enforce_helper(conn, info) do
+    with {:ok, token} <- bearer(conn), :ok <- single_headers(conn) do
+      cond do
+        Captain.authorized?(Captain.authenticate_header(conn)) ->
+          captain(conn, info)
+
+        is_binary(token) ->
+          helper_agent(conn, info, token)
+
+        true ->
+          reject(conn, "forbidden", "Helper or captain capability required")
+      end
+    else
+      {:error, code, message} -> reject(conn, code, message)
+    end
+  end
+
+  defp helper_agent(conn, info, token) do
+    case Auth.verify(token) do
+      {:ok, %{scope: "helper"} = principal} ->
+        conn = assign(conn, :authenticated_agent, principal)
+
+        conn =
+          if Auth.mode() == "enforce" or get_req_header(conn, "x-agentboard-agent") == [],
+            do: AgentboardWeb.Plugs.RateLimit.authenticated_agent(conn),
+            else: conn
+
+        if conn.halted do
+          conn
+        else
+          with :ok <- attribution(conn, principal),
+               true <- Policy.allowed?(principal, info, conn.method, conn.query_params) do
+            assign(conn, :trusted_actor, principal_actor(principal))
+          else
+            false -> reject(conn, "forbidden", "Credential scope does not permit this operation")
+            {:error, code, message} -> reject(conn, code, message)
+          end
+        end
+
+      {:ok, %{}} ->
+        reject(conn, "forbidden", "Credential scope does not permit this operation")
+
+      {:ok, nil} ->
+        reject(conn, "forbidden", "Helper or captain capability required")
+
+      {:error, code, message} ->
+        reject(conn, code, message)
     end
   end
 
@@ -256,6 +349,7 @@ defmodule AgentboardWeb.Plugs.AgentAuth do
         AgentboardWeb.WorkerController,
         AgentboardWeb.CaptainController,
         AgentboardWeb.FleetLoadoutController,
+        AgentboardWeb.FleetStatusController,
         AgentboardWeb.IntakeController,
         AgentboardWeb.BoardSlashController,
         AgentboardWeb.FleetHostController,

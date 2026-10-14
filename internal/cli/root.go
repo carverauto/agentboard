@@ -126,10 +126,12 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	fleetRefill := strings.HasPrefix(path, "fleets/") && (strings.HasSuffix(path, "/activate") || strings.HasSuffix(path, "/deactivate") || strings.HasSuffix(path, "/refill"))
 	fleetSupply := strings.HasPrefix(path, "fleets/") && (strings.HasSuffix(path, "/supply") || strings.Contains(path, "/launch-intents/")) || strings.HasPrefix(path, "fleet-hosts/")
 	fleetCaptain := fleetLoadout || fleetRefill || fleetSupply
-	// Intake is captain-only until scoped helper credentials exist.
+	fleetStatus := path == "fleet/status"
 	intake := path == "intake" || strings.HasPrefix(path, "intake/")
+	intakeResolve := strings.HasPrefix(path, "intake/") && strings.Contains(path, "/items/")
+	helperRoute := (intake && !intakeResolve) || fleetStatus
 	decisionConversation := isDecisionConversationPath(path)
-	if (method != http.MethodGet || decisionConversation) && !fleetCaptain && !intake {
+	if (method != http.MethodGet || decisionConversation) && !fleetCaptain && !intake && !fleetStatus {
 		if err := c.cfg.Actor.Validate(); err != nil {
 			return nil, err
 		}
@@ -137,9 +139,10 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	var api *client.Client
 	var err error
 	captain, _ := cmd.Flags().GetBool("captain")
-	// Fleet configuration is captain-only for reads as well as writes. There is
-	// no command flag that can downgrade this transport to an ordinary bearer.
-	captain = captain || fleetCaptain || intake
+	// Fleet configuration and intake resolve are captain-only. Helper routes use
+	// the protected captain capability when configured, or the caller's helper
+	// bearer token otherwise.
+	captain = captain || fleetCaptain || intakeResolve || (helperRoute && os.Getenv("AGENTBOARD_CAPTAIN_TOKEN_FILE") != "")
 	// Typed conversation participation always uses the caller's ordinary bearer,
 	// never a protected captain capability or a worker runtime receipt.
 	if decisionConversation {
@@ -235,12 +238,19 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 		required = 47
 	}
 	if fields, ok := payload.(map[string]any); ok {
-		if kind, ok := fields["kind"].(string); ok && (kind == "seat" || kind == "human" || kind == "system" || kind == "fixture") {
-			required = 30
+		if kind, ok := fields["kind"].(string); ok {
+			if kind == "seat" || kind == "human" || kind == "system" || kind == "fixture" {
+				required = 30
+			} else if kind == "helper" {
+				required = 48
+			}
 		}
 	}
 	if strings.HasPrefix(path, "agents") && (query.Get("kind") != "" || query.Get("retired") != "") {
 		required = 30
+		if query.Get("kind") == "helper" {
+			required = 48
+		}
 	}
 	// Exact non-consuming reads, metadata writes and triage filters must not
 	// silently degrade on older servers. Legacy message operations stay at 2
@@ -267,6 +277,12 @@ func (c *commands) call(cmd *cobra.Command, method, path string, query url.Value
 	}
 	if intake {
 		required = 45
+		if !captain {
+			required = 48
+		}
+	}
+	if fleetStatus {
+		required = 48
 	}
 	if json.Unmarshal(raw, &meta) != nil || meta.API != 1 || meta.Schema < required {
 		return nil, &client.Error{Code: "schema_unavailable", Message: "API or schema is incompatible; an operator must run release migrations"}
@@ -297,7 +313,7 @@ func (c *commands) output(w io.Writer, raw json.RawMessage) error {
 		return err
 	}
 	table := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
-	for _, key := range []string{"agent", "agents", "scope", "loadout", "activation", "refill", "supply", "host", "intent", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "send", "sends", "decision", "decisions", "wake", "wakes"} {
+	for _, key := range []string{"agent", "agents", "scope", "loadout", "activation", "refill", "supply", "host", "intent", "fleets", "task", "tasks", "events", "messages", "message", "triage", "quota", "report", "document", "documents", "policy", "policies", "entry", "entries", "chat", "post", "posts", "send", "sends", "decision", "decisions", "wake", "wakes"} {
 		value, ok := envelope[key]
 		if !ok {
 			continue

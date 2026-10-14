@@ -100,10 +100,10 @@ func (c *commands) agents() *cobra.Command {
 			}
 			if kind != "" {
 				switch kind {
-				case "seat", "human", "system", "fixture":
+				case "seat", "human", "system", "fixture", "helper":
 					data["kind"] = kind
 				default:
-					return errors.New("--kind must be seat, human, system, or fixture")
+					return errors.New("--kind must be seat, human, system, fixture, or helper")
 				}
 			}
 			if host != "" {
@@ -132,7 +132,7 @@ func (c *commands) agents() *cobra.Command {
 			return nil
 		}}
 	register.Flags().StringVar(&name, "name", "", "Descriptive agent name")
-	register.Flags().StringVar(&kind, "kind", "", "Identity kind: seat, human, system, or fixture")
+	register.Flags().StringVar(&kind, "kind", "", "Identity kind: seat, human, system, fixture, or helper")
 	register.Flags().StringVar(&host, "host", "", "Host/session label")
 	register.Flags().StringSliceVar(&caps, "capability", nil, "Comma-separated capabilities")
 	register.Flags().StringVar(&backend, "backend", "", "Optional backend metadata; herdr also names this pane after the agent ID for seat nudge")

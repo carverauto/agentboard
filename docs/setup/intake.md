@@ -10,9 +10,10 @@ staying connected.
 
 Intake is off by default. While it is off, its routes answer 404
 `intake_disabled` and its outbox does not run. With
-`AGENTBOARD_AUTH_MODE=enforce`, a request that has not presented the captain
-capability is refused with 403 before that disabled check. A captain still
-receives 404 `intake_disabled`.
+`AGENTBOARD_AUTH_MODE=enforce`, a request that has not presented a captain-issued
+`helper` token (or the captain capability) is refused with 403 before that
+disabled check. An authorized helper or captain still receives 404
+`intake_disabled`.
 
 ## Enable it
 
@@ -23,7 +24,7 @@ Set these on the server and restart it:
 | `AGENTBOARD_INTAKE_ENABLED` | `true` turns intake on (default `false`) |
 | `AGENTBOARD_INTAKE_REPOSITORIES` | Comma-separated `owner/repo` list that intake may file into. Requests naming any other repository are rejected whole |
 | `AGENTBOARD_INTAKE_GITHUB_TOKEN_FILE` | File holding the GitHub token used to create issues and read issues for import (re-read on each use, so rotation needs no restart). `AGENTBOARD_INTAKE_GITHUB_TOKEN` is the environment fallback |
-| `AGENTBOARD_CAPTAIN_TOKEN` | Captain capability; every intake route requires it for now |
+| `AGENTBOARD_CAPTAIN_TOKEN` | Captain capability; issues `helper` tokens and authorizes `intake resolve` |
 | `API_RATE_LIMIT_INTAKE` | Intake writes per minute per filer (default `30`) |
 
 `AGENTBOARD_GITHUB_API_URL` and `AGENTBOARD_GITHUB_CA_FILE` are shared with CI
@@ -41,23 +42,43 @@ is configured. Card-only items (`issue: false`) need no token.
 
 ## Who can file
 
-Every intake route requires the captain capability (`Authorization: Bearer
-<captain token>`), even when `AGENTBOARD_AUTH_MODE` is `off`. Cards are filed
-and attributed as `captain`. Scoped helper credentials for chat bots are a
-later change; until then a bot that files work holds the captain capability
-and should be treated accordingly.
+Every intake route requires either a captain-issued `helper` token
+(`Authorization: Bearer abk_...`) or the captain capability, even when
+`AGENTBOARD_AUTH_MODE` is `off` or `observe`.
 
 People in Mattermost can also file through the [`/board`
 command](#mattermost-board-command) as a board identity the captain maps to
 their Mattermost account.
 
-## File from the CLI
-
-The CLI reads the captain capability from a protected file
-(`AGENTBOARD_CAPTAIN_TOKEN_FILE`, mode 0600):
+Issue a helper credential for a chat bot (Grok, Muse, OpenAI dot, or any HTTPS
+client):
 
 ```sh
 export AGENTBOARD_CAPTAIN_TOKEN_FILE=~/.config/agentboard/captain.token
+agentboard agent register --agent helper-bot --kind helper --harness chat
+agentboard agent token issue --agent helper-bot --scope helper --out ~/.config/agentboard/helper-bot.token
+```
+
+A `helper` token can only:
+- File intake (`POST /api/v1/intake`) attributed to its own helper identity,
+  into `AGENTBOARD_INTAKE_REPOSITORIES` (intersected with the helper's
+  captain-managed `SeatScope.allowed_repos` when a scope is set on that
+  helper),
+- Read its **own** intake requests (`GET /api/v1/intake/:id`),
+- Cancel its **own** unstarted intake items (`POST /api/v1/intake/:id/cancel`),
+- Read the fleet status digest (`GET /api/v1/fleet/status`).
+
+Every other board read or write (including `intake resolve`, task claims,
+assignments, handoffs, decisions, messages, and fleet configuration) is refused
+with `403 forbidden` across all auth modes.
+
+## File from the CLI
+
+The CLI reads a helper token from `AGENTBOARD_TOKEN_FILE` (or the captain
+capability from `AGENTBOARD_CAPTAIN_TOKEN_FILE`, mode 0600):
+
+```sh
+export AGENTBOARD_TOKEN_FILE=~/.config/agentboard/helper-bot.token
 agentboard intake file --request-key bug-1 --repo example/project \
   --title "Fix login redirect" --body "Steps to reproduce..." --priority 1 --label bug
 agentboard intake file --request-key notes-2 --repo example/project \
@@ -65,7 +86,11 @@ agentboard intake file --request-key notes-2 --repo example/project \
 agentboard intake file --request-key batch-3 --file items.json
 agentboard intake status REQUEST_ID
 agentboard intake cancel REQUEST_ID [--item ITEM_ID]...
-agentboard intake resolve REQUEST_ID ITEM_ID --action reconcile|abandon
+agentboard fleet status [FLEET_ID]
+
+# Reconcile or abandon requires the captain capability:
+AGENTBOARD_CAPTAIN_TOKEN_FILE=~/.config/agentboard/captain.token \
+  agentboard intake resolve REQUEST_ID ITEM_ID --action reconcile|abandon
 ```
 
 `items.json` is an array of up to 10 items:

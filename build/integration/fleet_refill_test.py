@@ -118,7 +118,7 @@ def loadout():
 
 rpc('Application.put_env(:agentboard, :captain_token, ' + json.dumps(CAPTAIN) + ')')
 rpc('Application.put_env(:agentboard, :queue_limit, 2)')
-assert api('meta')['schema_version'] == api('meta')['required_schema_version'] == 47
+assert api('meta')['schema_version'] == api('meta')['required_schema_version'] == 48
 assert sql("SELECT kind||':'||model||':'||harness FROM agents WHERE id='fleet-refill'") == 'system:system:ash'
 
 api('agents/register', {'name': 'refill-captain'}, actor='refill-captain')

@@ -61,14 +61,16 @@ def rpc(expression):
     return result.stdout
 
 
-def api(path, data=MISSING, *, captain=True, token=None, agent='intake-human', status=200):
-    headers = {'X-Agentboard-Agent': agent, 'X-Agentboard-Model': 'fixture-model',
-               'X-Agentboard-Harness': 'codex', 'Content-Type': 'application/json'}
+def api(path, data=MISSING, *, captain=True, token=None, agent='intake-human', status=200, method=None):
+    headers = {'Content-Type': 'application/json'}
+    if agent is not None:
+        headers.update({'X-Agentboard-Agent': agent, 'X-Agentboard-Model': 'fixture-model',
+                        'X-Agentboard-Harness': 'codex'})
     if captain:
         headers['Authorization'] = 'Bearer ' + CAPTAIN
     if token is not None:
         headers['Authorization'] = 'Bearer ' + token
-    request = urllib.request.Request(URL + '/api/v1/' + path, headers=headers,
+    request = urllib.request.Request(URL + '/api/v1/' + path, headers=headers, method=method,
                                      data=None if data is MISSING else json.dumps(data).encode())
     try:
         response = urllib.request.urlopen(request, timeout=30)
@@ -79,7 +81,7 @@ def api(path, data=MISSING, *, captain=True, token=None, agent='intake-human', s
     assert CAPTAIN not in text and INTAKE_TOKEN not in text, 'credential leaked'
     expected = status if isinstance(status, tuple) else (status,)
     assert response.status in expected, (path, response.status, status, body)
-    if path.startswith('intake'):
+    if path.startswith('intake') or path.startswith('fleet/status'):
         assert response.headers['cache-control'] == 'no-store'
     return body, response.headers
 
@@ -196,7 +198,7 @@ class GitHub(http.server.BaseHTTPRequestHandler):
 # --- Default off: routes unavailable, nothing written. ----------------------
 assert api('meta', captain=False)[0]['intake_enabled'] is False
 meta = api('meta', captain=False)[0]
-assert meta['schema_version'] == meta['required_schema_version'] == 47
+assert meta['schema_version'] == meta['required_schema_version'] == 48
 assert sql("SELECT kind||','||harness FROM agents WHERE id='system-intake'") == 'system,ash'
 body, _ = api('intake', {'request_key': 'off', 'items': [{'repository': REPO, 'title': 'x'}]}, status=404)
 assert body['error']['code'] == 'intake_disabled'
@@ -583,6 +585,113 @@ rpc('Application.put_env(:agentboard, :intake_enabled, false)')
 api('intake/' + intake['id'], status=404)
 assert work(widget['id'])['skipped'] == 'intake_disabled'
 rpc('Application.put_env(:agentboard, :intake_enabled, true)')
+
+# --- Helper credentials, own-request isolation, and fleet/status digest. --
+api('agents/register', {'name': 'Grok Helper', 'kind': 'helper'}, captain=False, agent='grok-helper')
+assert api('agents?kind=helper', captain=False)[0]['agents'][0]['id'] == 'grok-helper'
+api('agents/grok-helper/tokens/issue', {'scope': 'agent'}, status=403)
+api('agents/intake-seat/tokens/issue', {'scope': 'helper'}, status=403)
+seat_token = api('agents/intake-seat/tokens/issue', {})[0]['token']
+helper_issued = api('agents/grok-helper/tokens/issue', {})[0]
+assert helper_issued['credential']['scope'] == 'helper'
+helper_token = helper_issued['token']
+
+# Seat tokens cannot call helper routes; helper tokens cannot call non-helper routes
+# even when agent_auth_mode is off, observe, or enforce.
+for auth_mode in ('off', 'observe', 'enforce'):
+    rpc(f'Application.put_env(:agentboard, :agent_auth_mode, "{auth_mode}")')
+    api('intake', {'request_key': 'seat-denied', 'items': [{'repository': REPO, 'title': 'No'}]},
+        captain=False, token=seat_token, agent='intake-seat', status=403)
+    api('fleet/status', captain=False, token=seat_token, agent='intake-seat', status=403)
+    api('fleet/status', captain=False, agent='intake-seat', status=403)
+    api('tasks', {'title': 'Helper direct card'}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('tasks/' + note['task_id'] + '/claim', {}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('tasks/' + note['task_id'] + '/assign', {'to': 'intake-seat'}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('messages', {'to': 'intake-seat', 'body': 'No coordination'}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('decisions', {'task': note['task_id'], 'kind': 'scope', 'question': 'No?', 'options': ['A']},
+        captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('fleets/helper-fleet/activate', {'mode': 'dry_run'}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    # Spoofed attribution with helper token is refused.
+    api('fleet/status', captain=False, token=helper_token, agent='intake-seat', status=403)
+rpc('Application.put_env(:agentboard, :agent_auth_mode, "off")')
+
+# Even without a bearer token in off mode, a helper identity cannot own or mutate board state.
+api('tasks', {'title': 'Header helper direct'}, captain=False, agent='grok-helper', status=403)
+api('tasks/' + note['task_id'] + '/claim', {}, captain=False, agent='grok-helper', status=403)
+api('tasks/' + note['task_id'] + '/assign', {'to': 'grok-helper'}, status=403)
+
+# Helper files intake, reads its own status, cancels its own unstarted item,
+# and is refused on captain-filed requests and captain-only reconcile/abandon.
+helper_filed = api('intake', {'request_key': 'helper-1', 'items': [
+    {'repository': REPO, 'title': 'Helper filed card', 'issue': False},
+    {'repository': 'acme/gadgets', 'title': 'Helper cancel card', 'issue': False}
+]}, captain=False, token=helper_token, agent=None)[0]['intake']
+assert helper_filed['filer_id'] == 'grok-helper'
+assert api('intake/' + helper_filed['id'], captain=False, token=helper_token, agent=None)[0]['intake']['id'] == helper_filed['id']
+api('intake/' + intake['id'], captain=False, token=helper_token, agent=None, status=403)
+api('intake/' + intake['id'] + '/cancel', {}, captain=False, token=helper_token, agent=None, status=403)
+api('intake/' + helper_filed['id'] + '/items/' + helper_filed['items'][0]['id'] + '/abandon', {},
+    captain=False, token=helper_token, agent=None, status=403)
+cancelled_helper = api('intake/' + helper_filed['id'] + '/cancel',
+                       {'items': [helper_filed['items'][1]['id']]},
+                       captain=False, token=helper_token, agent=None)[0]
+assert cancelled_helper['cancelled'] == [helper_filed['items'][1]['id']]
+
+# SeatScope on the helper restricts which configured intake repositories it may target.
+api('agents/grok-helper/scope', {'allowed_repos': [REPO], 'required_labels': [], 'allowed_labels': [], 'revision': 0},
+    method='PUT')
+api('intake', {'request_key': 'helper-out-of-scope', 'items': [
+    {'repository': 'acme/gadgets', 'title': 'Blocked by helper scope', 'issue': False}
+]}, captain=False, token=helper_token, agent=None, status=403)
+
+# Fleet status digest via API and CLI (helper token and captain capability).
+api('agents/intake-seat/scope', {'allowed_repos': [REPO, 'acme/gadgets'], 'required_labels': [],
+    'allowed_labels': [], 'revision': 0}, method='PUT')
+api('fleets/helper-fleet/loadout', {
+    'revision': 0,
+    'idempotency_key': 'helper-fleet-1',
+    'seats': [{'seat_id': 'seat-1', 'agent_id': 'intake-seat', 'harness': 'codex',
+               'desired_host_id': 'host-a', 'desired_model': 'fixture-model',
+               'desired_effort': 'high', 'scope_revision': 1}]
+}, method='PUT')
+digest, _ = api('fleet/status?fleet_id=helper-fleet', captain=False, token=helper_token, agent=None)
+assert len(digest['fleets']) == 1
+fleet_digest = digest['fleets'][0]
+assert fleet_digest['fleet_id'] == 'helper-fleet'
+assert fleet_digest['seats']['configured'] == 1 and fleet_digest['seats']['items'][0]['agent_id'] == 'intake-seat'
+assert fleet_digest['backlog']['total'] >= 1
+assert 'overdue_assignments' in fleet_digest and 'pending_assignments' in fleet_digest
+assert 'ci_obligations' in fleet_digest
+assert len(fleet_digest['recent_intake']) >= 1
+assert 'Steps to reproduce' not in json.dumps(digest) and helper_token not in json.dumps(digest)
+api('fleet/status?fleet_id=missing-fleet', captain=False, token=helper_token, agent=None, status=404)
+api('fleet/status?fleet_id=BadSlug', captain=False, token=helper_token, agent=None, status=422)
+
+with tempfile.TemporaryDirectory() as helper_home:
+    helper_file = os.path.join(helper_home, 'helper.token')
+    fd = os.open(helper_file, os.O_WRONLY | os.O_CREAT, 0o600)
+    os.write(fd, helper_token.encode())
+    os.close(fd)
+    helper_env = {k: v for k, v in os.environ.items() if not k.startswith(('DATABASE_', 'PG'))}
+    helper_env.update(AGENTBOARD_TOKEN_FILE=helper_file, AGENTBOARD_CAPTAIN_TOKEN_FILE='',
+                      AGENT_ID='', AGENTBOARD_MODEL='', AGENTBOARD_HARNESS='')
+
+    def ab_helper(*args, code=0):
+        p = subprocess.run([os.environ['AB_BINARY'], *args], env=helper_env, capture_output=True, text=True, timeout=60)
+        assert p.returncode == code, (args, p.returncode, p.stdout, p.stderr)
+        assert helper_token not in p.stdout + p.stderr
+        return p.stdout
+
+    cli_helper = json.loads(ab_helper('--json', 'intake', 'file', '--request-key', 'helper-cli-1',
+                                      '--repo', REPO, '--title', 'From helper CLI', '--no-issue'))
+    assert cli_helper['intake']['filer_id'] == 'grok-helper'
+    shown_helper = json.loads(ab_helper('--json', 'intake', 'status', cli_helper['intake']['id']))
+    assert shown_helper['intake']['id'] == cli_helper['intake']['id']
+    cancelled_cli = json.loads(ab_helper('--json', 'intake', 'cancel', cli_helper['intake']['id']))
+    assert cancelled_cli['cancelled'] == [cli_helper['intake']['items'][0]['id']]
+    cli_digest = json.loads(ab_helper('--json', 'fleet', 'status', 'helper-fleet'))
+    assert cli_digest['fleets'][0]['fleet_id'] == 'helper-fleet'
+    ab_helper('intake', 'status', intake['id'], code=1)
 
 # --- Per-filer intake write limit (last: it spends this minute's budget). --
 rpc('Application.put_env(:agentboard, :rate_limits, Keyword.put(Application.fetch_env!(:agentboard, :rate_limits), :intake, 0))')

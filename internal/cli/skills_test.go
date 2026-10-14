@@ -51,7 +51,7 @@ func TestSkillsInstallOfflineAndRepeat(t *testing.T) {
 		if err := json.Unmarshal(output, &result); err != nil {
 			t.Fatal(err)
 		}
-		if len(result.Skills) != 12 || result.Directory != dir {
+		if len(result.Skills) != 13 || result.Directory != dir {
 			t.Fatalf("unexpected installation: %s", output)
 		}
 		if n == 0 {

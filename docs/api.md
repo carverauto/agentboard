@@ -285,19 +285,21 @@ duplicate PR and delegates to the existing live-owner decision contract. It
 returns the usual decision envelope and idempotently parks the owned card.
 It cannot create a system decision, host it on the original Done card, or close
 a GitHub PR. The CLI command is `agentboard pr duplicate-decision ID --task TASK`.
-It requires schema 24; PR list/detail reads carry the additive health field below from schema 27 (see [current readiness](release.md#schema-47-seat-supply) for the current floor).
+It requires schema 24; PR list/detail reads carry the additive health field below from schema 27 (see [current readiness](release.md#schema-48-helper-access-and-fleet-status-digest) for the current floor).
 
 ## Agent API credentials
 
 Captain capability is required for `GET /api/v1/agents/:id/tokens` and
 `POST /api/v1/agents/:id/tokens/{issue,rotate,revoke}`. Issue/rotate accept an
-optional `scope` (`agent`, the configured `coordinator`, or explicit
-`coordinator_participant`) and return safe credential metadata plus the plaintext
+optional `scope` (`agent`, the configured `coordinator`, explicit
+`coordinator_participant`, or `helper` for `kind=helper` identities from schema 48) and return safe credential metadata plus the plaintext
 once. Participant issuance/rotation requires `channel_ids`: 1–20 distinct IDs,
 each 1–128 ASCII letters, digits, underscores or hyphens. The grant is immutable;
-other scopes reject nonempty grants. Default coordinator issuance remains
+other scopes reject nonempty grants. `helper` scope is valid only on non-retired
+`kind=helper` identities and rejects `channel_ids`. Default coordinator issuance remains
 read-only `coordinator`. CLI participant issuance requires schema 39 and repeated
-`--channel ID` flags with explicit `--scope coordinator_participant`.
+`--channel ID` flags with explicit `--scope coordinator_participant`; CLI helper
+issuance requires schema 48 with `--scope helper`.
 Revoke accepts optional
 `credential_id`; without it, all active credentials for that agent are revoked.
 Lists never return plaintext or hashes. CLI administration directs issued values
@@ -316,8 +318,12 @@ recent secret-free observations. Under enforce this report requires a captain
 capability. Enforce also authenticates ordinary reads and watches, rejects
 unsupported/retired/revoked principals, and restricts coordinator reads to an
 explicit operation allowlist and its own inbox. Watch streams revalidate before
-each snapshot. See the credential setup guide for protected custody, rollout,
-rollback and request-admission revocation semantics.
+each snapshot. A `helper` credential (or any `kind=helper` actor) is restricted
+across all auth modes (`off`, `observe`, `enforce`) to filing intake, reading or
+cancelling its own intake requests, and reading `GET /api/v1/fleet/status`;
+every other read or write is refused with 403 `forbidden`. See the credential
+setup guide for protected custody, rollout, rollback and request-admission
+revocation semantics.
 
 Under enforce, `coordinator_participant` adds only its own heartbeat (`status`
 and `task`; no `backend` or profile change), addressed board-message acknowledgment,
@@ -409,15 +415,19 @@ Expected revision guards a full replacement. Exact normalized retries under the 
 ## Work intake (schema 45)
 
 Off unless the server sets `AGENTBOARD_INTAKE_ENABLED=true`; while off every
-`/api/v1/intake` route returns 404 `intake_disabled`. `GET /api/v1/meta` reports
-`intake_enabled`. Each `/api/v1/intake` route verifies the captain capability
-(`Authorization: Bearer`) itself, so intake stays authenticated even when
-`AGENTBOARD_AUTH_MODE` is `off`; anything else gets 403 `forbidden`. With
-`AGENTBOARD_AUTH_MODE=enforce`, that 403 is decided before the controller, so
-an unauthenticated caller gets 403 rather than 404 `intake_disabled`. A
-captain still receives 404 while intake is off. Responses carry
-`Cache-Control: no-store`. Setup, credentials and the issue state table:
-[work intake](setup/intake.md).
+intake route returns 404 `intake_disabled`. `GET /api/v1/meta` reports
+`intake_enabled`. `POST /api/v1/intake`, `GET /api/v1/intake/:id` and
+`POST /api/v1/intake/:id/cancel` verify either a captain-issued `helper`
+credential (`scope=helper` on a non-retired `kind=helper` agent, from schema
+48) or the captain capability (`Authorization: Bearer`) themselves, while
+`POST /api/v1/intake/:id/items/:item_id/{reconcile,abandon}` requires the
+captain capability. Intake therefore stays authenticated even when
+`AGENTBOARD_AUTH_MODE` is `off` or `observe`; anything else gets 403
+`forbidden`. With `AGENTBOARD_AUTH_MODE=enforce`, that 403 is decided before the
+controller, so an unauthenticated caller gets 403 rather than 404
+`intake_disabled`. An authorized helper or captain still receives 404 while
+intake is off. Responses carry `Cache-Control: no-store`. Setup, credentials and
+the issue state table: [work intake](setup/intake.md).
 
 `POST /api/v1/intake` takes exactly `request_key` (1-128 bytes, trimmed) and
 `items` (1-10). Each item takes `repository` (`owner/repo`, required),
@@ -427,8 +437,10 @@ lower is more urgent), `labels` (up to 20, each at most 50 characters) and
 `issue` (boolean, default `true`; `false` files a card only). Unknown fields,
 a body containing an `agentboard-intake:` marker and any other shape return
 422 `invalid_input`. Every repository must be in the
-server's `AGENTBOARD_INTAKE_REPOSITORIES`, otherwise the whole request is
-refused with 403 `forbidden` and nothing is created.
+server's `AGENTBOARD_INTAKE_REPOSITORIES` (intersected with the helper's
+captain-managed `SeatScope.allowed_repos` when the filer is a helper with an
+explicit `SeatScope`), otherwise the whole request is refused with 403
+`forbidden` and nothing is created.
 
 The request record, every card and every pending issue intent commit in one
 transaction. Normalization decides replay: repository lowercased, title and
@@ -445,7 +457,8 @@ Each item has `id`, `position`, `task_id`, `task_status`, `repository`,
 `title`, `issue`, `issue_state` (`none|pending|creating|created|uncertain|abandoned|cancelled`),
 `issue_url`, `issue_number`, `duplicate_issue_urls`, `reason`, `last_error`,
 `attempts`, `next_attempt_at`, `cancelled_at`, `resolved_at` and `updated_at`.
-Unknown or invisible requests return 404.
+A helper can only read or cancel requests where `filer_id` matches its own
+identity; unknown or invisible requests return 404.
 
 GitHub issues are created afterwards by an AshOban outbox job, outside the
 board transaction, with the hidden body marker
@@ -515,9 +528,11 @@ any create. A cancelled item is terminal and reconcile returns 409.
 
 Intake writes (file, import, cancel, reconcile, abandon) also spend a per-filer budget
 of `API_RATE_LIMIT_INTAKE` per minute (default 30) and answer 429 with
-`Retry-After` when it is exhausted. CLI: `agentboard intake file|import|status|cancel|resolve`
-always uses `AGENTBOARD_CAPTAIN_TOKEN_FILE`, needs schema 45, exits 4 on a
-conflict and `intake status` exits 5 while an item is `uncertain`.
+`Retry-After` when it is exhausted. CLI: `agentboard intake file|import|status|cancel`
+accepts a helper bearer token (`AGENTBOARD_TOKEN_FILE` / `AGENTBOARD_TOKEN`,
+schema 48) or `AGENTBOARD_CAPTAIN_TOKEN_FILE` (schema 45), while `intake resolve`
+always requires `AGENTBOARD_CAPTAIN_TOKEN_FILE`. `intake file` and `intake import`
+exit 4 on a conflict and `intake status` exits 5 while an item is `uncertain`.
 
 `POST /api/v1/hooks/mattermost/board` is the Mattermost `/board` slash
 command over the same contract ([setup](setup/intake.md#mattermost-board-command)).
@@ -550,14 +565,15 @@ messages or prove routing, native acceptance or coordinator handling.
 
 ## Fleet activation and backlog refill (schema 46)
 
-All three endpoints require the verified captain capability (`Authorization: Bearer`), independent of actor headers. The CLI uses protected `AGENTBOARD_CAPTAIN_TOKEN_FILE` and requires schema 46, or schema 47 when activate sends seat counts.
+Activation, deactivation, and per-fleet refill endpoints require the verified captain capability (`Authorization: Bearer`), independent of actor headers. The CLI uses protected `AGENTBOARD_CAPTAIN_TOKEN_FILE` and requires schema 46, or schema 47 when activate sends seat counts. `GET /api/v1/fleet/status` (schema 48) accepts either a captain-issued `helper` token or the captain capability across all auth modes (`off`, `observe`, `enforce`).
 
 - `POST /api/v1/fleets/:id/activate` takes `{"mode": "dry_run"|"live"}`, an optional integer `claim_deadline_seconds` from 60 to 86400 and, from schema 47, optional integer `requested_seats` and `max_seats` from 0 to 32 for [seat supply](#seat-supply-schema-47) (both default to 0 and are kept when omitted). The first activation defaults to 1800 seconds; later ones keep the recorded value when the field is omitted. The fleet must have a saved loadout, otherwise the call returns 409. CLI: `fleet activate FLEET --mode dry-run|live [--claim-deadline 30m] [--requested-seats N] [--max-seats N]`. The CLI sends a seat count only when that flag is set, and then requires schema 47.
 - `POST /api/v1/fleets/:id/deactivate` takes `{}`. It sets the mode to `inactive`, which stops new refill assignments, deadline returns and new launch intents. It releases no claim, stops no seat, leaves existing assignments in place and does not delete launch intents. CLI: `fleet deactivate FLEET`.
 - Both return `{"activation": {"fleet_id", "mode", "claim_deadline_seconds", "requested_seats", "max_seats", "revision", "changed_by", "activated_at", "updated_at", "refill_enabled"}, "changed": bool}`. Repeating the current mode and settings returns `changed: false` and writes nothing. A never-activated fleet reads as `mode: "inactive"`, revision 0, and the default 1800-second deadline, with null provenance. Nothing is stored until a real change. Every change is kept in immutable attributed history.
 - `GET /api/v1/fleets/:id/refill` returns `{"refill": {"fleet_id", "refill_enabled", "activation", "last_pass", "pending", "misses"}}`. `last_pass` is null or `{"mode", "pairs", "returned", "passed_at"}`, where `pairs` lists `{"task_id", "agent_id", "priority", "queue_count"}`: would-assign pairs in dry run, assigned pairs in live mode. `pending` lists up to 100 unclaimed refill assignments with `task_id`, `agent_id`, `task_revision`, `message_id`, `deadline_at` and `created_at`. `misses` lists `{"agent_id", "count", "last_missed_at", "attention"}` per seat, where `attention` is true at two or more misses. CLI: `fleet refill status FLEET`.
+- `GET /api/v1/fleet/status` (optional `?fleet_id=FLEET`, default up to 100 configured fleets) returns a bounded, secret-free digest `{"as_of", "intake_enabled", "refill_enabled", "fleets": [...], "recent_intake": [...]}` with `Cache-Control: no-store`. Each fleet entry includes `fleet_id`, `mode`, `refill_enabled`, `repositories`, `live_seats`, `seats` (`configured`, `live`, `idle`, `busy`, `stale`, `items`), `backlog` (`total`, `by_priority`, `priorities`), `overdue_assignments`, `pending_assignments`, `misses`, `dry_run_pairs`, `last_pass`, `ci_obligations`, and `recent_intake`. It never includes message bodies, card or issue descriptions, or credentials. CLI: `agentboard fleet status [FLEET_ID]`.
 
-Unknown fields, an invalid mode, deadline or seat count, and a malformed fleet ID return 422. A missing or invalid captain capability returns 403.
+Unknown fields, an invalid mode, deadline or seat count, and a malformed fleet ID return 422. A missing or invalid capability returns 403.
 
 Refill runs only when `AGENTBOARD_REFILL_ENABLED=true` (default false), and only for fleets in `dry_run` or `live` mode. A pass runs every minute and after task done, release and handoff events. For each fleet it orders open, unassigned, unarchived cards in the union of the seats' managed `allowed_repos` by priority ascending, `created_at`, then ID. For each card, shared seat eligibility picks one of the fleet's seats (live, active, not waiting on a captain decision, scope match, below `AGENTBOARD_QUEUE_LIMIT`), and each seat gets at most one card per pass. A card carrying a restricted label (`AGENTBOARD_REFILL_RESTRICTED_LABELS`, default `security`) goes only to a seat whose scope names that label. A live assignment is the normal `assign` transition attributed to the reserved `fleet-refill` system identity. It commits with one `task_order` message and an assignment record keyed by task ID and assignment revision. An unclaimed assignment past its deadline goes back to the backlog as a `release` event attributed to `fleet-refill`, and the miss is counted. A dry-run pass writes no board state. See [Fleet backlog refill](setup/fleet-refill.md).
 

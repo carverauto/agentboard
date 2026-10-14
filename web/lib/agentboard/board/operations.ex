@@ -256,6 +256,9 @@ defmodule Agentboard.Board.Operations do
 
             if target.retired_at != nil,
               do: reject("conflict", "Retired identity cannot receive new work")
+
+            if target.kind == "helper",
+              do: reject("forbidden", "Helper identities cannot receive task ownership")
           end
 
           attrs = Map.merge(attrs, Agentboard.Availability.admit(task, action, actor, data))
@@ -287,7 +290,7 @@ defmodule Agentboard.Board.Operations do
   # own a larger transaction (an intake request files its cards atomically).
   # `data` must already pass `Input.task("create", data)`.
   def create_task!(id, actor, data) do
-    admit_action!("create", actor, data)
+    admit_action!("create", actor, data, allow_helper: true)
     insert_task!(id, actor, data)
   end
 
@@ -330,7 +333,7 @@ defmodule Agentboard.Board.Operations do
   # are the board's own: only an open, unassigned card is unstarted.
   def cancel_unstarted_task!(task_id, actor) do
     data = %{"status" => "cancelled", "note" => "Cancelled by its intake filer"}
-    admit_action!("update", actor, data)
+    admit_action!("update", actor, data, allow_helper: true)
     lock_task(task_id)
     task = fetch!(Task, task_id, "Task not found")
 
@@ -348,9 +351,9 @@ defmodule Agentboard.Board.Operations do
     end
   end
 
-  defp admit_action!(action, actor, data) do
+  defp admit_action!(action, actor, data, opts \\ []) do
     Agentboard.Availability.lock_admission()
-    identity!(actor)
+    identity!(actor, opts)
     Agentboard.QueueAdmission.lock_action(action, actor, data)
   end
 
@@ -660,12 +663,19 @@ defmodule Agentboard.Board.Operations do
     result(changed, task, action, actor, data, stamp)
   end
 
-  def identity!(actor) do
+  def identity!(actor, opts \\ []) do
     case Ash.get!(Agent, actor["agent"], not_found_error?: false) do
-      %Agent{harness: harness} = agent ->
-        if harness == actor["harness"],
-          do: agent,
-          else: reject("invalid_context", "Register a matching agent identity first")
+      %Agent{harness: harness, kind: kind} = agent ->
+        cond do
+          harness != actor["harness"] ->
+            reject("invalid_context", "Register a matching agent identity first")
+
+          kind == "helper" and not Keyword.get(opts, :allow_helper, false) ->
+            reject("forbidden", "Helper identities may only file or cancel their own intake")
+
+          true ->
+            agent
+        end
 
       nil ->
         reject("invalid_context", "Register a matching agent identity first")
@@ -674,14 +684,26 @@ defmodule Agentboard.Board.Operations do
 
   # Non-raising form of identity!/1 for API boundaries that map error
   # codes to statuses instead of rescuing.
-  def registered_agent(agent_id, harness) when is_binary(agent_id) and agent_id != "" do
+  def registered_agent(agent_id, harness, opts \\ [])
+
+  def registered_agent(agent_id, harness, opts) when is_binary(agent_id) and agent_id != "" do
     case Ash.get!(Agent, agent_id, not_found_error?: false) do
-      %Agent{harness: ^harness} = agent -> {:ok, agent}
-      _ -> {:error, "invalid_context", "Register a matching agent identity first"}
+      %Agent{harness: ^harness, kind: "helper"} = agent ->
+        if Keyword.get(opts, :allow_helper, false) do
+          {:ok, agent}
+        else
+          {:error, "forbidden", "Helper identities may only file or cancel their own intake"}
+        end
+
+      %Agent{harness: ^harness} = agent ->
+        {:ok, agent}
+
+      _ ->
+        {:error, "invalid_context", "Register a matching agent identity first"}
     end
   end
 
-  def registered_agent(_, _),
+  def registered_agent(_, _, _),
     do: {:error, "invalid_context", "Register a matching agent identity first"}
 
   # Addressable peer: registered and not retired.
@@ -864,11 +886,15 @@ defmodule Agentboard.Board.Operations do
   end
 
   defp normalize({:error, code, message}), do: {:error, code, message}
+
+  defp normalize(%Agentboard.Board.OperationError{code: code, message: message}),
+    do: {:error, code, message}
+
   # Splode formats unrecognized Postgrex exceptions rather than retaining them.
   # Recover only our declared public rejection codes, never database details.
   defp normalize(%Ash.Error.Unknown.UnknownError{error: error}) when is_binary(error) do
     case Regex.run(
-           ~r/\A\*\* \(Postgrex.Error\) ERROR P0001 \(raise_exception\) (invalid_input|invalid_context|not_found|conflict)(?:\n|\z)/,
+           ~r/\A\*\* \(Postgrex.Error\) ERROR P0001 \(raise_exception\) (invalid_input|invalid_context|not_found|conflict|forbidden)(?:\n|\z)/,
            error
          ) do
       [_, code] -> {:error, code, "Board operation rejected"}
@@ -892,7 +918,7 @@ defmodule Agentboard.Board.Operations do
   defp normalize(%Postgrex.Error{
          postgres: %{code: :raise_exception, message: code, detail: detail}
        })
-       when code in ~w(invalid_input invalid_context not_found conflict),
+       when code in ~w(invalid_input invalid_context not_found conflict forbidden),
        do: {:error, code, detail}
 
   defp normalize(%Postgrex.Error{postgres: %{code: :unique_violation}}),

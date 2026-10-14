@@ -241,3 +241,37 @@ func TestIntakeImportRefusesBeforeAnyRequest(t *testing.T) {
 		}
 	}
 }
+
+func TestIntakeHelperTokenRequiresSchema48WhileResolveRequiresCaptain(t *testing.T) {
+	helperToken := "abt_" + strings.Repeat("h", 43)
+	schema := 48
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/v1/meta" {
+			fmt.Fprintf(w, `{"api_version":1,"schema_version":%d}`, schema)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer "+helperToken {
+			t.Errorf("expected helper bearer, got %q", r.Header.Get("Authorization"))
+		}
+		fmt.Fprint(w, intakeView("none"))
+	}))
+	defer server.Close()
+	t.Setenv("AGENTBOARD_URL", server.URL)
+	t.Setenv("AGENT_ID", "")
+	t.Setenv("AGENTBOARD_MODEL", "")
+	t.Setenv("AGENTBOARD_HARNESS", "")
+	t.Setenv("AGENTBOARD_CAPTAIN_TOKEN_FILE", "")
+	t.Setenv("AGENTBOARD_TOKEN", helperToken)
+
+	if _, err := intakeCommand("file", "--request-key", "h1", "--repo", "acme/widgets", "--title", "Helper card", "--no-issue"); err != nil {
+		t.Fatalf("helper file err = %v", err)
+	}
+	if _, err := intakeCommand("resolve", "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222", "--action", "abandon"); err == nil || !strings.Contains(err.Error(), "protected captain") {
+		t.Fatalf("expected captain requirement on resolve, got %v", err)
+	}
+	schema = 47
+	if _, err := intakeCommand("status", "11111111-1111-4111-8111-111111111111"); err == nil || !strings.Contains(err.Error(), "schema") {
+		t.Fatalf("expected schema 48 error for helper intake, got %v", err)
+	}
+}

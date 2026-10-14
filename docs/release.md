@@ -544,7 +544,17 @@ unique index that allows one outstanding intent per fleet seat. No host is
 enrolled and no intent exists after the upgrade, so nothing launches until a
 captain enrolls a host with a cap above 0, sets requested and maximum seats,
 and `AGENTBOARD_SEAT_SUPPLY_ENABLED` is turned on. The stamp uses
-`GREATEST(version, 47)`. Readiness requires schema 47. The down migration
+`GREATEST(version, 47)`. Readiness required schema 47 until schema 48. The down migration
 raises; roll back by deploying a compatible image and keeping the new tables
 and columns, which older code ignores. Behavior is in
 [fleet host setup](setup/fleet-host.md).
+
+## Schema 48: helper access and fleet status digest
+
+Migration `20261008004800` expands the `agents.agent_kind` check constraint to
+admit `'helper'` and the `agent_api_credentials.agent_credential_scope` check
+constraint to admit `'helper'` (with empty `channel_ids`). The stamp uses
+`GREATEST(version, 48)`, so it never lowers a higher stamp. Readiness requires
+schema 48. The down migration refuses to narrow the constraints while any
+`kind = 'helper'` agent or `scope = 'helper'` credential exists. See
+[work intake](setup/intake.md) and the [API reference](api.md#work-intake-schema-45).

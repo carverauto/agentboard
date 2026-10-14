@@ -167,7 +167,7 @@ defmodule Agentboard.Board.Reads do
         invalid("Unknown availability filter")
 
       resource == "agents" and Map.has_key?(filters, "kind") and
-          filters["kind"] not in ~w(seat human system fixture all) ->
+          filters["kind"] not in ~w(seat human system fixture helper all) ->
         invalid("Unknown kind filter")
 
       resource == "agents" and Map.has_key?(filters, "retired") and

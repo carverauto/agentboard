@@ -114,7 +114,7 @@ func TestAgentRegisterPassesKind(t *testing.T) {
 func TestAgentRegisterRejectsUnknownKind(t *testing.T) {
 	newRosterBoard(t)
 	err := runRosterCommand("agent", "register", "--kind", "bot")
-	if err == nil || !strings.Contains(err.Error(), "--kind must be seat, human, system, or fixture") {
+	if err == nil || !strings.Contains(err.Error(), "--kind must be seat, human, system, fixture, or helper") {
 		t.Fatalf("expected kind error, got %v", err)
 	}
 }

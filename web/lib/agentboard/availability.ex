@@ -45,6 +45,9 @@ defmodule Agentboard.Availability do
     if agent.retired_at != nil,
       do: Ops.reject("conflict", "Retired identity cannot receive new work")
 
+    if agent.kind == "helper",
+      do: Ops.reject("forbidden", "Helper identities cannot receive task ownership")
+
     Agentboard.SeatScope.admit!(task, target)
     state = effective(agent)["state"]
 

@@ -17,9 +17,9 @@ to fleets.
 
 ## 2. Helper access and status
 
-- [ ] 2.1 Add the `helper` identity kind and captain-issued token scope on the per-agent token machinery; verify every refused write (claim, assign, handoff, decisions, lease release, posting as another agent, setting `requested_seats` or `max_seats`) remotely, including while `agent_auth_mode` is off.
-- [ ] 2.2 Add `GET /api/v1/fleet/status` with bounded digest fields, including dry-run would-assign pairs and would-launch intents; verify no bodies or credentials, helper-token refusal while `agent_auth_mode` is off, and the existing API rate limits remotely. The captain sets requested and max seats.
-- [ ] 2.3 Add a helper skill for chat bots (Grok, Muse, dot, any HTTPS client): file work, cancel its own unstarted intake, read status, never coordinate, never set seat counts.
+- [x] 2.1 Add the `helper` identity kind and captain-issued token scope on the per-agent token machinery; verify every refused write (claim, assign, handoff, decisions, lease release, posting as another agent, setting `requested_seats` or `max_seats`) remotely, including while `agent_auth_mode` is off.
+- [x] 2.2 Add `GET /api/v1/fleet/status` with bounded digest fields, including dry-run would-assign pairs and would-launch intents; verify no bodies or credentials, helper-token refusal while `agent_auth_mode` is off, and the existing API rate limits remotely. The captain sets requested and max seats.
+- [x] 2.3 Add a helper skill for chat bots (Grok, Muse, dot, any HTTPS client): file work, cancel its own unstarted intake, read status, never coordinate, never set seat counts.
 
 ## 3. Backlog refill (#170)
 

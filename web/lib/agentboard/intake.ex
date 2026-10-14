@@ -67,7 +67,7 @@ defmodule Agentboard.Intake do
          {:ok, _} <- ensure_identity(actor),
          digest = Payload.import_digest(request),
          :new <- prior(actor["agent"], request["request_key"], digest),
-         :ok <- in_scope(request["repository"]),
+         :ok <- in_scope(request["repository"], actor),
          {:ok, selected} <- Import.select(request, &linked(request["repository"], &1)) do
       Operations.transaction(fn ->
         lock_key(actor["agent"], request["request_key"])
@@ -137,7 +137,8 @@ defmodule Agentboard.Intake do
     do: {:error, "invalid_input", "action must be reconcile or abandon"}
 
   defp create(actor, payload, digest) do
-    out_of_scope = Enum.reject(payload["items"], &(&1["repository"] in repositories()))
+    allowed = allowed_repositories(actor)
+    out_of_scope = Enum.reject(payload["items"], &(&1["repository"] in allowed))
 
     if out_of_scope != [],
       do:
@@ -221,8 +222,8 @@ defmodule Agentboard.Intake do
     end
   end
 
-  defp in_scope(repository) do
-    if repository in repositories(),
+  defp in_scope(repository, actor) do
+    if repository in allowed_repositories(actor),
       do: :ok,
       else: {:error, "forbidden", "Repository is outside the intake scope: " <> repository}
   end
@@ -444,14 +445,34 @@ defmodule Agentboard.Intake do
   defp cancel_selection(_),
     do: {:error, "invalid_input", "Cancel accepts an optional items list of 1-10 item IDs"}
 
+  defp allowed_repositories(actor) do
+    configured = repositories()
+
+    if actor["agent"] == "captain" do
+      configured
+    else
+      case Agentboard.SeatScope.get(actor["agent"]) do
+        nil -> configured
+        scope -> Enum.filter(configured, &(&1 in scope.allowed_repos))
+      end
+    end
+  end
+
   defp visible(id, actor) do
     request =
       if uuid?(id), do: Ash.get!(Request, id, not_found_error?: false), else: nil
 
     # Filers see their own requests; the captain sees every request.
-    if request && (request.filer_id == actor["agent"] or actor["agent"] == "captain"),
-      do: {:ok, request},
-      else: {:error, "not_found", "Intake request not found"}
+    cond do
+      is_nil(request) ->
+        {:error, "not_found", "Intake request not found"}
+
+      request.filer_id == actor["agent"] or actor["agent"] == "captain" ->
+        {:ok, request}
+
+      true ->
+        {:error, "forbidden", "Helpers may access only their own intake requests"}
+    end
   rescue
     DBConnection.ConnectionError -> {:error, "unavailable", "Board database is unavailable"}
   end
@@ -545,7 +566,8 @@ defmodule Agentboard.Intake do
     end
   end
 
-  defp ensure_identity(actor), do: Operations.registered_agent(actor["agent"], actor["harness"])
+  defp ensure_identity(actor),
+    do: Operations.registered_agent(actor["agent"], actor["harness"], allow_helper: true)
 
   defp card_id(title, item_id) do
     base =

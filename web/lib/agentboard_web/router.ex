@@ -184,6 +184,7 @@ defmodule AgentboardWeb.Router do
     get("/intake/:id", IntakeController, :show)
     post("/intake/:id/cancel", IntakeController, :cancel)
     post("/intake/:id/items/:item_id/:action", IntakeController, :resolve)
+    get("/fleet/status", FleetStatusController, :show)
     get("/fleets/:id/loadout", FleetLoadoutController, :show)
     put("/fleets/:id/loadout", FleetLoadoutController, :replace)
     post("/fleets/:id/activate", FleetLoadoutController, :activate)
