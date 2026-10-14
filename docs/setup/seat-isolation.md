@@ -71,6 +71,11 @@ two consecutive checks of the physical cwd and Git root, rejects the
 primary/spawning checkout, subdirectories, unrelated repositories and
 unregistered worktrees, then writes a private brief inside `.agentboard-seat/`
 (directory mode 0700, brief file mode 0600, symlinks and redirected paths rejected).
+`.agentboard-seat/` is Git-excluded, so `treehouse return` leaves it in the
+slot. When a fresh lease with no `--task` binding finds a previous seat's
+metadata there, the launcher moves it to `ROOT/.agentboard-seat-archive/`,
+outside every worktree, and names the archive on stderr. A `--task` resume
+still stops if the retained brief differs.
 It checks again immediately before starting the harness with that exact cwd.
 The child inherits `AGENTBOARD_SEAT_WORKTREE`, `AGENTBOARD_SEAT_SOURCE` and
 `AGENTBOARD_SEAT_BRIEF` and `AGENTBOARD_SEAT_ROOT`. A successful launch does not prove the model followed the

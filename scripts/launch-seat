@@ -244,6 +244,25 @@ def lease_identity(candidate, root):
     return matches[0]["lease_id"]
 
 
+def archive_stale_metadata(seat_dir, worktree, root):
+    """Move a previous seat's metadata out of a freshly leased slot.
+
+    `/.agentboard-seat/` is git-excluded, so `treehouse return` keeps it. A
+    fresh unbound lease means no live seat owns it; keep it outside every worktree.
+    """
+    if not seat_dir.is_dir() or not any(seat_dir.iterdir()):
+        return
+    base = root.resolve(strict=True) / ".agentboard-seat-archive"
+    if base.is_symlink() or (base.exists() and not base.is_dir()):
+        raise RuntimeError("seat metadata archive is redirected")
+    base.mkdir(mode=0o700, exist_ok=True)
+    os.chmod(base, 0o700)
+    slot = "-".join(worktree.relative_to(root.resolve(strict=True) / ".treehouse").parts)
+    target = base / f"{slot}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{os.getpid()}"
+    os.rename(seat_dir, target)
+    print(f"Archived the previous seat's metadata from {seat_dir} to {target}", file=sys.stderr)
+
+
 def private_directory(path):
     if path.is_symlink() or (path.exists() and not path.is_dir()):
         raise RuntimeError("seat metadata directory is redirected")
@@ -572,6 +591,8 @@ def main():
         # Reject redirected metadata writes before touching the worktree.
         if seat_dir.is_symlink() or (seat_dir.exists() and not seat_dir.is_dir()):
             raise RuntimeError("seat metadata directory is redirected")
+        if binding is None:
+            archive_stale_metadata(seat_dir, worktree, root)
         seat_dir.mkdir(mode=0o700, exist_ok=True)
         os.chmod(seat_dir, 0o700)
         brief_path = seat_dir / "brief.md"

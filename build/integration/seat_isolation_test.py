@@ -224,4 +224,38 @@ sys.exit(subprocess.run([{str(treehouse)!r}, *sys.argv[1:]]).returncode)
     events = sorted((float(at), kind) for kind, at in (line.split() for line in spans.read_text().splitlines()))
     assert [kind for _, kind in events] == ["start", "end", "start", "end"], events
     assert len({json.loads((root / f"race-{n}.json").read_text())["cwd"] for n in range(2)}) == 2
+
+    # `/.agentboard-seat/` is git-excluded, so `treehouse return` keeps the
+    # previous seat's metadata. The next unbound lease of that slot archives it
+    # outside every worktree instead of stopping on "retained brief differs".
+    returned_pool = root / "returned-pool"
+    first = root / "returned-first.json"
+    launch = lambda out, *extra: [sys.executable, launcher, "--repo", repo, "--root", returned_pool, *extra, "--brief", task, "--", sys.executable, recorder, out, "{brief_text}", "text"]
+    command(launch(first), repo, env)
+    slot = Path(json.loads(first.read_text())["cwd"])
+    old_brief = (slot / ".agentboard-seat/brief.md").read_text()
+    command([treehouse, "return", slot, "--if-lease-holder", env["AGENT_ID"], "--root", returned_pool], repo, env)
+    assert (slot / ".agentboard-seat/brief.md").exists(), "treehouse return keeps excluded seat metadata"
+    next_env = dict(env, AGENT_ID="codex-fixture-next")
+    following = root / "returned-next.json"
+    result = command(launch(following), repo, next_env)
+    assert Path(json.loads(following.read_text())["cwd"]) == slot
+    archives = list((returned_pool / ".agentboard-seat-archive").iterdir())
+    assert len(archives) == 1 and archives[0].name in result.stderr, result.stderr
+    assert not archives[0].resolve().is_relative_to(returned_pool.resolve() / ".treehouse")
+    assert (returned_pool / ".agentboard-seat-archive").stat().st_mode & 0o777 == 0o700
+    assert (archives[0] / "brief.md").read_text() == old_brief
+    assert "export AGENT_ID=codex-fixture-seat" in (archives[0] / "agent.env").read_text().splitlines()
+    assert "export AGENT_ID=codex-fixture-next" in (slot / ".agentboard-seat/agent.env").read_text().splitlines()
+
+    # A task-bound resume keeps the strict equality check: a differing retained
+    # brief still stops before the native process and archives nothing.
+    binding = {"task_id": "fixture-task", "source": str(repo), "worktree": str(slot), "treehouse_root": str(returned_pool), "treehouse_version": "3.1.2", "lease_holder": "codex-fixture-next"}
+    cli.write_text(compatible_cli.replace('else: print("decision request', f'elif sys.argv[1:3]==["seat","ensure"]: print(json.dumps({{"binding":{binding!r}}}))\nelse: print("decision request'))
+    retained = (slot / ".agentboard-seat/brief.md").read_text()
+    bound = root / "bound-must-not-run.json"
+    result = command(launch(bound, "--task", "fixture-task"), repo, next_env, ok=False)
+    assert result.returncode == 2 and "retained brief differs" in result.stderr, result.stderr
+    assert not bound.exists() and (slot / ".agentboard-seat/brief.md").read_text() == retained
+    assert len(list((returned_pool / ".agentboard-seat-archive").iterdir())) == 1
 print("real pinned Treehouse v3 acquisition with explicit roots, retained leases, native brief/cwd and STOP cases passed")

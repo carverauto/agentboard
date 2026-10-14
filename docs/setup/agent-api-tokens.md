@@ -174,9 +174,9 @@ containing its own ID/harness/model/URL plus the seat worktree, source, pool roo
 and brief paths, and an already-provisioned bearer when present. Git's local exclude protects the entire seat metadata directory even
 when a repository has no ignore rule. Both acquisition and `--check` compare
 AGENT_ID with the persisted Treehouse lease holder and reject coordinator ID.
-An existing environment/brief is preserved and validated, never rewritten or
-executed; incompatible retained metadata fails closed without touching
-credentials (see [seat isolation](seat-isolation.md)).
+The launcher never executes `agent.env` and never rewrites a credential file
+in place. Retained brief and environment handling is defined in
+[seat isolation](seat-isolation.md).
 
 A shared fleet environment file may contain only non-secret routing values:
 
