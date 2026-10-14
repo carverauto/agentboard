@@ -68,14 +68,16 @@ gh release edit v0.4.0 --draft=false --prerelease        # after the draft exist
 agentboard version                                        # 0.4.0 on the Mac, after installing the release binary
 ```
 
-Installing that CLI does not move the farm01 image. The live pin stays the
-[burndown record](reference-farm01.md#fleet-burndown-rollout-main-c0cf353).
+Installing that CLI does not move the farm01 image. The live pin is the
+[coordination channel record](reference-farm01.md#coordination-channel-rollout-main-10ec2a3).
 
 ## 2. Confirm the farm01 pin
 
-The 2026-10-14 rollout already put main `c0cf353` (schema 48) on farm01 and
-turned intake, refill and seat supply on. Digest, migrations and flag values
-are in the [burndown record](reference-farm01.md#fleet-burndown-rollout-main-c0cf353).
+The 2026-10-14 rollouts put main `10ec2a3` (schema 48) on farm01 and turned
+intake, refill and seat supply on. Migrations and flag values are in the
+[burndown record](reference-farm01.md#fleet-burndown-rollout-main-c0cf353); the
+current digest is in the
+[coordination channel record](reference-farm01.md#coordination-channel-rollout-main-10ec2a3).
 Re-applying `k8s/overlays/farm01` keeps that pin and those literals. Do not
 roll the image back to v0.3.0, and do not expect intake to answer 404
 `intake_disabled`.
@@ -85,7 +87,7 @@ agentboard meta --json   # schema_version 48
 ```
 
 `fleet refill status` and `fleet supply status` show no pilot activation until
-step 6. The rest of the board stays as that record left it.
+step 6. The rest of the board stays as the burndown record left it.
 
 ## 3. Leave the live intake wiring in place
 
@@ -334,4 +336,4 @@ step, and anything that needed the captain. Tick 6.1 in
 | Free a stuck seat | `agentboard fleet supply abandon pilot INTENT_ID --reason "..."` after checking the pane by hand |
 | Stop the daemon | `launchctl bootout gui/$(id -u)/com.agentboard.fleet-host` |
 | Turn the features off | Set the three `*_ENABLED` literals to `false` and restart |
-| Roll the server back | Keep the current digest in the [burndown record](reference-farm01.md#fleet-burndown-rollout-main-c0cf353). Schema 48 is additive; v0.3.0 is not a compatible pin. Turn the three flags off per the row above. |
+| Roll the server back | Use the c0cf353 digest in the [burndown record](reference-farm01.md#fleet-burndown-rollout-main-c0cf353). Schema 48 is additive; v0.3.0 is not a compatible pin. Turn the three flags off per the row above. |

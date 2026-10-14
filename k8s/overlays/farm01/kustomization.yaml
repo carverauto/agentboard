@@ -91,13 +91,13 @@ configMapGenerator:
       - AGENTBOARD_REFILL_ENABLED=true
       - AGENTBOARD_SEAT_SUPPLY_ENABLED=true
       # Captain-approved 2026-10-14: Mattermost #agents is the seat coordination
-      # channel (adopt-mattermost-only-coordination). Ignored by images that
-      # predate the coordination-channel server change.
+      # channel (adopt-mattermost-only-coordination). Required by the server
+      # while Mattermost is configured; it refuses to boot without it.
       - AGENTBOARD_COORDINATION_CHANNEL_ID=tg3thqx96t87myboasiemfipry
 generatorOptions:
   disableNameSuffixHash: true
 images:
   # Operator-managed immutable release pin; see docs/deploy/reference-farm01.md.
   - name: registry.carverauto.dev/agentboard/dashboard
-    # main c0cf353 (v0.4.0 plus #257 helper access; schema 48), rolled 2026-10-14.
-    digest: sha256:30320c516e1e0a0f7aa5b0164e9e8c6c338aa96821ea4f82ac6eb7e5dee645fe
+    # main 10ec2a3 (#267 coordination channel, #266, #269; schema 48), rolled 2026-10-14.
+    digest: sha256:d3aa4d19435a1dffa7ed39c68866a800ddd8b500a7f703aa879dc5dda1af4220

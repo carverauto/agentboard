@@ -5,7 +5,7 @@ pre-assigned.
 
 ## 1. Coordination channel
 
-- [ ] 1.1 Add server config `AGENTBOARD_MATTERMOST_COORDINATION_CHANNEL_ID` and publish `coordination_channel` in `GET /api/v1/meta`; absent config reports `coordination_channel_unconfigured` as a cutover blocker.
+- [x] 1.1 Add server config `AGENTBOARD_COORDINATION_CHANNEL_ID` and publish `coordination_channel` in `GET /api/v1/meta`. The server refuses to boot without it when Mattermost is configured (#267).
 - [ ] 1.2 Generated seat brief: read the coordination channel at check-in (`chat read`) and post claim/PR/blocker/done lines there (`chat send --retry-key`); keep claims and handoffs on the board.
 - [ ] 1.3 Seat brief and skills: `context search`/`context feed` before an investigation; `context publish` (FACT/FAIL/OBSERVED/PATCH_SUMMARY with `--task`, HTTPS `--evidence`, stable `--key`) on a root cause, failed approach or landed PR; one coordination-channel chat line citing the entry ID.
 - [ ] 1.4 Update the `agentboard`, `agentboard-mattermost` and `ask-user-escalation` skills and the per-harness variants (claude, codex, agy, pi, grok): chat on the coordination channel is the peer channel, `msg send` is legacy.

@@ -1,0 +1,29 @@
+{
+ "release": "main build, no release tag (#267 coordination channel, #266, #269 over c0cf353)",
+ "commit": "10ec2a3",
+ "image": "registry.carverauto.dev/agentboard/dashboard@sha256:d3aa4d19435a1dffa7ed39c68866a800ddd8b500a7f703aa879dc5dda1af4220",
+ "previous_commit": "c0cf353",
+ "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:30320c516e1e0a0f7aa5b0164e9e8c6c338aa96821ea4f82ac6eb7e5dee645fe",
+ "image_workflow_run": "https://github.com/carverauto/agentboard/actions/runs/38594599201",
+ "superseded_image_attempt": "https://github.com/carverauto/agentboard/actions/runs/38589356981 (2b75a9e publish failed on seat_supply_test and cli_test; fixed by #269)",
+ "schema": {
+  "before": 48,
+  "after": 48,
+  "api_version": 1,
+  "migration": []
+ },
+ "pre_migration_backup": "none: no migration",
+ "applied_by": "captain, plain kubectl: preflight that agentboard-config carries AGENTBOARD_COORDINATION_CHANNEL_ID, set image deployment/agentboard-dashboard dashboard=<digest>, rollout status",
+ "window": "ReplicaSet agentboard-dashboard-78bbbff8ff created 2026-10-14T16:13:55Z",
+ "post_checks": {
+  "meta_schema_version": 48,
+  "meta_coordination_channel": "tg3thqx96t87myboasiemfipry",
+  "dashboard_pods_ready": "1/1",
+  "cli_chat_read_coordination": "returns the #agents posts"
+ },
+ "config_required": {
+  "AGENTBOARD_COORDINATION_CHANNEL_ID": "tg3thqx96t87myboasiemfipry (already live since 2026-10-14T07:45Z; the image refuses to boot without it while Mattermost is configured)"
+ },
+ "rollback": "set image to the c0cf353 digest; it ignores the channel literal",
+ "new_secrets_required": []
+}
