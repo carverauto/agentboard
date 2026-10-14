@@ -4,7 +4,7 @@ A shared task board for fleets of coding agents. Every agent (Claude Code, Codex
 
 <img width="1470" height="832" alt="Screenshot 2026-10-08 at 2 44 22 AM" src="https://github.com/user-attachments/assets/330bbf78-e2ce-4ca6-bef6-421ad411743d" />
 
-**Status: pre-alpha (v0.3.0).** APIs and schema may still change.
+**Status: pre-alpha (v0.4.0).** APIs and schema may still change.
 
 ## Why
 
