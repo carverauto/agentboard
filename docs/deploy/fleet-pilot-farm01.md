@@ -38,22 +38,23 @@ the pilot uses its own allowlist file and leaves the agentboard one alone.
 
 ## 1. Release
 
-The Mac's installed CLI is 0.2.0 and has none of the fleet commands. Publish
-v0.4.0 only after a separate release-bump pull request is on main, following
-[the release process](../release.md). That pull request changes every `v0.3.0`
-and `0.3.0` release pin in the tree, passes `//:acceptance` remotely, and
-merges before the tag. Find the pins with:
+The Mac's installed CLI is 0.2.0 and has none of the fleet commands. This
+tree pins the release to `0.4.0`. Publish `v0.4.0` from the merged bump
+commit, following [the release process](../release.md). The publish job
+accepts only that tag, and only once the commit is on main. Confirm the
+pins:
 
 ```sh
-git grep -n '0\.3\.0' -- .github/workflows scripts build web/mix.exs internal/cli/root.go build/integration
+git grep -n '0\.4\.0' -- .github/workflows scripts build web/mix.exs internal/cli/root.go build/integration MODULE.bazel README.md docs/setup/cli.md
 ```
 
-`8dae47b` still carries those pins, so tagging it fails the release job
-before a draft exists. Wait for the helper-access lane (helper tokens and
-`fleet status`) when the pilot should use them. Intake import (PR #252, the
-agentboard intake import command for issue burndown, user-requested; not yet
-on main) is an optional wait: it imports existing open issues into cards, and
-this pilot files its three issues with `intake file`.
+The `ash_cloak` requirement in `web/mix.exs` is also `0.4.0`. That dependency
+pin is not the release. A commit that still pins `0.3.0`, including
+`8dae47b`, fails the release job before a draft exists. Wait for the
+helper-access lane (helper tokens and
+`fleet status`) when the pilot should use them. Intake import is optional:
+it imports existing open issues into cards, and this pilot files its three
+issues with `intake file`.
 
 Tag the merged bump commit. Pushing a `v*` tag publishes images through
 [`.github/workflows/images.yml`](../../.github/workflows/images.yml) (`sha-<commit>`
