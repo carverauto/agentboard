@@ -117,7 +117,7 @@ in `dual` mode:
 - **Skills:** `agentboard`, `agentboard-mattermost`, `ask-user-escalation`,
   and the per-harness variants (claude, codex, agy via `.gemini`, pi, grok).
 - **farm01:**
-  - New config `AGENTBOARD_MATTERMOST_COORDINATION_CHANNEL_ID`.
+  - New config `AGENTBOARD_COORDINATION_CHANNEL_ID`, required when Mattermost is configured.
   - Grokbot's existing runner credential.
   - Cutover is a captain-authorized rollout after the gate reports ready.
 - **Schema:** one disposition record per board direct message (`handled`,

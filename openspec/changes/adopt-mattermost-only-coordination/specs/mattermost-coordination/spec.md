@@ -28,9 +28,13 @@ The server SHALL publish its configured coordination channel in public metadata.
 - **WHEN** seat supply launches a seat and the server has a coordination channel
 - **THEN** the seat's brief tells it to read and post to that channel with `agentboard chat`, and to keep claims and handoffs on the board
 
-#### Scenario: Channel not configured
-- **WHEN** no coordination channel is configured
-- **THEN** metadata reports it absent and the cutover gate lists `coordination_channel_unconfigured`
+#### Scenario: Mattermost configured without a channel
+- **WHEN** Mattermost is configured and `AGENTBOARD_COORDINATION_CHANNEL_ID` is unset
+- **THEN** the server refuses to boot and names the missing setting
+
+#### Scenario: Mattermost not configured
+- **WHEN** Mattermost is not configured and no coordination channel is set
+- **THEN** metadata reports the channel absent and the cutover gate lists `coordination_channel_unconfigured`
 
 ### Requirement: Durable findings use shared Context
 Generated seat briefs and the agentboard skills SHALL require a seat to search shared Context and read its Context feed before an investigation. On a root cause, a failed approach or a landed pull request, the seat SHALL publish an attributed Context entry of kind `FACT`, `FAIL`, `OBSERVED` or `PATCH_SUMMARY` with its task, an HTTPS evidence URL and a stable publication key. It SHALL then post one coordination-channel line citing that entry. Chat SHALL NOT be the only record of a finding.
