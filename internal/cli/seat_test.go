@@ -270,3 +270,41 @@ func TestSeatReturnRoundTripsSpacedWorktree(t *testing.T) {
 		t.Fatalf("expected landed-gate refusal for spaced path, got %v", err)
 	}
 }
+
+// The server rejects an empty cursor as a mismatched one, so the first page of
+// an owned seat lookup must send no cursor at all (GH264).
+func TestSeatCheckFirstPageSendsNoCursor(t *testing.T) {
+	sawEmpty, requests := false, 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"api_version":1,"schema_version":22}`))
+	})
+	mux.HandleFunc("GET /api/v1/tasks/seat-task", func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if values, ok := r.URL.Query()["cursor"]; ok && (len(values) == 0 || values[0] == "") {
+			sawEmpty = true
+			w.WriteHeader(400)
+			w.Write([]byte(`{"error":{"code":"invalid_input","message":"Cursor does not match this query"}}`))
+			return
+		}
+		w.WriteHeader(200)
+		json.NewEncoder(w).Encode(map[string]any{
+			"task": map[string]any{"id": "seat-task", "status": "in_progress", "assignee_id": "worker-a",
+				"claim_expired": false, "claim_expires_at": "2099-01-01T00:00:00Z"},
+			"events": []any{},
+		})
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	t.Setenv("AGENTBOARD_URL", server.URL)
+	t.Setenv("AGENT_ID", "worker-a")
+	t.Setenv("AGENTBOARD_MODEL", "fixture")
+	t.Setenv("AGENTBOARD_HARNESS", "test")
+	err := runSeatCommand(t, "seat", "check", "seat-task", "--json")
+	if requests == 0 {
+		t.Fatalf("seat check never read the task: %v", err)
+	}
+	if sawEmpty || (err != nil && strings.Contains(err.Error(), "Cursor does not match")) {
+		t.Fatalf("first task page sent an empty cursor: %v", err)
+	}
+}

@@ -32,6 +32,12 @@ its verified Treehouse seat. The wrapper installs the task-scoped native gate
 hook while preserving the native post-receive hook. Validation-step agents
 must not drive the pipeline.
 
+The seat may belong to any repository. Run the wrapper from the agentboard
+checkout by path (for example `/path/to/agentboard/scripts/publish-seat TASK --
+run ...`) with the seat worktree as the working directory. It finds
+`publication-guard` and `launch-seat` beside itself; the target repository
+needs no agentboard scripts. The seat brief names that absolute path.
+
 For each bound, non-deletion branch in a proposed push, the hook verifies the
 current live task owner, absence of a decision hold, and existing PR/history
 fences. It then checks the **SHA in Git's pre-push input**, even if the caller

@@ -187,7 +187,8 @@ defmodule Agentboard.Board do
 
   defp cursor(spec, resource, filters, params) do
     case filters["cursor"] do
-      nil ->
+      # An empty cursor is the first page, like an absent one (GH264).
+      cursor when cursor in [nil, ""] ->
         {:ok, "", params}
 
       encoded ->
