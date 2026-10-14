@@ -601,7 +601,8 @@ HelperAccess. Live meta read schema 44 before and 48 after. The captured Job
 log tail showed only `20261008004700` and `20261008004800`. No pre-migration
 backup was taken, by captain decision: "i dont really care about backing up a
 database for an app that we're still developing, that is a waste of time"
-(pre-release development data). This is the current operator image pin.
+(pre-release development data). It was later replaced by the
+[10ec2a3 pin](#coordination-channel-rollout-main-10ec2a3).
 
 The captain then enabled intake (`carverauto/serviceradar`), backlog refill and seat
 supply for the serviceradar burndown fleet, and set Mattermost `#agents` as the
@@ -609,6 +610,20 @@ coordination channel. Intake reuses the read-only `agentboard-github` token
 through `dashboard-intake-token.yaml`, so it imports open issues but cannot file
 new ones. Roll back by setting the three `*_ENABLED` literals to `false` and
 restarting. Details are in the [rollout receipt](../verification/farm01-c0cf353-rollout.json).
+
+## Coordination channel rollout (main 10ec2a3)
+
+On 2026-10-14 UTC the captain rolled main `10ec2a3` with dashboard digest
+`sha256:d3aa4d19435a1dffa7ed39c68866a800ddd8b500a7f703aa879dc5dda1af4220` over c0cf353 by plain `kubectl set image`
+(new ReplicaSet at 16:13:55Z). It carries #267 (seat coordination channel),
+#266 (seat publication from the agentboard checkout) and #269. No migration
+landed between c0cf353 and 10ec2a3; schema stays 48. This image refuses to
+boot while Mattermost is configured and `AGENTBOARD_COORDINATION_CHANNEL_ID` is
+unset, so the overlay literal must stay. Live meta reports
+`coordination_channel` `tg3thqx96t87myboasiemfipry` (#agents). This is the
+current operator image pin. Roll back by setting the c0cf353 digest; it ignores
+the channel literal. Details are in the
+[rollout receipt](../verification/farm01-10ec2a3-rollout.json).
 
 ## Coordinator attribution
 

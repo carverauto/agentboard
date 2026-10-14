@@ -424,5 +424,15 @@ The maintainer rolled published v0.3.0, dashboard digest
 (main `d803171`), over `37d496e` with no migration. The same run tested image
 and message-mode rollback. Full results are in the
 [rollout receipt](verification/farm01-v0.3.0-rollout.json). The image pin was
-replaced by the c0cf353 roll. The current operator image pin is in the
-[operator runbook](deploy/reference-farm01.md#fleet-burndown-rollout-main-c0cf353).
+replaced by the c0cf353 roll and then the 10ec2a3 roll below.
+
+## Coordination channel rollout (10ec2a3, 2026-10-14 UTC)
+
+The captain rolled main `10ec2a3` (#267 coordination channel, #266, #269),
+dashboard digest
+`sha256:d3aa4d19435a1dffa7ed39c68866a800ddd8b500a7f703aa879dc5dda1af4220`,
+over c0cf353 with no migration; schema stays 48 and meta reports the #agents
+coordination channel. Full results are in the
+[rollout receipt](verification/farm01-10ec2a3-rollout.json). The current
+operator image pin is in the
+[operator runbook](deploy/reference-farm01.md#coordination-channel-rollout-main-10ec2a3).
