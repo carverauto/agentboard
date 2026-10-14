@@ -92,6 +92,17 @@ defmodule AgentboardWeb.Router do
     post("/github", WorkflowHookController, :create)
   end
 
+  # Mattermost posts slash commands as forms and authenticates with the
+  # command's own token; the controller verifies it in every auth mode.
+  pipeline :slash_hook do
+    plug(AgentboardWeb.Plugs.RateLimit)
+  end
+
+  scope "/api/v1/hooks", AgentboardWeb do
+    pipe_through([:slash_hook, :compatible])
+    post("/mattermost/board", BoardSlashController, :create)
+  end
+
   scope "/health", AgentboardWeb do
     get("/live", HealthController, :live)
     get("/ready", HealthController, :ready)

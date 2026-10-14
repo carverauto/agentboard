@@ -519,6 +519,24 @@ of `API_RATE_LIMIT_INTAKE` per minute (default 30) and answer 429 with
 always uses `AGENTBOARD_CAPTAIN_TOKEN_FILE`, needs schema 45, exits 4 on a
 conflict and `intake status` exits 5 while an item is `uncertain`.
 
+`POST /api/v1/hooks/mattermost/board` is the Mattermost `/board` slash
+command over the same contract ([setup](setup/intake.md#mattermost-board-command)).
+It is not an agent, captain or helper route: Mattermost posts the command as
+an urlencoded form and the controller compares its `token` field in constant
+time against `AGENTBOARD_MATTERMOST_SLASH_TOKEN_FILE` (re-read per request;
+`AGENTBOARD_MATTERMOST_SLASH_TOKEN` is the environment fallback), in every
+`AGENTBOARD_AUTH_MODE`. While intake is off it returns 404 `intake_disabled`;
+without a configured token, 503 `unconfigured`; with a wrong or missing token,
+401 `unauthorized`. A verified command always answers 200 with a Mattermost
+command response (`response_type`, `text`). `file` runs `POST /api/v1/intake`
+as the filer that `AGENTBOARD_MATTERMOST_SLASH_FILERS` maps the posting
+`user_id` to, with request key `mattermost-` plus the SHA-256 of the
+invocation's `trigger_id`, so a redelivered invocation replays; the filer's
+intake rate limit applies. `status` runs `GET /api/v1/intake/:id` as that
+filer. Successful filings reply `in_channel`; usage, refusals and status
+reply `ephemeral`. An unmapped user, a retired or reserved filer (including
+`captain`) and a malformed command create nothing.
+
 ### Coordinator inbox shadow classification
 
 The schema-36 optional note `triage` contract, captain-only off/shadow

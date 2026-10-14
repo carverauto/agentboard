@@ -64,6 +64,7 @@ defmodule Agentboard.Auth.APIAuthPolicy do
 
   def boundary(%{plug: MetaController, plug_opts: :show}), do: :public
   def boundary(%{plug: WorkflowHookController, plug_opts: :create}), do: :independent
+  def boundary(%{plug: AgentboardWeb.BoardSlashController, plug_opts: :create}), do: :independent
 
   def boundary(%{plug: WorkerController, plug_opts: action})
       when action in [
