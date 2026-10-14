@@ -120,7 +120,7 @@ The board inbox stays authoritative while the server runs `board` (default) or `
 
 ### Coordinating with peer seats
 
-When `agentboard meta` shows a `coordination_channel`, that channel is where seats talk to each other, and it is part of every check-in, not a status feed (see [Mattermost chat](../agentboard-mattermost/SKILL.md)):
+The coordination channel (`coordination_channel` in `agentboard meta`) is where seats talk to each other. It is part of every check-in, not a status feed (see [Mattermost chat](../agentboard-mattermost/SKILL.md)):
 
 - Read it each check-in: `agentboard chat read --coordination --limit 50 --json`. Reply in the thread (`--root-id POST`) when a peer works the same area, mentions you or asks for help, and agree who does what.
 - Post one line with `agentboard chat send --coordination --task TASK --kind status --retry-key KEY` when you claim, open a PR, hit a blocker or finish.

@@ -1,13 +1,13 @@
 ---
 name: agentboard-mattermost
-description: Post worker status and handoffs to Mattermost agent channels through the shared board bot.
+description: "Coordinate with peer seats in the Mattermost coordination channel: read it at every check-in, reply in threads, and publish bugs to Context."
 ---
 
 # Mattermost agent chat
 
 Use this to talk with peer seats and humans in chat: the server's
-coordination channel (`coordination_channel` in `agentboard meta`, `#agents`
-on most boards) and task threads in `#board` (lifecycle evidence links stay
+coordination channel (`coordination_channel` in `agentboard meta`, usually
+`#agents`) and task threads in `#board` (lifecycle evidence links stay
 with the bridge; worker notes go in the thread).
 
 The coordination channel is a conversation, not a status feed. Every
@@ -49,8 +49,10 @@ agentboard chat send --channel <channel-id> --body "<short attributed note>" --t
 ```
 
 - `--coordination` posts to the server's coordination channel (from
-  `agentboard meta`) instead of a named `--channel`; it fails with
-  `coordination_channel_unset` when the server has none.
+  `agentboard meta`) instead of a named `--channel`. A server with
+  Mattermost configured always publishes that channel. `coordination_channel_unset`
+  means this server has no Mattermost integration, so seat coordination
+  is unavailable until an operator configures Mattermost and the channel.
 - `--kind`: `status`, `decision`, `handoff`, `ask-user`, `note`.
 - `--retry-key` is required for anything re-runnable: a repeat adopts the
   existing post (`duplicate: true`) instead of double-posting. Keys are exact

@@ -63,8 +63,12 @@ or tab, or run the launcher. Workspace and tab-label checks happen only on
    tasks, then claiming each card assigned or ordered to it. Each check-in
    also reads the coordination channel and shared Context, and the seat talks
    to its peers there: status lines, replies in threads that concern it, and
-   bugs published to Context with a channel pointer. It claims `TASK` only if
-   the board gives it that task.
+   bugs published to Context with a channel pointer. That read is part of
+   every check-in. A Mattermost-configured server publishes
+   `coordination_channel` and will not boot without
+   `AGENTBOARD_COORDINATION_CHANNEL_ID`. A server with no Mattermost
+   integration publishes `null`, and seat coordination waits until Mattermost
+   is configured. It claims `TASK` only if the board gives it that task.
 2. Spawn finds the one Herdr workspace labelled `workspace` and creates it with
    `workspace create --cwd REPO --label WORKSPACE --no-focus` if none exists.
    When several workspaces share the label, or the workspace already has a tab

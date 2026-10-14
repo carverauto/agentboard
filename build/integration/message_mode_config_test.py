@@ -20,7 +20,7 @@ def sql(query):
 with urllib.request.urlopen(os.environ["AGENTBOARD_URL"] + "/api/v1/meta") as response:
     meta = json.load(response)
 status = meta["message_transport"]
-# No AGENTBOARD_COORDINATION_CHANNEL_ID here: meta publishes no channel.
+# Mattermost is not configured in this boot, so meta publishes no channel.
 assert meta["coordination_channel"] is None, meta
 requested = os.environ["AGENTBOARD_MESSAGE_MODE"]
 assert status["requested"] == requested
