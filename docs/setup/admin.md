@@ -93,7 +93,7 @@ but multi-line JSON is rejected because one env entry holds one line.
 ```bash
 agentboard admin rollout <image@sha256:...> \
   --overlay k8s/overlays/farm01/kustomization.yaml --image registry.carverauto.dev/agentboard/dashboard \
-  --deployment agentboard --namespace agentboard \
+  --deployment agentboard-dashboard --namespace agentboard \
   --migration-job k8s/base/migration.yaml --migration-job-name agentboard-migrate \
   --cnpg-cluster agentboard-db \
   --soak-seconds 300 --record-out docs/verification/farm01-$(date -u +%Y%m%d)-rollout.json

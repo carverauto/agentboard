@@ -60,11 +60,11 @@ failure, writing its record next to the others under `docs/verification/`:
 agentboard admin rollout registry.carverauto.dev/agentboard/dashboard@sha256:<digest> \
   --overlay k8s/overlays/farm01/kustomization.yaml \
   --image registry.carverauto.dev/agentboard/dashboard \
-  --deployment agentboard --namespace agentboard \
+  --deployment agentboard-dashboard --namespace agentboard \
   --migration-job k8s/base/migration.yaml --migration-job-name agentboard-migrate \
   --cnpg-cluster agentboard-db \
   --record-out docs/verification/farm01-<date>-rollout.json
-agentboard admin doctor --namespace agentboard --deployment agentboard
+agentboard admin doctor --namespace agentboard --deployment agentboard-dashboard
 ```
 
 Configuration changes go through the same tool instead of hand-edits:
