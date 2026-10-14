@@ -4,13 +4,15 @@ Operator runbook for `add-fleet-helper` task 6.1: one fleet on farm01 goes from
 dry run to live with `max_seats` 2. A helper (a chat bot, or the captain CLI
 until helper tokens ship) files three issues on a sandbox repository. Two seats
 launch in Herdr on the operator's Mac, claim the cards and open PRs. After
-merge, reap waits until the card is done or released, Herdr has reported the
-pane idle for `reap_after` (default 30m), the seat owns no open, assigned,
-in-progress, blocked or review task, it has no unread message, and its checkout
-has landed. Then `agentboard seat reap --apply` (or the seat-ops timer) closes
-the pane and returns its lease, and the daemon reports the intent `closed`.
-The pilot pool has to be in that Mac's `treehouse_roots` or the lease is never
-read.
+merge, reap waits until the card is done or released, the seat owns no open,
+assigned, in-progress, blocked or review task, it has no unread message, and
+its checkout has landed. The first `agentboard seat reap --apply` that sees the
+pane idle only starts the idle clock. A later run at least `reap_after`
+(default 30m) later, in the same Herdr session, closes the pane and returns its
+lease when those gates still hold. A new Herdr session starts that clock over.
+The seat-ops timer does this on its interval. The daemon then reports the
+intent `closed`. The pilot pool has to be in that Mac's `treehouse_roots` or
+the lease is never read.
 
 Every step that changes farm01, GitHub or the Mac is the captain's call. Stop at
 any step that does not match what this page says and record the difference.
@@ -229,6 +231,9 @@ that lease held after the pane is gone.
 }
 ```
 
+Run `scripts/install-treehouse` from the agentboard checkout (pinned Treehouse
+v3.1.2) before the one-shot and before loading launchd.
+
 One pass by hand, before any activation. It exits 0 and prints a SupplyReport
 such as `{"seat_supply_enabled":true,"launch_cap":2,"actions":[]}`. An empty
 `actions` list is the expected result:
@@ -338,12 +343,14 @@ Expected, in order (record a timestamp for each):
    on a seat: the refill pass about a minute after the first assignment gives
    it to a seat that still has queue room, and that seat may hold two cards.
 7. After the captain merges, the card stays in review until it is done or
-   released. Once Herdr reports the pane idle for `reap_after` (default 30m),
-   the seat owns no open, assigned, in-progress, blocked or review task, it
-   has no unread message, and its checkout has landed, `agentboard seat reap
-   --apply` closes the pane and returns its lease from the pilot pool in
-   `treehouse_roots` (step 5). The [seat-ops timer](../setup/seat-nudge.md#schedule)
-   does the same on its interval. Without `--apply`, reap is a dry run and
+   released. The seat must own no open, assigned, in-progress, blocked or
+   review task, have no unread message, and its checkout must have landed.
+   The first `agentboard seat reap --apply` that sees the pane idle only starts
+   the idle clock. A later run at least `reap_after` (default 30m) later, in
+   the same Herdr session, closes the pane and returns its lease from the
+   pilot pool in `treehouse_roots` (step 5) when those gates still hold. A new
+   Herdr session starts that clock over. The [seat-ops timer](../setup/seat-nudge.md#schedule)
+   does this on its interval. Without `--apply`, reap is a dry run and
    closes nothing. The daemon then reports the intent `closed`.
 
 ## 9. Record and close
