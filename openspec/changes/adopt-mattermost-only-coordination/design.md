@@ -6,7 +6,7 @@
 headless chat spool and inbound catch-up all ship. What is missing is behavior
 and evidence:
 - seats are not told to use chat;
-- the coordinator cannot run under farm01's `none` auth;
+- the coordinator cannot run under farm01's `off` auth;
 - a chat mention never wakes an idle Herdr seat;
 - nobody decides what happens to unread board DMs.
 

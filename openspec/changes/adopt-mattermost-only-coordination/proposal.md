@@ -16,7 +16,7 @@ in `dual` mode:
   saw nothing until the captain pasted instructions into each pane.
 - **Grokbot cannot run the coordinator loop.** Its `coordinator_runner`
   credential is rejected with "Enforced authenticated coordinator runner
-  required", because farm01 runs `AGENTBOARD_AUTH=none`. Turning on `enforce`
+  required", because farm01 runs `AGENTBOARD_AUTH_MODE=off`. Turning on `enforce`
   is global and would break every anonymous caller.
 - **No seat published a shared Context entry.** Claude found the root cause
   of the StarRocks Stream Load failures (an HTTP/1 socket reused after an early
