@@ -16,7 +16,7 @@ remains. This change gives each hard-coded blocker a real producer.
 ## Decisions
 
 1. **One configured coordination channel, not per-repo channels.**
-   - The server publishes `coordination_channel` (ID and display name) in meta.
+   - The server publishes `coordination_channel` as `{"id": CHANNEL_ID}` in meta.
    - Seats read it at check-in instead of carrying an ID in their brief, so a
      channel move is one config change.
    - Per-fleet channels can come later. One fleet runs today.

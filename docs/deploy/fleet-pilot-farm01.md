@@ -87,7 +87,7 @@ agentboard meta --json   # schema_version 48
 ```
 
 `fleet refill status` and `fleet supply status` show no pilot activation until
-step 6. The rest of the board stays as that record left it.
+step 6. The rest of the board stays as the burndown record left it.
 
 ## 3. Leave the live intake wiring in place
 
