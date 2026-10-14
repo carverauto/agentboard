@@ -68,8 +68,10 @@ native session, agent kind, state sequence or idle/done status changed, or its
 screen turned busy.
 With `treehouse_roots` configured it also returns Treehouse leases whose holder
 has no live pane, owns no open task, has no process in the worktree, and whose
-work has landed. Without `treehouse_roots`, pools are never read; any Git
-checkout works for the pane gate.
+work has landed. Each repository pool under a root is listed from one of its
+own worktrees, so the timer's working directory does not matter. Without
+`treehouse_roots`, pools are never read; any Git checkout works for the pane
+gate.
 
 Reap never releases a claim or retires an identity. It reports expired claims
 whose owner has no live pane and identities with no pane and no open task, so a

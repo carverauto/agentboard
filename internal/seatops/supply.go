@@ -294,10 +294,31 @@ func (p *pass) watch(ctx context.Context, in LaunchIntent) {
 	}
 	for _, tab := range tabs {
 		if contains(tab.Panes, in.Pane) {
+			p.nameSeat(ctx, in)
 			return
 		}
 	}
 	p.send(ctx, in, LaunchReport{State: "closed", Reason: "pane " + in.Pane + " is closed on this host"})
+}
+
+// nameSeat names the agent in a launched seat's pane after its agent ID once
+// the host detects it, so nudge and reap find the seat even when the harness
+// shell drops HERDR_PANE_ID and the seat's own register cannot name the pane.
+// It never renames a named agent or one of another harness.
+func (p *pass) nameSeat(ctx context.Context, in LaunchIntent) {
+	agent, err := p.Host.Agent(ctx, in.Pane)
+	if err != nil || agent.Kind == "" || agent.Name != "" {
+		return
+	}
+	if agent.Kind != in.Harness {
+		p.act(in, "kept", "pane "+in.Pane+" runs "+agent.Kind+", not harness "+in.Harness+"; left unnamed")
+		return
+	}
+	if err := p.Host.NameAgent(ctx, in.Pane, in.AgentID); err != nil {
+		p.act(in, "kept", "name pane "+in.Pane+": "+err.Error())
+		return
+	}
+	p.act(in, "named", "pane "+in.Pane)
 }
 
 // confirm reports launched once the seat's Treehouse lease exists, and
@@ -433,12 +454,9 @@ func supplyBrief(in LaunchIntent) string {
 	return fmt.Sprintf(`# Agentboard seat %s
 
 Seat supply started you for fleet %s, seat %s (harness %s), because the fleet
-has backlog. The board is the only authority for what you work on.
-
-1. Register from this pane: agentboard agent register --backend herdr --json
-2. Run your agentboard check-in. Backlog refill orders cards to idle fleet
-   seats; claim only what the board assigns or orders to you.
-`, in.AgentID, in.FleetID, in.SeatID, in.Harness)
+has backlog. Backlog refill orders cards to idle fleet seats; claim only what
+the board assigns or orders to you.
+`, in.AgentID, in.FleetID, in.SeatID, in.Harness) + seatCheckIn
 }
 
 func contains(values []string, value string) bool {

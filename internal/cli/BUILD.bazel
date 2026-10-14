@@ -16,7 +16,7 @@ go_library(
 )
 go_test(
     name = "cli_test",
-    srcs = ["root_test.go", "decision_policy_test.go", "decision_conversation_test.go", "coordinator_test.go", "coordinator_selftest_test.go", "agent_tokens_test.go", "message_triage_test.go", "message_export_test.go", "skills_test.go", "chat_test.go", "seat_test.go", "seat_ops_test.go", "admin_test.go", "roster_test.go", "scope_test.go", "fleet_test.go", "fleet_refill_test.go", "intake_test.go", "fleet_supply_test.go", "worker_mattermost_test.go", "worker_wake_test.go", "worker_continuation_test.go", "worker_native_authority_test.go"],
+    srcs = ["root_test.go", "decision_policy_test.go", "decision_conversation_test.go", "coordinator_test.go", "coordinator_selftest_test.go", "agent_tokens_test.go", "message_triage_test.go", "message_export_test.go", "skills_test.go", "chat_test.go", "seat_test.go", "seat_ops_test.go", "seat_leases_test.go", "admin_test.go", "roster_test.go", "scope_test.go", "fleet_test.go", "fleet_refill_test.go", "intake_test.go", "fleet_supply_test.go", "worker_mattermost_test.go", "worker_wake_test.go", "worker_continuation_test.go", "worker_native_authority_test.go"],
     embed = [":cli"],
     deps = ["//internal/client", "//internal/worker", "//internal/nativequeue/owner", "@com_github_spf13_cobra//:cobra"],
     size = "small",

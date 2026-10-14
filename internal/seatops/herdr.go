@@ -46,6 +46,9 @@ type Host interface {
 	Read(ctx context.Context, pane string, lines int) (string, error)
 	Prompt(ctx context.Context, pane, text string) error
 	ClosePane(ctx context.Context, pane string) error
+	// NameAgent names the agent the host detected in pane. It fails while no
+	// agent has been detected there yet.
+	NameAgent(ctx context.Context, pane, name string) error
 	// Spawn opens a new tab and runs req.Argv in its own fresh pane. It never
 	// sends input to a pane that existed before the call.
 	Spawn(ctx context.Context, req SpawnRequest) (SpawnedSeat, error)
@@ -128,6 +131,11 @@ func (h HerdrCLI) Prompt(ctx context.Context, pane, text string) error {
 
 func (h HerdrCLI) ClosePane(ctx context.Context, pane string) error {
 	_, err := h.run(ctx, 15*time.Second, "pane", "close", pane)
+	return err
+}
+
+func (h HerdrCLI) NameAgent(ctx context.Context, pane, name string) error {
+	_, err := h.run(ctx, 15*time.Second, "agent", "rename", pane, name)
 	return err
 }
 

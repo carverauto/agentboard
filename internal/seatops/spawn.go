@@ -294,13 +294,29 @@ func spawnBrief(agent, harness, model, task string) string {
 	return fmt.Sprintf(`# Agentboard seat %s
 
 You were started by agentboard seat spawn as %s (harness %s, model %s) for
-board task %s. The board is the only authority for what you work on.
+board task %s. Claim it only if the board assigns or orders it to you.
+`, agent, agent, harness, model, task) + seatCheckIn
+}
+
+// seatCheckIn spells out the check-in every generated brief asks for. Some
+// harness shells do not inherit the launcher's exports, and a bare "check-in"
+// was read as `agentboard worker check-in`, which only enrolled workers run.
+const seatCheckIn = `
+Your working directory is your leased worktree. launch-seat already checked
+isolation: pwd -P equals $AGENTBOARD_SEAT_WORKTREE once the seat env is loaded.
+The repository does not need its own scripts/launch-seat. Run every agentboard
+command as: source .agentboard-seat/agent.env && agentboard ...
 
 1. Register from this pane: agentboard agent register --backend herdr --json
-2. Run your agentboard check-in. Claim %s only if the board assigns or orders it
-   to you; otherwise follow what the board shows.
-`, agent, agent, harness, model, task, task)
-}
+2. Check in: agentboard msg list --unread --json (task_order messages name your
+   cards) and agentboard task list --owner "$AGENT_ID" --json. For each card
+   assigned or ordered to you, run agentboard task show TASK --json, then
+   agentboard task claim TASK --json, and work it. You are not an enrolled
+   worker: do not run agentboard worker check-in.
+3. While busy, heartbeat: agentboard agent heartbeat --status busy --task TASK.
+   Coordinate with other seats through agentboard msg send. The board is the
+   only authority for what you work on.
+`
 
 // SpawnReport is the outcome of one spawn.
 type SpawnReport struct {

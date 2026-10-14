@@ -17,6 +17,7 @@ type fakeHost struct {
 	tails   map[string]string
 	prompts []string // "pane: text"
 	closed  []string
+	named   []string // "pane=name"
 	// afterList mutates an agent between list and the pre-send recheck.
 	afterList  func(*HostAgent)
 	promptErr  error
@@ -63,6 +64,17 @@ func (h *fakeHost) Prompt(_ context.Context, pane, text string) error {
 func (h *fakeHost) ClosePane(_ context.Context, pane string) error {
 	h.closed = append(h.closed, pane)
 	return nil
+}
+
+func (h *fakeHost) NameAgent(_ context.Context, pane, name string) error {
+	for i := range h.agents {
+		if h.agents[i].Pane == pane {
+			h.agents[i].Name = name
+			h.named = append(h.named, pane+"="+name)
+			return nil
+		}
+	}
+	return errors.New("agent_not_found")
 }
 
 type fakeBoard struct {

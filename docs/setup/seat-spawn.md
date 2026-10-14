@@ -57,9 +57,11 @@ or tab, or run the launcher. Workspace and tab-label checks happen only on
 ## What happens on `--apply`
 
 1. Without `--brief`, a short brief is written to
-   `brief_dir/AGENT_ID--TASK.md` (mode 0600). It tells the seat to register
-   with `--backend herdr` and run its agentboard check-in. It claims `TASK` only
-   if the board gives it that task.
+   `brief_dir/AGENT_ID--TASK.md` (mode 0600). It tells the seat to load
+   `.agentboard-seat/agent.env` for every agentboard command, register with
+   `--backend herdr`, and check in by reading its unread messages and owned
+   tasks, then claiming each card assigned or ordered to it. It claims `TASK`
+   only if the board gives it that task.
 2. Spawn finds the one Herdr workspace labelled `workspace` and creates it with
    `workspace create --cwd REPO --label WORKSPACE --no-focus` if none exists.
    When several workspaces share the label, or the workspace already has a tab

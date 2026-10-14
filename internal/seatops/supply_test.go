@@ -118,6 +118,13 @@ func TestSupplyLaunchesAPendingIntentFromTheAllowlist(t *testing.T) {
 	if err != nil || !strings.Contains(string(text), "fleet main, seat seat-b") {
 		t.Fatalf("brief %q %v", text, err)
 	}
+	// The generated brief is the seat's interface: it names the exact check-in
+	// commands and how to load the seat env, not a bare "check-in".
+	for _, want := range []string{"source .agentboard-seat/agent.env && agentboard", "agentboard msg list --unread --json", `agentboard task list --owner "$AGENT_ID" --json`, "agentboard task claim TASK --json", "do not run agentboard worker check-in"} {
+		if !strings.Contains(string(text), want) {
+			t.Fatalf("brief lacks %q:\n%s", want, text)
+		}
+	}
 	launched := LaunchReport{State: "launched", Workspace: "w1", Tab: "w1:t9", Pane: "w1:p9", Lease: "/pool/.treehouse/7/repo"}
 	if !reflect.DeepEqual(server.reports, []LaunchReport{launched}) {
 		t.Fatalf("reports %+v (actions %+v)", server.reports, report.Actions)
@@ -269,6 +276,33 @@ func TestSupplyClosesALaunchedIntentOnlyWhenItsPaneIsGone(t *testing.T) {
 	}
 	if len(server.reports) != 1 || server.reports[0].State != "closed" {
 		t.Fatalf("reports %+v", server.reports)
+	}
+}
+
+func TestSupplyNamesALaunchedSeatPaneOnceItsAgentIsDetected(t *testing.T) {
+	in := intent("i1", "launched")
+	in.Pane = "w1:p4"
+	s, server, host := supplyFixture(t, 0, in)
+	host.tabs = []HostTab{{Workspace: "w1", Tab: "w1:t4", Label: "codex-b", Panes: []string{"w1:p4"}}}
+	// No agent detected in the pane yet: nothing to name.
+	if _, err := s.Tick(context.Background()); err != nil || len(host.named) != 0 {
+		t.Fatalf("named %v before detection (%v)", host.named, err)
+	}
+	host.agents = []HostAgent{{Pane: "w1:p4", Kind: "codex"}}
+	report, err := s.Tick(context.Background())
+	if err != nil || !reflect.DeepEqual(host.named, []string{"w1:p4=codex-b"}) {
+		t.Fatalf("named %v (%v, actions %+v)", host.named, err, report.Actions)
+	}
+	// Named already: left alone. Another harness in the pane: never named.
+	if _, err := s.Tick(context.Background()); err != nil || len(host.named) != 1 {
+		t.Fatalf("renamed again %v (%v)", host.named, err)
+	}
+	host.agents = []HostAgent{{Pane: "w1:p4", Kind: "pi"}}
+	if _, err := s.Tick(context.Background()); err != nil || len(host.named) != 1 {
+		t.Fatalf("named a pi pane for a codex seat %v (%v)", host.named, err)
+	}
+	if len(server.reports) != 0 {
+		t.Fatalf("naming reported to the server %+v", server.reports)
 	}
 }
 

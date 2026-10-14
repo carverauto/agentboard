@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -298,25 +300,56 @@ func (b apiBoard) LastBody(ctx context.Context, taskID string) (string, time.Tim
 // treehouseLeases lists and returns leases with the pinned Treehouse binary.
 type treehouseLeases struct{ binary string }
 
+// List lists the leased worktrees of every repository pool under root.
+// Treehouse status infers the repository from its working directory, so each
+// pool is listed from one of its own worktrees: a launchd job runs in /, which
+// is no repository, and any other checkout would list that checkout's pool.
+// A pool with no worktree yet has nothing leased.
 func (t treehouseLeases) List(ctx context.Context, root string) ([]seatops.Lease, error) {
-	out, err := exec.CommandContext(ctx, t.binary, "status", "--root", root, "--json").Output()
+	pools, err := os.ReadDir(filepath.Join(root, ".treehouse"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
 	if err != nil {
-		return nil, fmt.Errorf("treehouse status: %w", err)
-	}
-	var all []struct {
-		seatops.Lease
-		Status string `json:"status"`
-	}
-	if err := json.Unmarshal(out, &all); err != nil {
-		return nil, fmt.Errorf("treehouse status: %w", err)
+		return nil, fmt.Errorf("treehouse pools: %w", err)
 	}
 	var leased []seatops.Lease
-	for _, entry := range all {
-		if entry.Status == "leased" {
-			leased = append(leased, entry.Lease)
+	for _, pool := range pools {
+		dir := poolWorktree(filepath.Join(root, ".treehouse", pool.Name()))
+		if !pool.IsDir() || dir == "" {
+			continue
+		}
+		cmd := exec.CommandContext(ctx, t.binary, "status", "--root", root, "--json")
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil {
+			return nil, fmt.Errorf("treehouse status in %s: %w", dir, err)
+		}
+		var all []struct {
+			seatops.Lease
+			Status string `json:"status"`
+		}
+		if err := json.Unmarshal(out, &all); err != nil {
+			return nil, fmt.Errorf("treehouse status in %s: %w", dir, err)
+		}
+		for _, entry := range all {
+			if entry.Status == "leased" {
+				leased = append(leased, entry.Lease)
+			}
 		}
 	}
 	return leased, nil
+}
+
+// poolWorktree returns one Git worktree of a Treehouse v3 pool laid out as
+// pool/<slot>/<leaf>, or "" when the pool has none.
+func poolWorktree(pool string) string {
+	worktrees, _ := filepath.Glob(filepath.Join(pool, "*", "*", ".git"))
+	sort.Strings(worktrees)
+	if len(worktrees) == 0 {
+		return ""
+	}
+	return filepath.Dir(worktrees[0])
 }
 
 func (t treehouseLeases) Return(ctx context.Context, lease seatops.Lease) error {

@@ -197,4 +197,31 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps({'cwd':os.getcwd(),'expected':os
     flag_output = root / "flag.json"
     command(real + ["--root", str(flagged), "--", sys.executable, recorder, flag_output, "{brief_text}", "text"], repo, dict(env, AGENTBOARD_SEAT_ROOT=str(legacy)))
     assert Path(json.loads(flag_output.read_text())["cwd"]).is_relative_to(flagged.resolve() / ".treehouse")
+
+    # Concurrent launches from one source checkout acquire one at a time:
+    # `treehouse get` fetches into the shared Git directory, and parallel
+    # fetches fail on ref locks. The wrapper widens each acquisition window.
+    spans = root / "acquisitions.log"
+    slow = root / "slow-treehouse"
+    slow.write_text(f'''#!{sys.executable}
+import subprocess, sys, time
+if sys.argv[1:2] == ["get"]:
+    with open({str(spans)!r}, "a") as log:
+        log.write(f"start {{time.time()}}\\n")
+    time.sleep(1.5)
+    code = subprocess.run([{str(treehouse)!r}, *sys.argv[1:]]).returncode
+    with open({str(spans)!r}, "a") as log:
+        log.write(f"end {{time.time()}}\\n")
+    sys.exit(code)
+sys.exit(subprocess.run([{str(treehouse)!r}, *sys.argv[1:]]).returncode)
+''')
+    slow.chmod(0o755)
+    race_env = dict(env, AGENTBOARD_TREEHOUSE_BIN=str(slow))
+    race = [subprocess.Popen([sys.executable, str(launcher), "--repo", str(repo), "--root", str(root / "race-pool"), "--brief", str(task), "--", sys.executable, str(recorder), str(root / f"race-{n}.json"), "{brief_text}", "text"], cwd=repo, env=race_env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for n in range(2)]
+    for proc in race:
+        _, err = proc.communicate(timeout=180)
+        assert proc.returncode == 0, err
+    events = sorted((float(at), kind) for kind, at in (line.split() for line in spans.read_text().splitlines()))
+    assert [kind for _, kind in events] == ["start", "end", "start", "end"], events
+    assert len({json.loads((root / f"race-{n}.json").read_text())["cwd"] for n in range(2)}) == 2
 print("real pinned Treehouse v3 acquisition with explicit roots, retained leases, native brief/cwd and STOP cases passed")
