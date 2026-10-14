@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -68,6 +69,9 @@ func TestSkillsInstallOfflineAndRepeat(t *testing.T) {
 				t.Fatalf("skill points outside reported bundle: %s", link)
 			}
 			checkInstalledMarkdownLinks(t, dir, name, "SKILL.md")
+			if name == "agentboard" {
+				checkPublicationAdmissionInstall(t, dir, result.Bundle)
+			}
 			if name == "agentboard" || name == "agentboard-captain" {
 				scope, err := os.ReadFile(filepath.Join(dir, name, "references", "seat-scope.md"))
 				if err != nil || !bytes.Contains(scope, []byte("Captain-managed seat scopes")) {
@@ -133,6 +137,41 @@ func TestSkillsInstallPreservesConflictingOrEditedContent(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// checkPublicationAdmissionInstall is the installed-skill contract: the
+// repository-relative publication doc is rewritten to the published page, and
+// that page is not copied into the bundle.
+func checkPublicationAdmissionInstall(t *testing.T, dir, bundle string) {
+	t.Helper()
+	const (
+		relative  = "../../docs/publication-admission.md"
+		published = "https://github.com/carverauto/agentboard/blob/main/docs/publication-admission.md"
+	)
+	body, err := os.ReadFile(filepath.Join(dir, "agentboard", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(body, []byte("]("+published+")")) {
+		t.Fatal("installed agentboard skill did not link publication admission to the published doc")
+	}
+	if bytes.Contains(body, []byte(relative)) {
+		t.Fatal("installed agentboard skill kept the repository-relative publication admission link")
+	}
+	for _, root := range []string{dir, bundle} {
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.Name() == "publication-admission.md" {
+				t.Fatalf("publication admission doc was bundled at %s", path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
