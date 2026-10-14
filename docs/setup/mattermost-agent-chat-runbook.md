@@ -65,6 +65,8 @@ agentboard chat send --channel <channel-id> --body "status note" --task <task-id
 agentboard chat read --channel <channel-id> --limit 50 --since <last-seen-post-id>
 ```
 
+Seat check-ins use `--coordination` instead of a channel id. The CLI resolves `coordination_channel` from meta. The requirement and the `coordination_channel_unset` case are in [bridge configuration](mattermost.md#bridge-configuration).
+
 Re-running a generic send with the same `--retry-key` returns the spooled
 outcome or reconciles it, and otherwise attempts bounded adoption of an
 existing visible post (`duplicate: true` when found). It is not an

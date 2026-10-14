@@ -312,9 +312,9 @@ sh_test(
 
 sh_test(
     name = "coordination_channel_test",
-    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_API_TEST_SCRIPT": "coordination_channel_test.py", "AGENTBOARD_COORDINATION_CHANNEL_ID": "tg3thqx96t87myboasiemfipry"},
-    srcs = ["board_api_test.sh"],
-    data = ["coordination_channel_test.py", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
+    env = {"FIXTURE_NORMAL_ROLE": "true", "AGENTBOARD_COORDINATION_CHANNEL_ID": "tg3thqx96t87myboasiemfipry"},
+    srcs = ["coordination_channel_test.sh"],
+    data = ["coordination_channel_test.py", "board_api_test.sh", "postgres_fixture.sh", ":postgres_runtime", "//web:release", "//cmd/agentboard:agentboard"],
     args = ["$(rlocationpath :postgres_runtime)", "$(rlocationpath //web:release)", "$(rlocationpath //cmd/agentboard:agentboard)"],
     size = "medium",
     timeout = "long",
