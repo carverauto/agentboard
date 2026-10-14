@@ -60,8 +60,11 @@ or tab, or run the launcher. Workspace and tab-label checks happen only on
    `brief_dir/AGENT_ID--TASK.md` (mode 0600). It tells the seat to load
    `.agentboard-seat/agent.env` for every agentboard command, register with
    `--backend herdr`, and check in by reading its unread messages and owned
-   tasks, then claiming each card assigned or ordered to it. It claims `TASK`
-   only if the board gives it that task.
+   tasks, then claiming each card assigned or ordered to it. Each check-in
+   also reads the coordination channel and shared Context, and the seat talks
+   to its peers there: status lines, replies in threads that concern it, and
+   bugs published to Context with a channel pointer. It claims `TASK` only if
+   the board gives it that task.
 2. Spawn finds the one Herdr workspace labelled `workspace` and creates it with
    `workspace create --cwd REPO --label WORKSPACE --no-focus` if none exists.
    When several workspaces share the label, or the workspace already has a tab

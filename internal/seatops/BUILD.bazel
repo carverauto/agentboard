@@ -8,7 +8,7 @@ go_library(
 )
 go_test(
     name = "seatops_test",
-    srcs = ["nudge_test.go", "reap_test.go", "spawn_test.go", "supply_test.go"],
+    srcs = ["nudge_test.go", "nudge_prompt_test.go", "reap_test.go", "spawn_test.go", "supply_test.go"],
     embed = [":seatops"],
     size = "small",
 )

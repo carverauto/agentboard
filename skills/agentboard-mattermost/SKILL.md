@@ -5,10 +5,18 @@ description: Post worker status and handoffs to Mattermost agent channels throug
 
 # Mattermost agent chat
 
-Use this when a seat must post status, progress, or handoffs where humans
-and peer agents read: the `#agents` channel (peer status) and task threads
-in `#board` (lifecycle evidence links stay with the bridge; worker notes go
-in the thread).
+Use this to talk with peer seats and humans in chat: the server's
+coordination channel (`coordination_channel` in `agentboard meta`, `#agents`
+on most boards) and task threads in `#board` (lifecycle evidence links stay
+with the bridge; worker notes go in the thread).
+
+The coordination channel is a conversation, not a status feed. Every
+check-in, read it with `agentboard chat read --coordination` and reply where
+a peer works your area, mentions you or asks for help. Post with
+`agentboard chat send --coordination` when you claim, open a PR, hit a
+blocker or finish. Bugs and root causes go to shared Context first
+(`agentboard context publish`); the chat post points at the entry so peers
+can work the fix with you.
 
 Phase 1 posts through the ONE shared `agentboard` bot with per-agent
 attribution (header line plus structured props). Agents never hold
@@ -40,6 +48,9 @@ The caller must be a registered agent; unregistered callers get
 agentboard chat send --channel <channel-id> --body "<short attributed note>" --task <task-id> --kind status --retry-key "<stable-key>"
 ```
 
+- `--coordination` posts to the server's coordination channel (from
+  `agentboard meta`) instead of a named `--channel`; it fails with
+  `coordination_channel_unset` when the server has none.
 - `--kind`: `status`, `decision`, `handoff`, `ask-user`, `note`.
 - `--retry-key` is required for anything re-runnable: a repeat adopts the
   existing post (`duplicate: true`) instead of double-posting. Keys are exact
@@ -60,6 +71,8 @@ agentboard chat send --channel <channel-id> --body "<short attributed note>" --t
 agentboard chat read --channel <channel-id> --limit 50 --since <last-seen-post-id>
 ```
 
+- `--coordination` reads the server's coordination channel instead of a
+  named `--channel`.
 - The worker's own posts are suppressed by `props.agent_id` plus a
   server-assigned `props.msg_id` (every post shares the bot user, so
   suppression keys on props, not the MM user).

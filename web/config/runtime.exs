@@ -116,6 +116,22 @@ config :agentboard,
        :mattermost_board_channel_id,
        System.get_env("AGENTBOARD_MATTERMOST_BOARD_CHANNEL_ID")
 
+# Seat coordination channel: the Mattermost channel seats read and post in
+# at every check-in (`agentboard chat read|send --coordination`). Optional;
+# published in meta as coordination_channel.
+coordination_channel_id =
+  case System.get_env("AGENTBOARD_COORDINATION_CHANNEL_ID", "") |> String.trim() do
+    "" ->
+      nil
+
+    id ->
+      if Regex.match?(~r/\A[a-z0-9]{26}\z/, id),
+        do: id,
+        else: raise("AGENTBOARD_COORDINATION_CHANNEL_ID must be a 26-character Mattermost channel ID")
+  end
+
+config :agentboard, :coordination_channel_id, coordination_channel_id
+
 config :agentboard,
        :mattermost_bot_token_file,
        System.get_env("AGENTBOARD_MATTERMOST_BOT_TOKEN_FILE")

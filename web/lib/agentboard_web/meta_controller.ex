@@ -19,8 +19,16 @@ defmodule AgentboardWeb.MetaController do
       message_transport: Agentboard.MessageMode.status(),
       message_history: Agentboard.MessageHistory.status(),
       intake_enabled: Agentboard.Intake.enabled?(),
+      coordination_channel: coordination_channel(),
       schema_version: current,
       required_schema_version: Agentboard.SchemaVersion.required()
     })
+  end
+
+  defp coordination_channel do
+    case Application.get_env(:agentboard, :coordination_channel_id) do
+      id when is_binary(id) -> %{id: id}
+      _ -> nil
+    end
   end
 end
