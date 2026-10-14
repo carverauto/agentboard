@@ -207,9 +207,11 @@ If the native path cannot establish the fresh base before publication, stop and
 coordinate through the native run rather than publish stale work. Let the active
 CI monitor resolve conflicts and revalidate through its custody flow.
 
-Bind the live owned card and task branch through `scripts/publish-seat TASK`
-before opening a PR. The PR URL does not exist until it opens: as soon as native
-publication returns it, immediately record it, before another task or handoff:
+Bind the live owned card and task branch with the agentboard checkout's
+`publish-seat` before opening a PR. Path resolution is in
+[publication admission](../../docs/publication-admission.md). The PR URL does
+not exist until it opens: as soon as native publication returns it, immediately
+record it, before another task or handoff:
 
 ```sh
 agentboard task link TASK --pr PR_URL --json
@@ -228,8 +230,8 @@ enforcement (GH169).
 Before starting or reattaching a native run, responding to a publication gate,
 rerunning, pushing or creating a PR, read the card and linked PR state and
 check for an already-merged PR on the same head repository and branch. Use
-`scripts/publish-seat TASK -- run --intent '...'` (or `respond` / `rerun`) from
-the exact leased worktree. It fails closed when evidence cannot be read and
+that same `publish-seat TASK -- run --intent '...'` (or `respond` / `rerun`)
+from the exact leased worktree. It fails closed when evidence cannot be read and
 binds a task-scoped pre-push guard in the explicitly configured native gate.
 Preserve any foreign hook; a refusal requires coordination, never `--no-verify`,
 a direct push or a second PR. Set `AGENTBOARD_PUBLICATION_HEAD_REPO=OWNER/REPO`
@@ -242,8 +244,8 @@ with `no-mistakes axi abort`, preserve its unpublished fixes through the
 reported custody flow, and notify the coordinator. This terminal-publication
 stop is explicitly authorized by GH110; it does not permit aborting a still-open
 run to bypass an ask-user gate. Never recreate a merged task's deleted branch.
-Only a separately authorized remaining delta may ship from a new branch based
-on freshly fetched main.
+Only a separately authorized remaining delta may ship on a new branch from
+the fresh default branch.
 
 The hook checks registered task branches at actual Git pushes, including pushes
 from the gate's private worktrees. It does not make a GitHub merge and a Git push

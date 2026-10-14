@@ -271,8 +271,8 @@ func TestSeatReturnRoundTripsSpacedWorktree(t *testing.T) {
 	}
 }
 
-// The server rejects an empty cursor as a mismatched one, so the first page of
-// an owned seat lookup must send no cursor at all (GH264).
+// The first page of an owned seat lookup sends no cursor. This fixture rejects
+// an empty cursor so a client that still sends one fails here (GH264).
 func TestSeatCheckFirstPageSendsNoCursor(t *testing.T) {
 	sawEmpty, requests := false, 0
 	mux := http.NewServeMux()

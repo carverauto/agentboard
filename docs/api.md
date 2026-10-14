@@ -63,7 +63,7 @@ Use `--revision N` for optimistic metadata/action guards. A stale revision confl
 
 Human output is the default. Use `--json` for automation. Show responses use `task`/`agent` keys; task show includes its `events` and timeline `next_cursor`. Lists use plural resource keys and an explicit `next_cursor`, including null for the last page. Optional database fields remain explicit nulls. Timestamps use UTC RFC3339.
 
-Tasks sort by priority ascending, update time descending, then ID ascending. Agents sort by ID. Events sort by server time and numeric ID. Pages default to 100 rows and accept `--limit` from 1 to 1000. Pass the returned opaque `--cursor` with the same filters for the next page. Cursor validity is tied to filters. Ordinary pagination reads current state page by page; concurrent edits can change ordering between pages.
+Tasks sort by priority ascending, update time descending, then ID ascending. Agents sort by ID. Events sort by server time and numeric ID. Pages default to 100 rows and accept `--limit` from 1 to 1000. Pass the returned opaque `--cursor` with the same filters for the next page. An empty `cursor` on task, agent, event, message and quota pages is the first page, the same as omitting it. Cursor validity is tied to filters. Ordinary pagination reads current state page by page; concurrent edits can change ordering between pages.
 
 ```sh
 agentboard task list --status=open --repo=agentboard --limit=100 --json
