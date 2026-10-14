@@ -11,9 +11,10 @@ defmodule Agentboard.Intake do
   normalized payload replays the current view of the original request; a
   changed payload under that key conflicts. Cards are ordinary tasks.
 
-  Off unless `AGENTBOARD_INTAKE_ENABLED=true`. The API routes require the
-  captain capability; the Mattermost `/board` command (`Intake.Slash`) files
-  as a captain-allowlisted filer identity.
+  Off unless `AGENTBOARD_INTAKE_ENABLED=true`. Filing, import, status and
+  cancel accept a captain-issued helper credential or the captain capability.
+  Reconcile and abandon stay captain-only. The Mattermost `/board` command
+  (`Intake.Slash`) files as a captain-allowlisted filer identity.
   Intake only files work: it never claims, assigns or coordinates.
   """
   use Ash.Domain, backwards_compatible_interface?: false

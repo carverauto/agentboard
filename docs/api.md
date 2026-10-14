@@ -319,9 +319,10 @@ capability. Enforce also authenticates ordinary reads and watches, rejects
 unsupported/retired/revoked principals, and restricts coordinator reads to an
 explicit operation allowlist and its own inbox. Watch streams revalidate before
 each snapshot. A `helper` credential (or any `kind=helper` actor) is restricted
-across all auth modes (`off`, `observe`, `enforce`) to filing intake, reading or
-cancelling its own intake requests, and reading `GET /api/v1/fleet/status`;
-every other read or write is refused with 403 `forbidden`. See the credential
+across all auth modes (`off`, `observe`, `enforce`) to filing intake, importing
+existing issues, reading or cancelling its own intake requests, and reading
+`GET /api/v1/fleet/status`; every other read or write is refused with 403
+`forbidden`. See the credential
 setup guide for protected custody, rollout, rollback and request-admission
 revocation semantics.
 
@@ -416,8 +417,8 @@ Expected revision guards a full replacement. Exact normalized retries under the 
 
 Off unless the server sets `AGENTBOARD_INTAKE_ENABLED=true`; while off every
 intake route returns 404 `intake_disabled`. `GET /api/v1/meta` reports
-`intake_enabled`. `POST /api/v1/intake`, `GET /api/v1/intake/:id` and
-`POST /api/v1/intake/:id/cancel` verify either a captain-issued `helper`
+`intake_enabled`. `POST /api/v1/intake`, `POST /api/v1/intake/import`,
+`GET /api/v1/intake/:id` and `POST /api/v1/intake/:id/cancel` verify either a captain-issued `helper`
 credential (`scope=helper` on a non-retired `kind=helper` agent, from schema
 48) or the captain capability (`Authorization: Bearer`) themselves, while
 `POST /api/v1/intake/:id/items/:item_id/{reconcile,abandon}` requires the
@@ -458,7 +459,8 @@ Each item has `id`, `position`, `task_id`, `task_status`, `repository`,
 `issue_url`, `issue_number`, `duplicate_issue_urls`, `reason`, `last_error`,
 `attempts`, `next_attempt_at`, `cancelled_at`, `resolved_at` and `updated_at`.
 A helper can only read or cancel requests where `filer_id` matches its own
-identity; unknown or invisible requests return 404.
+identity. An unknown request returns 404. Another filer's request returns
+403 `forbidden`.
 
 GitHub issues are created afterwards by an AshOban outbox job, outside the
 board transaction, with the hidden body marker

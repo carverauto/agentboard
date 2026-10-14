@@ -611,6 +611,9 @@ for auth_mode in ('off', 'observe', 'enforce'):
     api('decisions', {'task': note['task_id'], 'kind': 'scope', 'question': 'No?', 'options': ['A']},
         captain=False, token=helper_token, agent='grok-helper', status=403)
     api('fleets/helper-fleet/activate', {'mode': 'dry_run'}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('fleets/helper-fleet/launch-intents/missing/abandon', {}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('tasks/' + note['task_id'] + '/release', {}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('decisions/no-such/conversation/reconcile', {}, captain=False, token=helper_token, agent='grok-helper', status=403)
     # Spoofed attribution with helper token is refused.
     api('fleet/status', captain=False, token=helper_token, agent='intake-seat', status=403)
 rpc('Application.put_env(:agentboard, :agent_auth_mode, "off")')
@@ -721,6 +724,55 @@ with tempfile.TemporaryDirectory() as helper_home:
     assert cli_digest['fleets'][0]['requested_seats'] == 2 and cli_digest['fleets'][0]['max_seats'] == 2
     assert [item['seat_id'] for item in cli_digest['fleets'][0]['launch_intents']['dry_run']] == ['seat-1']
     ab_helper('intake', 'status', intake['id'], code=1)
+
+# Helper import attributes a named open issue to the helper and never lets a seat token import.
+class HelperGitHub(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *_):
+        pass
+
+    def reply(self, status, body):
+        encoded = json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def do_GET(self):
+        assert self.headers['Authorization'] == 'Bearer ' + INTAKE_TOKEN
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path != '/repos/acme/widgets/issues/7':
+            return self.reply(404, {'message': 'Not Found'})
+        self.reply(200, {
+            'number': 7,
+            'html_url': 'https://github.com/acme/widgets/issues/7',
+            'title': 'Imported by helper',
+            'body': 'helper import body',
+            'state': 'open',
+            'labels': [],
+        })
+
+    def do_POST(self):
+        self.reply(500, {'message': 'import must never create an issue'})
+
+
+with tls_provider(HelperGitHub) as (api_url, ca, _server):
+    with tempfile.TemporaryDirectory() as secrets:
+        token_file = os.path.join(secrets, 'intake-token')
+        with open(token_file, 'w') as handle:
+            handle.write(INTAKE_TOKEN + '\n')
+        rpc('Application.put_env(:agentboard, :intake_github, [api_url: ' + json.dumps(api_url) +
+            ', token: nil, token_file: ' + json.dumps(token_file) + ', ca_file: ' + json.dumps(ca) + '])')
+        helper_import = api('intake/import', {
+            'request_key': 'helper-import-1', 'repository': REPO, 'issues': [7]
+        }, captain=False, token=helper_token, agent=None)[0]
+        assert helper_import['replayed'] is False
+        assert helper_import['intake']['filer_id'] == 'grok-helper'
+        imported_item = helper_import['intake']['items'][0]
+        assert imported_item['issue_number'] == 7 and imported_item['reason'] == 'imported'
+        assert imported_item['issue_state'] == 'created'
+        api('intake/import', {'request_key': 'seat-import', 'repository': REPO, 'issues': [7]},
+            captain=False, token=seat_token, agent='intake-seat', status=403)
 
 # --- Per-filer intake write limit (last: it spends this minute's budget). --
 rpc('Application.put_env(:agentboard, :rate_limits, Keyword.put(Application.fetch_env!(:agentboard, :rate_limits), :intake, 0))')

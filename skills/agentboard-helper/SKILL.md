@@ -75,6 +75,8 @@ agentboard fleet status --json
 agentboard fleet status FLEET_ID --json
 ```
 
+`agentboard intake import` is filing too, and it uses the same helper token. The request shape is in the intake setup guide linked below.
+
 ## Direct HTTPS API calls
 
 Helpers without the `agentboard` binary can call the JSON API directly over HTTPS with `Authorization: Bearer <helper_token>` and `Content-Type: application/json`. Self-reported `X-Agentboard-*` headers are optional when using a helper token; if sent, they must match the helper's registered `id`, `model`, and `harness`.
@@ -98,7 +100,7 @@ Helpers without the `agentboard` binary can call the JSON API directly over HTTP
   Replaying the same `(filer_id, request_key)` with an equivalent normalized payload returns `200` with `"replayed": true`. Reusing a `request_key` with a different payload returns `409 conflict`.
 
 - **Read own intake status (`GET /api/v1/intake/:id`):**
-  Returns `{ "intake": { "id", "request_key", "filer_id", "items": [...] } }`. Helpers may only read requests where `filer_id` matches their own identity (`403 forbidden` otherwise).
+  Returns `{ "intake": { "id", "request_key", "filer_id", "items": [...] } }`. Helpers may only read requests where `filer_id` matches their own identity. An unknown request returns 404. Another filer's request returns `403 forbidden`.
 
 - **Cancel own unstarted intake (`POST /api/v1/intake/:id/cancel`):**
   Body `{}` cancels all unstarted items in that request, or `{"items": ["ITEM_UUID"]}` cancels specific items. Already-claimed or completed cards are skipped with `"reason": "card_started"`.

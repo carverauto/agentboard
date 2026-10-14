@@ -14,7 +14,8 @@ an explicit unavailable status and no invented counts, while the API report
 stays an honest error. Enforce mode fails closed on verification errors.
 
 The supported modes are `off`, `observe`, and `enforce`. Unknown values fail
-startup. Enforce authenticates ordinary API reads, writes and watch streams.
+startup. A `helper` credential is limited in every mode, including `off`, to
+the intake and fleet-status operations in [work intake](intake.md). Enforce authenticates ordinary API reads, writes and watch streams.
 Missing, malformed, revoked or ineligible agent credentials receive 401; actor
 mismatches and disallowed operations receive 403; verification failures deny the
 request. The effective identity comes from the verified credential and current
