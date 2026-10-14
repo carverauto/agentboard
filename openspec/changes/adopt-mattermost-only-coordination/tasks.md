@@ -12,7 +12,7 @@ pre-assigned.
 
 ## 2. Coordinator runner without global enforce
 
-- [ ] 2.1 Accept a verified `coordinator_runner` bearer for the coordinator protocol operations under auth `off`/`observe`; keep anonymous, wrong-scope and non-coordinator callers failing closed. The runner bearer does not authorize decision-conversation routes. Test each mode × credential case.
+- [ ] 2.1 In `AgentboardWeb.Plugs.AgentAuth`, under auth `off` and `observe`, verify a presented bearer and assign `authenticated_agent` for the four coordinator protocol operations, including GET tick and GET show, and for decision-conversation notify and reply. No bearer stays anonymous. A missing, invalid or revoked bearer fails closed and assigns nothing. Do not add this path to decision-conversation show, reconcile, or any other route; those routes keep their current authentication. The four protocol operations accept that principal when it is the active coordinator's `coordinator_runner`, including the domain check that today requires `enforce`. Wrong-scope callers still fail closed. The runner bearer does not authorize notify or reply. Test `off` and `observe`, including GET tick.
 - [ ] 2.2 Update `docs/coordinator/protocol.md` and the grokbot runbook; prove a live heartbeat/tick/ack from grokbot on farm01 (captain-authorized).
 
 ## 3. Herdr seat delivery adapter
@@ -22,7 +22,7 @@ pre-assigned.
 
 ## 4. Decision path readiness
 
-- [ ] 4.1 Under auth `off`/`observe`, accept on decision-conversation notify the verified `agent` credential that route already accepts under `enforce`, and on reply the verified `coordinator_participant` credential. Anonymous and wrong-scope callers still fail closed. Show, reconcile and every other non-protocol route stay unchanged.
+- [ ] 4.1 Decision-conversation notify and reply accept the `authenticated_agent` assigned in 2.1 under auth `off` and `observe`: `agent` for notify, `coordinator_participant` for reply, including the domain check that today requires `enforce`. Anonymous and wrong-scope callers still fail closed. Show and reconcile keep their current authentication.
 - [ ] 4.2 Replace `coordinator_decision_path_unavailable_80` with a coordinator protocol heartbeat inside the staleness window plus a retained notify/reply receipt. Do not compare the receipt to the runner credential.
 
 ## 5. Legacy unread disposition
@@ -32,5 +32,5 @@ pre-assigned.
 
 ## 6. Cutover
 
-- [ ] 6.1 Remove `@missing_capabilities`; `mattermost` is accepted only when every producer reports ready, and the refusal names the remaining ones. A refused `mattermost` request sets effective mode to `dual` when bridge, private recipient routes and inbound catch-up hold, otherwise `board`. Mirroring follows effective mode. Do not store a last accepted mode.
+- [ ] 6.1 Remove `@missing_capabilities`; `mattermost` is accepted only when every producer reports ready, and the refusal names the remaining ones. A refused `mattermost` request sets effective mode to `dual`, including when bridge, private routes or inbound are unready. Dual has no activation gate. Invalid requested modes stay `board`. Mirroring follows effective mode. Do not store a last accepted mode.
 - [ ] 6.2 Captain-authorized farm01 cutover with a recorded receipt: meta `effective: mattermost`, a legacy `msg send` refused with `message_transport_migrated`, seats coordinating in #agents, a decision relayed by grokbot and answered, and a rollback to `dual` and back.

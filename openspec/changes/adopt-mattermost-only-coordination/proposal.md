@@ -45,17 +45,22 @@ in `dual` mode:
   - a short chat line in the coordination channel that points at the entry.
 
   Mattermost carries talk; Context carries durable findings.
-- **Coordinator runner under non-enforce auth.** An authenticated, explicitly
-  issued `coordinator_runner` bearer may use exactly the four coordinator
-  protocol operations while global auth is `off` or `observe`. The bearer must
-  belong to the configured coordinator, as it does today. It does not authorize
-  decision-conversation routes. Anonymous callers gain nothing.
-- **Decision-conversation notify and reply under non-enforce auth.** While
-  global auth is `off` or `observe`, notify accepts the verified `agent`
-  credential and reply accepts the verified `coordinator_participant`
-  credential that those routes already accept under `enforce`. Anonymous and
-  wrong-scope callers still fail closed. Show, reconcile and every other route
-  keep their current authentication.
+- **Verified principal under non-enforce auth.** While global auth is `off`
+  or `observe`, `AgentboardWeb.Plugs.AgentAuth` verifies a presented bearer
+  and assigns `authenticated_agent` for the four coordinator protocol
+  operations, including GET tick and GET show, and for decision-conversation
+  notify and reply. No bearer stays anonymous. A missing, invalid or revoked
+  bearer fails closed and assigns nothing. This path is not added to
+  decision-conversation show, reconcile, or any other route.
+- **Coordinator runner under non-enforce auth.** The assigned principal may
+  use exactly the four coordinator protocol operations when it is the
+  configured coordinator's `coordinator_runner` bearer. It does not authorize
+  decision-conversation routes. Anonymous and wrong-scope callers gain nothing.
+- **Decision-conversation notify and reply under non-enforce auth.** Notify
+  accepts the assigned `agent` principal and reply accepts the assigned
+  `coordinator_participant` principal, the same scopes those routes already
+  require under `enforce`. Anonymous and wrong-scope callers still fail
+  closed. Show and reconcile keep their current authentication.
 - **Herdr seat delivery adapter.** `agentboard seat nudge` reads a host-scoped
   unread count per seat (coordination-channel mentions and private-route
   items). The count returns counts only, does not return message content, and
@@ -77,10 +82,10 @@ in `dual` mode:
   the read-only archive (7.2).
 - **Measured cutover gate.** `mattermost` is accepted only when every blocker
   is replaced by measured readiness. A refused `mattermost` request uses
-  effective `dual` when the bridge, private recipient routes and inbound
-  catch-up prerequisites hold, and effective `board` otherwise. Nothing stores
-  a last accepted mode. Mirroring follows effective mode. Rollback to `dual` or
-  `board` stays the existing restart.
+  effective `dual`. Dual has no activation gate, so bridge, private-route and
+  inbound blockers do not change that fallback. Nothing stores a last accepted
+  mode. Mirroring follows effective mode. An invalid requested mode stays
+  `board`. Rollback to `dual` or `board` stays the existing restart.
 
 ## Capabilities
 
@@ -96,9 +101,12 @@ in `dual` mode:
 - **Server:**
   - `Agentboard.MessageMode`, which replaces `@missing_capabilities` with
     producers.
-  - Coordinator auth plug (scoped runner exception).
-  - Decision-conversation notify/reply auth (same principals as `enforce`,
-    while auth is `off` or `observe`).
+  - `AgentboardWeb.Plugs.AgentAuth`: under `off` and `observe`, verify a
+    presented bearer and assign `authenticated_agent` for the four protocol
+    operations, including GET tick and show, and for decision-conversation
+    notify and reply. Do not add this path to any other route.
+  - Protocol and notify/reply domain checks accept that assigned principal
+    under `off` and `observe`.
   - Meta (`coordination_channel`).
   - A host-scoped unread-mention count that does not write coverage.
   - A per-message disposition record, separate from acknowledgement.

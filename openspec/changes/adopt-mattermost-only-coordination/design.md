@@ -39,18 +39,32 @@ remains. This change gives each hard-coded blocker a real producer.
    - Rejected alternative: put findings in chat. They are not durable or
      attributable enough to stop the next seat repeating the work.
 
-4. **The coordinator runner is accepted under `off`/`observe` only with a
-   verified runner bearer.**
-   - The runner exception lives in the coordinator protocol plug.
-   - The bearer must verify, carry the `coordinator_runner` scope and belong to
-     the configured active coordinator. All existing protocol checks are
-     unchanged.
-   - Anonymous or wrong-scope callers still fail closed. The runner bearer does
-     not authorize decision-conversation routes.
+4. **Off and observe verify a presented bearer only on the cutover routes.**
+   - `AgentboardWeb.Plugs.AgentAuth` is the assignment point.
+     `CoordinatorController` and `DecisionConversationController` read
+     `authenticated_agent` and do not build a principal themselves.
+   - Under `off` and `observe`, a presented bearer is verified and assigned
+     for the four protocol operations (heartbeat, acknowledge, GET tick and
+     GET show) and for decision-conversation notify and reply. Observe's skip
+     of GET, HEAD and OPTIONS does not apply to tick or show.
+   - No bearer leaves the caller anonymous. A missing, invalid or revoked
+     bearer fails closed and assigns nothing.
+   - This verification path is not added to decision-conversation show,
+     reconcile, or any other route. Those routes keep their current
+     authentication.
+   - The protocol operations then accept that principal when it is the
+     `coordinator_runner` for the active coordinator. Notify still requires
+     `agent`. Reply still requires `coordinator_participant`. The domain
+     checks that today require auth `enforce` accept these assigned
+     principals under `off` and `observe` for those operations only. The
+     runner bearer does not authorize notify or reply.
    - Rejected alternative: flip farm01 to `enforce`. It is global and breaks
      every anonymous seat CLI.
    - Rejected alternative: let the captain capability stand in. The protocol
      explicitly forbids that substitution.
+   - Rejected alternative: widen only the domain `enforced` check. Under `off`
+     the plug never assigns `authenticated_agent`, so the domain still sees
+     nil.
 
 5. **The Herdr seat delivery adapter is seat nudge, not a new daemon.**
    - Nudge already reads Herdr state and board work every three minutes.
@@ -73,11 +87,9 @@ remains. This change gives each hard-coded blocker a real producer.
    - The other half is one retained decision-conversation notify/reply receipt.
      The receipt is not compared to the runner credential. Rotating the runner
      leaves a retained receipt valid.
-   - Notify and reply accept, under `off` and `observe`, the verified principal
-     each route already accepts under `enforce`: notify an `agent` credential,
-     reply a `coordinator_participant` credential. Anonymous and wrong-scope
-     callers still fail closed. Show, reconcile and every other non-protocol
-     route keep their current authentication.
+   - Notify and reply run on the principal decision 4 assigns. Show and
+     reconcile keep their current authentication. Anonymous and wrong-scope
+     callers still fail closed.
    - Captain answers still go through `decision answer`, whose authority is
      captain or coordinator plus the captain capability. Chat replies never
      answer a decision.
@@ -107,18 +119,14 @@ remains. This change gives each hard-coded blocker a real producer.
    - The only new table is the disposition record in decision 7.
    - Rollback is the existing mode restart.
 
-9. **A refused `mattermost` request falls back to `dual` when dual can run.**
-   - Effective mode is computed from current prerequisites. Nothing stores the
-     last accepted mode.
-   - Bridge, private recipient routes and inbound catch-up are dual's
-     prerequisites. The mattermost-only producers (coordination channel,
-     delivery adapter, decision path, legacy unread disposition) are not.
-   - When `mattermost` is refused and those three hold, effective mode is
-     `dual` and mirroring stays on. When any of the three does not hold,
-     effective mode is `board`.
+9. **A refused `mattermost` request is effective `dual`.**
+   - Dual has no activation gate. Requested `dual` stays effective `dual`
+     with bridge, private-route or inbound blockers still set, and a refused
+     `mattermost` request uses that same effective mode.
+   - Nothing stores a last accepted mode.
    - Mirroring follows effective mode, including the `dual?` check that today
      reads only the requested env value.
-   - An invalid requested mode stays `board`. Requested `dual` is unchanged.
+   - An invalid requested mode stays `board`.
 
 ## Risks
 
