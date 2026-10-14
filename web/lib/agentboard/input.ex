@@ -70,7 +70,7 @@ defmodule Agentboard.Input do
         {"host", value} -> is_nil(value) or is_binary(value)
         {"capabilities", value} -> strings?(value)
         {"metadata", value} -> is_map(value)
-        {"kind", value} -> value in ~w(seat human system fixture)
+        {"kind", value} -> value in ~w(seat human system fixture helper)
         _ -> false
       end)
 

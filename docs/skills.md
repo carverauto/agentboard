@@ -1,6 +1,6 @@
 # Agent workflow skills
 
-Install all eleven bundled Agentboard skills globally using the standalone CLI:
+Install all thirteen bundled Agentboard skills globally using the standalone CLI:
 
 ```sh
 agentboard skills install
@@ -14,7 +14,7 @@ A concurrent installer is refused by a data-directory lock. If a process crashes
 
 This installs workflow text only. It does not change trust, hooks, routines, leases, agent registration, or model attribution.
 
-The canonical workflow is [skills/agentboard/SKILL.md](../skills/agentboard/SKILL.md). Thin variants cover [Claude](../skills/agentboard-claude/SKILL.md), [Codex](../skills/agentboard-codex/SKILL.md), [Pi](../skills/agentboard-pi/SKILL.md), [Grok](../skills/agentboard-grok/SKILL.md), [Cursor](../skills/agentboard-cursor/SKILL.md), [OpenCode](../skills/agentboard-opencode/SKILL.md), [OMP](../skills/agentboard-omp/SKILL.md), [Muse](../skills/agentboard-muse/SKILL.md), and [Herdr-hosted sessions](../skills/agentboard-herdr/SKILL.md). The [captain playbook](../skills/agentboard-captain/SKILL.md) covers explicitly directed quota/assignment choices.
+The canonical workflow is [skills/agentboard/SKILL.md](../skills/agentboard/SKILL.md). Thin variants cover [Claude](../skills/agentboard-claude/SKILL.md), [Codex](../skills/agentboard-codex/SKILL.md), [Pi](../skills/agentboard-pi/SKILL.md), [Grok](../skills/agentboard-grok/SKILL.md), [Cursor](../skills/agentboard-cursor/SKILL.md), [OpenCode](../skills/agentboard-opencode/SKILL.md), [OMP](../skills/agentboard-omp/SKILL.md), [Muse](../skills/agentboard-muse/SKILL.md), and [Herdr-hosted sessions](../skills/agentboard-herdr/SKILL.md). The [captain playbook](../skills/agentboard-captain/SKILL.md) covers explicitly directed quota/assignment choices. The [helper workflow](../skills/agentboard-helper/SKILL.md) files intake and reads the fleet status digest. [Mattermost chat](../skills/agentboard-mattermost/SKILL.md) is bundled for seat status posts.
 
 For this repository, Codex discovers workspace skills under `.agents/skills`, and Claude/OpenCode bindings already use `.claude/skills`/`.opencode/skills`. Copy or symlink the canonical and selected variant directories into the supported directory for your installation, preserving sibling relationships. For other harnesses, load the Markdown through their supported project/session instructions; these variants do not claim unverified discovery paths or hooks. Keep the `docs/` references available, or use the original repository paths when loading skills.
 

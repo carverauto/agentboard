@@ -16,13 +16,15 @@ import (
 )
 
 // Work intake files board cards and, optionally, GitHub issues through the
-// server's idempotent intake contract. Intake requires the protected captain
-// capability (AGENTBOARD_CAPTAIN_TOKEN_FILE) for now. It only files work: it
-// never claims, assigns or coordinates. Re-running `intake file` with the same
-// --request-key and payload replays the original request instead of filing
-// twice; a changed payload under that key is a conflict (exit 4). `intake
-// import` turns existing open issues into cards linked to them and creates
-// no issue.
+// server's idempotent intake contract. Filing, import, status, and cancel
+// accept a captain-issued helper credential (AGENTBOARD_TOKEN_FILE /
+// AGENTBOARD_TOKEN) or the protected captain capability
+// (AGENTBOARD_CAPTAIN_TOKEN_FILE); resolve remains captain-only. Intake only
+// files work: it never claims, assigns or coordinates. Re-running `intake file`
+// with the same --request-key and payload replays the original request instead
+// of filing twice; a changed payload under that key is a conflict (exit 4).
+// `intake import` turns existing open issues into cards linked to them and
+// creates no issue.
 
 const intakeFileLimit = 1 << 20
 
@@ -67,7 +69,7 @@ type intakeView struct {
 }
 
 func (c *commands) intakeCommands() *cobra.Command {
-	group := &cobra.Command{Use: "intake", Short: "File cards and GitHub issues, or card existing issues, through the idempotent intake API (captain capability)"}
+	group := &cobra.Command{Use: "intake", Short: "File cards and GitHub issues, or card existing issues, through the idempotent intake API (helper or captain capability)"}
 	group.AddCommand(c.intakeFile(), c.intakeImport(), c.intakeStatus(), c.intakeCancel(), c.intakeResolve())
 	return group
 }

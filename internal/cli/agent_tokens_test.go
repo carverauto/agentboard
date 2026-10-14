@@ -223,19 +223,59 @@ func TestRunnerTokenRequiresExplicitScopeAndSchema40(t *testing.T) {
 func TestRunnerGrantCannotAcquireChannelsOrChangeOtherActions(t *testing.T) {
 	tokenActor(t)
 	t.Setenv("AGENTBOARD_CAPTAIN_TOKEN_FILE", "/missing-captain-credential")
-	for _, action := range []string{"issue", "rotate", "list", "revoke"} {
-		args := []string{"agent", "token", action, "coordinator", "--scope", "coordinator_runner"}
-		path := filepath.Join(t.TempDir(), "output")
-		if action == "issue" || action == "rotate" {
-			args = append(args, "--out", path, "--channel", "chat")
+	for _, scope := range []string{"coordinator_runner", "helper"} {
+		for _, action := range []string{"issue", "rotate", "list", "revoke"} {
+			args := []string{"agent", "token", action, "coordinator", "--scope", scope}
+			path := filepath.Join(t.TempDir(), "output")
+			if action == "issue" || action == "rotate" {
+				args = append(args, "--out", path, "--channel", "chat")
+			}
+			out, _, err := tokenCommand(t, args...)
+			if err == nil || out != "" || strings.Contains(err.Error(), "CAPTAIN_TOKEN_FILE") {
+				t.Fatalf("invalid %s grant reached credential access: %v", scope, err)
+			}
+			if _, err := os.Stat(path); !os.IsNotExist(err) {
+				t.Fatal("invalid grant touched output")
+			}
 		}
-		out, _, err := tokenCommand(t, args...)
-		if err == nil || out != "" || strings.Contains(err.Error(), "CAPTAIN_TOKEN_FILE") {
-			t.Fatalf("invalid runner grant reached credential access: %v", err)
-		}
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			t.Fatal("invalid grant touched output")
-		}
+	}
+}
+
+func TestHelperTokenRequiresSchema48(t *testing.T) {
+	for _, schema := range []int{47, 48} {
+		t.Run(strconv.Itoa(schema), func(t *testing.T) {
+			tokenActor(t)
+			dir := t.TempDir()
+			capfile := filepath.Join(dir, "captain")
+			captain := "synthetic-captain-capability-0123456789"
+			if err := os.WriteFile(capfile, []byte(captain), 0600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("AGENTBOARD_CAPTAIN_TOKEN_FILE", capfile)
+			issued := "abt_" + strings.Repeat("h", 43)
+			var writes atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.URL.Path == "/api/v1/meta" {
+					io.WriteString(w, `{"api_version":1,"schema_version":`+strconv.Itoa(schema)+`}`)
+					return
+				}
+				writes.Add(1)
+				json.NewEncoder(w).Encode(map[string]any{"credential": map[string]any{"id": "fixture-helper", "scope": "helper"}, "token": issued})
+			}))
+			defer server.Close()
+			t.Setenv("AGENTBOARD_URL", server.URL)
+			outfile := filepath.Join(dir, "helper")
+			_, _, err := tokenCommand(t, "agent", "token", "issue", "grok-helper", "--scope", "helper", "--out", outfile)
+			if schema < 48 {
+				var apiErr *client.Error
+				if !errors.As(err, &apiErr) || apiErr.Code != "schema_unavailable" || writes.Load() != 0 {
+					t.Fatalf("expected schema 48 refusal: %v", err)
+				}
+			} else if err != nil || writes.Load() != 1 {
+				t.Fatalf("helper issue failed: %v", err)
+			}
+		})
 	}
 }
 

@@ -159,3 +159,39 @@ func TestFleetActivateConflictIsNotRetried(t *testing.T) {
 		t.Fatalf("expected one conflict, got calls %d output %q error %v", len(*calls), output, err)
 	}
 }
+
+func TestFleetStatusSupportsHelperBearerAndSchema48(t *testing.T) {
+	helperToken := "abt_" + strings.Repeat("h", 43)
+	var gotPath, gotQuery, gotAuth string
+	schema := 48
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/v1/meta" {
+			fmt.Fprintf(w, `{"api_version":1,"schema_version":%d}`, schema)
+			return
+		}
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		gotAuth = r.Header.Get("Authorization")
+		fmt.Fprint(w, `{"generated_at":"2026-10-12T00:00:00Z","fleets":[{"fleet_id":"example","backlog":{"total":2}}]}`)
+	}))
+	defer server.Close()
+	t.Setenv("AGENTBOARD_URL", server.URL)
+	t.Setenv("AGENT_ID", "")
+	t.Setenv("AGENTBOARD_MODEL", "")
+	t.Setenv("AGENTBOARD_HARNESS", "")
+	t.Setenv("AGENTBOARD_CAPTAIN_TOKEN_FILE", "")
+	t.Setenv("AGENTBOARD_TOKEN", helperToken)
+
+	out, err := runFleet("status", "example", "--json")
+	if err != nil || gotPath != "/api/v1/fleet/status" || gotQuery != "fleet_id=example" || gotAuth != "Bearer "+helperToken || !strings.Contains(out, `"fleet_id":"example"`) {
+		t.Fatalf("status err=%v path=%s?%s auth=%q out=%q", err, gotPath, gotQuery, gotAuth, out)
+	}
+	if _, err := runFleet("status", "BadSlug"); err == nil {
+		t.Fatal("expected invalid slug rejection")
+	}
+	schema = 47
+	if _, err := runFleet("status"); err == nil || !strings.Contains(err.Error(), "schema") {
+		t.Fatalf("expected schema 48 error, got %v", err)
+	}
+}

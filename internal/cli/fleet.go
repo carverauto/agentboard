@@ -57,8 +57,27 @@ func (c *commands) fleetCommands() *cobra.Command {
 		}}
 	set.Flags().StringVar(&file, "file", "", "UTF-8 JSON replacement with revision, idempotency_key and seats (up to 1 MiB)")
 	loadout.AddCommand(show, set)
-	group.AddCommand(loadout, c.fleetActivateCommand(), c.fleetDeactivateCommand(), c.fleetRefillCommand(), c.fleetSupplyCommand(), c.fleetHostCommand())
+	group.AddCommand(loadout, c.fleetActivateCommand(), c.fleetDeactivateCommand(), c.fleetRefillCommand(), c.fleetSupplyCommand(), c.fleetHostCommand(), c.fleetStatusCommand())
 	return group
+}
+
+func (c *commands) fleetStatusCommand() *cobra.Command {
+	return &cobra.Command{Use: "status [FLEET_ID]", Short: "Helper or captain: read-only fleet status digest", Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) > 1 {
+			return errors.New("accepts at most 1 arg(s)")
+		}
+		if len(args) == 1 && !config.ValidID(args[0]) {
+			return errors.New("ID must be a lowercase agent/task slug")
+		}
+		return nil
+	},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var q url.Values
+			if len(args) == 1 {
+				q = url.Values{"fleet_id": {args[0]}}
+			}
+			return c.request(cmd, http.MethodGet, "fleet/status", q, nil)
+		}}
 }
 
 func (c *commands) fleetActivateCommand() *cobra.Command {

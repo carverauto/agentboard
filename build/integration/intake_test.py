@@ -61,14 +61,16 @@ def rpc(expression):
     return result.stdout
 
 
-def api(path, data=MISSING, *, captain=True, token=None, agent='intake-human', status=200):
-    headers = {'X-Agentboard-Agent': agent, 'X-Agentboard-Model': 'fixture-model',
-               'X-Agentboard-Harness': 'codex', 'Content-Type': 'application/json'}
+def api(path, data=MISSING, *, captain=True, token=None, agent='intake-human', status=200, method=None):
+    headers = {'Content-Type': 'application/json'}
+    if agent is not None:
+        headers.update({'X-Agentboard-Agent': agent, 'X-Agentboard-Model': 'fixture-model',
+                        'X-Agentboard-Harness': 'codex'})
     if captain:
         headers['Authorization'] = 'Bearer ' + CAPTAIN
     if token is not None:
         headers['Authorization'] = 'Bearer ' + token
-    request = urllib.request.Request(URL + '/api/v1/' + path, headers=headers,
+    request = urllib.request.Request(URL + '/api/v1/' + path, headers=headers, method=method,
                                      data=None if data is MISSING else json.dumps(data).encode())
     try:
         response = urllib.request.urlopen(request, timeout=30)
@@ -79,7 +81,7 @@ def api(path, data=MISSING, *, captain=True, token=None, agent='intake-human', s
     assert CAPTAIN not in text and INTAKE_TOKEN not in text, 'credential leaked'
     expected = status if isinstance(status, tuple) else (status,)
     assert response.status in expected, (path, response.status, status, body)
-    if path.startswith('intake'):
+    if path.startswith('intake') or path.startswith('fleet/status'):
         assert response.headers['cache-control'] == 'no-store'
     return body, response.headers
 
@@ -196,7 +198,7 @@ class GitHub(http.server.BaseHTTPRequestHandler):
 # --- Default off: routes unavailable, nothing written. ----------------------
 assert api('meta', captain=False)[0]['intake_enabled'] is False
 meta = api('meta', captain=False)[0]
-assert meta['schema_version'] == meta['required_schema_version'] == 47
+assert meta['schema_version'] == meta['required_schema_version'] == 48
 assert sql("SELECT kind||','||harness FROM agents WHERE id='system-intake'") == 'system,ash'
 body, _ = api('intake', {'request_key': 'off', 'items': [{'repository': REPO, 'title': 'x'}]}, status=404)
 assert body['error']['code'] == 'intake_disabled'
@@ -583,6 +585,251 @@ rpc('Application.put_env(:agentboard, :intake_enabled, false)')
 api('intake/' + intake['id'], status=404)
 assert work(widget['id'])['skipped'] == 'intake_disabled'
 rpc('Application.put_env(:agentboard, :intake_enabled, true)')
+
+# --- Helper credentials, own-request isolation, and fleet/status digest. --
+api('agents/register', {'name': 'Grok Helper', 'kind': 'helper'}, captain=False, agent='grok-helper')
+assert api('agents?kind=helper', captain=False)[0]['agents'][0]['id'] == 'grok-helper'
+api('agents/grok-helper/tokens/issue', {'scope': 'agent'}, status=403)
+api('agents/intake-seat/tokens/issue', {'scope': 'helper'}, status=403)
+seat_token = api('agents/intake-seat/tokens/issue', {})[0]['token']
+helper_issued = api('agents/grok-helper/tokens/issue', {})[0]
+assert helper_issued['credential']['scope'] == 'helper'
+helper_token = helper_issued['token']
+
+# Seat tokens cannot call helper routes; helper tokens cannot call non-helper routes
+# even when agent_auth_mode is off, observe, or enforce.
+for auth_mode in ('off', 'observe', 'enforce'):
+    rpc(f'Application.put_env(:agentboard, :agent_auth_mode, "{auth_mode}")')
+    api('intake', {'request_key': 'seat-denied', 'items': [{'repository': REPO, 'title': 'No'}]},
+        captain=False, token=seat_token, agent='intake-seat', status=403)
+    api('fleet/status', captain=False, token=seat_token, agent='intake-seat', status=403)
+    api('fleet/status', captain=False, agent='intake-seat', status=403)
+    api('tasks', {'title': 'Helper direct card'}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('tasks/' + note['task_id'] + '/claim', {}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('tasks/' + note['task_id'] + '/assign', {'to': 'intake-seat'}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('messages', {'to': 'intake-seat', 'body': 'No coordination'}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('decisions', {'task': note['task_id'], 'kind': 'scope', 'question': 'No?', 'options': ['A']},
+        captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('fleets/helper-fleet/activate', {'mode': 'dry_run'}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('fleets/helper-fleet/launch-intents/missing/abandon', {}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('tasks/' + note['task_id'] + '/release', {}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    api('decisions/no-such/conversation/reconcile', {}, captain=False, token=helper_token, agent='grok-helper', status=403)
+    # Spoofed attribution with helper token is refused.
+    api('fleet/status', captain=False, token=helper_token, agent='intake-seat', status=403)
+rpc('Application.put_env(:agentboard, :agent_auth_mode, "off")')
+
+# Even without a bearer token in off mode, a helper identity cannot own or mutate board state.
+api('tasks', {'title': 'Header helper direct'}, captain=False, agent='grok-helper', status=403)
+api('tasks/' + note['task_id'] + '/claim', {}, captain=False, agent='grok-helper', status=403)
+api('tasks/' + note['task_id'] + '/assign', {'to': 'grok-helper'}, status=403)
+
+# Helper files intake, reads its own status, cancels its own unstarted item,
+# and is refused on captain-filed requests and captain-only reconcile/abandon.
+helper_filed = api('intake', {'request_key': 'helper-1', 'items': [
+    {'repository': REPO, 'title': 'Helper filed card', 'issue': False},
+    {'repository': 'acme/gadgets', 'title': 'Helper cancel card', 'issue': False}
+]}, captain=False, token=helper_token, agent=None)[0]['intake']
+assert helper_filed['filer_id'] == 'grok-helper'
+assert api('intake/' + helper_filed['id'], captain=False, token=helper_token, agent=None)[0]['intake']['id'] == helper_filed['id']
+api('intake/' + intake['id'], captain=False, token=helper_token, agent=None, status=404)
+api('intake/' + intake['id'] + '/cancel', {}, captain=False, token=helper_token, agent=None, status=404)
+api('intake/' + helper_filed['id'] + '/items/' + helper_filed['items'][0]['id'] + '/abandon', {},
+    captain=False, token=helper_token, agent=None, status=403)
+cancelled_helper = api('intake/' + helper_filed['id'] + '/cancel',
+                       {'items': [helper_filed['items'][1]['id']]},
+                       captain=False, token=helper_token, agent=None)[0]
+assert cancelled_helper['cancelled'] == [helper_filed['items'][1]['id']]
+print('HELPER_INTAKE', json.dumps({
+    'filer_id': helper_filed['filer_id'],
+    'cancelled': cancelled_helper['cancelled'],
+}))
+
+# SeatScope on the helper restricts which configured intake repositories it may target.
+api('agents/grok-helper/scope', {'allowed_repos': [REPO], 'required_labels': [], 'allowed_labels': [], 'revision': 0},
+    method='PUT')
+api('intake', {'request_key': 'helper-out-of-scope', 'items': [
+    {'repository': 'acme/gadgets', 'title': 'Blocked by helper scope', 'issue': False}
+]}, captain=False, token=helper_token, agent=None, status=403)
+
+# A stored loadout whose seat has no SeatScope still returns a digest. The
+# obligations query binds that empty repository list as text[].
+sql(
+    "INSERT INTO fleet_loadouts (id, configuration, revision, changed_by, updated_at) VALUES ("
+    "'unscoped-fleet', "
+    "'{\"seats\":[{\"seat_id\":\"seat-u\",\"agent_id\":\"unscoped-seat\",\"harness\":\"codex\"}]}'::jsonb, "
+    "1, 'intake-human', clock_timestamp())"
+)
+unscoped, _ = api('fleet/status?fleet_id=unscoped-fleet', captain=False, token=helper_token, agent=None)
+assert unscoped['fleets'][0]['fleet_id'] == 'unscoped-fleet'
+assert unscoped['fleets'][0]['repositories'] == []
+assert unscoped['fleets'][0]['seats']['configured'] == 1
+assert unscoped['fleets'][0]['seats']['items'][0]['agent_id'] == 'unscoped-seat'
+assert unscoped['fleets'][0]['ci_obligations'] == []
+assert unscoped['fleets'][0]['recent_intake'] == []
+assert unscoped['fleets'][0]['requested_seats'] == 0 and unscoped['fleets'][0]['max_seats'] == 0
+print('UNSCOPED', json.dumps({
+    'fleet_id': unscoped['fleets'][0]['fleet_id'],
+    'repositories': unscoped['fleets'][0]['repositories'],
+    'configured': unscoped['fleets'][0]['seats']['configured'],
+    'agent_id': unscoped['fleets'][0]['seats']['items'][0]['agent_id'],
+    'ci_obligations': unscoped['fleets'][0]['ci_obligations'],
+    'recent_intake': unscoped['fleets'][0]['recent_intake'],
+    'requested_seats': unscoped['fleets'][0]['requested_seats'],
+    'max_seats': unscoped['fleets'][0]['max_seats'],
+}))
+
+# Fleet status digest via API and CLI (helper token and captain capability).
+api('agents/intake-seat/scope', {'allowed_repos': [REPO, 'acme/gadgets'], 'required_labels': [],
+    'allowed_labels': [], 'revision': 0}, method='PUT')
+api('fleets/helper-fleet/loadout', {
+    'revision': 0,
+    'idempotency_key': 'helper-fleet-1',
+    'seats': [{'seat_id': 'seat-1', 'agent_id': 'intake-seat', 'harness': 'codex',
+               'desired_host_id': 'host-a', 'desired_model': 'fixture-model',
+               'desired_effort': 'high', 'scope_revision': 1}]
+}, method='PUT')
+digest, _ = api('fleet/status?fleet_id=helper-fleet', captain=False, token=helper_token, agent=None)
+assert 'recent_intake' not in digest
+assert len(digest['fleets']) == 1
+fleet_digest = digest['fleets'][0]
+assert fleet_digest['fleet_id'] == 'helper-fleet'
+assert fleet_digest['requested_seats'] == 0 and fleet_digest['max_seats'] == 0
+assert fleet_digest['seats']['requested'] == 0 and fleet_digest['seats']['maximum'] == 0
+assert fleet_digest['launch_intents']['dry_run'] == []
+assert fleet_digest['seats']['configured'] == 1 and fleet_digest['seats']['items'][0]['agent_id'] == 'intake-seat'
+assert fleet_digest['backlog']['total'] >= 1
+assert 'overdue_assignments' in fleet_digest and 'pending_assignments' in fleet_digest
+assert 'ci_obligations' in fleet_digest
+assert len(fleet_digest['recent_intake']) >= 1
+assert {item['repository'] for item in fleet_digest['recent_intake']} <= set(fleet_digest['repositories'])
+assert 'Steps to reproduce' not in json.dumps(digest) and helper_token not in json.dumps(digest)
+
+# Captain seat counts and a dry-run would-launch intent are part of the same digest.
+api('fleets/helper-fleet/activate', {'mode': 'dry_run', 'requested_seats': 2, 'max_seats': 2})
+sql("UPDATE agents SET last_heartbeat=clock_timestamp()-interval '1 day' WHERE id='intake-seat'")
+rpc('Application.put_env(:agentboard, :seat_supply_enabled, true)')
+supply_out = rpc('{:ok, r} = Agentboard.SeatSupply.run_all(); IO.puts("SUPPLY=" <> Jason.encode!(r))')
+rpc('Application.put_env(:agentboard, :seat_supply_enabled, false)')
+supply = json.loads(supply_out.split('SUPPLY=', 1)[1].splitlines()[0])
+assert supply['fleets']['helper-fleet']['would_launch'] == ['seat-1'], supply
+digest, _ = api('fleet/status?fleet_id=helper-fleet', captain=False, token=helper_token, agent=None)
+assert 'recent_intake' not in digest
+fleet_digest = digest['fleets'][0]
+assert fleet_digest['requested_seats'] == 2 and fleet_digest['max_seats'] == 2
+assert fleet_digest['seats']['requested'] == 2 and fleet_digest['seats']['maximum'] == 2
+assert [item['seat_id'] for item in fleet_digest['launch_intents']['dry_run']] == ['seat-1']
+assert fleet_digest['launch_intents']['dry_run'][0]['state'] == 'dry_run'
+assert fleet_digest['launch_intents']['dry_run'][0]['host_id'] == 'host-a'
+for state in ('pending', 'reserved', 'uncertain', 'launched', 'failed', 'expired', 'superseded', 'closed', 'abandoned'):
+    assert fleet_digest['launch_intents'][state] == []
+assert 'lease_path' not in json.dumps(fleet_digest['launch_intents'])
+assert 'Steps to reproduce' not in json.dumps(digest) and helper_token not in json.dumps(digest)
+print('FLEET_DIGEST', json.dumps({
+    'fleet_id': fleet_digest['fleet_id'],
+    'requested_seats': fleet_digest['requested_seats'],
+    'max_seats': fleet_digest['max_seats'],
+    'seats_requested': fleet_digest['seats']['requested'],
+    'seats_maximum': fleet_digest['seats']['maximum'],
+    'dry_run': [item['seat_id'] for item in fleet_digest['launch_intents']['dry_run']],
+    'dry_run_state': fleet_digest['launch_intents']['dry_run'][0]['state'],
+    'host_id': fleet_digest['launch_intents']['dry_run'][0]['host_id'],
+    'top_level_recent_intake': 'recent_intake' in digest,
+    'intake_repos': sorted({item['repository'] for item in fleet_digest['recent_intake']}),
+}))
+api('fleet/status?fleet_id=missing-fleet', captain=False, token=helper_token, agent=None, status=404)
+api('fleet/status?fleet_id=BadSlug', captain=False, token=helper_token, agent=None, status=422)
+
+with tempfile.TemporaryDirectory() as helper_home:
+    helper_file = os.path.join(helper_home, 'helper.token')
+    fd = os.open(helper_file, os.O_WRONLY | os.O_CREAT, 0o600)
+    os.write(fd, helper_token.encode())
+    os.close(fd)
+    helper_env = {k: v for k, v in os.environ.items() if not k.startswith(('DATABASE_', 'PG'))}
+    helper_env.update(AGENTBOARD_TOKEN_FILE=helper_file, AGENTBOARD_CAPTAIN_TOKEN_FILE='',
+                      AGENT_ID='', AGENTBOARD_MODEL='', AGENTBOARD_HARNESS='')
+
+    def ab_helper(*args, code=0):
+        p = subprocess.run([os.environ['AB_BINARY'], *args], env=helper_env, capture_output=True, text=True, timeout=60)
+        assert p.returncode == code, (args, p.returncode, p.stdout, p.stderr)
+        assert helper_token not in p.stdout + p.stderr
+        return p.stdout
+
+    cli_helper = json.loads(ab_helper('--json', 'intake', 'file', '--request-key', 'helper-cli-1',
+                                      '--repo', REPO, '--title', 'From helper CLI', '--no-issue'))
+    assert cli_helper['intake']['filer_id'] == 'grok-helper'
+    shown_helper = json.loads(ab_helper('--json', 'intake', 'status', cli_helper['intake']['id']))
+    assert shown_helper['intake']['id'] == cli_helper['intake']['id']
+    cancelled_cli = json.loads(ab_helper('--json', 'intake', 'cancel', cli_helper['intake']['id']))
+    assert cancelled_cli['cancelled'] == [cli_helper['intake']['items'][0]['id']]
+    cli_digest = json.loads(ab_helper('--json', 'fleet', 'status', 'helper-fleet'))
+    assert 'recent_intake' not in cli_digest
+    assert cli_digest['fleets'][0]['fleet_id'] == 'helper-fleet'
+    assert cli_digest['fleets'][0]['requested_seats'] == 2 and cli_digest['fleets'][0]['max_seats'] == 2
+    assert [item['seat_id'] for item in cli_digest['fleets'][0]['launch_intents']['dry_run']] == ['seat-1']
+    ab_helper('intake', 'status', intake['id'], code=3)
+    print('HELPER_CLI', json.dumps({
+        'filer_id': cli_helper['intake']['filer_id'],
+        'cancelled': cancelled_cli['cancelled'],
+        'fleet_id': cli_digest['fleets'][0]['fleet_id'],
+        'requested_seats': cli_digest['fleets'][0]['requested_seats'],
+        'max_seats': cli_digest['fleets'][0]['max_seats'],
+        'dry_run': [item['seat_id'] for item in cli_digest['fleets'][0]['launch_intents']['dry_run']],
+    }))
+
+# Helper import attributes a named open issue to the helper and never lets a seat token import.
+class HelperGitHub(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *_):
+        pass
+
+    def reply(self, status, body):
+        encoded = json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def do_GET(self):
+        assert self.headers['Authorization'] == 'Bearer ' + INTAKE_TOKEN
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path != '/repos/acme/widgets/issues/7':
+            return self.reply(404, {'message': 'Not Found'})
+        self.reply(200, {
+            'number': 7,
+            'html_url': 'https://github.com/acme/widgets/issues/7',
+            'title': 'Imported by helper',
+            'body': 'helper import body',
+            'state': 'open',
+            'labels': [],
+        })
+
+    def do_POST(self):
+        self.reply(500, {'message': 'import must never create an issue'})
+
+
+with tls_provider(HelperGitHub) as (api_url, ca, _server):
+    with tempfile.TemporaryDirectory() as secrets:
+        token_file = os.path.join(secrets, 'intake-token')
+        with open(token_file, 'w') as handle:
+            handle.write(INTAKE_TOKEN + '\n')
+        rpc('Application.put_env(:agentboard, :intake_github, [api_url: ' + json.dumps(api_url) +
+            ', token: nil, token_file: ' + json.dumps(token_file) + ', ca_file: ' + json.dumps(ca) + '])')
+        helper_import = api('intake/import', {
+            'request_key': 'helper-import-1', 'repository': REPO, 'issues': [7]
+        }, captain=False, token=helper_token, agent=None)[0]
+        assert helper_import['replayed'] is False
+        assert helper_import['intake']['filer_id'] == 'grok-helper'
+        imported_item = helper_import['intake']['items'][0]
+        assert imported_item['issue_number'] == 7 and imported_item['reason'] == 'imported'
+        assert imported_item['issue_state'] == 'created'
+        print('HELPER_IMPORT', json.dumps({
+            'filer_id': helper_import['intake']['filer_id'],
+            'issue_number': imported_item['issue_number'],
+            'reason': imported_item['reason'],
+            'issue_state': imported_item['issue_state'],
+        }))
+        api('intake/import', {'request_key': 'seat-import', 'repository': REPO, 'issues': [7]},
+            captain=False, token=seat_token, agent='intake-seat', status=403)
 
 # --- Per-filer intake write limit (last: it spends this minute's budget). --
 rpc('Application.put_env(:agentboard, :rate_limits, Keyword.put(Application.fetch_env!(:agentboard, :rate_limits), :intake, 0))')

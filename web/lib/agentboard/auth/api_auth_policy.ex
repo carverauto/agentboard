@@ -30,7 +30,7 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       credential.agent_id == agent.id and
       case credential.scope do
         "agent" ->
-          agent.id != coordinator
+          agent.kind != "helper" and agent.id != coordinator
 
         "coordinator" ->
           is_binary(coordinator) and agent.id == coordinator
@@ -42,6 +42,10 @@ defmodule Agentboard.Auth.APIAuthPolicy do
         "coordinator_runner" ->
           is_binary(coordinator) and agent.id == coordinator and
             valid_channel_grant?(credential.scope, Map.get(credential, :channel_ids))
+
+        "helper" ->
+          agent.kind == "helper" and agent.id != coordinator and
+            valid_channel_grant?(credential.scope, Map.get(credential, :channel_ids, []))
 
         _ ->
           false
@@ -56,7 +60,9 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       Enum.all?(channel_ids, &channel_id?/1)
   end
 
-  def valid_channel_grant?(scope, []), do: scope in ~w(agent coordinator coordinator_runner)
+  def valid_channel_grant?(scope, []),
+    do: scope in ~w(agent coordinator coordinator_runner helper)
+
   def valid_channel_grant?(_, _), do: false
 
   def channel_id?(id),
@@ -92,8 +98,12 @@ defmodule Agentboard.Auth.APIAuthPolicy do
 
   def boundary(%{plug: AgentboardWeb.FleetLoadoutController}), do: :captain
 
-  # The controller also verifies the captain capability in off/observe mode.
-  def boundary(%{plug: AgentboardWeb.IntakeController}), do: :captain
+  # Reconcile and abandon remain captain-only; file, cancel, status and the
+  # fleet status digest accept a captain-issued helper token or the captain in
+  # every auth mode.
+  def boundary(%{plug: AgentboardWeb.IntakeController, plug_opts: :resolve}), do: :captain
+  def boundary(%{plug: AgentboardWeb.IntakeController}), do: :helper
+  def boundary(%{plug: AgentboardWeb.FleetStatusController}), do: :helper
 
   # Enrolled fleet hosts authenticate with their own token, verified by the
   # controller in every auth mode.
@@ -140,6 +150,8 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       when action in [:agent, :availability, :seat_scope], do: true
 
   def captain_operation?(%{plug: AgentboardWeb.DecisionPolicyController}, _), do: true
+  def captain_operation?(%{plug: AgentboardWeb.IntakeController}, _), do: true
+  def captain_operation?(%{plug: AgentboardWeb.FleetStatusController}, _), do: true
 
   def captain_operation?(_, _), do: false
 
@@ -153,6 +165,27 @@ defmodule Agentboard.Auth.APIAuthPolicy do
       ((action in [:tick, :show] and method in ["GET", "HEAD"]) or
          (action in [:ack, :heartbeat] and method == "POST"))
   end
+
+  def allowed?(
+        %{scope: "helper"},
+        %{plug: AgentboardWeb.IntakeController, plug_opts: action},
+        method,
+        _
+      ) do
+    (action in [:create, :import_issues, :cancel] and method == "POST") or
+      (action == :show and method in ["GET", "HEAD"])
+  end
+
+  def allowed?(
+        %{scope: "helper"},
+        %{plug: AgentboardWeb.FleetStatusController, plug_opts: :show},
+        method,
+        _
+      ) do
+    method in ["GET", "HEAD"]
+  end
+
+  def allowed?(%{scope: "helper"}, _info, _method, _params), do: false
 
   def allowed?(
         %{scope: "agent"},
@@ -175,6 +208,10 @@ defmodule Agentboard.Auth.APIAuthPolicy do
     (action in [:index, :show, :ledger] and method in ["GET", "HEAD"]) or
       (action in [:validate, :plan, :explain] and method == "POST")
   end
+
+  def allowed?(%{scope: "agent"}, %{plug: controller}, _method, _params)
+      when controller in [AgentboardWeb.IntakeController, AgentboardWeb.FleetStatusController],
+      do: false
 
   def allowed?(%{scope: "agent"}, _info, _method, _params), do: true
 

@@ -10,6 +10,7 @@ For the full paste-ready path (CLI install through shared context and CI), see *
 | `agentboard-claude`, `-codex`, `-cursor`, `-grok`, `-pi`, `-opencode`, `-omp`, `-muse` | Thin per-harness variants (identity and discovery notes) |
 | `agentboard-herdr` | Sessions hosted by a backend that wraps another harness |
 | [`agentboard-captain`](../../skills/agentboard-captain/SKILL.md) | The person (or assistant) directing work: reading quota, choosing assignments |
+| [`agentboard-helper`](../../skills/agentboard-helper/SKILL.md) | Chat bots and HTTPS clients that file intake and read the fleet status digest |
 
 ## Install
 

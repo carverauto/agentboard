@@ -441,4 +441,83 @@ defmodule Agentboard.APIAuthTest do
     Application.put_env(:agentboard, :coordinator_id, "replacement")
     assert {:error, "forbidden", _} = Participation.authorize_local(participant(), "channel-1")
   end
+
+  test "helper credential scope is bound to non-coordinator helper identities and helper routes only" do
+    alias AgentboardWeb.{FleetLoadoutController, FleetRefillController, FleetStatusController, IntakeController}
+
+    helper_agent = %{id: "grok-helper", harness: "grok", kind: "helper", retired_at: nil}
+    seat_agent = %{id: "seat-a", harness: "codex", kind: "seat", retired_at: nil}
+    helper_cred = %{agent_id: "grok-helper", scope: "helper", channel_ids: [], revoked_at: nil}
+    agent_cred = %{agent_id: "grok-helper", scope: "agent", channel_ids: [], revoked_at: nil}
+
+    assert Policy.valid_channel_grant?("helper", [])
+    refute Policy.valid_channel_grant?("helper", ["channel-1"])
+    assert Policy.credential_allowed?(helper_cred, helper_agent, "coordinator")
+    refute Policy.credential_allowed?(helper_cred, helper_agent, "grok-helper")
+    refute Policy.credential_allowed?(helper_cred, seat_agent, "coordinator")
+    refute Policy.credential_allowed?(agent_cred, helper_agent, "coordinator")
+
+    assert Policy.boundary(route(IntakeController, :create)) == :helper
+    assert Policy.boundary(route(IntakeController, :show)) == :helper
+    assert Policy.boundary(route(IntakeController, :cancel)) == :helper
+    assert Policy.boundary(route(IntakeController, :resolve)) == :captain
+    assert Policy.boundary(route(FleetStatusController, :show)) == :helper
+
+    assert Policy.captain_operation?(route(IntakeController, :create), %{})
+    assert Policy.captain_operation?(route(IntakeController, :resolve), %{})
+    assert Policy.captain_operation?(route(FleetStatusController, :show), %{})
+
+    helper_principal = %{scope: "helper", agent_id: "grok-helper"}
+
+    assert Policy.allowed?(helper_principal, route(IntakeController, :create), "POST", %{})
+    assert Policy.allowed?(helper_principal, route(IntakeController, :cancel), "POST", %{})
+    assert Policy.allowed?(helper_principal, route(IntakeController, :show), "GET", %{})
+    assert Policy.allowed?(helper_principal, route(FleetStatusController, :show), "GET", %{})
+    refute Policy.allowed?(helper_principal, route(IntakeController, :resolve), "POST", %{})
+
+    for {controller, action, method} <- [
+          {APIController, :tasks, "GET"},
+          {APIController, :create, "POST"},
+          {APIController, :mutate, "POST"},
+          {APIController, :send_message, "POST"},
+          {APIController, :messages, "GET"},
+          {DecisionController, :index, "GET"},
+          {DecisionController, :create, "POST"},
+          {DecisionController, :mutate, "POST"},
+          {ConversationController, :send, "POST"},
+          {FleetLoadoutController, :show, "GET"},
+          {FleetLoadoutController, :replace, "PUT"},
+          {FleetRefillController, :show, "GET"},
+          {FleetRefillController, :activate, "POST"}
+        ] do
+      refute Policy.allowed?(helper_principal, route(controller, action), method, %{})
+    end
+
+    for non_helper <- [%{scope: "agent", agent_id: "seat-a"}, observer(), participant()] do
+      refute Policy.allowed?(non_helper, route(IntakeController, :create), "POST", %{})
+      refute Policy.allowed?(non_helper, route(IntakeController, :show), "GET", %{})
+      refute Policy.allowed?(non_helper, route(IntakeController, :cancel), "POST", %{})
+      refute Policy.allowed?(non_helper, route(FleetStatusController, :show), "GET", %{})
+    end
+
+    for mode <- ["off", "observe", "enforce"] do
+      Application.put_env(:agentboard, :agent_auth_mode, mode)
+
+      denied =
+        Plug.Test.conn(:get, "/api/v1/fleet/status")
+        |> Map.put(:private, %{phoenix_controller: FleetStatusController, phoenix_action: :show})
+        |> AgentAuth.call([])
+
+      assert denied.halted and denied.status == 403
+
+      allowed =
+        Plug.Test.conn(:get, "/api/v1/fleet/status")
+        |> Map.put(:private, %{phoenix_controller: FleetStatusController, phoenix_action: :show})
+        |> put_req_header("authorization", "Bearer fixture-captain-capability-0123456789")
+        |> AgentAuth.call([])
+
+      refute allowed.halted
+      assert allowed.assigns.api_auth_kind == :captain
+    end
+  end
 end

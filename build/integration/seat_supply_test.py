@@ -93,7 +93,7 @@ def stale_seats():
 
 
 rpc('Application.put_env(:agentboard, :captain_token, ' + json.dumps(CAPTAIN) + ')')
-assert api('meta')['schema_version'] == api('meta')['required_schema_version'] == 47
+assert api('meta')['schema_version'] == api('meta')['required_schema_version'] == 48
 
 api('agents/register', {'name': 'supply-captain'}, actor='supply-captain')
 for seat in ['seat-a', 'seat-b']:

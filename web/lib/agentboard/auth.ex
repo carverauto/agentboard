@@ -69,14 +69,15 @@ defmodule Agentboard.Auth do
       mint ->
         scope =
           data["scope"] ||
-            if(id == Application.get_env(:agentboard, :coordinator_id),
-              do: "coordinator",
-              else: "agent"
-            )
+            cond do
+              id == Application.get_env(:agentboard, :coordinator_id) -> "coordinator"
+              agent.kind == "helper" -> "helper"
+              true -> "agent"
+            end
 
         if APIAuthPolicy.reserved?(id, agent.harness, agent.kind) or
              not is_nil(agent.retired_at) or
-             scope not in ~w(agent coordinator coordinator_participant coordinator_runner),
+             scope not in ~w(agent coordinator coordinator_participant coordinator_runner helper),
            do:
              Ops.reject(
                "forbidden",
@@ -90,6 +91,13 @@ defmodule Agentboard.Auth do
                "forbidden",
                "Coordinator scope belongs only to the configured coordinator"
              )
+
+        if (scope == "helper") != (agent.kind == "helper"),
+          do:
+            Ops.reject(
+              "forbidden",
+              "Helper scope belongs only to registered helper identities"
+            )
 
         channel_ids = Map.get(data, "channel_ids", [])
 
@@ -153,6 +161,54 @@ defmodule Agentboard.Auth do
   end
 
   def verify(_), do: {:ok, nil}
+
+  # Read-only lookup for off/observe modes so a helper token is still refused on
+  # non-helper routes without mutating credential usage or observation state.
+  def helper_principal("abt_" <> suffix = token) when byte_size(suffix) == 43 do
+    if Regex.match?(~r/\A[A-Za-z0-9_-]{43}\z/, suffix) do
+      hash = digest(token)
+
+      case Repo.statement(
+             "SELECT c.id, c.agent_id, c.scope, c.revoked_at, c.channel_ids, a.id, a.harness, a.model, a.kind, a.retired_at FROM agent_api_credentials c JOIN agents a ON a.id = c.agent_id WHERE c.token_hash = $1 AND c.scope = 'helper' LIMIT 1",
+             [hash]
+           ) do
+        {:ok,
+         %{
+           rows: [[cid, aid, scope, revoked_at, channels, id, harness, model, kind, retired_at]]
+         }} ->
+          credential = %{
+            id: cid,
+            agent_id: aid,
+            scope: scope,
+            revoked_at: revoked_at,
+            channel_ids: channels || []
+          }
+
+          agent = %{id: id, harness: harness, model: model, kind: kind, retired_at: retired_at}
+
+          if APIAuthPolicy.credential_allowed?(
+               credential,
+               agent,
+               Application.get_env(:agentboard, :coordinator_id)
+             ) do
+            %{
+              agent_id: aid,
+              scope: scope,
+              credential_id: cid,
+              model: model,
+              harness: harness
+            }
+          end
+
+        _ ->
+          nil
+      end
+    end
+  rescue
+    _ -> nil
+  end
+
+  def helper_principal(_), do: nil
 
   defp verify_token(token) do
     hash = digest(token)
