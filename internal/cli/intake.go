@@ -20,7 +20,9 @@ import (
 // capability (AGENTBOARD_CAPTAIN_TOKEN_FILE) for now. It only files work: it
 // never claims, assigns or coordinates. Re-running `intake file` with the same
 // --request-key and payload replays the original request instead of filing
-// twice; a changed payload under that key is a conflict (exit 4).
+// twice; a changed payload under that key is a conflict (exit 4). `intake
+// import` turns existing open issues into cards linked to them and creates
+// no issue.
 
 const intakeFileLimit = 1 << 20
 
@@ -49,6 +51,15 @@ type intakeView struct {
 			Reason     *string `json:"reason"`
 			LastError  *string `json:"last_error"`
 		} `json:"items"`
+		Import *struct {
+			Bounded  bool `json:"bounded"`
+			NextPage *int `json:"next_page"`
+			Skipped  []struct {
+				IssueNumber int     `json:"issue_number"`
+				Reason      string  `json:"reason"`
+				TaskID      *string `json:"task_id"`
+			} `json:"skipped"`
+		} `json:"import"`
 	} `json:"intake"`
 	Replayed  bool             `json:"replayed"`
 	Cancelled []string         `json:"cancelled"`
@@ -56,8 +67,8 @@ type intakeView struct {
 }
 
 func (c *commands) intakeCommands() *cobra.Command {
-	group := &cobra.Command{Use: "intake", Short: "File cards and GitHub issues through the idempotent intake API (captain capability)"}
-	group.AddCommand(c.intakeFile(), c.intakeStatus(), c.intakeCancel(), c.intakeResolve())
+	group := &cobra.Command{Use: "intake", Short: "File cards and GitHub issues, or card existing issues, through the idempotent intake API (captain capability)"}
+	group.AddCommand(c.intakeFile(), c.intakeImport(), c.intakeStatus(), c.intakeCancel(), c.intakeResolve())
 	return group
 }
 
@@ -124,6 +135,59 @@ func (c *commands) intakeFile() *cobra.Command {
 	f.StringArrayVar(&labels, "label", nil, "Label (repeatable)")
 	f.BoolVar(&noIssue, "no-issue", false, "File a card only; do not create a GitHub issue")
 	f.StringVar(&file, "file", "", `JSON items file: [{"repository":"o/r","title":"...","body":"...","priority":2,"labels":["x"],"issue":true}]`)
+	return cmd
+}
+
+func (c *commands) intakeImport() *cobra.Command {
+	var key, repo string
+	var issues []int
+	var labels []string
+	var limit, priority, startPage int
+	cmd := &cobra.Command{Use: "import --request-key KEY --repo OWNER/REPO ([--issue N]... | [--label L]... [--limit N] [--start-page N])", Short: "Card existing open issues: named numbers in order, or the first N open issues not yet on the board", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(key) == "" {
+				return errors.New("--request-key is required; reuse it to retry safely")
+			}
+			if repo == "" {
+				return errors.New("--repo is required")
+			}
+			payload := map[string]any{"request_key": key, "repository": repo}
+			if len(issues) > 0 {
+				if len(labels) > 0 || cmd.Flags().Changed("limit") || cmd.Flags().Changed("start-page") {
+					return errors.New("--issue cannot be combined with --label, --limit, or --start-page")
+				}
+				payload["issues"] = issues
+			} else {
+				if len(labels) > 0 {
+					payload["labels"] = labels
+				}
+				if cmd.Flags().Changed("limit") {
+					payload["limit"] = limit
+				}
+				if cmd.Flags().Changed("start-page") {
+					if startPage < 1 {
+						return errors.New("--start-page must be at least 1")
+					}
+					payload["start_page"] = startPage
+				}
+			}
+			if cmd.Flags().Changed("priority") {
+				payload["priority"] = priority
+			}
+			raw, err := c.call(cmd, http.MethodPost, "intake/import", nil, payload)
+			if err != nil {
+				return err
+			}
+			return c.printIntake(cmd, raw, false)
+		}}
+	f := cmd.Flags()
+	f.StringVar(&key, "request-key", "", "Idempotency key (1-128 bytes); a retry with the same key and selection replays without reading GitHub")
+	f.StringVar(&repo, "repo", "", "Repository owner/repo; must be in the server's intake repository list")
+	f.IntSliceVar(&issues, "issue", nil, "Issue number to import, in order (repeatable, up to 10)")
+	f.StringArrayVar(&labels, "label", nil, "Only list open issues carrying this label (repeatable)")
+	f.IntVar(&limit, "limit", 10, "How many open issues not yet on the board to import (1-10)")
+	f.IntVar(&startPage, "start-page", 1, "Open-issue list page to start from; pass the previous import's next page to continue")
+	f.IntVar(&priority, "priority", 3, "Board priority for every imported card; lower is more urgent")
 	return cmd
 }
 
@@ -220,6 +284,23 @@ func printIntakeTable(w io.Writer, view intakeView) error {
 	}
 	for _, skipped := range view.Skipped {
 		fmt.Fprintf(table, "skipped\t%v\t%v\n", skipped["id"], skipped["reason"])
+	}
+	if imported := view.Intake.Import; imported != nil {
+		for _, skipped := range imported.Skipped {
+			card := ""
+			if skipped.TaskID != nil {
+				card = *skipped.TaskID
+			}
+			fmt.Fprintf(table, "not imported\t#%d\t%s\t%s\n", skipped.IssueNumber, skipped.Reason, card)
+		}
+		switch {
+		case imported.Bounded && imported.NextPage != nil:
+			fmt.Fprintf(table, "listing stopped at its page bound; import again with --start-page %d to continue\n", *imported.NextPage)
+		case imported.Bounded:
+			fmt.Fprintln(table, "listing stopped at its page bound; import again to continue")
+		case imported.NextPage != nil:
+			fmt.Fprintf(table, "import again with --start-page %d to continue\n", *imported.NextPage)
+		}
 	}
 	return table.Flush()
 }

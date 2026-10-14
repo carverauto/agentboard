@@ -131,6 +131,8 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 				if err != nil {
 					return result, err
 				}
+				// Setup guides are not bundled; their links point at the published docs.
+				body = []byte(strings.ReplaceAll(string(body), "](setup/", "](https://github.com/carverauto/agentboard/blob/main/docs/setup/"))
 				files["skills/"+name+"/references/"+doc] = body
 			}
 		}

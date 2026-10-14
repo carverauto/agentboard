@@ -5,7 +5,9 @@ defmodule Agentboard.Intake do
 
   A request commits its record, every card and every pending issue intent in
   one transaction; GitHub is called afterwards by the `Intake.Issues` outbox,
-  so an outage never blocks filing. The same request key with the same
+  so an outage never blocks filing. An import turns existing open issues into
+  cards linked to them and creates no issue; it reads GitHub first, so an
+  outage fails it whole. The same request key with the same
   normalized payload replays the current view of the original request; a
   changed payload under that key conflicts. Cards are ordinary tasks.
 
@@ -24,8 +26,10 @@ defmodule Agentboard.Intake do
   alias Agentboard.Board.Operations
   alias Agentboard.Board.Resources.Task
   alias Agentboard.{Input, Repo}
-  alias Agentboard.Intake.{Issues, Item, Payload, Request}
+  alias Agentboard.Intake.{Import, Issues, Item, Payload, Request}
   require Ash.Query
+
+  @key_conflict "Request key was already used for a different intake payload"
 
   def enabled?, do: Application.get_env(:agentboard, :intake_enabled, false) == true
 
@@ -49,13 +53,33 @@ defmodule Agentboard.Intake do
             view(request, true)
 
           _ ->
-            Operations.reject(
-              "conflict",
-              "Request key was already used for a different intake payload"
-            )
+            Operations.reject("conflict", @key_conflict)
         end
       end)
     end
+  end
+
+  # GitHub is read only for a new key, before the transaction: a replay never
+  # calls GitHub and a GitHub failure writes nothing.
+  def import_issues(actor, data) do
+    with {:ok, request} <- Payload.normalize_import(data),
+         {:ok, _} <- ensure_identity(actor),
+         digest = Payload.import_digest(request),
+         :new <- prior(actor["agent"], request["request_key"], digest),
+         :ok <- in_scope(request["repository"]),
+         {:ok, selected} <- Import.select(request, &linked(request["repository"], &1)) do
+      Operations.transaction(fn ->
+        lock_key(actor["agent"], request["request_key"])
+
+        case existing(actor["agent"], request["request_key"]) do
+          nil -> actor |> create_import(request, digest, selected) |> view(false)
+          %Request{payload_sha256: ^digest} = replay -> view(replay, true)
+          _ -> Operations.reject("conflict", @key_conflict)
+        end
+      end)
+    end
+  rescue
+    DBConnection.ConnectionError -> {:error, "unavailable", "Board database is unavailable"}
   end
 
   def show(id, actor) do
@@ -188,6 +212,132 @@ defmodule Agentboard.Intake do
     request
   end
 
+  defp prior(filer_id, key, digest) do
+    case existing(filer_id, key) do
+      nil -> :new
+      %Request{payload_sha256: ^digest} = request -> {:ok, view(request, true)}
+      _ -> {:error, "conflict", @key_conflict}
+    end
+  end
+
+  defp in_scope(repository) do
+    if repository in repositories(),
+      do: :ok,
+      else: {:error, "forbidden", "Repository is outside the intake scope: " <> repository}
+  end
+
+  # Issue number => the live card already linking that issue. Links are
+  # matched case-insensitively; a cancelled card does not hold an issue.
+  defp linked(_repository, []), do: %{}
+
+  defp linked(repository, numbers) do
+    urls = Enum.map(numbers, &Import.canonical_url(repository, &1))
+
+    %{rows: rows} =
+      Repo.statement!(
+        "SELECT lower(issue_url), id FROM tasks WHERE lower(issue_url) = ANY($1) AND status <> 'cancelled' ORDER BY created_at, id",
+        [urls]
+      )
+
+    cards = Enum.reduce(rows, %{}, fn [url, id], acc -> Map.put_new(acc, url, id) end)
+
+    for number <- numbers,
+        card = cards[Import.canonical_url(repository, number)],
+        into: %{},
+        do: {number, card}
+  end
+
+  # Imports into one repository serialize and read links again under that
+  # lock, so concurrent imports never card the same issue twice.
+  defp create_import(actor, request, digest, selected) do
+    repository = request["repository"]
+    lock_import(repository)
+    on_board = linked(repository, Enum.map(selected.picked, & &1["issue_number"]))
+
+    {raced, picked} =
+      Enum.split_with(selected.picked, &Map.has_key?(on_board, &1["issue_number"]))
+
+    skipped =
+      selected.skipped ++
+        for candidate <- raced do
+          number = candidate["issue_number"]
+          %{"issue_number" => number, "reason" => "already_linked", "task_id" => on_board[number]}
+        end
+
+    stamp = Operations.now()
+
+    record =
+      Operations.create(
+        Request,
+        :file,
+        %{
+          id: Ash.UUID.generate(),
+          filer_id: actor["agent"],
+          request_key: request["request_key"],
+          payload_sha256: digest,
+          payload: %{
+            "request_key" => request["request_key"],
+            "import" => %{
+              "repository" => repository,
+              "selection" => request["selection"],
+              "priority" => request["priority"],
+              "skipped" => skipped,
+              "bounded" => selected.bounded,
+              "next_page" => selected.next_page
+            },
+            "items" => Enum.map(picked, &Map.take(&1, ~w(issue_number issue_url title)))
+          },
+          created_at: stamp
+        },
+        actor
+      )
+
+    picked
+    |> Enum.with_index()
+    |> Enum.each(fn {candidate, position} ->
+      item_id = Ash.UUID.generate()
+      task_id = card_id(candidate["title"], item_id)
+
+      card = %{
+        "title" => candidate["title"],
+        "description" => candidate["description"],
+        "priority" => request["priority"],
+        "repo" => repository,
+        "labels" => candidate["labels"],
+        "issue_url" => candidate["issue_url"]
+      }
+
+      with {:error, code, message} <- Input.task("create", card),
+           do: Operations.reject(code, message)
+
+      Operations.create_task!(task_id, actor, card)
+      created = Operations.now()
+
+      Operations.create(
+        Item,
+        :import,
+        %{
+          id: item_id,
+          request_id: record.id,
+          position: position,
+          task_id: task_id,
+          repository: repository,
+          issue: true,
+          issue_state: "created",
+          issue_url: candidate["issue_url"],
+          issue_number: candidate["issue_number"],
+          reason: "imported",
+          resolved_at: created,
+          created_at: created,
+          updated_at: created
+        },
+        actor
+      )
+    end)
+
+    record
+  end
+
   defp cancel_item(item, actor) do
     task = Ash.get!(Task, item.task_id)
 
@@ -311,10 +461,13 @@ defmodule Agentboard.Intake do
     |> Ash.read_one!()
   end
 
-  defp lock_key(filer_id, key) do
-    <<lock::signed-64, _::binary>> =
-      :crypto.hash(:sha256, "agentboard-intake:" <> filer_id <> <<0>> <> key)
+  defp lock_key(filer_id, key),
+    do: advisory_lock("agentboard-intake:" <> filer_id <> <<0>> <> key)
 
+  defp lock_import(repository), do: advisory_lock("agentboard-intake-import:" <> repository)
+
+  defp advisory_lock(name) do
+    <<lock::signed-64, _::binary>> = :crypto.hash(:sha256, name)
     Repo.statement!("SELECT pg_advisory_xact_lock($1)", [lock])
   end
 
@@ -350,6 +503,7 @@ defmodule Agentboard.Intake do
         "request_key" => request.request_key,
         "filer_id" => request.filer_id,
         "created_at" => request.created_at,
+        "import" => request.payload["import"],
         "items" =>
           Enum.map(items, fn item ->
             filed = Enum.at(request.payload["items"], item.position)

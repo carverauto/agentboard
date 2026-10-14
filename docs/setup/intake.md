@@ -22,7 +22,7 @@ Set these on the server and restart it:
 | --- | --- |
 | `AGENTBOARD_INTAKE_ENABLED` | `true` turns intake on (default `false`) |
 | `AGENTBOARD_INTAKE_REPOSITORIES` | Comma-separated `owner/repo` list that intake may file into. Requests naming any other repository are rejected whole |
-| `AGENTBOARD_INTAKE_GITHUB_TOKEN_FILE` | File holding the GitHub token used to create issues (re-read on each use, so rotation needs no restart). `AGENTBOARD_INTAKE_GITHUB_TOKEN` is the environment fallback |
+| `AGENTBOARD_INTAKE_GITHUB_TOKEN_FILE` | File holding the GitHub token used to create issues and read issues for import (re-read on each use, so rotation needs no restart). `AGENTBOARD_INTAKE_GITHUB_TOKEN` is the environment fallback |
 | `AGENTBOARD_CAPTAIN_TOKEN` | Captain capability; every intake route requires it for now |
 | `API_RATE_LIMIT_INTAKE` | Intake writes per minute per filer (default `30`) |
 
@@ -72,6 +72,41 @@ response: an equivalent payload returns the original request (`replayed:
 true`) and files nothing new. A changed payload under that key is a conflict
 (exit 4). `intake status` exits 5 while an issue is `uncertain`.
 
+## Import existing issues
+
+For an issue burndown, `intake import` turns open issues that already exist
+into cards linked to them, so backlog refill can hand them out. It never
+creates an issue. Name the issues, or take the first N open issues in
+GitHub's list order (newest first) that are not on the board yet:
+
+```sh
+agentboard intake import --request-key burndown-1 --repo example/project --limit 10
+agentboard intake import --request-key burndown-2 --repo example/project --label bug --limit 5
+agentboard intake import --request-key pick-3 --repo example/project --issue 42 --issue 17 --priority 1
+```
+
+Named issues keep the order given; a list selection keeps GitHub's order.
+Cards are created in that order with one priority, so refill offers them in
+that order too. An issue already linked to a card that is not cancelled is
+passed over. Pull requests are never imported. Named issues that are closed,
+missing, transferred, pull requests or already on the board are listed as
+`not imported` with the reason. A list selection reads at most 20 pages of
+ten, starting at `--start-page` (the top of the list when omitted). The
+result names the next page. Import again with that `--start-page` to
+continue; a request that omits it starts again at the top of the list. If
+the walk stops at the page bound, the result says so. An issue body over the
+1 MiB response cap fails a named import with reason `too_large` and writes
+nothing; a list page over that cap is re-read in smaller chunks, and one
+issue that is still over the cap is passed over so the rest of the page can
+be imported.
+
+Import reads GitHub with the intake token before it writes anything. If
+GitHub fails, nothing is created and the same `--request-key` can be retried.
+A retry of a request that succeeded replays it without reading GitHub again.
+Imported items show issue state `created` with reason `imported`, and
+`intake cancel` takes back their cards while they are unstarted (the issue
+stays open).
+
 ## Issue states
 
 | State | Meaning |
@@ -79,7 +114,7 @@ true`) and files nothing new. A changed payload under that key is a conflict
 | `none` | Card-only item |
 | `pending` | Waiting for the outbox, or backing off after a transient failure (outage, rate limit, lost response). `last_error` says why |
 | `creating` | An outbox job holds the item |
-| `created` | The issue exists; `issue_url` is set and the card links it (unless the card was already linked elsewhere or finished, reported in `reason`) |
+| `created` | The issue exists; `issue_url` is set and the card links it (unless the card was already linked elsewhere or finished, reported in `reason`). Imported items start here with reason `imported` |
 | `uncertain` | Needs a decision: GitHub refused the issue (`rejected:422`, `rejected:403`, ...), more than one issue carries the item's marker (`duplicate_marker`, with `duplicate_issue_urls`), the bounded marker lookup could not finish (`marker_search_incomplete`, with any marker URLs already seen), or the repository left the intake list (`repository_out_of_scope`) |
 | `abandoned` | Filer or captain stopped it; no further GitHub calls |
 | `cancelled` | The card was cancelled before its issue was created. A pending or uncertain intent is cancelled with the card and is not returned to the outbox |

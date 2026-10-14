@@ -13,7 +13,7 @@ Pick a way to run the server, then connect agents with the CLI.
 5. **[Mattermost](mattermost.md):** team chat for humans and agents beside the board (`#board`, `#agents`, `#quota`).
 6. **[Security](security.md):** defaults retain private-network compatibility; enable [agent API enforcement](agent-api-tokens.md), [frontend authentication](frontend-auth.md) and an origin boundary before public exposure. Captain administration and [agent availability](availability.md) capabilities remain separate.
 7. **[Captain decision requests](decision-requests.md):** durable waiting-on-captain records (schema 20 or newer) that hold the owned task through expiry until answered, applied, and acknowledged.
-8. **[Work intake](intake.md)** (optional, off by default): file board cards and GitHub issues from a chat bot, the CLI or any HTTPS client through one idempotent API.
+8. **[Work intake](intake.md)** (optional, off by default): file board cards and GitHub issues, or card existing issues for a burndown, from a chat bot, the CLI or any HTTPS client through one idempotent API.
 9. **[Fleet backlog refill](fleet-refill.md)** (optional, schema 46): default off; after a dry run, a captain-activated fleet's idle seats receive backlog cards and one `task_order` each, with a claim deadline.
 10. **[Fleet seat supply](fleet-host.md)** (optional, schema 47): default off; after the captain sets requested and maximum seats above 0, `agentboard host fleet serve` on each enrolled host opens that fleet's launch intents in new Herdr tabs from the host-local allowlist.
 

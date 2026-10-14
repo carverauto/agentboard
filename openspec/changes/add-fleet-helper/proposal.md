@@ -22,7 +22,10 @@ Today a person or a coordinator session does both by hand (issue #170).
   idempotent marker, lost-response adoption and visible uncertainty. Request
   keys make retries safe against one normalized payload. Chat bots (Grok, Muse,
   OpenAI's dot or anything that can call HTTPS) and humans use the same
-  contract; Mattermost gains a `/board` slash command over it. Intake routes
+  contract; Mattermost gains a `/board` slash command over it. For an issue
+  burndown, `POST /api/v1/intake/import` (CLI `agentboard intake import`)
+  turns existing open issues, named by number or the first N in GitHub's list
+  order, into cards linked to them without creating issues. Intake routes
   require a captain-issued helper token or the captain even when
   `agent_auth_mode` is off.
 - **Helper access.** A scoped `helper` credential may file and cancel its own
@@ -78,7 +81,7 @@ intents, files no issues, assigns nothing and opens no tabs.
 
 ### New Capabilities
 
-- `work-intake`: idempotent filing of board cards and GitHub issues from any authorized client, including the `/board` slash command.
+- `work-intake`: idempotent filing of board cards and GitHub issues from any authorized client, import of existing issues for a burndown, and the `/board` slash command.
 - `helper-access`: the scoped helper credential and the fleet status digest.
 - `backlog-refill`: deterministic assignment of backlog cards to idle eligible seats.
 - `seat-supply`: server seat-launch intents and the host fleet daemon that starts and reconciles seats. Existing board-free seat reap closes the pane; the server closes the intent after it observes that.
@@ -94,5 +97,5 @@ refill, seat-launch intents), API routes under the existing rate limits, a new
 credential scope, the Go CLI (`intake`, `host fleet`), `internal/seatops` (a
 `Spawn` host operation), launchd/systemd templates, Mattermost slash-command
 handling, skills for helper bots, and remote acceptance fixtures. The server
-gains a GitHub credential that can only create and search issues in intake
+gains a GitHub credential that can only create and read issues in intake
 repositories. No new external service.

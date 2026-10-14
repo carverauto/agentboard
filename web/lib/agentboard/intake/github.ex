@@ -1,8 +1,9 @@
 defmodule Agentboard.Intake.Github do
   @moduledoc """
   The GitHub calls the intake credential makes: create an issue, resolve that
-  credential's login once, and list issues that login created in one configured
-  repository to find an intake marker. The caller confines every repository
+  credential's login once, list issues that login created in one configured
+  repository to find an intake marker, and read existing open issues for
+  import. The caller confines every repository
   call to the intake list. Calls run outside any database transaction and
   share the operator-pinned transport.
 
@@ -133,6 +134,148 @@ defmodule Agentboard.Intake.Github do
 
       {:error, _} ->
         {:retry, "search_unavailable", 60}
+    end
+  end
+
+  # One issue for import. Missing, gone and moved issues are answers, not
+  # failures; any other refusal or outage fails the whole import.
+  def issue(repository, number) do
+    with {:ok, destination} <- destination() do
+      case GithubHTTP.exchange(
+             destination,
+             "GET",
+             "/repos/#{repository}/issues/#{number}",
+             [@user_agent],
+             nil,
+             @timeout
+           ) do
+        {:ok, 200, _headers, body} ->
+          case Jason.decode(body) do
+            {:ok, %{} = issue} -> {:ok, issue}
+            _ -> {:retry, "response_unreadable", 60}
+          end
+
+        {:ok, status, _headers, _body} when status in [404, 410] ->
+          {:ok, :not_found}
+
+        {:ok, 301, _headers, _body} ->
+          {:ok, :moved}
+
+        {:ok, status, headers, body} ->
+          classify(status, headers, body)
+
+        {:error, :too_large} ->
+          {:rejected, "too_large"}
+
+        {:error, _} ->
+          {:retry, "unavailable", 60}
+      end
+    end
+  end
+
+  # One page of open issues and pull requests in GitHub's default list order
+  # (newest first), optionally filtered to issues carrying every label. A page
+  # over the body cap is re-read in smaller chunks of that same page; one
+  # issue that is still over the cap is left out so the rest of the page is
+  # returned. `last?` is true when the listing ends inside this page.
+  def open_issues(repository, labels, page) do
+    with {:ok, destination} <- destination() do
+      case read_span(
+             destination,
+             repository,
+             labels,
+             (page - 1) * @page_size,
+             @page_size,
+             @page_size
+           ) do
+        {:ok, issues, last?} -> {:ok, issues, last?}
+        other -> other
+      end
+    end
+  end
+
+  # `offset` is the 0-based index in the open-issue list. `count` issues are
+  # read from there, using the largest page size that still aligns to GitHub
+  # pages. A short page ends the listing.
+  defp read_span(destination, repository, labels, offset, count, max_piece) when count > 0 do
+    piece = aligned_piece(offset, count, max_piece)
+
+    case issue_page(destination, repository, labels, div(offset, piece) + 1, piece) do
+      {:ok, issues} when length(issues) < piece ->
+        {:ok, issues, true}
+
+      {:ok, issues} when piece == count ->
+        {:ok, issues, false}
+
+      {:ok, issues} ->
+        with {:ok, rest, last?} <-
+               read_span(
+                 destination,
+                 repository,
+                 labels,
+                 offset + piece,
+                 count - piece,
+                 max_piece
+               ) do
+          {:ok, issues ++ rest, last?}
+        end
+
+      {:error, :too_large} when piece == 1 and count == 1 ->
+        {:ok, [], false}
+
+      {:error, :too_large} when piece == 1 ->
+        read_span(destination, repository, labels, offset + 1, count - 1, max_piece)
+
+      {:error, :too_large} ->
+        read_span(destination, repository, labels, offset, count, div(piece, 2))
+
+      other ->
+        other
+    end
+  end
+
+  defp aligned_piece(offset, count, max_piece) do
+    piece = min(count, max_piece)
+
+    if piece > 1 and rem(offset, piece) != 0,
+      do: aligned_piece(offset, count, piece - 1),
+      else: piece
+  end
+
+  defp issue_page(destination, repository, labels, page, per_page) do
+    query =
+      %{
+        "state" => "open",
+        "sort" => "created",
+        "direction" => "desc",
+        "per_page" => per_page,
+        "page" => page
+      }
+      |> then(&if(labels == [], do: &1, else: Map.put(&1, "labels", Enum.join(labels, ","))))
+      |> URI.encode_query()
+
+    case GithubHTTP.exchange(
+           destination,
+           "GET",
+           "/repos/" <> repository <> "/issues?" <> query,
+           [@user_agent],
+           nil,
+           @timeout
+         ) do
+      {:ok, 200, _headers, body} ->
+        case Jason.decode(body) do
+          {:ok, issues} when is_list(issues) -> {:ok, issues}
+          _ -> {:retry, "response_unreadable", 60}
+        end
+
+      {:ok, status, headers, body} ->
+        classify(status, headers, body)
+
+      {:error, :too_large} ->
+        {:error, :too_large}
+
+      {:error, _} ->
+        {:retry, "unavailable", 60}
     end
   end
 

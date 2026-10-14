@@ -36,11 +36,13 @@ priority, trimmed deduplicated sorted labels, and a boolean issue flag. An
 AshOban job creates the GitHub issue outside the transaction with a hidden body
 marker (`agentboard-intake:<item id>`), links the card to the issue, and on a
 lost response searches the repository for the marker before retrying, the same
-adopt-or-park rule as the Mattermost bridge. The server token can only create
-and search issues in intake repositories. A transient failure stays pending. A
+adopt-or-park rule as the Mattermost bridge. The server token creates and reads
+issues in intake repositories. A transient failure stays pending. A
 definitive rejection, or a marker that matches more than one issue, stays
 visibly `uncertain` with a reason. Any other unresolved create stays `uncertain`
-until reconciled or abandoned by its filer or the captain.
+until reconciled or abandoned by its filer or the captain. Import of existing
+issues is specified in the work-intake spec: it cards open issues and does not
+create an issue or enter the outbox.
 
 The same request key with the same normalized payload returns the original
 result; a changed payload under that key conflicts. Cards are ordinary tasks, so

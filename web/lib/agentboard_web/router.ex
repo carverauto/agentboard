@@ -169,6 +169,7 @@ defmodule AgentboardWeb.Router do
     post("/context", APIController, :context_publish)
     post("/context/:id/ack", APIController, :context_ack)
     post("/intake", IntakeController, :create)
+    post("/intake/import", IntakeController, :import_issues)
     get("/intake/:id", IntakeController, :show)
     post("/intake/:id/cancel", IntakeController, :cancel)
     post("/intake/:id/items/:item_id/:action", IntakeController, :resolve)
