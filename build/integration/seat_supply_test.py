@@ -256,6 +256,9 @@ launcher.write_text('#!/bin/sh\nexit 0\n')
 launcher.chmod(0o755)
 for directory in ['repo', 'pool']:
     (TMP / directory).mkdir()
+# Lease listing runs treehouse status from one of the pool's own worktrees, so
+# the pool needs one (pool/.treehouse/<pool>/<slot>/<leaf>).
+(TMP / 'pool' / '.treehouse' / 'repo-0' / '1' / 'repo' / '.git').mkdir(parents=True)
 harnesses = TMP / 'harnesses.json'
 harnesses.write_text(json.dumps({'version': 1, 'launcher': str(launcher), 'repo': str(TMP / 'repo'),
                                  'root': str(TMP / 'pool'), 'brief_dir': str(TMP / 'briefs'),

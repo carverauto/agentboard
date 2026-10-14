@@ -93,6 +93,7 @@ func installSkills(destination, cache string) (skillInstallation, error) {
 			"../../docs/fleet-loadout.md", "references/fleet-loadout.md",
 			"../../docs/coordinator/role.md", "https://github.com/carverauto/agentboard/blob/main/docs/coordinator/role.md",
 			"../../docs/setup/mattermost.md", "https://github.com/carverauto/agentboard/blob/main/docs/setup/mattermost.md",
+			"../../docs/publication-admission.md", "https://github.com/carverauto/agentboard/blob/main/docs/publication-admission.md",
 		).Replace(string(body)))
 		if name == "agentboard-grok" {
 			body = []byte(strings.ReplaceAll(string(body), "../../docs/coordinator/adapters/grok-bot.md", "references/GROK_BOT.md"))
