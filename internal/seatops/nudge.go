@@ -18,7 +18,16 @@ var (
 	chrome       = regexp.MustCompile(`for shortcuts|Ask Codex|esc to |Tip:|Shift\+Tab|Voice input|↓ to select|Worked for|Context compacted|always-approve|^[\s─━╭╮╰╯│█▌]*$|^\s*[›❯>]\s*$|background terminal|/ps to view|· (high|low|medium|xhigh)\s*$|ctrl\+[a-z]`)
 	paneQuestion = regexp.MustCompile(`(?i)(awaiting|waiting (on|for)|pending|paused at|blocked on)[^.\n]{0,50}(coordinator|captain|approval|decision|your (call|answer|go-ahead))|decision request|\b(should I|shall I|do you want|want me to|would you like|can you confirm|please confirm)\b[^\n]*\?`)
 	taskWaiting  = regexp.MustCompile(`(?i)decision request|needs? (a |an explicit )?(coordinator |captain )?(decision|approval|authori[sz]ation)|(waiting|wait|pending|awaiting|blocked)( on| for)?( the)? (captain|coordinator)|(captain|coordinator)('s)? (decision|approval|answer|go-ahead|authori[sz]ation)|awaiting (approval|decision)`)
+	// capacityText is a provider refusing the turn: the seat stopped because
+	// of the model, not because its work is done or waiting.
+	capacityText = regexp.MustCompile(`(?i)at capacity|\b429\b|rate[ _-]?limit|overloaded|quota exceeded|too many requests|try again later`)
+	composerLine = regexp.MustCompile(`^\s*[›❯>]\s?(.*)$`)
 )
+
+// capacityBackoff spaces the re-sends of an unchanged nudge after the seat's
+// harness answered with a capacity or rate-limit error; its length is the
+// retry limit per episode.
+var capacityBackoff = []time.Duration{time.Minute, 2 * time.Minute, 5 * time.Minute}
 
 // SeatView is everything one decision needs about one seat.
 type SeatView struct {
@@ -45,6 +54,9 @@ type Decision struct {
 	// next is the seat state to persist when the decision is carried out.
 	next SeatState
 	seq  int64
+	// capacityRetry marks a re-send after a capacity error; it is sent only
+	// into an empty composer.
+	capacityRetry bool
 }
 
 // Decide classifies one seat and chooses whether to nudge it. It is pure.
@@ -180,7 +192,25 @@ func Decide(v SeatView, now time.Time, cfg Config) Decision {
 	}
 	sum := sha256.Sum256([]byte(strings.Join(sig, "|")))
 	d.Sig = hex.EncodeToString(sum[:6])
+	capacity := capacityError(v.Tail)
+	if !capacity || next.LastSig != d.Sig {
+		// The episode ends when the error is gone or the reasons changed.
+		next.CapacityRetries = 0
+	}
 	switch {
+	case next.LastSig == d.Sig && capacity:
+		retry := next.CapacityRetries
+		switch {
+		case retry >= len(capacityBackoff):
+			d.Action, d.Reason = "hold", "capacity retries exhausted"
+		case now.Sub(next.LastNudgeAt) < capacityBackoff[retry]:
+			d.Action, d.Reason = "hold", fmt.Sprintf("capacity retry %d/%d after %s", retry+1, len(capacityBackoff), capacityBackoff[retry])
+		case composerHasInput(v.Tail):
+			d.Action, d.Reason = "hold", "capacity retry waits for an empty composer"
+		default:
+			d.Action, d.Reason, d.capacityRetry = "nudge", fmt.Sprintf("capacity retry %d/%d", retry+1, len(capacityBackoff)), true
+			next.LastNudgeAt, next.CapacityRetries = now, retry+1
+		}
 	case next.LastSig == d.Sig:
 		d.Action, d.Reason = "hold", "already nudged for this reason set"
 	case !next.LastNudgeAt.IsZero() && now.Sub(next.LastNudgeAt) < cfg.MinGap.Duration:
@@ -274,6 +304,31 @@ func lastLines(text string, n int) string {
 		lines = lines[len(lines)-n:]
 	}
 	return strings.Join(lines, "\n")
+}
+
+// capacityError reports whether the seat's last meaningful lines show its
+// harness refused the turn for capacity or rate limits.
+func capacityError(tail string) bool {
+	for _, line := range meaningfulTail(tail, 6) {
+		if capacityText.MatchString(line) {
+			return true
+		}
+	}
+	return false
+}
+
+// composerHasInput reports whether the bottom prompt line carries text other
+// than a known placeholder. A suggested prompt reads the same as typed text,
+// so it also holds a retry back.
+func composerHasInput(tail string) bool {
+	lines := strings.Split(lastLines(tail, 20), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if m := composerLine.FindStringSubmatch(lines[i]); m != nil {
+			text := strings.TrimSpace(m[1])
+			return text != "" && !chrome.MatchString(text)
+		}
+	}
+	return false
 }
 
 func meaningfulTail(text string, n int) []string {
@@ -448,6 +503,8 @@ func nudgeSeat(ctx context.Context, board Board, host Host, cfg Config, seat Sea
 		d.Action, d.Reason = "abort", "pane state changed before send"
 	case busyText.MatchString(lastLines(recheck, 20)):
 		d.Action, d.Reason = "abort", "pane became busy before send"
+	case d.capacityRetry && composerHasInput(recheck):
+		d.Action, d.Reason = "abort", "composer has input before send"
 	}
 	if d.Action == "abort" {
 		return d

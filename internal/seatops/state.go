@@ -19,6 +19,9 @@ type SeatState struct {
 	LastNudgeAt time.Time `json:"last_nudge_at,omitzero"`
 	LastSig     string    `json:"last_sig,omitempty"`
 	LastMode    string    `json:"last_mode,omitempty"`
+
+	// CapacityRetries counts re-sends of LastSig after capacity errors.
+	CapacityRetries int `json:"capacity_retries,omitempty"`
 }
 
 // State is the whole state file.

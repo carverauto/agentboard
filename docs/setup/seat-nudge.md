@@ -54,6 +54,18 @@ small window remains between that recheck and the prompt; the content-free
 prompt is what keeps losing that race harmless. A send whose outcome is unknown
 is recorded and not replayed.
 
+One exception to "never twice": when the seat's last lines show its harness
+refused the turn for capacity or rate limits (`at capacity`, `429`,
+`rate limit`, `overloaded`, `quota exceeded`, `too many requests`,
+`try again later`), the same prompt is re-sent at least 1, 2 and 5 minutes
+after the previous send, then held as `capacity retries exhausted`. The episode
+resets when the error leaves the screen or the reasons change. A retry goes only
+into an empty composer, checked when deciding and again just before sending; a
+suggested prompt reads like typed text and also holds it back. Retries run only
+on timer passes, so the default 3-minute interval stretches the 1- and 2-minute
+steps; use `StartInterval` 60 for the exact schedule. The count lives in the
+local nudge state and the JSON report (`capacity retry 2/3`), not on the board.
+
 ## Reap
 
 Reap closes a seat's Herdr pane only when all of these hold:
