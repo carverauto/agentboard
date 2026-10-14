@@ -2,10 +2,11 @@ defmodule Agentboard.FleetStatus do
   @moduledoc """
   Bounded per-fleet status digest for `GET /api/v1/fleet/status`.
 
-  Each source lives in its own section builder so concurrent or follow-up lanes
-  (such as seat-supply `requested_seats`, `max_seats` and launch intents) can
-  add their section without touching the others. The digest never includes
-  message bodies, card/issue descriptions, or credentials.
+  Each fleet reports live seats, the captain's requested and maximum seats,
+  backlog, refill, launch intents by state (including dry-run would-launch
+  intents), CI obligations, and recent intake for that fleet's repositories.
+  The digest never includes message bodies, card or issue descriptions,
+  credentials, or lease paths.
   """
   alias Agentboard.{Availability, FleetRefill, Input, Intake, Repo, SeatScope}
   alias Agentboard.Board.{Operations, Reads}
@@ -17,6 +18,8 @@ defmodule Agentboard.FleetStatus do
   @fleet_limit 100
   @item_limit 50
   @intake_limit 25
+  @intent_states ~w(dry_run pending reserved uncertain launched failed expired superseded closed abandoned)
+  @intent_columns ~w(id seat_id agent_id harness host_id loadout_revision state reason workspace_id tab_id pane_id created_at updated_at reserved_at launched_at closed_at)
 
   def status(params \\ %{}) do
     with :ok <- validate_params(params),
@@ -30,8 +33,7 @@ defmodule Agentboard.FleetStatus do
           "as_of" => DateTime.to_iso8601(now),
           "refill_enabled" => FleetRefill.enabled?(),
           "intake_enabled" => Intake.enabled?(),
-          "fleets" => Enum.map(loadouts, &fleet_digest(&1, context)),
-          "recent_intake" => recent_intake_items(nil)
+          "fleets" => Enum.map(loadouts, &fleet_digest(&1, context))
         }
       end)
     end
@@ -84,13 +86,17 @@ defmodule Agentboard.FleetStatus do
 
     activation = Ash.get!(Activation, loadout.id, not_found_error?: false)
     mode = if activation, do: activation.mode, else: "inactive"
+    requested = if activation, do: activation.requested_seats, else: 0
+    maximum = if activation, do: activation.max_seats, else: 0
 
     fleet = %{
       id: loadout.id,
       mode: mode,
       seats: seats,
       agent_ids: agent_ids,
-      repos: repos
+      repos: repos,
+      requested_seats: requested,
+      max_seats: maximum
     }
 
     %{
@@ -102,15 +108,24 @@ defmodule Agentboard.FleetStatus do
     |> Map.merge(seats_section(fleet, context))
     |> Map.merge(backlog_section(fleet, context))
     |> Map.merge(refill_section(fleet, context))
+    |> Map.merge(launch_intents_section(fleet))
     |> Map.merge(obligations_section(fleet, context))
     |> Map.merge(intake_section(fleet, context))
   end
 
   # Section 1: Live seats for the fleet.
-  defp seats_section(%{seats: configured_seats, agent_ids: agent_ids}, %{
-         now: now,
-         stale_after: stale_after
-       }) do
+  defp seats_section(
+         %{
+           seats: configured_seats,
+           agent_ids: agent_ids,
+           requested_seats: requested,
+           max_seats: maximum
+         },
+         %{
+           now: now,
+           stale_after: stale_after
+         }
+       ) do
     agents_by_id =
       if agent_ids == [] do
         %{}
@@ -181,8 +196,12 @@ defmodule Agentboard.FleetStatus do
 
     %{
       "live_seats" => length(live_items),
+      "requested_seats" => requested,
+      "max_seats" => maximum,
       "seats" => %{
         "configured" => length(items),
+        "requested" => requested,
+        "maximum" => maximum,
         "live" => length(live_items),
         "idle" => idle_count,
         "busy" => busy_count,
@@ -265,7 +284,8 @@ defmodule Agentboard.FleetStatus do
           "deadline_at" => DateTime.to_iso8601(row.deadline_at),
           "created_at" => DateTime.to_iso8601(row.created_at),
           "overdue" => overdue?,
-          "overdue_seconds" => if(overdue?, do: max(0, DateTime.diff(now, row.deadline_at)), else: 0)
+          "overdue_seconds" =>
+            if(overdue?, do: max(0, DateTime.diff(now, row.deadline_at)), else: 0)
         }
       end)
 
@@ -394,6 +414,42 @@ defmodule Agentboard.FleetStatus do
     %{"ci_obligations" => obligations}
   end
 
+  # Launch intents by state, including dry-run would-launch intents.
+  defp launch_intents_section(%{id: fleet_id}) do
+    %{rows: rows} =
+      Repo.statement!(
+        """
+        SELECT id, seat_id, agent_id, harness, host_id, loadout_revision, state, reason,
+               workspace_id, tab_id, pane_id, created_at, updated_at, reserved_at,
+               launched_at, closed_at
+        FROM (
+          SELECT id, seat_id, agent_id, harness, host_id, loadout_revision, state, reason,
+                 workspace_id, tab_id, pane_id, created_at, updated_at, reserved_at,
+                 launched_at, closed_at,
+                 row_number() OVER (PARTITION BY state ORDER BY updated_at DESC, id ASC) AS n
+          FROM fleet_launch_intents
+          WHERE fleet_id = $1
+        ) ranked
+        WHERE n <= $2
+        ORDER BY state ASC, updated_at DESC, id ASC
+        """,
+        [fleet_id, @item_limit]
+      )
+
+    grouped = Enum.group_by(rows, fn row -> Enum.at(row, 6) end, &intent_item/1)
+
+    %{
+      "launch_intents" => Map.new(@intent_states, &{&1, Map.get(grouped, &1, [])})
+    }
+  end
+
+  defp intent_item(row) do
+    Map.new(Enum.zip(@intent_columns, row), fn
+      {key, %DateTime{} = value} -> {key, DateTime.to_iso8601(value)}
+      pair -> pair
+    end)
+  end
+
   # Section 5: Recent intake results for the fleet's repositories (no bodies).
   defp intake_section(%{repos: []}, _context),
     do: %{"recent_intake" => []}
@@ -402,14 +458,6 @@ defmodule Agentboard.FleetStatus do
     do: %{"recent_intake" => recent_intake_items(repos)}
 
   defp recent_intake_items(repos) do
-    {where_sql, args} =
-      if is_list(repos) do
-        {"WHERE i.repository = ANY($1) ORDER BY i.created_at DESC, i.id DESC LIMIT $2",
-         [repos, @intake_limit]}
-      else
-        {"ORDER BY i.created_at DESC, i.id DESC LIMIT $1", [@intake_limit]}
-      end
-
     %{rows: rows} =
       Repo.statement!(
         """
@@ -432,9 +480,11 @@ defmodule Agentboard.FleetStatus do
         FROM intake_items i
         JOIN intake_requests r ON r.id = i.request_id
         LEFT JOIN tasks t ON t.id = i.task_id
-        #{where_sql}
+        WHERE i.repository = ANY($1)
+        ORDER BY i.created_at DESC, i.id DESC
+        LIMIT $2
         """,
-        args
+        [repos, @intake_limit]
       )
 
     Enum.map(rows, fn [

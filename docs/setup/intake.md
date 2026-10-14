@@ -43,7 +43,7 @@ is configured. Card-only items (`issue: false`) need no token.
 ## Who can file
 
 Every intake route requires either a captain-issued `helper` token
-(`Authorization: Bearer abk_...`) or the captain capability, even when
+(`Authorization: Bearer abt_...`) or the captain capability, even when
 `AGENTBOARD_AUTH_MODE` is `off` or `observe`.
 
 People in Mattermost can also file through the [`/board`
@@ -55,8 +55,9 @@ client):
 
 ```sh
 export AGENTBOARD_CAPTAIN_TOKEN_FILE=~/.config/agentboard/captain.token
-agentboard agent register --agent helper-bot --kind helper --harness chat
-agentboard agent token issue --agent helper-bot --scope helper --out ~/.config/agentboard/helper-bot.token
+export AGENT_ID=helper-bot AGENTBOARD_HARNESS=chat AGENTBOARD_MODEL=helper
+agentboard agent register --name "Helper bot" --kind helper
+agentboard agent token issue helper-bot --scope helper --out ~/.config/agentboard/helper-bot.token
 ```
 
 A `helper` token can only:

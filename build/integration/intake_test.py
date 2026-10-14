@@ -655,14 +655,40 @@ api('fleets/helper-fleet/loadout', {
                'desired_effort': 'high', 'scope_revision': 1}]
 }, method='PUT')
 digest, _ = api('fleet/status?fleet_id=helper-fleet', captain=False, token=helper_token, agent=None)
+assert 'recent_intake' not in digest
 assert len(digest['fleets']) == 1
 fleet_digest = digest['fleets'][0]
 assert fleet_digest['fleet_id'] == 'helper-fleet'
+assert fleet_digest['requested_seats'] == 0 and fleet_digest['max_seats'] == 0
+assert fleet_digest['seats']['requested'] == 0 and fleet_digest['seats']['maximum'] == 0
+assert fleet_digest['launch_intents']['dry_run'] == []
 assert fleet_digest['seats']['configured'] == 1 and fleet_digest['seats']['items'][0]['agent_id'] == 'intake-seat'
 assert fleet_digest['backlog']['total'] >= 1
 assert 'overdue_assignments' in fleet_digest and 'pending_assignments' in fleet_digest
 assert 'ci_obligations' in fleet_digest
 assert len(fleet_digest['recent_intake']) >= 1
+assert {item['repository'] for item in fleet_digest['recent_intake']} <= set(fleet_digest['repositories'])
+assert 'Steps to reproduce' not in json.dumps(digest) and helper_token not in json.dumps(digest)
+
+# Captain seat counts and a dry-run would-launch intent are part of the same digest.
+api('fleets/helper-fleet/activate', {'mode': 'dry_run', 'requested_seats': 2, 'max_seats': 2})
+sql("UPDATE agents SET last_heartbeat=clock_timestamp()-interval '1 day' WHERE id='intake-seat'")
+rpc('Application.put_env(:agentboard, :seat_supply_enabled, true)')
+supply_out = rpc('{:ok, r} = Agentboard.SeatSupply.run_all(); IO.puts("SUPPLY=" <> Jason.encode!(r))')
+rpc('Application.put_env(:agentboard, :seat_supply_enabled, false)')
+supply = json.loads(supply_out.split('SUPPLY=', 1)[1].splitlines()[0])
+assert supply['fleets']['helper-fleet']['would_launch'] == ['seat-1'], supply
+digest, _ = api('fleet/status?fleet_id=helper-fleet', captain=False, token=helper_token, agent=None)
+assert 'recent_intake' not in digest
+fleet_digest = digest['fleets'][0]
+assert fleet_digest['requested_seats'] == 2 and fleet_digest['max_seats'] == 2
+assert fleet_digest['seats']['requested'] == 2 and fleet_digest['seats']['maximum'] == 2
+assert [item['seat_id'] for item in fleet_digest['launch_intents']['dry_run']] == ['seat-1']
+assert fleet_digest['launch_intents']['dry_run'][0]['state'] == 'dry_run'
+assert fleet_digest['launch_intents']['dry_run'][0]['host_id'] == 'host-a'
+for state in ('pending', 'reserved', 'uncertain', 'launched', 'failed', 'expired', 'superseded', 'closed', 'abandoned'):
+    assert fleet_digest['launch_intents'][state] == []
+assert 'lease_path' not in json.dumps(fleet_digest['launch_intents'])
 assert 'Steps to reproduce' not in json.dumps(digest) and helper_token not in json.dumps(digest)
 api('fleet/status?fleet_id=missing-fleet', captain=False, token=helper_token, agent=None, status=404)
 api('fleet/status?fleet_id=BadSlug', captain=False, token=helper_token, agent=None, status=422)
@@ -690,7 +716,10 @@ with tempfile.TemporaryDirectory() as helper_home:
     cancelled_cli = json.loads(ab_helper('--json', 'intake', 'cancel', cli_helper['intake']['id']))
     assert cancelled_cli['cancelled'] == [cli_helper['intake']['items'][0]['id']]
     cli_digest = json.loads(ab_helper('--json', 'fleet', 'status', 'helper-fleet'))
+    assert 'recent_intake' not in cli_digest
     assert cli_digest['fleets'][0]['fleet_id'] == 'helper-fleet'
+    assert cli_digest['fleets'][0]['requested_seats'] == 2 and cli_digest['fleets'][0]['max_seats'] == 2
+    assert [item['seat_id'] for item in cli_digest['fleets'][0]['launch_intents']['dry_run']] == ['seat-1']
     ab_helper('intake', 'status', intake['id'], code=1)
 
 # --- Per-filer intake write limit (last: it spends this minute's budget). --

@@ -10,7 +10,7 @@ Use this skill when acting as an external chat bot or assistant (`Grok`, `Muse`,
 A helper does two things only:
 
 1. **Files work into the backlog** (and optionally cancels its own unstarted intake items or checks its own intake request status).
-2. **Reads the fleet status digest** to summarize active seats, backlog depth, overdue or pending refill assignments, CI repair obligations, and recent intake results for humans in chat.
+2. **Reads the fleet status digest** to summarize live, requested, and maximum seats, backlog depth, overdue or pending refill assignments, launch intents by state (including dry-run would-launch intents), CI repair obligations, and that fleet's recent intake results for humans in chat.
 
 ## Hard boundaries
 
@@ -104,11 +104,12 @@ Helpers without the `agentboard` binary can call the JSON API directly over HTTP
   Body `{}` cancels all unstarted items in that request, or `{"items": ["ITEM_UUID"]}` cancels specific items. Already-claimed or completed cards are skipped with `"reason": "card_started"`.
 
 - **Read fleet status digest (`GET /api/v1/fleet/status` or `GET /api/v1/fleet/status?fleet_id=FLEET_ID`):**
-  Returns `{ "as_of": "...", "fleets": [ ... ], "recent_intake": [ ... ] }` with bounded per-fleet sections:
-  - `seats`: `configured`, `live`, `idle`, `busy`, `stale`, and `items` (per-seat status and active task ID).
+  Returns `{ "as_of": "...", "fleets": [ ... ] }` with bounded per-fleet sections:
+  - `live_seats`, `requested_seats`, and `max_seats` (both counts are 0 when the fleet has no activation row). `seats` repeats those counts as `requested` and `maximum`, plus `configured`, `live`, `idle`, `busy`, `stale`, and `items` (per-seat status and active task ID).
   - `backlog`: open unassigned task counts (`total`, `by_priority`, and `priorities`) within the fleet's allowed repositories.
   - `overdue_assignments`, `pending_assignments`, `misses` (per-seat miss counts), `dry_run_pairs`, and `last_pass`.
+  - `launch_intents`: intents grouped by state (`dry_run`, `pending`, `reserved`, `uncertain`, `launched`, `failed`, `expired`, `superseded`, `closed`, `abandoned`), at most 50 per state, including dry-run would-launch intents. Entries name the seat, agent, harness, and host. They omit lease paths.
   - `ci_obligations`: bounded open CI repair obligations for the fleet's repositories or seats.
-  - `recent_intake`: recent intake items and issue states (no bodies).
+  - `recent_intake`: that fleet's recent intake items and issue states (no bodies). Intake from other repositories is not included.
 
 See [the intake setup guide](https://github.com/carverauto/agentboard/blob/main/docs/setup/intake.md) and [API reference](https://github.com/carverauto/agentboard/blob/main/docs/api.md) for full field schemas.

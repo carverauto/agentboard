@@ -555,6 +555,7 @@ Migration `20261008004800` expands the `agents.agent_kind` check constraint to
 admit `'helper'` and the `agent_api_credentials.agent_credential_scope` check
 constraint to admit `'helper'` (with empty `channel_ids`). The stamp uses
 `GREATEST(version, 48)`, so it never lowers a higher stamp. Readiness requires
-schema 48. The down migration refuses to narrow the constraints while any
-`kind = 'helper'` agent or `scope = 'helper'` credential exists. See
+schema 48. The down migration always raises, including when no helper
+agent or helper credential exists. Roll back by deploying a compatible image
+and keeping the widened check constraints, which older code ignores. See
 [work intake](setup/intake.md) and the [API reference](api.md#work-intake-schema-45).
