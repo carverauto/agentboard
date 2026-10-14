@@ -11,6 +11,7 @@ patches:
   - path: dashboard-mattermost.yaml
   - path: dashboard-github-token.yaml
   - path: dashboard-workflow-hook.yaml
+  - path: dashboard-intake-token.yaml
   - target:
       kind: Cluster
       name: agentboard-db
@@ -78,10 +79,22 @@ configMapGenerator:
       # Required scope for inbound; without it the owner never subscribes (5.4 pilot).
       - AGENTBOARD_MATTERMOST_INBOUND_REPO=carverauto/agentboard
       - AGENTBOARD_MATTERMOST_PRIVATE_ROUTES_ENABLED=true
+      # Captain-approved 2026-10-14: fleet burndown on carverauto/serviceradar.
+      # Intake imports open issues as cards, refill assigns them to fleet seats,
+      # seat supply launches seats on enrolled hosts. Rollback: set the three
+      # *_ENABLED values to false and restart.
+      - AGENTBOARD_INTAKE_ENABLED=true
+      - AGENTBOARD_INTAKE_REPOSITORIES=carverauto/serviceradar
+      - AGENTBOARD_REFILL_ENABLED=true
+      - AGENTBOARD_SEAT_SUPPLY_ENABLED=true
+      # Captain-approved 2026-10-14: Mattermost #agents is the seat coordination
+      # channel (adopt-mattermost-only-coordination). Ignored by images that
+      # predate the coordination-channel server change.
+      - AGENTBOARD_COORDINATION_CHANNEL_ID=tg3thqx96t87myboasiemfipry
 generatorOptions:
   disableNameSuffixHash: true
 images:
   # Operator-managed immutable release pin; see docs/deploy/reference-farm01.md.
   - name: registry.carverauto.dev/agentboard/dashboard
-    # Release v0.3.0 (main d803171; schema 44).
-    digest: sha256:d356c8b98197843dfb0951e0122fae71c86de982f3c1debffe3a74a3e07a8ac8
+    # main c0cf353 (v0.4.0 plus #257 helper access; schema 48), rolled 2026-10-14.
+    digest: sha256:30320c516e1e0a0f7aa5b0164e9e8c6c338aa96821ea4f82ac6eb7e5dee645fe

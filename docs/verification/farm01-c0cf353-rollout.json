@@ -1,0 +1,45 @@
+{
+ "release": "v0.4.0 + #257 (main build, no release tag)",
+ "commit": "c0cf353",
+ "image": "registry.carverauto.dev/agentboard/dashboard@sha256:30320c516e1e0a0f7aa5b0164e9e8c6c338aa96821ea4f82ac6eb7e5dee645fe",
+ "previous_commit": "d803171",
+ "previous_image": "registry.carverauto.dev/agentboard/dashboard@sha256:d356c8b98197843dfb0951e0122fae71c86de982f3c1debffe3a74a3e07a8ac8",
+ "image_workflow_run": "https://github.com/carverauto/agentboard/actions/runs/38516706627",
+ "schema": {
+  "before": 44,
+  "after": 48,
+  "api_version": 1,
+  "migration": [
+   "20261008004700 Agentboard.Repo.Migrations.SeatSupply",
+   "20261008004800 Agentboard.Repo.Migrations.HelperAccess"
+  ]
+ },
+ "pre_migration_backup": "none: maintainer decision (pre-release development data)",
+ "applied_by": "maintainer, plain kubectl: delete+apply migration Job agentboard-migrate with the digest, wait complete, set image deployment/agentboard-dashboard, rollout status",
+ "window": "2026-10-14T05:34:00Z to 2026-10-14T05:35:00Z",
+ "post_checks": {
+  "meta_schema_version": 48,
+  "intake_route_before_flags": "404 intake_disabled",
+  "dashboard_pods_ready": "1/1"
+ },
+ "flags_enabled": {
+  "at": "2026-10-14T05:48:00Z",
+  "approved_by": "captain",
+  "config": {
+   "AGENTBOARD_INTAKE_ENABLED": "true",
+   "AGENTBOARD_INTAKE_REPOSITORIES": "carverauto/serviceradar",
+   "AGENTBOARD_REFILL_ENABLED": "true",
+   "AGENTBOARD_SEAT_SUPPLY_ENABLED": "true"
+  },
+  "deployment_env": {
+   "AGENTBOARD_INTAKE_GITHUB_TOKEN": "secretKeyRef agentboard-github/GITHUB_TOKEN (read-only observer token; import only)"
+  },
+  "rollback": "set the three *_ENABLED values to false and restart"
+ },
+ "coordination_channel": {
+  "at": "2026-10-14T07:45:00Z",
+  "AGENTBOARD_COORDINATION_CHANNEL_ID": "tg3thqx96t87myboasiemfipry",
+  "note": "time approximate; Mattermost #agents; consumed once the coordination-channel server change rolls"
+ },
+ "new_secrets_required": []
+}
