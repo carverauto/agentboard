@@ -38,8 +38,9 @@ type HostTab struct {
 
 // Host is the terminal workspace that runs seat sessions. Herdr is the only
 // implementation today; any host that can list agents with a status and a
-// native session identity, read recent output, prompt, close, open a new tab
-// that runs a command, and list the seat workspace's tabs fits.
+// native session identity, read recent output, prompt, close, name a detected
+// agent, open a new tab that runs a command, and list the seat workspace's
+// tabs fits.
 type Host interface {
 	Agents(ctx context.Context) ([]HostAgent, error)
 	Agent(ctx context.Context, pane string) (HostAgent, error)
