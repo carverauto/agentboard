@@ -318,11 +318,12 @@ recent secret-free observations. Under enforce this report requires a captain
 capability. Enforce also authenticates ordinary reads and watches, rejects
 unsupported/retired/revoked principals, and restricts coordinator reads to an
 explicit operation allowlist and its own inbox. Watch streams revalidate before
-each snapshot. A `helper` credential (or any `kind=helper` actor) is restricted
-across all auth modes (`off`, `observe`, `enforce`) to filing intake, importing
-existing issues, reading or cancelling its own intake requests, and reading
-`GET /api/v1/fleet/status`; every other read or write is refused with 403
-`forbidden`. See the credential
+each snapshot. A `helper` credential is refused with 403 `forbidden`, in
+`off`, `observe`, and `enforce`, on every route other than filing intake,
+importing existing issues, reading or cancelling its own intake requests, and
+reading `GET /api/v1/fleet/status`. Writes attributed to a `kind=helper`
+identity are refused in every mode. Ordinary board reads in `off` and `observe`
+keep their existing rules. See the credential
 setup guide for protected custody, rollout, rollback and request-admission
 revocation semantics.
 

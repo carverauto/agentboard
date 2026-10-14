@@ -363,8 +363,8 @@ defmodule Agentboard.FleetStatus do
         JOIN delivery_pull_requests pr ON pr.id = o.pull_request_id
         WHERE o.resolved_at IS NULL
           AND (
-            lower(pr.owner || '/' || pr.repo) = ANY($1)
-            OR o.responsible_id = ANY($2)
+            lower(pr.owner || '/' || pr.repo) = ANY($1::text[])
+            OR o.responsible_id = ANY($2::text[])
           )
         ORDER BY o.created_at ASC, o.id ASC
         LIMIT $3
