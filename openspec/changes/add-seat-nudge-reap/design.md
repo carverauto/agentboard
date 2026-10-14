@@ -24,9 +24,11 @@ other send error is recorded as uncertain and never replayed.
 
 ## Deduplication and pacing
 
-Each nudge hashes its reason set. The same set is never sent twice, and a seat is
-prompted at most once per `min_gap`. State lives in one host-local file, written
-atomically under an exclusive lock that also makes overlapping timer runs skip.
+Each nudge hashes its reason set. The same set is sent once, and a seat is
+prompted at most once per `min_gap`, except the capacity-retry episode in
+[nudge and reap](../../../docs/setup/seat-nudge.md). State lives in one host-local
+file, written atomically under an exclusive lock that also makes overlapping
+timer runs skip.
 Timestamps reset when a pane's native session changes.
 
 ## Reap safety

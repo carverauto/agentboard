@@ -152,6 +152,90 @@ func TestNudgePromptsIdleSeatOnceForTheSameReasons(t *testing.T) {
 	}
 }
 
+func TestNudgeRetriesACapacityErrorWithBackoffThenGivesUp(t *testing.T) {
+	cfg := testConfig(t)
+	board, host := oneIdleSeat()
+	run := func(at time.Time) Decision {
+		t.Helper()
+		report, err := Nudge(context.Background(), board, host, cfg, at, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return report.Decisions[0]
+	}
+	if d := run(t0); d.Action != "nudged" {
+		t.Fatalf("first nudge = %+v", d)
+	}
+	// The harness answered the nudge with a provider capacity error.
+	host.tails = map[string]string{"w1:p1": "■ Selected model is at capacity. Please try a different model.\n\n› Ask Codex to do anything\n"}
+	steps := []struct {
+		after  time.Duration
+		action string
+		reason string
+	}{
+		{30 * time.Second, "hold", "capacity retry 1/3 after 1m0s"},
+		{time.Minute, "nudged", "capacity retry 1/3"},
+		{3 * time.Minute, "nudged", "capacity retry 2/3"},
+		{7 * time.Minute, "hold", "capacity retry 3/3 after 5m0s"},
+		{8 * time.Minute, "nudged", "capacity retry 3/3"},
+		{time.Hour, "hold", "capacity retries exhausted"},
+	}
+	for _, s := range steps {
+		if d := run(t0.Add(s.after)); d.Action != s.action || d.Reason != s.reason {
+			t.Fatalf("at +%s: decision = %s %q, want %s %q", s.after, d.Action, d.Reason, s.action, s.reason)
+		}
+	}
+	if len(host.prompts) != 4 {
+		t.Fatalf("prompts = %d, want the first nudge plus 3 retries", len(host.prompts))
+	}
+	for _, prompt := range host.prompts[1:] {
+		if prompt != host.prompts[0] {
+			t.Fatalf("a retry changed the prompt: %q vs %q", prompt, host.prompts[0])
+		}
+	}
+	// The error clears, then recurs: a new episode gets its retries back.
+	host.tails = map[string]string{"w1:p1": "› Ask Codex to do anything"}
+	if d := run(t0.Add(2 * time.Hour)); d.Reason != "already nudged for this reason set" {
+		t.Fatalf("without the error = %+v", d)
+	}
+	host.tails = map[string]string{"w1:p1": "Error: 429 Too Many Requests"}
+	if d := run(t0.Add(2*time.Hour + time.Minute)); d.Action != "nudged" || d.Reason != "capacity retry 1/3" {
+		t.Fatalf("new episode = %+v", d)
+	}
+}
+
+func TestNudgeCapacityRetryNeedsAnEmptyComposer(t *testing.T) {
+	cfg := testConfig(t)
+	board, host := oneIdleSeat()
+	if _, err := Nudge(context.Background(), board, host, cfg, t0, true); err != nil {
+		t.Fatal(err)
+	}
+	host.tails = map[string]string{"w1:p1": "API Error: overloaded\n❯ try again"}
+	report, err := Nudge(context.Background(), board, host, cfg, t0.Add(2*time.Minute), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := report.Decisions[0]; d.Action != "hold" || d.Reason != "capacity retry waits for an empty composer" || len(host.prompts) != 1 {
+		t.Fatalf("decision = %+v, prompts = %q", d, host.prompts)
+	}
+	// Empty when decided, typed into before the send: the recheck aborts.
+	host.tails = map[string]string{"w1:p1": "API Error: overloaded\n❯ "}
+	host.readCalls = 0
+	host.readFunc = func(_ string, call int) (string, bool) {
+		if call == 2 {
+			return "API Error: overloaded\n❯ keep going", true
+		}
+		return "", false
+	}
+	report, err = Nudge(context.Background(), board, host, cfg, t0.Add(3*time.Minute), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := report.Decisions[0]; d.Action != "abort" || d.Reason != "composer has input before send" || len(host.prompts) != 1 {
+		t.Fatalf("decision = %+v, prompts = %q", d, host.prompts)
+	}
+}
+
 func TestNudgeRateLimitsANewReasonInsideTheGap(t *testing.T) {
 	cfg := testConfig(t)
 	board, host := oneIdleSeat()

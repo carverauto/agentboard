@@ -30,7 +30,7 @@ The nudge SHALL prompt a seat only when Herdr reports it idle or done, its recen
 - **THEN** it is prompted only about messages that arrived after it began waiting, and never pointed at new work
 
 ### Requirement: Recipient recheck and no replay
-Before sending, the nudge SHALL re-read the pane and abort if its name, native session ID, agent kind or state sequence changed, if it left idle/done, or if its screen shows work in progress. It SHALL NOT send the same reason set twice, SHALL respect `min_gap`, and SHALL record an uncertain send without replaying it.
+Before sending, the nudge SHALL re-read the pane and abort if its name, native session ID, agent kind or state sequence changed, if it left idle/done, or if its screen shows work in progress. It SHALL NOT send the same reason set twice, and SHALL respect `min_gap`, except for the capacity-retry episode in [nudge and reap](../../../../docs/setup/seat-nudge.md). It SHALL record an uncertain send without replaying it.
 
 #### Scenario: Session replaced before send
 - **WHEN** the pane's native session ID differs at recheck
