@@ -155,8 +155,10 @@ only your own worktree explicitly with the pinned tool after cleanup is authoriz
 (v3 finds the pool from the path; legacy v2 leases use the v2 binary). Never prune another seat.
 A full pool is a blocker, not permission to clear someone else's checkout.
 
-Optional SessionStart or turn-end backstops can invoke the source launcher with
-`--repo "$AGENTBOARD_SEAT_SOURCE" --check` from the real seat cwd. Installation is
+Optional SessionStart or turn-end backstops can invoke the agentboard checkout's
+`launch-seat` (not a copy in the target repository) with
+`--repo "$AGENTBOARD_SEAT_SOURCE" --check` from the real seat cwd. A task seat's
+generated brief names `agentboard seat check TASK` instead. Installation is
 explicit and harness-specific; no hooks are installed automatically. They do not
 replace the launcher gate or the STOP brief. This script is a launch boundary, not
 an OS sandbox against a harness that deliberately changes directory later.

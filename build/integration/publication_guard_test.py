@@ -185,4 +185,37 @@ else:
          'https://github.com/fixture/project.git'], source)
     result = push(base)
     assert result.returncode != 0 and absent() and 'missing-secret-path' not in result.stderr, result.stderr
-    print('Real native-gate pushes: ownership/history guards, exact-head conflict refusal, staging default advance, behind-clean warning and unknown refusal passed')
+    # A seat on another repository (no agentboard scripts in it) drives the
+    # helpers from the agentboard checkout; each resolves its siblings there,
+    # never from the target repository (GH264).
+    agentboard = root / 'agentboard' / 'scripts'
+    agentboard.mkdir(parents=True)
+    for original, name in ((launcher, 'launch-seat'), (guard, 'publication-guard'), (wrapper, 'publish-seat')):
+        shutil.copy2(original, agentboard / name)
+        (agentboard / name).chmod(0o755)
+    external, external_gate, external_pool = root / 'external', root / 'external-gate.git', root / 'external-pool'
+    external.mkdir()
+    run(['git', 'init', '-b', 'main'], external)
+    run(['git', 'config', 'user.name', 'Invented seat'], external)
+    run(['git', 'config', 'user.email', 'fixture@example.invalid'], external)
+    (external / 'README').write_text('no agentboard scripts here\n')
+    run(['git', 'add', '.'], external)
+    run(['git', 'commit', '-m', 'Invented external fixture'], external)
+    run(['git', 'init', '--bare', external_gate], external)
+    run(['git', 'remote', 'add', 'origin', target], external)
+    run(['git', 'remote', 'add', 'no-mistakes', external_gate], external)
+    external_seat = Path(run([treehouse, 'get', '--lease', '--lease-holder', 'codex-fixture', '--root', external_pool],
+                             external, acquisition_env).stdout.strip())
+    run(['git', 'switch', '-c', 'feat/external', 'main'], external_seat)
+    assert not (external_seat / 'scripts').exists()
+    (tools / 'no-mistakes').write_text('#!/bin/sh\necho "fixture no-mistakes $*"\n')
+    (tools / 'no-mistakes').chmod(0o755)
+    external_env = dict(env, AGENTBOARD_SEAT_SOURCE=str(external), AGENTBOARD_SEAT_WORKTREE=str(external_seat),
+                        AGENTBOARD_SEAT_ROOT=str(external_pool))
+    result = run([agentboard / 'publication-guard', 'check', 'guard-fixture'], external_seat, external_env, ok=False)
+    assert result.returncode == 0 and 'verified' in result.stdout, ('external-repo guard check', result.stdout, result.stderr)
+    result = run([agentboard / 'publish-seat', 'guard-fixture', '--', 'run'], external_seat, external_env, ok=False)
+    assert result.returncode == 0 and 'fixture no-mistakes axi run' in result.stdout, \
+        ('external-repo publish-seat', result.stdout, result.stderr)
+    assert (external_gate / 'hooks' / 'pre-push').exists(), 'external-repo guard was not bound to its native gate'
+    print('Real native-gate pushes: ownership/history guards, exact-head conflict refusal, staging default advance, behind-clean warning, unknown refusal and external-repo helpers passed')

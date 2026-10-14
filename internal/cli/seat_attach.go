@@ -103,7 +103,11 @@ type seatTaskPage struct {
 }
 
 func (c *commands) ownedSeatPage(ctx context.Context, api *client.Client, task, cursor string) (*seatTaskPage, error) {
-	raw, err := api.JSON(ctx, http.MethodGet, "tasks/"+task, url.Values{"limit": {"1000"}, "cursor": {cursor}}, nil)
+	q := url.Values{"limit": {"1000"}}
+	if cursor != "" {
+		q.Set("cursor", cursor)
+	}
+	raw, err := api.JSON(ctx, http.MethodGet, "tasks/"+task, q, nil)
 	if err != nil {
 		return nil, err
 	}

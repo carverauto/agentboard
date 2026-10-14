@@ -235,7 +235,10 @@ def main():
     source = os.environ.get('AGENTBOARD_SEAT_SOURCE')
     if not source:
         raise Refused("Source checkout identity is required")
-    output([str(Path(source) / 'scripts/launch-seat'), '--repo', source, '--check'])
+    # The launcher ships beside this guard in the agentboard checkout; it checks
+    # the seat against the target source, which need not carry agentboard
+    # scripts (GH264).
+    output([str(Path(__file__).resolve().parent / 'launch-seat'), '--repo', source, '--check'])
     repo = os.environ.get('AGENTBOARD_PUBLICATION_REPO')
     if not repo:
         origin = output(['git', 'remote', 'get-url', 'origin'])

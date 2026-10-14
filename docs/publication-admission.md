@@ -27,10 +27,15 @@ wrapper's existing local registry and pre-push fence are its supported path.
 
 ## Exact-head pre-push check
 
-The outer driver runs `scripts/publish-seat TASK -- run|respond|rerun ...` from
-its verified Treehouse seat. The wrapper installs the task-scoped native gate
-hook while preserving the native post-receive hook. Validation-step agents
-must not drive the pipeline.
+The outer driver runs the agentboard checkout's `publish-seat` by path, with
+the verified Treehouse seat as the working directory (for example
+`/path/to/agentboard/scripts/publish-seat TASK -- run|respond|rerun ...`).
+The wrapper installs the task-scoped native gate hook while preserving the
+native post-receive hook. Validation-step agents must not drive the pipeline.
+
+The seat may belong to any repository. The wrapper finds `publication-guard`
+and `launch-seat` beside itself; the target repository needs no agentboard
+scripts. The seat brief names that absolute path.
 
 For each bound, non-deletion branch in a proposed push, the hook verifies the
 current live task owner, absence of a decision hold, and existing PR/history

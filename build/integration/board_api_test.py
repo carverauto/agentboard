@@ -527,6 +527,12 @@ def get_api(path, timeout=5):
     except urllib.error.HTTPError as response:
         return response.code, json.load(response)
 
+# An empty cursor is the first page, like an absent one, for lists and task timelines (GH264).
+for path in ('tasks?limit=2&cursor=', 'tasks/independent?limit=1000&cursor='):
+    status, body = get_api(path)
+    assert status == 200, (path, status, body)
+    assert get_api(path.replace('&cursor=', ''))[1] == body, path
+
 # Database clock, not the application clock, decides expiry, strict staleness and archive revision.
 ab('task','create','--id','clock-lease','--title','Database clock lease')
 ab('task','claim','clock-lease')

@@ -467,7 +467,11 @@ def seat_environment(directory, common, worktree, source, root):
 
 
 def brief(text, worktree, source, task=None):
-    gate = f"`agentboard seat check {task} --json`" if task else f'`scripts/launch-seat --repo "{source}" --check`'
+    # Seats on other repositories have no agentboard scripts in their worktree,
+    # so name this checkout's helpers by absolute path (GH264).
+    tools = Path(__file__).resolve().parent
+    gate = f"`agentboard seat check {task} --json`" if task else f'`{shlex.quote(str(tools / "launch-seat"))} --repo "{source}" --check`'
+    publish = shlex.quote(str(tools / "publish-seat"))
     return f"""# Agentboard seat isolation — check before editing
 
 Expected disposable Treehouse worktree: {worktree}
@@ -501,12 +505,13 @@ the canonical answer, applying it through the active no-mistakes gate, explicitl
 renewing the task and acknowledging the decision. Never answer your own gate,
 pass --yes, or bypass a held claim; older APIs use the documented board fallback.
 Before starting/reattaching a publication run or answering a gate, check the task
-and linked/head-branch PR merge state. Use `scripts/publish-seat TASK -- run`
-(or `respond`) to verify state and bind a native pre-push guard. A terminal task
+and linked/head-branch PR merge state. From this worktree, use
+`{publish} TASK -- run` (or `respond`) to verify state and bind a native
+pre-push guard. A terminal task
 or merged PR means STOP; inspect native custody and abort its stale active run,
 then report to the coordinator. Do not recreate its branch or a second PR.
 Only an explicitly authorized remaining delta may ship on a new branch from
-fresh main. Hook refusal never authorizes a direct push or --no-verify.
+the fresh default branch. Hook refusal never authorizes a direct push or --no-verify.
 
 # Assigned brief (verbatim)
 

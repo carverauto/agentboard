@@ -19,8 +19,8 @@ Inherit the canonical PR documentation rule: architecture/design and feature PRs
 
 Before editing, run `pwd -P` and `git rev-parse --show-toplevel`; both physical
 paths must equal the expected leased disposable Treehouse worktree root in
-`AGENTBOARD_SEAT_WORKTREE`. Run the source checkout's
-`scripts/launch-seat --repo "$AGENTBOARD_SEAT_SOURCE" --check`. Keep this rule
+`AGENTBOARD_SEAT_WORKTREE`. Run the check named in the generated STOP brief
+(`agentboard seat check TASK --json` on a task seat). Keep this rule
 in every subsequent ship brief. If the expected worktree is missing, the cwd is
 the primary checkout, or any check fails: **STOP implementation**. Do not branch,
 edit, commit or push there. For missing environment alone, use the canonical
@@ -30,8 +30,8 @@ then `agentboard seat check TASK --json` and repeat both physical-path checks.
 This explicit recovery is permitted from the primary checkout; implementation
 is not. No coordinator round-trip is needed for exports alone. A real lease,
 ownership or isolation failure still requires a blocked task and coordination;
-do not guess a seat path or hardcode an agent ID. For repositories without the
-source-side launcher, the packaged `seat check TASK` is the equivalent gate.
+do not guess a seat path or hardcode an agent ID. The target repository does
+not carry `launch-seat`; a task seat uses packaged `seat check TASK`.
 
 Use Treehouse v3.1.2 through the repository's explicit seat launcher with an explicit v3 pool root (`--root` or `AGENTBOARD_SEAT_ROOT`). A Herdr
 backend does not satisfy isolation. Optional hooks are backstops only; this brief
