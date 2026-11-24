@@ -1,7 +1,7 @@
 """Pinned runtime Hex closure; versions/checksums match web/mix.lock."""
 
 HEX_PACKAGES = [
-    ('ash', 'ash', '3.34.3', '7f5c9468aa8f4066a052bb01daf7520b42d6bbaac187b19d00bbab3be14f4bdc'),
+    ('ash', 'ash', '3.38.1', 'ad594df16b9bde134530e5552a9f9293e96e78b9b9d7a04f73c369eb3fb9ee61'),
     ('ash_cloak', 'ash_cloak', '0.4.0', 'd55bde03e90f8e31436ebec069681cbdab0875de52efe0939e5e2c3f32b91efd'),
     ('ash_events', 'ash_events', '0.8.2', '98576569eefa3318ff97eeb0b6a283b70091de261766849c28ba86e699fe255f'),
     ('cloak', 'cloak', '1.1.4', '92b20527b9aba3d939fab0dd32ce592ff86361547cfdc87d74edce6f980eb3d7'),
@@ -15,7 +15,7 @@ HEX_PACKAGES = [
     ('castore', 'castore', '1.0.21', 'e42e22723e25dbd46876d056a03f685513d6e98f6b5e555dc551321decd76c5c'),
     ('comeonin', 'comeonin', '5.5.1', '65aac8f19938145377cee73973f192c5645873dcf550a8a6b18187d17c13ccdb'),
     ('crux', 'crux', '0.1.4', 'ff7d880cf732d82360aa81e439b8d4831cd30768061c9233f90c97e10162b9c0'),
-    ('db_connection', 'db_connection', '2.10.2', '510b14482330f1af6490a2fa0efd8d4f1435d1529b165647df22ac0f2df0fa93'),
+    ('db_connection', 'db_connection', '2.10.3', 'ff441940bfd9ef5cced632e0e36d4ac823abeb9cae2767203fb9b4ccd1bd83cb'),
     ('decimal', 'decimal', '3.1.1', 'c5f25f2ced74a0587d03e6023f595db8e924c9d3922c8c8ffd9edfc4498cf1f6'),
     ('ecto', 'ecto', '3.14.2', '25d60b8c816a07d19d85b80bdf60978bd8b102209dda198d768cd7c6745339a6'),
     ('ecto_sql', 'ecto_sql', '3.14.0', 'f4d8d36faf294c9417b5a37ec7ac8217ee2abdef5fcf197ba690f361548d3949'),

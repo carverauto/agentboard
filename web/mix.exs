@@ -42,7 +42,7 @@ defmodule Agentboard.MixProject do
 
   defp deps do
     [
-      {:ash, "== 3.34.3"},
+      {:ash, "== 3.38.1"},
       {:ash_postgres, "== 2.14.2"},
       {:ash_phoenix, "== 2.3.25"},
       {:ash_events, "== 0.8.2"},
